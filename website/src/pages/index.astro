@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navigation from '../components/Navigation.astro';
+import Hero from '../components/Hero.astro';
+import Features from '../components/Features.astro';
+import HowItWorks from '../components/HowItWorks.astro';
+import Download from '../components/Download.astro';
+import CTA from '../components/CTA.astro';
+import Footer from '../components/Footer.astro';
+
+const description = "Pandia is a free, open-source desktop app to visualize, edit, compare, and transform JSON data. Generate TypeScript, Go, Rust types. Query with JMESPath. Works offline on macOS, Windows, and Linux.";
+---
+
+<Layout
+  title="Pandia - Beautiful JSON Visualization Tool"
+  description={description}
+  canonical="/"
+>
+  <Navigation currentPage="home" />
+  <main>
+    <Hero />
+    <Features />
+    <HowItWorks />
+    <Download />
+    <CTA />
+  </main>
+  <Footer />
+</Layout>

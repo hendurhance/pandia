@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+
+# Rust/Tauri
+src-tauri/target/
+src-tauri/gen/
+**/*.rs.bk
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Test
+coverage/
+test-results/
+playwright-report/
+
+# Claude
+.claude/
+
+# Misc
+*.backup
+*.bak
+temp/
+tmp/

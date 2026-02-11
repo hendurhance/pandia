@@ -1,0 +1,85 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Configure Pandia preferences, default settings, editor behavior, and application options. Customize your JSON editing experience.";
+---
+
+<DocsLayout title="Configuration" description={description} currentDoc="/docs/configuration">
+  <article class="prose prose-invert max-w-none">
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Configuration</h1>
+      <p class="text-xl text-brand-gray">
+        Customize Pandia to fit your workflow.
+      </p>
+    </div>
+
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Settings Location</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia stores its configuration in the following locations:
+      </p>
+      <div class="space-y-3 text-sm">
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20">
+          <span class="text-white font-medium">macOS:</span>
+          <code class="ml-2 text-brand-orange font-mono">~/Library/Application Support/pandia/</code>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20">
+          <span class="text-white font-medium">Windows:</span>
+          <code class="ml-2 text-brand-orange font-mono">%APPDATA%\pandia\</code>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20">
+          <span class="text-white font-medium">Linux:</span>
+          <code class="ml-2 text-brand-orange font-mono">~/.config/pandia/</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Available Settings</h2>
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Appearance</h3>
+          <ul class="space-y-2 text-sm text-brand-gray">
+            <li>• Theme (Dark / Light / System)</li>
+            <li>• Node colors</li>
+            <li>• Font size</li>
+            <li>• Animation speed</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Performance</h3>
+          <ul class="space-y-2 text-sm text-brand-gray">
+            <li>• Max nodes to render (default: 10,000)</li>
+            <li>• Auto-collapse threshold</li>
+            <li>• Hardware acceleration</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Behavior</h3>
+          <ul class="space-y-2 text-sm text-brand-gray">
+            <li>• Auto-update checks</li>
+            <li>• Remember window position</li>
+            <li>• Default export format</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/shortcuts" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Shortcuts
+      </a>
+      <a href="/docs/troubleshooting" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Troubleshooting
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

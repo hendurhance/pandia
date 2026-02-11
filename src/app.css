@@ -1,0 +1,424 @@
+/* CSS Reset and base styles */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+/* CSS Variables will be set by theme system */
+:root {
+	/* Default theme variables (will be overridden by theme system) */
+	--color-background: #0f0f0f;
+	--color-background-secondary: #1a1a1a;
+	--color-background-tertiary: #262626;
+	
+	--color-surface: #1e1e1e;
+	--color-surface-secondary: #2d2d2d;
+	--color-surface-hover: #3c3c3c;
+	
+	--color-text: #ffffff;
+	--color-text-secondary: #cccccc;
+	--color-text-muted: #888888;
+	--color-text-inverted: #000000;
+	
+	--color-border: #333333;
+	--color-border-secondary: #555555;
+	--color-border-focus: #007acc;
+	
+	--color-primary: #007acc;
+	--color-primary-hover: #005a9e;
+	--color-secondary: #6c757d;
+	--color-secondary-hover: #5a6268;
+	
+	--color-success: #28a745;
+	--color-warning: #ffc107;
+	--color-error: #dc3545;
+	--color-info: #17a2b8;
+	
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+	--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+	
+	--spacing-xs: 0.25rem;
+	--spacing-sm: 0.5rem;
+	--spacing-md: 1rem;
+	--spacing-lg: 1.5rem;
+	--spacing-xl: 2rem;
+	
+	--border-radius-sm: 0.25rem;
+	--border-radius-md: 0.375rem;
+	--border-radius-lg: 0.5rem;
+	
+	--font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace;
+	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+	
+	--font-size-xs: 0.75rem;
+	--font-size-sm: 0.875rem;
+	--font-size-base: 1rem;
+	--font-size-lg: 1.125rem;
+	--font-size-xl: 1.25rem;
+}
+
+html, body {
+	height: 100%;
+	font-family: var(--font-sans);
+	background: var(--color-background);
+	color: var(--color-text);
+	overflow: hidden;
+	font-size: var(--font-size-base);
+	line-height: 1.5;
+}
+
+/* Prevent text selection on UI elements */
+body {
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
+/* Allow text selection on inputs, textareas, and code/content areas */
+input,
+textarea,
+[contenteditable="true"],
+pre,
+code,
+.cm-content,
+.cm-line,
+.jse-value,
+.jse-contents,
+.selectable,
+.value-display,
+.code-output,
+.json-output,
+.result-content,
+.error-message,
+.path-cell code {
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-ms-user-select: text;
+	user-select: text;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--color-background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: var(--border-radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-border-secondary);
+}
+
+::-webkit-scrollbar-corner {
+	background: var(--color-background-secondary);
+}
+
+/* Focus management for accessibility */
+:focus-visible {
+	outline: 2px solid var(--color-border-focus);
+	outline-offset: 2px;
+}
+
+/* Button styles */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	padding: var(--spacing-sm) var(--spacing-md);
+	border: none;
+	border-radius: var(--border-radius-sm);
+	background: var(--color-primary);
+	color: var(--color-text-inverted);
+	cursor: pointer;
+	font-size: var(--font-size-sm);
+	font-family: inherit;
+	font-weight: 500;
+	text-decoration: none;
+	transition: all 0.15s ease;
+	white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+	background: var(--color-primary-hover);
+	transform: translateY(-1px);
+}
+
+.btn:active {
+	transform: translateY(0);
+}
+
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	transform: none !important;
+}
+
+.btn-secondary {
+	background: var(--color-secondary);
+	color: var(--color-text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+	background: var(--color-secondary-hover);
+}
+
+.btn-outline {
+	background: transparent;
+	border: 1px solid var(--color-border);
+	color: var(--color-text);
+}
+
+.btn-outline:hover:not(:disabled) {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border-focus);
+}
+
+.btn-ghost {
+	background: transparent;
+	color: var(--color-text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+	background: var(--color-surface-hover);
+	color: var(--color-text);
+}
+
+.btn-sm {
+	padding: calc(var(--spacing-xs) - 1px) var(--spacing-sm);
+	font-size: var(--font-size-xs);
+}
+
+.btn-lg {
+	padding: var(--spacing-md) var(--spacing-lg);
+	font-size: var(--font-size-lg);
+}
+
+/* Input styles */
+.input {
+	padding: var(--spacing-sm) var(--spacing-md);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-sm);
+	background: var(--color-surface-secondary);
+	color: var(--color-text);
+	font-size: var(--font-size-sm);
+	font-family: inherit;
+	transition: all 0.15s ease;
+	width: 100%;
+}
+
+.input:focus {
+	outline: none;
+	border-color: var(--color-border-focus);
+	box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.1);
+}
+
+.input:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.input::placeholder {
+	color: var(--color-text-muted);
+}
+
+/* Tab styles */
+.tab {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	padding: var(--spacing-sm) var(--spacing-md);
+	background: var(--color-surface-secondary);
+	border: none;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	font-size: var(--font-size-sm);
+	font-family: inherit;
+	transition: all 0.15s ease;
+	position: relative;
+}
+
+.tab:hover {
+	background: var(--color-surface-hover);
+	color: var(--color-text);
+}
+
+.tab.active {
+	background: var(--color-surface);
+	color: var(--color-text);
+	border-bottom-color: var(--color-primary);
+}
+
+.tab.dirty::after {
+	content: '';
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: var(--color-warning);
+	position: absolute;
+	top: 6px;
+	right: 6px;
+}
+
+/* Modal styles */
+.modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0, 0, 0, 0.8);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	backdrop-filter: blur(2px);
+	animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+.modal {
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-lg);
+	padding: var(--spacing-xl);
+	max-width: 500px;
+	width: 90%;
+	max-height: 80vh;
+	overflow-y: auto;
+	box-shadow: var(--shadow-xl);
+	animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+	from { 
+		opacity: 0;
+		transform: translateY(-20px) scale(0.95);
+	}
+	to { 
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.modal h2 {
+	margin-bottom: var(--spacing-lg);
+	color: var(--color-text);
+	font-size: var(--font-size-lg);
+	font-weight: 600;
+}
+
+.modal-buttons {
+	display: flex;
+	gap: var(--spacing-sm);
+	justify-content: flex-end;
+	margin-top: var(--spacing-lg);
+}
+
+/* Utility classes */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+
+.overflow-hidden { overflow: hidden; }
+.overflow-auto { overflow: auto; }
+
+/* Animation classes */
+.fade-in {
+	animation: fadeIn 0.2s ease;
+}
+
+.slide-in-up {
+	animation: slideInUp 0.3s ease;
+}
+
+@keyframes slideInUp {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* ============================================
+   vanilla-jsoneditor / CodeMirror Global Overrides
+   These override scoped styles from the library
+   ============================================ */
+
+/* CodeMirror Gutter (line numbers area) */
+.jse-text-mode .jse-contents .cm-editor .cm-gutters,
+.cm-editor .cm-gutters {
+	background: var(--color-editor-background, var(--color-surface)) !important;
+	border-right: 1px solid var(--color-border) !important;
+	color: var(--color-text-muted) !important;
+}
+
+.cm-editor .cm-gutter {
+	background: transparent !important;
+}
+
+.cm-editor .cm-lineNumbers .cm-gutterElement {
+	color: var(--color-text-muted) !important;
+	padding: 0 8px 0 12px !important;
+	min-width: 3em !important;
+}
+
+.cm-editor .cm-activeLineGutter {
+	background: var(--color-editor-line-highlight, rgba(255, 255, 255, 0.05)) !important;
+	color: var(--color-text-secondary) !important;
+}
+
+/* Status bar at bottom */
+.jse-status-bar {
+	background: var(--color-editor-background, var(--color-surface)) !important;
+	border-top: 1px solid var(--color-border) !important;
+	color: var(--color-text-secondary) !important;
+}
+
+.jse-status-bar * {
+	color: var(--color-text-secondary) !important;
+}
+
+.jse-status-bar button:hover {
+	color: var(--color-text) !important;
+	background: var(--color-surface-hover) !important;
+}

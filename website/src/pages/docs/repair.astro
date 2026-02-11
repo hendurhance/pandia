@@ -1,0 +1,243 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Automatically fix malformed JSON with intelligent repair. Handles trailing commas, unquoted keys, single quotes, missing brackets, and common syntax errors.";
+---
+
+<DocsLayout title="JSON Repair" description={description} currentDoc="/docs/repair">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">JSON Repair</h1>
+      <p class="text-xl text-brand-gray">
+        Automatically fix malformed JSON with intelligent repair algorithms.
+      </p>
+    </div>
+
+    <!-- Overview -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Overview</h2>
+      <p class="text-brand-gray mb-4">
+        The JSON repair feature can automatically fix common JSON syntax errors. This is especially useful when working with JSON from logs, APIs that return malformed data, or hand-edited configuration files.
+      </p>
+
+      <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <div class="flex gap-2 text-sm mb-3">
+          <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + Shift + R</kbd>
+          <span class="text-brand-gray">Repair current JSON</span>
+        </div>
+        <p class="text-xs text-brand-gray">
+          You can also access repair from the Tools menu or the right-click context menu.
+        </p>
+      </div>
+    </section>
+
+    <!-- What Can Be Repaired -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">What Can Be Repaired</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Trailing Commas</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Removes trailing commas in objects and arrays that cause parse errors.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs">{`{"name": "John",}`}</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">{`{"name": "John"}`}</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Unquoted Keys</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Adds quotes around object keys that are missing them.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs">{`{name: "John"}`}</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">{`{"name": "John"}`}</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Single Quotes</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Converts single quotes to double quotes (JSON standard).
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs">{`{'name': 'John'}`}</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">{`{"name": "John"}`}</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Comments</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Removes JavaScript-style comments that are not valid in JSON.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs whitespace-pre">{`{"name": "John" // user name}`}</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">{`{"name": "John"}`}</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Special Values</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Converts undefined, NaN, and Infinity to null.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs">{`{"value": undefined}`}</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">{`{"value": null}`}</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Duplicate Commas</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Removes consecutive commas that cause parse errors.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs">[1,, 2,,, 3]</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">[1, 2, 3]</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Semicolons</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Replaces semicolons used as separators with commas.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+              <span class="text-xs text-red-400 block mb-1">Before</span>
+              <code class="text-xs">{`{"a": 1; "b": 2}`}</code>
+            </div>
+            <div class="p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <span class="text-xs text-green-400 block mb-1">After</span>
+              <code class="text-xs">{`{"a": 1, "b": 2}`}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Escape/Unescape -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Escape & Unescape</h2>
+      <p class="text-brand-gray mb-4">
+        The repair feature also handles string escaping issues:
+      </p>
+
+      <ul class="space-y-3 text-brand-gray">
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Unescaped control characters</strong> - Escapes newlines, tabs, and other control characters in strings</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Double-escaped strings</strong> - Fixes over-escaped JSON like \\n becoming \n</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Unicode escapes</strong> - Properly handles \uXXXX escape sequences</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Repair Report -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Repair Report</h2>
+      <p class="text-brand-gray mb-4">
+        After repairing, Pandia shows a report of what was fixed:
+      </p>
+
+      <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <ul class="space-y-2 text-sm text-brand-gray">
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span><strong class="text-white">Success status</strong> - Whether the JSON was successfully repaired</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span><strong class="text-white">Warnings</strong> - Non-critical issues that were fixed</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span><strong class="text-white">Errors</strong> - Issues that could not be automatically fixed</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><strong class="text-white">Size comparison</strong> - Original vs repaired content length</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/search" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Search & Replace
+      </a>
+      <a href="/docs/themes" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Themes
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

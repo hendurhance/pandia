@@ -1,0 +1,120 @@
+{
+  "productName": "Pandia",
+  "version": "0.1.0",
+  "identifier": "com.pandia.ide",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pandia",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/hendurhance/pandia/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "Pandia",
+    "copyright": "Copyright 2024 Pandia",
+    "category": "DeveloperTool",
+    "shortDescription": "A powerful cross-platform JSON IDE",
+    "longDescription": "Pandia is a powerful, cross-platform desktop JSON editor with validation, formatting, repair, visualization, and comparison features.",
+    "fileAssociations": [
+      {
+        "ext": ["json"],
+        "name": "JSON File",
+        "description": "JavaScript Object Notation file",
+        "role": "Editor",
+        "mimeType": "application/json"
+      },
+      {
+        "ext": ["jsonc"],
+        "name": "JSON with Comments",
+        "description": "JSON file with comments",
+        "role": "Editor",
+        "mimeType": "application/json"
+      },
+      {
+        "ext": ["json5"],
+        "name": "JSON5 File",
+        "description": "JSON5 data file",
+        "role": "Editor",
+        "mimeType": "application/json5"
+      },
+      {
+        "ext": ["geojson"],
+        "name": "GeoJSON File",
+        "description": "Geographic JSON file",
+        "role": "Editor",
+        "mimeType": "application/geo+json"
+      },
+      {
+        "ext": ["jsonl", "ndjson"],
+        "name": "JSON Lines",
+        "description": "Newline-delimited JSON file",
+        "role": "Editor",
+        "mimeType": "application/x-ndjson"
+      }
+    ],
+    "macOS": {
+      "entitlements": "./entitlements.plist",
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 },
+        "windowSize": { "width": 660, "height": 400 }
+      }
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "timestampUrl": "http://timestamp.digicert.com",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      },
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libappindicator3-1"]
+      }
+    }
+  }
+}

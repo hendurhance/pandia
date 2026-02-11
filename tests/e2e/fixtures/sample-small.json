@@ -1,0 +1,32 @@
+{
+  "name": "Sample Data",
+  "version": "1.0.0",
+  "description": "A small sample JSON file for testing",
+  "users": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "active": true
+    },
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "active": false
+    }
+  ],
+  "settings": {
+    "theme": "dark",
+    "language": "en",
+    "notifications": {
+      "email": true,
+      "push": false
+    }
+  },
+  "tags": ["sample", "test", "json"],
+  "metadata": {
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-02T12:00:00Z"
+  }
+}

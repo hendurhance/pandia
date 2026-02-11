@@ -1,0 +1,27 @@
+# Pandia Website - robots.txt
+# https://pandia.app
+
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://pandia.app/sitemap-index.xml
+
+# Crawl-delay for polite bots
+Crawl-delay: 1
+
+# Allow AI training bots
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /

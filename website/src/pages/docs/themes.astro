@@ -1,0 +1,234 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Customize Pandia's appearance with built-in themes including dark, light, and popular color schemes like Nord, Dracula, and Solarized. System theme detection supported.";
+---
+
+<DocsLayout title="Themes" description={description} currentDoc="/docs/themes">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Themes</h1>
+      <p class="text-xl text-brand-gray">
+        Customize the look and feel of Pandia with 10 built-in themes.
+      </p>
+    </div>
+
+    <!-- Dark Themes -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Dark Themes</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #0f0f0f;">
+            <span class="w-2 h-6 rounded-sm" style="background: #79c7ff;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #c3a66f;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #7ec87e;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #6ab0f3;"></span>
+          </div>
+          <h3 class="text-white font-medium">Dark (Default)</h3>
+          <p class="text-sm text-brand-gray">VS Code inspired, easy on the eyes for extended use</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #282a36;">
+            <span class="w-2 h-6 rounded-sm" style="background: #ffb86c;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #f1fa8c;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #bd93f9;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #ff79c6;"></span>
+          </div>
+          <h3 class="text-white font-medium">Dracula</h3>
+          <p class="text-sm text-brand-gray">Popular dark theme with vibrant purple and pink accents</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #2e3440;">
+            <span class="w-2 h-6 rounded-sm" style="background: #8fbcbb;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #a3be8c;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #b48ead;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #81a1c1;"></span>
+          </div>
+          <h3 class="text-white font-medium">Nord</h3>
+          <p class="text-sm text-brand-gray">Arctic, north-bluish color palette inspired by polar nights</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #272822;">
+            <span class="w-2 h-6 rounded-sm" style="background: #f92672;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #e6db74;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #ae81ff;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #66d9ef;"></span>
+          </div>
+          <h3 class="text-white font-medium">Monokai</h3>
+          <p class="text-sm text-brand-gray">Classic Sublime Text theme with warm, saturated colors</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #002b36;">
+            <span class="w-2 h-6 rounded-sm" style="background: #b8c94a;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #2aa198;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #d33682;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #6c71c4;"></span>
+          </div>
+          <h3 class="text-white font-medium">Solarized Dark</h3>
+          <p class="text-sm text-brand-gray">Ethan Schoonover's precision color scheme, dark variant</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #0d1117;">
+            <span class="w-2 h-6 rounded-sm" style="background: #7ee787;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #a5d6ff;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #79c0ff;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #ff7b72;"></span>
+          </div>
+          <h3 class="text-white font-medium">GitHub Dark</h3>
+          <p class="text-sm text-brand-gray">GitHub's official dark mode theme</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Light Themes -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Light Themes</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #ffffff; border: 1px solid #e5e7eb;">
+            <span class="w-2 h-6 rounded-sm" style="background: #be185d;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #0f766e;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #1d4ed8;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #7c3aed;"></span>
+          </div>
+          <h3 class="text-white font-medium">Light (Default)</h3>
+          <p class="text-sm text-brand-gray">Clean and minimal for well-lit environments</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #fdf6e3; border: 1px solid #d3cbb7;">
+            <span class="w-2 h-6 rounded-sm" style="background: #859900;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #087f76;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #d33682;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #6c71c4;"></span>
+          </div>
+          <h3 class="text-white font-medium">Solarized Light</h3>
+          <p class="text-sm text-brand-gray">Ethan Schoonover's precision color scheme, light variant</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #fafafa; border: 1px solid #d4d4d5;">
+            <span class="w-2 h-6 rounded-sm" style="background: #a626a4;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #328331;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #4078f2;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #986801;"></span>
+          </div>
+          <h3 class="text-white font-medium">One Light</h3>
+          <p class="text-sm text-brand-gray">Atom's iconic light theme with balanced colors</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-full h-20 rounded-lg mb-3 flex items-end p-3 gap-1" style="background: #ffffff; border: 1px solid #d1d9e0;">
+            <span class="w-2 h-6 rounded-sm" style="background: #116329;"></span>
+            <span class="w-2 h-4 rounded-sm" style="background: #0a3069;"></span>
+            <span class="w-2 h-8 rounded-sm" style="background: #0550ae;"></span>
+            <span class="w-2 h-3 rounded-sm" style="background: #cf222e;"></span>
+          </div>
+          <h3 class="text-white font-medium">GitHub Light</h3>
+          <p class="text-sm text-brand-gray">GitHub's official light mode theme</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- System Theme -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Automatic Theme</h2>
+      <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <p class="text-brand-gray mb-4">
+          Enable "System" theme to automatically match your operating system's appearance settings. Pandia will switch between light and dark default themes as your system does.
+        </p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-brand-darker rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-white font-medium">System Preference</p>
+            <p class="text-sm text-brand-gray">Automatically adapts to your OS settings</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Changing Theme -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Changing Theme</h2>
+      <p class="text-brand-gray mb-4">
+        Change the theme from the Settings menu:
+      </p>
+      <ol class="space-y-3 text-brand-gray mb-6">
+        <li class="flex gap-3">
+          <span class="shrink-0 w-6 h-6 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center text-sm font-medium">1</span>
+          <span>Open Settings (gear icon in the toolbar)</span>
+        </li>
+        <li class="flex gap-3">
+          <span class="shrink-0 w-6 h-6 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center text-sm font-medium">2</span>
+          <span>Navigate to the Appearance section</span>
+        </li>
+        <li class="flex gap-3">
+          <span class="shrink-0 w-6 h-6 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center text-sm font-medium">3</span>
+          <span>Select your preferred theme from the dropdown</span>
+        </li>
+      </ol>
+
+      <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <h4 class="text-white font-medium mb-2">Keyboard Shortcut</h4>
+        <div class="flex gap-2 text-sm">
+          <kbd class="px-2 py-1 bg-brand-darker rounded text-brand-gray">Cmd/Ctrl + Shift + T</kbd>
+          <span class="text-brand-gray">Toggle between light and dark themes</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- WCAG Compliance -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Accessibility</h2>
+      <p class="text-brand-gray mb-4">
+        All themes are designed to meet WCAG AA contrast requirements:
+      </p>
+      <ul class="space-y-2 text-brand-gray">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">4.5:1</strong> contrast ratio for normal text</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">3:1</strong> contrast ratio for large text and UI components</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Optimized syntax highlighting for code readability</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/repair" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: JSON Repair
+      </a>
+      <a href="/docs/shortcuts" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Keyboard Shortcuts
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

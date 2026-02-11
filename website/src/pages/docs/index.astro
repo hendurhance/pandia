@@ -1,0 +1,215 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Complete documentation for Pandia, the free open-source JSON visualization tool. Learn to view, edit, compare, and transform JSON data with interactive diagrams and type generation.";
+---
+
+<DocsLayout title="Introduction" description={description} currentDoc="/docs">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Introduction</h1>
+      <p class="text-xl text-brand-gray">
+        Welcome to Pandia, a powerful JSON visualization and editing tool for developers.
+      </p>
+    </div>
+
+    <!-- What is Pandia -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">What is Pandia?</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia is a free, open-source desktop application that provides a complete toolkit for working with JSON data. Whether you're debugging API responses, exploring data structures, generating types, or comparing JSON documents, Pandia has the tools you need.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h3 class="text-white font-medium mb-1">Fast</h3>
+          <p class="text-sm text-brand-gray">Built with Rust and Tauri for native performance</p>
+        </div>
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-10 h-10 bg-brand-purple/10 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h3 class="text-white font-medium mb-1">Private</h3>
+          <p class="text-sm text-brand-gray">All processing happens locally on your machine</p>
+        </div>
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </div>
+          <h3 class="text-white font-medium mb-1">Free</h3>
+          <p class="text-sm text-brand-gray">Open source, forever free</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Key Features</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Multiple View Modes</h3>
+          <p class="text-sm text-brand-gray">
+            View your JSON in different formats: Tree view for hierarchical navigation, Graph view for visual relationships, Grid view for tabular data, and Code view for raw editing.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Type Generation</h3>
+          <p class="text-sm text-brand-gray">
+            Generate type definitions from JSON in multiple languages: TypeScript, Go, Rust, Python, Java, Kotlin, PHP, Zod schemas, JSON Schema, GraphQL, Mongoose, BigQuery, and MySQL.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Multi-Format Import</h3>
+          <p class="text-sm text-brand-gray">
+            Import data from multiple formats including JSON, YAML, XML, and CSV. Load from files, URLs, cURL commands, or GitHub Gists.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Flexible Export</h3>
+          <p class="text-sm text-brand-gray">
+            Export your JSON to various formats including YAML, XML, CSV, Base64, and URL-encoded. Save to files, send to webhooks, or upload to GitHub Gists.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">JSON Query</h3>
+          <p class="text-sm text-brand-gray">
+            Query your JSON data using three powerful query languages: JSON Query Language, JMESPath, or Lodash expressions.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Compare & Diff</h3>
+          <p class="text-sm text-brand-gray">
+            Compare two JSON documents with side-by-side and unified diff views. Easily spot additions, deletions, and modifications.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">JSON Repair</h3>
+          <p class="text-sm text-brand-gray">
+            Automatically fix malformed JSON with intelligent repair. Handles trailing commas, unquoted keys, comments, and more.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Graph Visualization</h3>
+          <p class="text-sm text-brand-gray">
+            Transform JSON into interactive node-based diagrams. Pan, zoom, and navigate through your data visually. Export as PNG or SVG.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Additional Features -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Additional Features</h2>
+      <ul class="space-y-3 text-brand-gray">
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Find & Replace</strong> - Search for keys, values, or patterns with regex support</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Snippet Manager</strong> - Save and organize frequently used JSON snippets</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">JSON Path Finder</strong> - Navigate to any path in your JSON structure</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Custom Themes</strong> - Choose from built-in themes or create your own</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Keyboard Shortcuts</strong> - Full keyboard navigation and shortcuts</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Tab Management</strong> - Work with multiple JSON files in tabs</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Auto-Save</strong> - Never lose your work with configurable auto-save</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Cross Platform</strong> - Available for macOS, Windows, and Linux</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Quick Links -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Quick Links</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/docs/installation" class="group p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-orange/30 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center group-hover:bg-brand-orange/20 transition-colors">
+              <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-white font-medium">Installation</h3>
+              <p class="text-sm text-brand-gray">Download and install Pandia</p>
+            </div>
+          </div>
+        </a>
+        <a href="/docs/quick-start" class="group p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-purple/30 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-brand-purple/10 rounded-lg flex items-center justify-center group-hover:bg-brand-purple/20 transition-colors">
+              <svg class="w-5 h-5 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-white font-medium">Quick Start</h3>
+              <p class="text-sm text-brand-gray">Get started in 5 minutes</p>
+            </div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-end pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/installation" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Installation
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

@@ -1,0 +1,186 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Generate TypeScript interfaces, Go structs, Rust structs, Python dataclasses, Java POJOs, Kotlin data classes, and more from JSON. Includes JSON Schema, Zod, GraphQL, and Mongoose schema generation.";
+---
+
+<DocsLayout title="Type Generation" description={description} currentDoc="/docs/type-generation">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Type Generation</h1>
+      <p class="text-xl text-brand-gray">
+        Generate type definitions and schemas from your JSON data in multiple programming languages.
+      </p>
+    </div>
+
+    <!-- Overview -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Overview</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia can analyze your JSON structure and automatically generate type definitions, interfaces, and schemas for various programming languages and tools. This is perfect for creating type-safe code from API responses or configuration files.
+      </p>
+    </section>
+
+    <!-- Programming Languages -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Programming Languages</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-blue-400 font-bold text-sm">TS</span>
+            </div>
+            <h3 class="text-white font-medium">TypeScript</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate TypeScript interfaces with proper types and optional properties.</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-cyan-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-cyan-400 font-bold text-sm">Go</span>
+            </div>
+            <h3 class="text-white font-medium">Go</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate Go structs with JSON tags for marshaling/unmarshaling.</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-orange-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-orange-400 font-bold text-sm">Rs</span>
+            </div>
+            <h3 class="text-white font-medium">Rust</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate Rust structs with Serde derive macros.</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-yellow-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-yellow-400 font-bold text-sm">Py</span>
+            </div>
+            <h3 class="text-white font-medium">Python</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate Python dataclasses with type hints.</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-red-400 font-bold text-sm">Ja</span>
+            </div>
+            <h3 class="text-white font-medium">Java</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate Java POJOs with getters, setters, and constructors.</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-purple-400 font-bold text-sm">Kt</span>
+            </div>
+            <h3 class="text-white font-medium">Kotlin</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate Kotlin data classes with Jackson annotations.</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center">
+              <span class="text-indigo-400 font-bold text-sm">PHP</span>
+            </div>
+            <h3 class="text-white font-medium">PHP</h3>
+          </div>
+          <p class="text-sm text-brand-gray">Generate PHP readonly classes with typed properties.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Schema Formats -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Schema Formats</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">JSON Schema</h3>
+          <p class="text-sm text-brand-gray">
+            Generate JSON Schema (draft 2020-12) for validation. Includes format hints for dates, emails, and URLs.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Zod</h3>
+          <p class="text-sm text-brand-gray">
+            Generate Zod schemas for TypeScript runtime validation. Includes type inference.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">GraphQL</h3>
+          <p class="text-sm text-brand-gray">
+            Generate GraphQL type definitions with Query types for your data structure.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Mongoose</h3>
+          <p class="text-sm text-brand-gray">
+            Generate Mongoose schemas for MongoDB with proper types and model exports.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Database Schemas -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Database Schemas</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">MySQL</h3>
+          <p class="text-sm text-brand-gray">
+            Generate CREATE TABLE statements with appropriate column types. Automatically detects UUIDs, dates, and other common formats.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">BigQuery</h3>
+          <p class="text-sm text-brand-gray">
+            Generate BigQuery schema definitions in JSON format with proper field modes and types.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Use -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">How to Use</h2>
+      <ol class="space-y-3 text-brand-gray list-decimal list-inside">
+        <li>Load your JSON data into Pandia</li>
+        <li>Open the Type Generator from the toolbar or menu</li>
+        <li>Select your target language or schema format</li>
+        <li>Optionally customize the root type name</li>
+        <li>Copy the generated code to your clipboard</li>
+      </ol>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/import-export" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Import Formats
+      </a>
+      <a href="/docs/export" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Export Options
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

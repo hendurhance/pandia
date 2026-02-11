@@ -1,0 +1,192 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Compare two JSON documents side-by-side with highlighted additions, deletions, and modifications. Unified diff view and structural analysis.";
+---
+
+<DocsLayout title="Compare & Diff" description={description} currentDoc="/docs/compare">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Compare & Diff</h1>
+      <p class="text-xl text-brand-gray">
+        Compare two JSON documents and visualize their differences.
+      </p>
+    </div>
+
+    <!-- Overview -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Overview</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia's diff feature allows you to compare two JSON documents side-by-side or in a unified view. Differences are highlighted with clear visual indicators for additions, deletions, and modifications.
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 text-center">
+          <div class="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center mb-3 mx-auto">
+            <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </div>
+          <h3 class="text-white font-medium mb-1">Added</h3>
+          <p class="text-xs text-brand-gray">New keys or values</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 text-center">
+          <div class="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center mb-3 mx-auto">
+            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+            </svg>
+          </div>
+          <h3 class="text-white font-medium mb-1">Removed</h3>
+          <p class="text-xs text-brand-gray">Deleted keys or values</p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 text-center">
+          <div class="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center mb-3 mx-auto">
+            <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </div>
+          <h3 class="text-white font-medium mb-1">Modified</h3>
+          <p class="text-xs text-brand-gray">Changed values</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- View Modes -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">View Modes</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Side-by-Side View</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            View the original and modified JSON documents in parallel panels. Changes are highlighted on their respective sides, making it easy to see exactly what changed and where.
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- Left panel shows the original (source) document</li>
+            <li>- Right panel shows the modified (target) document</li>
+            <li>- Line numbers are synchronized for easy navigation</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Unified View</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            View all changes in a single panel with additions and deletions shown inline. Similar to a Git diff, this view shows removed lines prefixed with "-" and added lines prefixed with "+".
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- Compact view for reviewing changes</li>
+            <li>- Context lines shown for reference</li>
+            <li>- Easy to copy and share diff output</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Compare -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">How to Compare</h2>
+
+      <ol class="space-y-4">
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">1</span>
+          <div>
+            <h4 class="text-white font-medium">Open Compare Mode</h4>
+            <p class="text-sm text-brand-gray">Click the "Compare" button in the toolbar or use the keyboard shortcut <kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + D</kbd></p>
+          </div>
+        </li>
+
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">2</span>
+          <div>
+            <h4 class="text-white font-medium">Load Your Documents</h4>
+            <p class="text-sm text-brand-gray">Paste or load JSON into both the left (original) and right (modified) panels. You can also drag and drop files directly.</p>
+          </div>
+        </li>
+
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">3</span>
+          <div>
+            <h4 class="text-white font-medium">Review Differences</h4>
+            <p class="text-sm text-brand-gray">Differences are automatically calculated and highlighted. Use the navigation buttons to jump between changes.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- Diff Statistics -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Diff Statistics</h2>
+      <p class="text-brand-gray mb-4">
+        The compare view shows statistics about the differences between your documents:
+      </p>
+
+      <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <ul class="space-y-2 text-brand-gray">
+          <li class="flex items-center gap-3">
+            <span class="w-3 h-3 bg-green-500 rounded-full"></span>
+            <span><strong class="text-white">Added:</strong> Number of new properties or array items</span>
+          </li>
+          <li class="flex items-center gap-3">
+            <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+            <span><strong class="text-white">Removed:</strong> Number of deleted properties or array items</span>
+          </li>
+          <li class="flex items-center gap-3">
+            <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+            <span><strong class="text-white">Modified:</strong> Number of changed values</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Features</h2>
+
+      <ul class="space-y-3 text-brand-gray">
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Semantic Comparison</strong> - Compares JSON structure, not just text. Order-independent object comparison.</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Array Detection</strong> - Intelligently detects moved items in arrays and shows them as modifications rather than delete/add pairs.</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Character-level Highlighting</strong> - For modified values, highlights the specific characters that changed.</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Path Navigation</strong> - Click on any difference to see its full JSON path.</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/editor" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: JSON Editor
+      </a>
+      <a href="/docs/import-export" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Import Formats
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

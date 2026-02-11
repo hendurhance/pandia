@@ -1,0 +1,43 @@
+{
+  "welcome": "Pandia",
+  "tagline": "A powerful, cross-platform JSON IDE",
+  "version": "0.1.0",
+  "features": {
+    "visualization": [
+      "Tree view with collapsible nodes",
+      "Interactive graph visualization",
+      "Grid view for tabular data",
+      "Code view with syntax highlighting"
+    ],
+    "editing": [
+      "Find and replace with regex support",
+      "JSON validation and error checking",
+      "Auto-repair malformed JSON",
+      "Schema validation"
+    ],
+    "tools": [
+      "Compare and diff JSON files",
+      "Query with JMESPath and JSONQuery",
+      "Generate TypeScript, Go, Rust, Python types",
+      "Import from YAML, XML, CSV, cURL, URLs"
+    ],
+    "export": [
+      "Export to YAML, XML, CSV",
+      "Base64 and URL encoding",
+      "Copy as formatted or minified"
+    ]
+  },
+  "shortcuts": {
+    "newFile": "Cmd/Ctrl + N",
+    "openFile": "Cmd/Ctrl + O",
+    "save": "Cmd/Ctrl + S",
+    "find": "Cmd/Ctrl + F",
+    "format": "Cmd/Ctrl + Shift + F"
+  },
+  "links": {
+    "documentation": "https://pandia.app/docs",
+    "github": "https://github.com/hendurhance/pandia",
+    "issues": "https://github.com/hendurhance/pandia/issues"
+  },
+  "license": "Apache License 2.0"
+}

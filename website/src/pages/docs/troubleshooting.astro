@@ -1,0 +1,100 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Solve common Pandia issues including installation problems, performance optimization, file handling errors, and platform-specific troubleshooting guides.";
+---
+
+<DocsLayout title="Troubleshooting" description={description} currentDoc="/docs/troubleshooting">
+  <article class="prose prose-invert max-w-none">
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Troubleshooting</h1>
+      <p class="text-xl text-brand-gray">
+        Common issues and how to resolve them.
+      </p>
+    </div>
+
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Common Issues</h2>
+
+      <div class="space-y-6">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">App won't open on macOS</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            macOS may block apps from unidentified developers.
+          </p>
+          <p class="text-sm text-brand-gray">
+            <strong class="text-white">Solution:</strong> Right-click the app and select "Open", or go to System Preferences → Security & Privacy and click "Open Anyway".
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Large JSON files are slow</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Very large JSON files (>10MB) may cause performance issues.
+          </p>
+          <p class="text-sm text-brand-gray">
+            <strong class="text-white">Solution:</strong> Try collapsing nodes you don't need, or reduce the "Max nodes" setting in Preferences.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">JSON parsing error</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Your JSON may have syntax errors.
+          </p>
+          <p class="text-sm text-brand-gray">
+            <strong class="text-white">Solution:</strong> Use a JSON validator to check your JSON. Pandia will show the line number where the error occurred.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">URL import fails</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            The URL may require authentication or have CORS restrictions.
+          </p>
+          <p class="text-sm text-brand-gray">
+            <strong class="text-white">Solution:</strong> Try downloading the JSON manually and opening it as a file. For authenticated endpoints, copy the response from your browser's developer tools.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Reset Settings</h2>
+      <p class="text-brand-gray mb-4">
+        If Pandia isn't behaving correctly, you can reset all settings to defaults:
+      </p>
+      <ol class="list-decimal list-inside space-y-2 text-brand-gray">
+        <li>Close Pandia completely</li>
+        <li>Delete the configuration folder (see Configuration page for location)</li>
+        <li>Restart Pandia</li>
+      </ol>
+    </section>
+
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Get Help</h2>
+      <p class="text-brand-gray mb-4">
+        Still having issues? We're here to help:
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="https://github.com/hendurhance/pandia/issues" target="_blank" class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-orange/30 transition-colors">
+          <h3 class="text-white font-medium mb-1">Report a Bug</h3>
+          <p class="text-sm text-brand-gray">Open an issue on GitHub</p>
+        </a>
+        <a href="https://github.com/hendurhance/pandia/discussions" target="_blank" class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-purple/30 transition-colors">
+          <h3 class="text-white font-medium mb-1">Ask a Question</h3>
+          <p class="text-sm text-brand-gray">Join the community discussions</p>
+        </a>
+      </div>
+    </section>
+
+    <div class="flex justify-start pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/configuration" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Configuration
+      </a>
+    </div>
+  </article>
+</DocsLayout>

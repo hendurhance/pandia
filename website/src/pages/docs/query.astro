@@ -1,0 +1,258 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Query and filter JSON data using JSON Query Language, JMESPath, or Lodash expressions. Powerful data extraction and transformation tools.";
+---
+
+<DocsLayout title="JSON Query" description={description} currentDoc="/docs/query">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">JSON Query</h1>
+      <p class="text-xl text-brand-gray">
+        Query and transform your JSON data using powerful query languages.
+      </p>
+    </div>
+
+    <!-- Query Engines -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Query Engines</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia supports three query engines, each with their own syntax and strengths:
+      </p>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded text-xs font-medium">JSON Query</span>
+            <h3 class="text-white font-medium">JSON Query Language</h3>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            A modern, intuitive query language designed specifically for JSON. Uses pipe-based chaining for readable queries.
+          </p>
+          <div class="p-3 bg-brand-darker rounded-lg font-mono text-sm">
+            <code class="text-brand-purple">.users | filter(.age > 25) | sort(.name)</code>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded text-xs font-medium">JMESPath</span>
+            <h3 class="text-white font-medium">JMESPath</h3>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            A query language for JSON used by AWS CLI and other tools. Great for complex filtering and projections.
+          </p>
+          <div class="p-3 bg-brand-darker rounded-lg font-mono text-sm">
+            <code class="text-brand-purple">users[?age > `25`] | sort_by(@, &name)</code>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded text-xs font-medium">Lodash</span>
+            <h3 class="text-white font-medium">Lodash Expressions</h3>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            Use familiar JavaScript/Lodash syntax for querying. Access the full power of Lodash utilities.
+          </p>
+          <div class="p-3 bg-brand-darker rounded-lg font-mono text-sm">
+            <code class="text-brand-purple">_.filter(data.users, o => o.age > 25)</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- JSON Query Syntax -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">JSON Query Language Syntax</h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-brand-gray-dark/20">
+              <th class="text-left py-3 text-brand-gray font-medium">Operation</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Syntax</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody class="text-brand-gray">
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Property access</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">.users</code></td>
+              <td>Get the users property</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Array index</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">.users[0]</code></td>
+              <td>Get first element</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Filter</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">filter(.active == true)</code></td>
+              <td>Filter by condition</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Sort</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">sort(.age)</code></td>
+              <td>Sort by property</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Pick fields</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">pick(.name, .age)</code></td>
+              <td>Select specific fields</td>
+            </tr>
+            <tr>
+              <td class="py-3 text-white">Chain</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">... | ... | ...</code></td>
+              <td>Chain operations with pipe</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- JMESPath Syntax -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">JMESPath Syntax</h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-brand-gray-dark/20">
+              <th class="text-left py-3 text-brand-gray font-medium">Operation</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Syntax</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody class="text-brand-gray">
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Property access</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">users</code></td>
+              <td>Get the users array</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Wildcard</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">users[*].name</code></td>
+              <td>Get all names</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Filter</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">users[?active == `true`]</code></td>
+              <td>Filter by condition</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Sort</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">sort_by(users, &age)</code></td>
+              <td>Sort by property</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Length</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">length(users)</code></td>
+              <td>Get array length</td>
+            </tr>
+            <tr>
+              <td class="py-3 text-white">Pipe</td>
+              <td><code class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">users | [0]</code></td>
+              <td>Chain with pipe</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Lodash Syntax -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Lodash Expressions</h2>
+      <p class="text-brand-gray mb-4">
+        Available helper functions that operate on your data:
+      </p>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">get(path)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">filter(pred)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">map(fn)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">find(pred)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">groupBy(key)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">sortBy(key)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">orderBy(key)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">uniq()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">pick(keys)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">omit(keys)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">sum()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">mean()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">max()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">min()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">first()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">last()</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">take(n)</code>
+        <code class="px-2 py-1 bg-brand-dark border border-brand-gray-dark/20 rounded text-xs">flatten()</code>
+      </div>
+
+      <p class="text-sm text-brand-gray mt-4">
+        Access your data using <code class="px-1 bg-brand-darker rounded">data</code> or use the shortcut functions directly.
+      </p>
+    </section>
+
+    <!-- Examples -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Examples</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h4 class="text-white font-medium mb-2">Filter active users over 25</h4>
+          <div class="space-y-2">
+            <div class="p-2 bg-brand-darker rounded font-mono text-xs">
+              <span class="text-brand-gray">JSON Query:</span>
+              <code class="text-brand-purple ml-2">.users | filter(.active == true) | filter(.age > 25)</code>
+            </div>
+            <div class="p-2 bg-brand-darker rounded font-mono text-xs">
+              <span class="text-brand-gray">JMESPath:</span>
+              <code class="text-brand-purple ml-2">users[?active == `true` && age > `25`]</code>
+            </div>
+            <div class="p-2 bg-brand-darker rounded font-mono text-xs">
+              <span class="text-brand-gray">Lodash:</span>
+              <code class="text-brand-purple ml-2">_.filter(data.users, u => u.active && u.age > 25)</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h4 class="text-white font-medium mb-2">Get unique cities sorted alphabetically</h4>
+          <div class="space-y-2">
+            <div class="p-2 bg-brand-darker rounded font-mono text-xs">
+              <span class="text-brand-gray">Lodash:</span>
+              <code class="text-brand-purple ml-2">_.sortBy(_.uniq(_.map(data.users, 'city')))</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h4 class="text-white font-medium mb-2">Calculate average age</h4>
+          <div class="space-y-2">
+            <div class="p-2 bg-brand-darker rounded font-mono text-xs">
+              <span class="text-brand-gray">Lodash:</span>
+              <code class="text-brand-purple ml-2">_.meanBy(data.users, 'age')</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/export" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Export Options
+      </a>
+      <a href="/docs/search" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Search & Replace
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

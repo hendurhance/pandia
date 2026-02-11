@@ -1,0 +1,246 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "View JSON as interactive tree diagrams, node graphs, data grids, or code. Multiple visualization modes for exploring and understanding data structures.";
+---
+
+<DocsLayout title="View Modes" description={description} currentDoc="/docs/visualization">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">View Modes</h1>
+      <p class="text-xl text-brand-gray">
+        Explore your JSON data using different visualization modes.
+      </p>
+    </div>
+
+    <!-- Overview -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Overview</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia offers four different ways to view and interact with your JSON data. Switch between modes using the view selector in the toolbar or keyboard shortcuts.
+      </p>
+    </section>
+
+    <!-- View Modes -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Available Modes</h2>
+
+      <div class="space-y-6">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-white font-medium">Tree View</h3>
+              <span class="text-xs text-brand-gray">Default mode</span>
+            </div>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            A hierarchical tree representation of your JSON. Expand and collapse nodes, edit values inline, and see the structure at a glance. Best for exploring nested data.
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- Click arrows to expand/collapse nodes</li>
+            <li>- Double-click values to edit inline</li>
+            <li>- Right-click for context menu actions</li>
+            <li>- Optimized for large files with lazy rendering</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-brand-purple/10 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-white font-medium">Text View</h3>
+              <span class="text-xs text-brand-gray">Code editor mode</span>
+            </div>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            Edit JSON as raw text with full syntax highlighting, line numbers, and code folding. Best for making precise edits or copying formatted JSON.
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- Full syntax highlighting</li>
+            <li>- Line numbers with gutter</li>
+            <li>- Find and replace support</li>
+            <li>- Code folding for sections</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-white font-medium">Grid View</h3>
+              <span class="text-xs text-brand-gray">Table mode</span>
+            </div>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            Display arrays of objects as a sortable, filterable table. Best for tabular data like API responses, database exports, or CSV-like structures.
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- Sortable columns</li>
+            <li>- Resizable column widths</li>
+            <li>- Works with arrays of objects</li>
+            <li>- Nested objects shown as expandable cells</li>
+          </ul>
+          <div class="mt-3 p-2 bg-brand-darker rounded text-xs text-brand-gray">
+            Note: Grid view requires JSON data to be an array of objects or an object with properties.
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-brand-purple/10 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-white font-medium">Graph View</h3>
+              <span class="text-xs text-brand-gray">Visual diagram mode</span>
+            </div>
+          </div>
+          <p class="text-sm text-brand-gray mb-3">
+            An interactive node-based diagram where each JSON element becomes a visual node. Pan, zoom, and navigate through your data visually.
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- Interactive pan and zoom</li>
+            <li>- Color-coded node types</li>
+            <li>- Collapsible nested structures</li>
+            <li>- Export as PNG or SVG image</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Node Types in Graph View -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Graph View Node Types</h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20 text-center">
+          <div class="w-4 h-4 bg-brand-purple rounded mx-auto mb-2"></div>
+          <span class="text-sm text-white">Objects</span>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20 text-center">
+          <div class="w-4 h-4 bg-brand-orange rounded mx-auto mb-2"></div>
+          <span class="text-sm text-white">Arrays</span>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20 text-center">
+          <div class="w-4 h-4 bg-green-500 rounded mx-auto mb-2"></div>
+          <span class="text-sm text-white">Strings</span>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20 text-center">
+          <div class="w-4 h-4 bg-blue-500 rounded mx-auto mb-2"></div>
+          <span class="text-sm text-white">Numbers</span>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20 text-center">
+          <div class="w-4 h-4 bg-yellow-500 rounded mx-auto mb-2"></div>
+          <span class="text-sm text-white">Booleans</span>
+        </div>
+        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20 text-center">
+          <div class="w-4 h-4 bg-gray-500 rounded mx-auto mb-2"></div>
+          <span class="text-sm text-white">Null</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Switching Views -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Switching Views</h2>
+      <p class="text-brand-gray mb-4">
+        Use the view selector in the toolbar or keyboard shortcuts to switch between modes:
+      </p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-brand-gray-dark/20">
+              <th class="text-left py-3 text-brand-gray font-medium">View</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Shortcut</th>
+            </tr>
+          </thead>
+          <tbody class="text-brand-gray">
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Tree View</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + 1</kbd></td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Text View</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + 2</kbd></td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Grid View</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + 3</kbd></td>
+            </tr>
+            <tr>
+              <td class="py-3 text-white">Graph View</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + 4</kbd></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Large File Handling -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Large File Handling</h2>
+      <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <p class="text-sm text-brand-gray mb-3">
+          For files larger than 1MB, some view modes are automatically disabled for performance:
+        </p>
+        <ul class="text-sm text-brand-gray space-y-1">
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span><strong class="text-white">Tree View</strong> - Available (uses lazy rendering)</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span><strong class="text-white">Text View</strong> - May be slow</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span><strong class="text-white">Grid View</strong> - Disabled for large files</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span><strong class="text-white">Graph View</strong> - Disabled for large files</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/quick-start" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Quick Start
+      </a>
+      <a href="/docs/editor" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: JSON Editor
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

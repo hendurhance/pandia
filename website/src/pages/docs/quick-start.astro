@@ -1,0 +1,223 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Get started with Pandia in minutes. Learn to load JSON files, navigate visualizations, and explore your data with interactive diagrams.";
+---
+
+<DocsLayout title="Quick Start" description={description} currentDoc="/docs/quick-start">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Quick Start</h1>
+      <p class="text-xl text-brand-gray">
+        Get up and running with Pandia in just a few minutes.
+      </p>
+    </div>
+
+    <!-- Step 1 -->
+    <section class="mb-12">
+      <div class="flex items-center gap-4 mb-4">
+        <span class="flex items-center justify-center w-10 h-10 bg-brand-orange text-white font-bold rounded-xl">1</span>
+        <h2 class="text-2xl font-semibold text-white">Launch Pandia</h2>
+      </div>
+      <p class="text-brand-gray mb-4">
+        Open Pandia from your applications folder or start menu. You'll be greeted with a clean, empty canvas.
+      </p>
+    </section>
+
+    <!-- Step 2 -->
+    <section class="mb-12">
+      <div class="flex items-center gap-4 mb-4">
+        <span class="flex items-center justify-center w-10 h-10 bg-brand-orange text-white font-bold rounded-xl">2</span>
+        <h2 class="text-2xl font-semibold text-white">Load Your JSON</h2>
+      </div>
+      <p class="text-brand-gray mb-4">
+        There are several ways to load JSON into Pandia:
+      </p>
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Drag & Drop</h3>
+          <p class="text-sm text-brand-gray">Simply drag a .json file onto the Pandia window.</p>
+        </div>
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Paste from Clipboard</h3>
+          <p class="text-sm text-brand-gray">Copy JSON text and press <kbd class="px-2 py-1 bg-brand-darker rounded text-xs">Cmd/Ctrl + V</kbd> to paste.</p>
+        </div>
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Open File</h3>
+          <p class="text-sm text-brand-gray">Use <kbd class="px-2 py-1 bg-brand-darker rounded text-xs">Cmd/Ctrl + O</kbd> to open the file picker.</p>
+        </div>
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Import from URL</h3>
+          <p class="text-sm text-brand-gray">Click the import button and enter a URL to fetch JSON from an API endpoint or GitHub Gist.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3 -->
+    <section class="mb-12">
+      <div class="flex items-center gap-4 mb-4">
+        <span class="flex items-center justify-center w-10 h-10 bg-brand-orange text-white font-bold rounded-xl">3</span>
+        <h2 class="text-2xl font-semibold text-white">Explore Your Data</h2>
+      </div>
+      <p class="text-brand-gray mb-4">
+        Once loaded, your JSON will be visualized as an interactive node diagram. Here's how to navigate:
+      </p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-brand-gray-dark/20">
+              <th class="text-left py-3 px-4 text-brand-gray font-medium">Action</th>
+              <th class="text-left py-3 px-4 text-brand-gray font-medium">How</th>
+            </tr>
+          </thead>
+          <tbody class="text-brand-gray">
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 px-4 text-white">Pan</td>
+              <td class="py-3 px-4">Click and drag on the canvas</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 px-4 text-white">Zoom</td>
+              <td class="py-3 px-4">Scroll wheel or pinch gesture</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 px-4 text-white">Select Node</td>
+              <td class="py-3 px-4">Click on any node</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 px-4 text-white">Expand/Collapse</td>
+              <td class="py-3 px-4">Double-click on object/array nodes</td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 px-4 text-white">Search</td>
+              <td class="py-3 px-4"><kbd class="px-2 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + F</kbd></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 text-white">Fit to Screen</td>
+              <td class="py-3 px-4"><kbd class="px-2 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + 0</kbd></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Step 4 -->
+    <section class="mb-12">
+      <div class="flex items-center gap-4 mb-4">
+        <span class="flex items-center justify-center w-10 h-10 bg-brand-orange text-white font-bold rounded-xl">4</span>
+        <h2 class="text-2xl font-semibold text-white">Export or Share</h2>
+      </div>
+      <p class="text-brand-gray mb-4">
+        When you're ready to share your visualization:
+      </p>
+      <ul class="space-y-2 text-brand-gray">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Export as Image:</strong> Save as PNG or SVG</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Copy JSON:</strong> Copy formatted JSON to clipboard</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Save to Gist:</strong> Upload to GitHub Gist for sharing</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Try It -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Try It Now</h2>
+      <p class="text-brand-gray mb-4">
+        Copy this sample JSON and paste it into Pandia to see it in action:
+      </p>
+      <div class="relative group">
+        <button
+          id="copy-btn"
+          class="absolute top-3 right-3 p-2 bg-brand-gray-dark/50 hover:bg-brand-gray-dark rounded-lg text-brand-gray hover:text-white transition-all opacity-0 group-hover:opacity-100"
+          title="Copy to clipboard"
+        >
+          <svg id="copy-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <svg id="check-icon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </button>
+        <pre class="p-4 bg-brand-darker rounded-xl border border-brand-gray-dark/20 overflow-x-auto"><code id="sample-json" class="text-sm text-brand-gray font-mono">{`{
+  "app": "Pandia",
+  "version": "1.0.0",
+  "features": [
+    "Interactive diagrams",
+    "Smart search",
+    "Export to image"
+  ],
+  "config": {
+    "theme": "dark",
+    "autoUpdate": true,
+    "maxNodes": 10000
+  },
+  "platforms": ["macOS", "Windows", "Linux"]
+}`}</code></pre>
+      </div>
+    </section>
+
+    <script>
+      const copyBtn = document.getElementById('copy-btn');
+      const copyIcon = document.getElementById('copy-icon');
+      const checkIcon = document.getElementById('check-icon');
+      const sampleJson = document.getElementById('sample-json');
+
+      copyBtn?.addEventListener('click', async () => {
+        const text = sampleJson?.textContent || '';
+        await navigator.clipboard.writeText(text);
+
+        copyIcon?.classList.add('hidden');
+        checkIcon?.classList.remove('hidden');
+
+        setTimeout(() => {
+          copyIcon?.classList.remove('hidden');
+          checkIcon?.classList.add('hidden');
+        }, 2000);
+      });
+    </script>
+
+    <!-- Next Steps -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Next Steps</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/docs/visualization" class="group p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-orange/30 transition-colors">
+          <h3 class="text-white font-medium mb-1">Learn about Visualization</h3>
+          <p class="text-sm text-brand-gray">Understand the diagram layout and node types</p>
+        </a>
+        <a href="/docs/shortcuts" class="group p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-purple/30 transition-colors">
+          <h3 class="text-white font-medium mb-1">Keyboard Shortcuts</h3>
+          <p class="text-sm text-brand-gray">Master the shortcuts for faster navigation</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/installation" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Installation
+      </a>
+      <a href="/docs/visualization" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Visualization
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

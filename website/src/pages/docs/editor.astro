@@ -1,0 +1,181 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Powerful JSON editor with syntax highlighting, real-time validation, multi-tab editing, and intelligent error detection. Edit JSON with confidence.";
+---
+
+<DocsLayout title="JSON Editor" description={description} currentDoc="/docs/editor">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">JSON Editor</h1>
+      <p class="text-xl text-brand-gray">
+        A powerful, feature-rich editor for working with JSON data.
+      </p>
+    </div>
+
+    <!-- Editor Features -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Editor Features</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Syntax Highlighting</h3>
+          <p class="text-sm text-brand-gray">
+            Full syntax highlighting for JSON with distinct colors for keys, strings, numbers, booleans, and null values. The editor automatically adapts to your chosen theme.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Real-time Validation</h3>
+          <p class="text-sm text-brand-gray">
+            JSON is validated as you type. Syntax errors are highlighted inline with detailed error messages to help you quickly identify and fix issues.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Auto-formatting</h3>
+          <p class="text-sm text-brand-gray">
+            Automatically format your JSON with proper indentation. Use the Format button or press <kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + Shift + F</kbd> to prettify your JSON.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Undo/Redo History</h3>
+          <p class="text-sm text-brand-gray">
+            Full undo/redo support with history tracking. Press <kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + Z</kbd> to undo and <kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + Shift + Z</kbd> to redo.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Large File Support</h3>
+          <p class="text-sm text-brand-gray">
+            Optimized for large JSON files. The editor automatically switches to Tree mode for files over 1MB to maintain performance with lazy rendering.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Edit Modes -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Edit Modes</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded text-xs font-medium">Tree</span>
+            <h3 class="text-white font-medium">Tree Mode</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Navigate your JSON as a collapsible tree structure. Click to expand/collapse nodes, double-click to edit values, and use context menus to add, remove, or modify data.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded text-xs font-medium">Text</span>
+            <h3 class="text-white font-medium">Text Mode</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Edit JSON as raw text with full syntax highlighting, line numbers, and code folding. Best for making quick edits or working with specific sections of your JSON.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Auto-Save -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Auto-Save</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia includes an auto-save feature to prevent data loss. When enabled:
+      </p>
+      <ul class="space-y-2 text-brand-gray">
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Files that have been saved before are automatically saved on changes</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Configurable save delay (default: 3 seconds after last change)</span>
+        </li>
+        <li class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>New unsaved files are not auto-saved (requires manual save first)</span>
+        </li>
+      </ul>
+      <p class="text-sm text-brand-gray mt-4">
+        Configure auto-save in <strong class="text-white">Settings → Editor → Auto-save</strong>.
+      </p>
+    </section>
+
+    <!-- Keyboard Shortcuts -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Editor Shortcuts</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-brand-gray-dark/20">
+              <th class="text-left py-3 text-brand-gray font-medium">Action</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Mac</th>
+              <th class="text-left py-3 text-brand-gray font-medium">Windows/Linux</th>
+            </tr>
+          </thead>
+          <tbody class="text-brand-gray">
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Undo</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">⌘ Z</kbd></td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Ctrl Z</kbd></td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Redo</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">⌘ ⇧ Z</kbd></td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Ctrl Shift Z</kbd></td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Find</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">⌘ F</kbd></td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Ctrl F</kbd></td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Replace</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">⌘ H</kbd></td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Ctrl H</kbd></td>
+            </tr>
+            <tr class="border-b border-brand-gray-dark/10">
+              <td class="py-3 text-white">Format</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">⌘ ⇧ F</kbd></td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Ctrl Shift F</kbd></td>
+            </tr>
+            <tr>
+              <td class="py-3 text-white">Validate</td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">⌘ ⇧ V</kbd></td>
+              <td><kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Ctrl Shift V</kbd></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/visualization" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: View Modes
+      </a>
+      <a href="/docs/compare" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Compare & Diff
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

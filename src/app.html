@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#0f0f0f" />
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+				background: #0f0f0f;
+				color: #e4e4e4;
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+				overflow: hidden;
+			}
+			#app-shell {
+				display: flex;
+				flex-direction: column;
+				height: 100vh;
+			}
+			#shell-toolbar {
+				height: 40px;
+				background: #1a1a1a;
+				border-bottom: 1px solid #333;
+			}
+			#shell-content {
+				display: flex;
+				flex: 1;
+			}
+			#shell-sidebar {
+				width: 48px;
+				background: #1a1a1a;
+				border-right: 1px solid #333;
+			}
+			#shell-editor {
+				flex: 1;
+				background: #1e1e1e;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			#shell-spinner {
+				width: 24px;
+				height: 24px;
+				border: 2px solid #333;
+				border-top-color: #3b82f6;
+				border-radius: 50%;
+				animation: spin 0.8s linear infinite;
+			}
+			@keyframes spin {
+				to { transform: rotate(360deg); }
+			}
+			@media (prefers-color-scheme: light) {
+				html, body { background: #ffffff; color: #1f2937; }
+				#shell-toolbar, #shell-sidebar { background: #f9fafb; }
+				#shell-toolbar { border-bottom-color: #e5e7eb; }
+				#shell-sidebar { border-right-color: #e5e7eb; }
+				#shell-editor { background: #ffffff; }
+				#shell-spinner { border-color: #e5e7eb; border-top-color: #2563eb; }
+			}
+
+			body:has(main) #app-shell { display: none; }
+		</style>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div id="app-shell">
+			<div id="shell-toolbar"></div>
+			<div id="shell-content">
+				<div id="shell-sidebar"></div>
+				<div id="shell-editor">
+					<div id="shell-spinner"></div>
+				</div>
+			</div>
+		</div>
+		<div style="display: contents">%sveltekit.body%</div>
+		<script>
+			// Hide skeleton once SvelteKit hydrates
+			new MutationObserver(function(m, o) {
+				if (document.querySelector('main')) {
+					document.getElementById('app-shell')?.remove();
+					o.disconnect();
+				}
+			}).observe(document.body, { childList: true, subtree: true });
+		</script>
+	</body>
+</html>

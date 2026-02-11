@@ -1,0 +1,78 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Complete keyboard shortcuts reference for Pandia. Master file operations, editing, navigation, and view controls with efficient key combinations.";
+
+const shortcuts = [
+  { category: 'File', items: [
+    { keys: 'Cmd/Ctrl + O', action: 'Open file' },
+    { keys: 'Cmd/Ctrl + V', action: 'Paste JSON' },
+    { keys: 'Cmd/Ctrl + S', action: 'Save/Export' },
+    { keys: 'Cmd/Ctrl + Shift + E', action: 'Export as image' },
+  ]},
+  { category: 'Navigation', items: [
+    { keys: 'Cmd/Ctrl + F', action: 'Search' },
+    { keys: 'Cmd/Ctrl + 0', action: 'Fit to screen' },
+    { keys: 'Cmd/Ctrl + +', action: 'Zoom in' },
+    { keys: 'Cmd/Ctrl + -', action: 'Zoom out' },
+    { keys: 'Arrow keys', action: 'Navigate nodes' },
+  ]},
+  { category: 'View', items: [
+    { keys: 'Cmd/Ctrl + Shift + T', action: 'Toggle theme' },
+    { keys: 'Cmd/Ctrl + \\', action: 'Toggle sidebar' },
+    { keys: 'Cmd/Ctrl + Shift + F', action: 'Toggle fullscreen' },
+  ]},
+  { category: 'Nodes', items: [
+    { keys: 'Enter', action: 'Expand/Collapse selected' },
+    { keys: 'Cmd/Ctrl + E', action: 'Expand all' },
+    { keys: 'Cmd/Ctrl + Shift + C', action: 'Collapse all' },
+    { keys: 'Cmd/Ctrl + C', action: 'Copy selected node' },
+  ]},
+];
+---
+
+<DocsLayout title="Keyboard Shortcuts" description={description} currentDoc="/docs/shortcuts">
+  <article class="prose prose-invert max-w-none">
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Keyboard Shortcuts</h1>
+      <p class="text-xl text-brand-gray">
+        Master these shortcuts to navigate Pandia like a pro.
+      </p>
+    </div>
+
+    {shortcuts.map((section) => (
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold text-white mb-4">{section.category}</h2>
+        <div class="bg-brand-dark rounded-xl border border-brand-gray-dark/20 overflow-hidden">
+          <table class="w-full text-sm">
+            <tbody>
+              {section.items.map((item, idx) => (
+                <tr class={idx !== section.items.length - 1 ? 'border-b border-brand-gray-dark/10' : ''}>
+                  <td class="py-3 px-4 w-1/2">
+                    <kbd class="px-2 py-1 bg-brand-darker rounded text-brand-orange font-mono text-xs">{item.keys}</kbd>
+                  </td>
+                  <td class="py-3 px-4 text-brand-gray">{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    ))}
+
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/themes" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Themes
+      </a>
+      <a href="/docs/configuration" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Configuration
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

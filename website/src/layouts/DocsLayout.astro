@@ -1,0 +1,284 @@
+---
+import '../styles/global.css';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  currentDoc?: string;
+}
+
+const { title, description, currentDoc = '' } = Astro.props;
+
+// Generate SEO-friendly description based on title if not provided
+const defaultDescription = `Learn about ${title} in Pandia - the free, open-source JSON visualization tool. Comprehensive documentation for developers.`;
+const metaDescription = description || defaultDescription;
+
+const siteUrl = 'https://pandia.app';
+const canonicalUrl = `${siteUrl}${currentDoc || '/docs'}`;
+const fullTitle = `${title} | Pandia Documentation`;
+
+const docsNav = [
+  {
+    category: 'Getting Started',
+    items: [
+      { title: 'Introduction', href: '/docs' },
+      { title: 'Installation', href: '/docs/installation' },
+      { title: 'Quick Start', href: '/docs/quick-start' },
+    ]
+  },
+  {
+    category: 'Views & Editing',
+    items: [
+      { title: 'View Modes', href: '/docs/visualization' },
+      { title: 'JSON Editor', href: '/docs/editor' },
+      { title: 'Compare & Diff', href: '/docs/compare' },
+    ]
+  },
+  {
+    category: 'Import & Export',
+    items: [
+      { title: 'Import Formats', href: '/docs/import-export' },
+      { title: 'Type Generation', href: '/docs/type-generation' },
+      { title: 'Export Options', href: '/docs/export' },
+    ]
+  },
+  {
+    category: 'Tools',
+    items: [
+      { title: 'JSON Query', href: '/docs/query' },
+      { title: 'Search & Replace', href: '/docs/search' },
+      { title: 'JSON Repair', href: '/docs/repair' },
+    ]
+  },
+  {
+    category: 'Customization',
+    items: [
+      { title: 'Themes', href: '/docs/themes' },
+      { title: 'Keyboard Shortcuts', href: '/docs/shortcuts' },
+      { title: 'Configuration', href: '/docs/configuration' },
+    ]
+  },
+  {
+    category: 'Help',
+    items: [
+      { title: 'Troubleshooting', href: '/docs/troubleshooting' },
+    ]
+  }
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta Tags -->
+    <title>{fullTitle}</title>
+    <meta name="title" content={fullTitle} />
+    <meta name="description" content={metaDescription} />
+    <meta name="keywords" content="Pandia documentation, JSON visualization guide, JSON editor tutorial, JSON to TypeScript, JSON to Go, JSON diff, JSON compare, JSON repair, JSON query, developer documentation" />
+    <meta name="author" content="hendurhance" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:image" content={`${siteUrl}/og-image.png`} />
+    <meta property="og:site_name" content="Pandia" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content={canonicalUrl} />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={`${siteUrl}/og-image.png`} />
+    <meta name="twitter:creator" content="@hendurhance" />
+
+    <!-- Additional SEO -->
+    <meta name="application-name" content="Pandia" />
+    <meta name="theme-color" content="#FF6B35" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!-- Scroll to top on page load -->
+    <script is:inline>
+      if (history.scrollRestoration) {
+        history.scrollRestoration = 'manual';
+      }
+      window.scrollTo(0, 0);
+    </script>
+
+    <!-- Structured Data (JSON-LD) for Documentation -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": title,
+      "description": metaDescription,
+      "url": canonicalUrl,
+      "author": {
+        "@type": "Person",
+        "name": "hendurhance",
+        "url": "https://github.com/hendurhance"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Pandia",
+        "url": siteUrl
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": canonicalUrl
+      },
+      "isPartOf": {
+        "@type": "WebSite",
+        "name": "Pandia Documentation",
+        "url": `${siteUrl}/docs`
+      }
+    })} />
+  </head>
+  <body class="bg-brand-darker text-brand-light font-sans antialiased">
+    <Navigation currentPage="docs" />
+
+    <div class="pt-20 min-h-screen">
+      <div class="max-w-7xl mx-auto flex">
+        <!-- Sidebar -->
+        <aside class="hidden lg:block w-72 shrink-0 border-r border-brand-gray-dark/20">
+          <div id="docs-sidebar" class="sticky top-20 h-[calc(100vh-80px)] overflow-y-auto p-6">
+          <nav class="space-y-8">
+            {docsNav.map((section) => (
+              <div>
+                <h4 class="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-3">
+                  {section.category}
+                </h4>
+                <ul class="space-y-1">
+                  {section.items.map((item) => (
+                    <li>
+                      <a
+                        href={item.href}
+                        class={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                          currentDoc === item.href
+                            ? 'bg-brand-orange/10 text-brand-orange'
+                            : 'text-brand-gray hover:text-white hover:bg-brand-gray-dark/20'
+                        }`}
+                      >
+                        {item.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+
+          <!-- GitHub Link -->
+          <div class="mt-8 pt-8 border-t border-brand-gray-dark/20">
+            <a
+              href="https://github.com/hendurhance/pandia"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2 text-sm text-brand-gray hover:text-white transition-colors"
+            >
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
+              </svg>
+              View on GitHub
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Mobile Sidebar Toggle -->
+      <div class="lg:hidden fixed bottom-6 right-6 z-50">
+        <button
+          id="mobile-docs-toggle"
+          class="p-4 bg-brand-orange text-white rounded-full shadow-lg shadow-brand-orange/25"
+        >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Mobile Sidebar -->
+      <div id="mobile-docs-sidebar" class="hidden fixed inset-0 z-40 lg:hidden">
+        <div class="absolute inset-0 bg-black/50" id="mobile-docs-overlay"></div>
+        <div class="absolute left-0 top-0 bottom-0 w-72 bg-brand-darker border-r border-brand-gray-dark/20 overflow-y-auto p-6 pt-24">
+          <nav class="space-y-8">
+            {docsNav.map((section) => (
+              <div>
+                <h4 class="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-3">
+                  {section.category}
+                </h4>
+                <ul class="space-y-1">
+                  {section.items.map((item) => (
+                    <li>
+                      <a
+                        href={item.href}
+                        class={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                          currentDoc === item.href
+                            ? 'bg-brand-orange/10 text-brand-orange'
+                            : 'text-brand-gray hover:text-white hover:bg-brand-gray-dark/20'
+                        }`}
+                      >
+                        {item.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <main class="flex-1 min-w-0 flex flex-col">
+        <div class="px-6 lg:px-12 py-12 flex-1">
+          <slot />
+        </div>
+        <Footer />
+      </main>
+      </div>
+    </div>
+
+    <script>
+      const toggle = document.getElementById('mobile-docs-toggle');
+      const sidebar = document.getElementById('mobile-docs-sidebar');
+      const overlay = document.getElementById('mobile-docs-overlay');
+
+      toggle?.addEventListener('click', () => {
+        sidebar?.classList.toggle('hidden');
+      });
+
+      overlay?.addEventListener('click', () => {
+        sidebar?.classList.add('hidden');
+      });
+
+      // Scroll active sidebar link into view (sidebar only, not the page)
+      const docsSidebar = document.getElementById('docs-sidebar');
+      const activeLink = docsSidebar?.querySelector('a[class*="bg-brand-orange"]') as HTMLElement | null;
+      if (activeLink && docsSidebar) {
+        const sidebarRect = docsSidebar.getBoundingClientRect();
+        const linkRect = activeLink.getBoundingClientRect();
+        const offsetTop = activeLink.offsetTop - docsSidebar.offsetTop;
+        docsSidebar.scrollTop = offsetTop - (sidebarRect.height / 2) + (linkRect.height / 2);
+      }
+    </script>
+  </body>
+</html>

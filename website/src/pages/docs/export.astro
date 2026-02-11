@@ -1,0 +1,208 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Export JSON to YAML, XML, CSV, Base64, and URL encoding. Save to file, copy to clipboard, send to webhook, or upload to GitHub Gist.";
+---
+
+<DocsLayout title="Export Options" description={description} currentDoc="/docs/export">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Export Options</h1>
+      <p class="text-xl text-brand-gray">
+        Export your JSON data in multiple formats and to various destinations.
+      </p>
+    </div>
+
+    <!-- Export Formats -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Export Formats</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia can export your JSON data to multiple formats for different use cases.
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.json</code>
+            <h3 class="text-white font-medium">Pretty JSON</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Standard formatted JSON with proper indentation. Perfect for readable configuration files.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.json</code>
+            <h3 class="text-white font-medium">Minified JSON</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Compact single-line JSON with no whitespace. Ideal for APIs and reducing file size.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.yaml</code>
+            <h3 class="text-white font-medium">YAML</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            YAML format for configuration files. Great for Kubernetes, Docker Compose, and similar tools.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.xml</code>
+            <h3 class="text-white font-medium">XML</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Convert JSON to XML format for legacy systems or SOAP APIs.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.csv</code>
+            <h3 class="text-white font-medium">CSV</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Comma-separated values for spreadsheet applications. Best for arrays of objects.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.txt</code>
+            <h3 class="text-white font-medium">Base64</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Base64 encoded string. Useful for embedding data in URLs or HTML.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.txt</code>
+            <h3 class="text-white font-medium">URL Encoded</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            URL-safe encoding for query parameters and form data.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Export Destinations -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Export Destinations</h2>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Save to File</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Save your exported data directly to your computer. The file dialog will suggest an appropriate extension based on the selected format.
+          </p>
+          <div class="flex gap-2 text-xs text-brand-gray">
+            <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + S</kbd>
+            <span>Save current file</span>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Copy to Clipboard</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Copy the exported data to your clipboard for quick pasting into other applications.
+          </p>
+          <div class="flex gap-2 text-xs text-brand-gray">
+            <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + C</kbd>
+            <span>Copy content</span>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Send to Webhook</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Send your JSON data directly to a webhook URL. Supports popular platforms:
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- <strong class="text-white">Slack</strong> - Incoming webhook integration</li>
+            <li>- <strong class="text-white">Discord</strong> - Webhook channels</li>
+            <li>- <strong class="text-white">Zapier</strong> - Catch hooks for automation</li>
+            <li>- <strong class="text-white">Custom</strong> - Any HTTP endpoint accepting POST requests</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">GitHub Gist</h3>
+          <p class="text-sm text-brand-gray mb-3">
+            Create a GitHub Gist for easy sharing. You can create both public and private (secret) gists.
+          </p>
+          <ul class="text-sm text-brand-gray space-y-1">
+            <li>- <strong class="text-white">Public Gist</strong> - Visible to everyone, searchable</li>
+            <li>- <strong class="text-white">Secret Gist</strong> - Only accessible via direct URL</li>
+          </ul>
+          <p class="text-xs text-brand-gray mt-2">
+            Note: Anonymous gists are created. Connect your GitHub account for gists under your profile.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Export -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">How to Export</h2>
+
+      <ol class="space-y-4">
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">1</span>
+          <div>
+            <h4 class="text-white font-medium">Open Export Modal</h4>
+            <p class="text-sm text-brand-gray">Click the "Export" button in the toolbar or use <kbd class="px-1.5 py-0.5 bg-brand-darker rounded text-xs">Cmd/Ctrl + E</kbd></p>
+          </div>
+        </li>
+
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">2</span>
+          <div>
+            <h4 class="text-white font-medium">Select Format</h4>
+            <p class="text-sm text-brand-gray">Choose your desired export format from the grid of options.</p>
+          </div>
+        </li>
+
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">3</span>
+          <div>
+            <h4 class="text-white font-medium">Choose Destination</h4>
+            <p class="text-sm text-brand-gray">Select where you want to export: File, Webhook, or GitHub Gist.</p>
+          </div>
+        </li>
+
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-8 h-8 bg-brand-orange/10 text-brand-orange rounded-full flex items-center justify-center font-medium">4</span>
+          <div>
+            <h4 class="text-white font-medium">Preview & Export</h4>
+            <p class="text-sm text-brand-gray">Review the preview of your converted data and click the export button.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/type-generation" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: Type Generation
+      </a>
+      <a href="/docs/query" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: JSON Query
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>

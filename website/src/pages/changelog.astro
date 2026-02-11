@@ -1,0 +1,204 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+
+const description = "See what's new in Pandia. Track all releases, new features, improvements, and bug fixes in our JSON visualization tool.";
+
+interface Release {
+  version: string;
+  date: string;
+  tag?: string;
+  changes: {
+    features?: string[];
+    improvements?: string[];
+    fixes?: string[];
+    breaking?: string[];
+  };
+}
+
+const releases: Release[] = [
+  {
+    version: '0.1.0',
+    date: 'February 2026',
+    tag: 'Beta',
+    changes: {
+      features: [
+        'Initial public release of Pandia',
+        'Multiple view modes: Tree, Graph, Grid, and Code view',
+        'Type generation for TypeScript, Go, Rust, Python, Java, Kotlin, PHP, Zod, JSON Schema, GraphQL, Mongoose, BigQuery, and MySQL',
+        'Multi-format import: JSON, YAML, XML, CSV, URLs, cURL commands, and GitHub Gists',
+        'Flexible export to YAML, XML, CSV, Base64, and URL-encoded formats',
+        'JSON Query with JSON Query Language, JMESPath, and Lodash expressions',
+        'Compare & Diff with side-by-side and unified views',
+        'JSON Repair for malformed JSON',
+        'Interactive graph visualization with pan, zoom, and export to PNG/SVG',
+        'Find & Replace with regex support',
+        'Snippet Manager for saving frequently used JSON',
+        'JSON Path Finder for easy navigation',
+        'Custom themes including dark and light modes',
+        'Full keyboard shortcuts support',
+        'Tab management for multiple JSON files',
+        'Auto-save functionality',
+        'Cross-platform support: macOS, Windows, and Linux',
+      ],
+    },
+  },
+];
+---
+
+<Layout
+  title="Changelog"
+  description={description}
+  canonical="/changelog"
+  type="article"
+>
+  <Navigation currentPage="changelog" />
+
+  <main class="pt-24 pb-16 min-h-screen">
+    <div class="max-w-4xl mx-auto px-6">
+      <!-- Header -->
+      <div class="mb-12">
+        <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">Changelog</h1>
+        <p class="text-xl text-brand-gray">
+          Track all updates, new features, and improvements to Pandia.
+        </p>
+      </div>
+
+      <!-- Releases -->
+      <div class="space-y-12">
+        {releases.map((release) => (
+          <article class="relative">
+            <!-- Version Header -->
+            <div class="flex flex-wrap items-center gap-3 mb-6">
+              <h2 class="text-2xl font-bold text-white">v{release.version}</h2>
+              {release.tag && (
+                <span class="px-3 py-1 text-xs font-semibold bg-brand-orange/10 text-brand-orange rounded-full">
+                  {release.tag}
+                </span>
+              )}
+              <span class="text-brand-gray text-sm">{release.date}</span>
+            </div>
+
+            <!-- Changes -->
+            <div class="space-y-6">
+              {release.changes.features && release.changes.features.length > 0 && (
+                <div>
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
+                      <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white">Features</h3>
+                  </div>
+                  <ul class="space-y-3 ml-10">
+                    {release.changes.features.map((feature) => (
+                      <li class="flex items-start gap-3 text-brand-gray">
+                        <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {release.changes.improvements && release.changes.improvements.length > 0 && (
+                <div>
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 bg-brand-purple/10 rounded-lg flex items-center justify-center">
+                      <svg class="w-4 h-4 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white">Improvements</h3>
+                  </div>
+                  <ul class="space-y-3 ml-10">
+                    {release.changes.improvements.map((improvement) => (
+                      <li class="flex items-start gap-3 text-brand-gray">
+                        <svg class="w-5 h-5 text-brand-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{improvement}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {release.changes.fixes && release.changes.fixes.length > 0 && (
+                <div>
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 bg-brand-orange/10 rounded-lg flex items-center justify-center">
+                      <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white">Bug Fixes</h3>
+                  </div>
+                  <ul class="space-y-3 ml-10">
+                    {release.changes.fixes.map((fix) => (
+                      <li class="flex items-start gap-3 text-brand-gray">
+                        <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{fix}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {release.changes.breaking && release.changes.breaking.length > 0 && (
+                <div>
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
+                      <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white">Breaking Changes</h3>
+                  </div>
+                  <ul class="space-y-3 ml-10">
+                    {release.changes.breaking.map((breaking) => (
+                      <li class="flex items-start gap-3 text-brand-gray">
+                        <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01" />
+                        </svg>
+                        <span>{breaking}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <!-- Divider -->
+            <div class="mt-12 border-b border-brand-gray-dark/20"></div>
+          </article>
+        ))}
+      </div>
+
+      <!-- Footer Note -->
+      <div class="mt-12 p-6 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h4 class="text-white font-medium mb-1">Stay Updated</h4>
+            <p class="text-sm text-brand-gray">
+              Star the <a href="https://github.com/hendurhance/pandia" target="_blank" rel="noopener noreferrer" class="text-brand-orange hover:underline">GitHub repository</a> to get notified about new releases and updates.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <Footer />
+</Layout>

@@ -1,0 +1,173 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const description = "Import JSON, YAML, XML, and CSV files. Load from URLs, parse cURL commands, fetch GitHub Gists. Drag and drop support for seamless data loading.";
+---
+
+<DocsLayout title="Import Formats" description={description} currentDoc="/docs/import-export">
+  <article class="prose prose-invert max-w-none">
+    <!-- Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-white mb-4">Import Formats</h1>
+      <p class="text-xl text-brand-gray">
+        Learn about the different file formats and import methods supported by Pandia.
+      </p>
+    </div>
+
+    <!-- Supported Formats -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Supported File Formats</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia can import data from multiple file formats and automatically convert them to JSON for editing and visualization.
+      </p>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.json</code>
+            <h3 class="text-white font-medium">JSON</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Standard JSON files. Supports pretty-printed and minified JSON.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.yaml .yml</code>
+            <h3 class="text-white font-medium">YAML</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            YAML files including support for comments. Automatically converted to JSON on import.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.xml</code>
+            <h3 class="text-white font-medium">XML</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            XML files with automatic conversion to JSON. Preserves attributes and nested elements.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <div class="flex items-center gap-3 mb-2">
+            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.csv .tsv</code>
+            <h3 class="text-white font-medium">CSV / TSV</h3>
+          </div>
+          <p class="text-sm text-brand-gray">
+            Comma-separated and tab-separated value files. Converted to JSON array with headers as keys.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Import Methods -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Import Methods</h2>
+
+      <div class="space-y-6">
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Drag & Drop</h3>
+          <p class="text-sm text-brand-gray mb-2">
+            Simply drag any supported file onto the Pandia window to open it.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Open File</h3>
+          <p class="text-sm text-brand-gray mb-2">
+            Use the file picker to browse and open files from your computer.
+          </p>
+          <div class="flex gap-2 text-xs text-brand-gray">
+            <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + O</kbd>
+            <span>Open file picker</span>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Paste from Clipboard</h3>
+          <p class="text-sm text-brand-gray mb-2">
+            Copy JSON, YAML, XML, or CSV text from anywhere and paste it directly into Pandia.
+          </p>
+          <div class="flex gap-2 text-xs text-brand-gray">
+            <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + V</kbd>
+            <span>Paste content</span>
+          </div>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Import from URL</h3>
+          <p class="text-sm text-brand-gray">
+            Fetch data directly from any publicly accessible URL. Perfect for API responses.
+          </p>
+          <ul class="mt-2 space-y-1 text-sm text-brand-gray">
+            <li>- REST API endpoints</li>
+            <li>- Raw GitHub files</li>
+            <li>- Any URL returning JSON/YAML/XML/CSV</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Import from cURL</h3>
+          <p class="text-sm text-brand-gray">
+            Paste a cURL command and Pandia will execute it and load the response. Supports headers, authentication, and request methods.
+          </p>
+        </div>
+
+        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
+          <h3 class="text-white font-medium mb-2">Import from GitHub Gist</h3>
+          <p class="text-sm text-brand-gray">
+            Enter a Gist URL or ID to load JSON directly from GitHub Gists. Supports both public and secret gists.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Format Detection -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold text-white mb-4">Automatic Format Detection</h2>
+      <p class="text-brand-gray mb-4">
+        Pandia automatically detects the format of your data based on:
+      </p>
+      <ul class="space-y-2 text-brand-gray">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">File extension</strong> - First checks the file extension (.json, .yaml, etc.)</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Content patterns</strong> - Analyzes the content structure if extension is unknown</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span><strong class="text-white">Fallback parsing</strong> - Tries all parsers if detection fails</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Navigation -->
+    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
+      <a href="/docs/visualization" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
+        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Previous: View Modes
+      </a>
+      <a href="/docs/type-generation" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
+        Next: Type Generation
+        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </article>
+</DocsLayout>
