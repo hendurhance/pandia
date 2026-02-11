@@ -105,25 +105,22 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
-            match event {
-                // Handle file open events (macOS: double-click file in Finder, drag to dock icon)
-                RunEvent::Opened { urls } => {
-                    let paths: Vec<String> = urls
-                        .iter()
-                        .filter_map(|url| {
-                            // Handle file:// URLs
-                            if url.scheme() == "file" {
-                                url.to_file_path().ok().map(|p| p.to_string_lossy().to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Opened { urls } = &event {
+                let paths: Vec<String> = urls
+                    .iter()
+                    .filter_map(|url| {
+                        if url.scheme() == "file" {
+                            url.to_file_path().ok().map(|p: std::path::PathBuf| p.to_string_lossy().to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
 
-                    emit_file_open(app, paths);
-                }
-                _ => {}
+                emit_file_open(app, paths);
             }
+            let _ = (app, event);
         });
 }
 
