@@ -64,8 +64,9 @@ jobs:
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
         run: |
-          mkdir -p ~/private_keys
-          echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          echo "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> "$GITHUB_ENV"
 
       # ── Node.js ─────────────────────────────────────────────────────────
       - name: Setup Node.js
@@ -103,7 +104,7 @@ jobs:
           # ── macOS notarization (API key method) ──
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
           # ── Linux AppImage signing ──
           SIGN: ${{ matrix.platform == 'ubuntu-22.04' && '1' || '' }}
