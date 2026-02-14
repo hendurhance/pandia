@@ -40,22 +40,22 @@ Download the latest version for your platform:
 
 | Chip | Download |
 |------|----------|
-| Apple Silicon (M1/M2/M3) | [pandia_aarch64.dmg](https://github.com/hendurhance/pandia/releases/latest/download/pandia_aarch64.dmg) |
-| Intel | [pandia_x64.dmg](https://github.com/hendurhance/pandia/releases/latest/download/pandia_x64.dmg) |
+| Apple Silicon (M1/M2/M3) | [Pandia_0.1.0_aarch64.dmg](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_0.1.0_aarch64.dmg) |
+| Intel | [Pandia_0.1.0_x64.dmg](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_0.1.0_x64.dmg) |
 
 ### Windows
 
 | Type | Download |
 |------|----------|
-| Installer | [pandia_x64-setup.exe](https://github.com/hendurhance/pandia/releases/latest/download/pandia_x64-setup.exe) |
-| Portable (MSI) | [pandia_x64.msi](https://github.com/hendurhance/pandia/releases/latest/download/pandia_x64.msi) |
+| Installer | [Pandia_0.1.0_x64-setup.exe](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_0.1.0_x64-setup.exe) |
+| Portable (MSI) | [Pandia_0.1.0_x64_en-US.msi](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_0.1.0_x64_en-US.msi) |
 
 ### Linux
 
 | Format | Download |
 |--------|----------|
-| AppImage | [pandia_amd64.AppImage](https://github.com/hendurhance/pandia/releases/latest/download/pandia_amd64.AppImage) |
-| Debian | [pandia_amd64.deb](https://github.com/hendurhance/pandia/releases/latest/download/pandia_amd64.deb) |
+| AppImage | [Pandia_0.1.0_amd64.AppImage](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_0.1.0_amd64.AppImage) |
+| Debian | [Pandia_0.1.0_amd64.deb](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_0.1.0_amd64.deb) |
 
 > **System Requirements:** macOS 10.15+, Windows 10+ (64-bit), or Ubuntu 20.04+/Fedora 34+
 
