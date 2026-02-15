@@ -1,11 +1,11 @@
 # Pandia Website - robots.txt
-# https://pandia.app
+# https://www.pandia.app
 
 User-agent: *
 Allow: /
 
 # Sitemaps
-Sitemap: https://pandia.app/sitemap-index.xml
+Sitemap: https://www.pandia.app/sitemap-index.xml
 
 # Crawl-delay for polite bots
 Crawl-delay: 1

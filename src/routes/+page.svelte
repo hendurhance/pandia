@@ -548,7 +548,7 @@
 				break;
 			case "documentation":
 				// Open documentation in browser
-				open("https://pandia.app/docs");
+				open("https://www.pandia.app/docs");
 				break;
 		}
 	}

@@ -112,14 +112,14 @@ Transform JSON into interactive node diagrams and export as PNG or SVG.
 
 ## Documentation
 
-For complete documentation, visit the [Pandia Docs](https://pandia.app/docs).
+For complete documentation, visit the [Pandia Docs](https://www.pandia.app/docs).
 
-- [Quick Start Guide](https://pandia.app/docs/quick-start)
-- [Editor Features](https://pandia.app/docs/editor)
-- [Type Generation](https://pandia.app/docs/type-generation)
-- [Import & Export](https://pandia.app/docs/import-export)
-- [JSON Query](https://pandia.app/docs/query)
-- [Keyboard Shortcuts](https://pandia.app/docs/shortcuts)
+- [Quick Start Guide](https://www.pandia.app/docs/quick-start)
+- [Editor Features](https://www.pandia.app/docs/editor)
+- [Type Generation](https://www.pandia.app/docs/type-generation)
+- [Import & Export](https://www.pandia.app/docs/import-export)
+- [JSON Query](https://www.pandia.app/docs/query)
+- [Keyboard Shortcuts](https://www.pandia.app/docs/shortcuts)
 
 ## Development
 
