@@ -16,7 +16,8 @@ const defaultDescription = `Learn about ${title} in Pandia - the free, open-sour
 const metaDescription = description || defaultDescription;
 
 const siteUrl = 'https://www.pandia.app';
-const canonicalUrl = `${siteUrl}${currentDoc || '/docs'}`;
+const docPath = currentDoc || '/docs';
+const canonicalUrl = `${siteUrl}${docPath.endsWith('/') ? docPath : `${docPath}/`}`;
 const fullTitle = `${title} | Pandia Documentation`;
 
 const docsNav = [
@@ -109,7 +110,8 @@ const docsNav = [
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
+    <link rel="manifest" href="/site.webmanifest" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

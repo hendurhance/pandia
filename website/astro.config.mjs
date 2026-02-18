@@ -6,6 +6,7 @@ import sitemap, { ChangeFreqEnum } from '@astrojs/sitemap';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://www.pandia.app',
+  trailingSlash: 'always',
   integrations: [
     sitemap({
       changefreq: ChangeFreqEnum.WEEKLY,

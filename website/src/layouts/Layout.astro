@@ -24,7 +24,8 @@ const {
 } = Astro.props;
 
 const siteUrl = 'https://www.pandia.app';
-const canonicalUrl = canonical ? `${siteUrl}${canonical}` : Astro.url.href;
+const canonicalPath = canonical ? (canonical.endsWith('/') ? canonical : `${canonical}/`) : null;
+const canonicalUrl = canonicalPath ? `${siteUrl}${canonicalPath}` : Astro.url.href;
 const imageUrl = image.startsWith('http') ? image : `${siteUrl}${image}`;
 const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title : `${title} | Pandia`;
 ---
@@ -77,7 +78,7 @@ const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
     <!-- Fonts -->
