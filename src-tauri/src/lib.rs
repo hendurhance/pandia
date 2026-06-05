@@ -42,11 +42,13 @@ fn emit_file_open(app: &AppHandle, paths: Vec<String>) {
         return;
     }
 
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.emit("file-open", &supported_paths);
-    } else if let Some(state) = app.try_state::<AppState>() {
+    if let Some(state) = app.try_state::<AppState>() {
         let mut pending = state.pending_files.lock().unwrap();
         pending.extend(supported_paths);
+    }
+
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit("file-open", &());
     }
 }
 
@@ -104,6 +106,7 @@ pub fn run() {
             commands::doc_export_preview,
             commands::doc_export_to_file,
             refresh_recent_files,
+            drain_pending_files,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle(), &[])?;
@@ -356,6 +359,12 @@ fn build_menu(
     )?;
 
     Ok(menu)
+}
+
+#[tauri::command]
+fn drain_pending_files(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
+    let mut pending = state.pending_files.lock().map_err(|e| e.to_string())?;
+    Ok(std::mem::take(&mut *pending))
 }
 
 #[tauri::command]

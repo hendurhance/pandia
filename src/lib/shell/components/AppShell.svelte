@@ -325,6 +325,36 @@
 		void invoke('refresh_recent_files', { items });
 	});
 
+	async function drainPendingFiles() {
+		let paths: string[] = [];
+		try {
+			paths = await invoke<string[]>('drain_pending_files');
+		} catch {
+			return;
+		}
+		for (const path of paths) {
+			if (!(await maybeConfirmLargeFile(path))) continue;
+			const ok = tabStore.openInTab({ kind: 'file', path });
+			if (!ok) break;
+		}
+	}
+
+	$effect(() => {
+		let unlisten: UnlistenFn | null = null;
+		let cancelled = false;
+		listen('file-open', () => {
+			void drainPendingFiles();
+		}).then((fn) => {
+			if (cancelled) fn();
+			else unlisten = fn;
+		});
+		void drainPendingFiles();
+		return () => {
+			cancelled = true;
+			unlisten?.();
+		};
+	});
+
 	$effect(() => {
 		let unlisten: UnlistenFn | null = null;
 		let cancelled = false;
