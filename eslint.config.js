@@ -39,17 +39,27 @@ export default ts.config(
 	},
 	{
 		rules: {
+			// Unused imports/vars are an error so the build bundler's noise
+			// (false-positive SSR warnings) can't hide a real one. Prefix with
+			// `_` to keep an intentional unused binding.
 			'@typescript-eslint/no-unused-vars': [
-				'warn',
-				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+				'error',
+				{
+					args: 'after-used',
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+					ignoreRestSiblings: true,
+				},
 			],
+			'no-unused-private-class-members': 'error',
 			'@typescript-eslint/no-explicit-any': 'warn',
 			'no-empty': ['error', { allowEmptyCatch: true }],
 			'@typescript-eslint/no-empty-function': 'off',
 			'@typescript-eslint/no-empty-object-type': 'off',
 			'svelte/prefer-svelte-reactivity': 'warn',
 			'svelte/no-navigation-without-resolve': 'warn',
-			'svelte/no-unused-svelte-ignore': 'warn',
+			'svelte/no-unused-svelte-ignore': 'error',
 			'svelte/no-useless-mustaches': 'warn',
 			'svelte/require-each-key': 'warn',
 			'svelte/no-at-html-tags': 'warn',

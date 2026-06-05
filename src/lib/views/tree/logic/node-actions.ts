@@ -40,7 +40,6 @@ export function createNodeActions(deps: NodeActionDeps) {
 		if (!handle) return null;
 		const keys: string[] = [];
 		let start = 0;
-		// eslint-disable-next-line no-constant-condition
 		while (true) {
 			const slice = await docGetSlice(handle, path, start, start + CHUNK);
 			for (const nv of slice) {

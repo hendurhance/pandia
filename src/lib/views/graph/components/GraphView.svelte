@@ -8,7 +8,7 @@
 	import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 	import { writeFile } from '@tauri-apps/plugin-fs';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-	import { onDestroy, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import type { DocHandle, NodeKind, Path } from '$lib/ipc/types';
 	import { layoutGraph, isContainerKind, type CardRow, type GraphCard } from '../logic/layout';
 	import { buildCard, collapseTree, expandRow as expandRowFetch } from '../logic/card-builder';

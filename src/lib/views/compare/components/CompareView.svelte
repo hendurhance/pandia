@@ -200,8 +200,12 @@
 	<div class="navbar rule-b">
 		<button onclick={prev} disabled={navDisabled} title="Previous diff">← Prev</button>
 		<button onclick={next} disabled={navDisabled} title="Next diff">Next →</button>
-		<span class="dim text-sm">{summaryText}</span>
-		<div class="grow"></div>
+		<span class="dim text-sm counter">
+			{#if mode === 'inline'}
+				{#if inlineHunkCount > 0}#{activeHunk + 1} / {inlineHunkCount}{/if}
+			{:else if mode === 'split' && activeIndex >= 0}#{activeIndex + 1} / {entries.length}{/if}
+		</span>
+		<span class="dim text-sm summary" title={summaryText}>{summaryText}</span>
 		<div class="mode-seg" role="group" aria-label="Diff layout">
 			<button
 				class:on={mode === 'split'}
@@ -228,11 +232,6 @@
 				><Icon icon={ArrowDownUp} size="xs" /> Sync scroll{syncScroll ? ' · on' : ' · off'}</button
 			>
 		{/if}
-		<span class="dim text-sm">
-			{#if mode === 'inline'}
-				{#if inlineHunkCount > 0}#{activeHunk + 1} / {inlineHunkCount}{/if}
-			{:else if mode === 'split' && activeIndex >= 0}#{activeIndex + 1} / {entries.length}{/if}
-		</span>
 	</div>
 
 	{#if staleSource}
@@ -374,10 +373,29 @@
 		gap: 0.6rem;
 		padding: 0.3rem 0.75rem;
 		background: var(--bg-elev);
+		min-width: 0;
+		overflow: hidden;
+	}
+	.navbar > * {
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
 	.navbar button {
 		font-size: 11px;
 		padding: 0.15rem 0.6rem;
+	}
+	.summary {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.counter {
+		font-variant-numeric: tabular-nums;
+		color: var(--text-faint);
+	}
+	.counter:empty {
+		display: none;
 	}
 	.err {
 		color: var(--accent);

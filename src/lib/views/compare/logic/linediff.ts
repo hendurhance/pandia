@@ -168,13 +168,19 @@ export function changeCounts(rows: UnifiedRow[]): { adds: number; dels: number }
 	return { adds, dels };
 }
 
+const ANCHOR_CHUNK = 50;
+
 export function changeAnchors(rows: UnifiedRow[]): number[] {
 	const anchors: number[] = [];
-	let prevWasChange = false;
+	let runLen = 0;
 	rows.forEach((r, idx) => {
 		const isChange = r.type === 'add' || r.type === 'del';
-		if (isChange && !prevWasChange) anchors.push(idx);
-		prevWasChange = isChange;
+		if (!isChange) {
+			runLen = 0;
+			return;
+		}
+		if (runLen === 0 || runLen >= ANCHOR_CHUNK) anchors.push(idx);
+		runLen++;
 	});
 	return anchors;
 }
