@@ -78,7 +78,7 @@
 
 <div class="panel">
 	
-	<div class="bar hstack gap-tight shrink-0">
+	<div class="bar">
 		<select
 			class="lang-select"
 			value={lang}
@@ -90,20 +90,21 @@
 				<option value={l.id}>{l.label}</option>
 			{/each}
 		</select>
-		<span class="grow"></span>
-		<span
-			class="status text-xs"
-			data-kind={busy ? 'busy' : error ? 'err' : context ? 'ok' : 'none'}
-		>
-			{#if !context}—
-			{:else if busy}…
-			{:else if error}err
-			{:else}{lineCount} ln
-			{/if}
-		</span>
-		<button class="icon" onclick={onCopy} disabled={!output || busy} title="Copy to clipboard">
-			<Icon icon={copyFlag.done ? Check : Copy} size="sm" />
-		</button>
+		<div class="bar-right">
+			<span
+				class="status text-xs"
+				data-kind={busy ? 'busy' : error ? 'err' : context ? 'ok' : 'none'}
+			>
+				{#if !context}—
+				{:else if busy}…
+				{:else if error}err
+				{:else}{lineCount} ln
+				{/if}
+			</span>
+			<button class="icon" onclick={onCopy} disabled={!output || busy} title="Copy to clipboard">
+				<Icon icon={copyFlag.done ? Check : Copy} size="sm" />
+			</button>
+		</div>
 	</div>
 
 	{#if error}
@@ -118,6 +119,23 @@
 <style>
 	.panel {
 		gap: 0.4rem;
+		min-width: 0;
+		container-type: inline-size;
+	}
+
+	.bar {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-width: 0;
+		flex-shrink: 0;
+	}
+	.bar-right {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin-left: auto;
+		flex: 0 0 auto;
 	}
 
 	.lang-select {
@@ -127,9 +145,16 @@
 		background: var(--bg-elev);
 		color: var(--text);
 		border: var(--rule-width) solid var(--rule);
-		min-width: 0;
-		max-width: 160px;
+		flex: 0 1 auto;
+		min-width: 80px;
+		max-width: 100px;
 		cursor: pointer;
+	}
+
+	@container (max-width: 180px) {
+		.status {
+			display: none;
+		}
 	}
 	.lang-select:focus {
 		outline: none;
@@ -141,11 +166,13 @@
 	}
 
 	.status {
-		min-width: 4ch;
+		flex-shrink: 0;
 		text-align: right;
 		color: var(--text-faint);
 		text-transform: uppercase;
 		letter-spacing: var(--label-tracking);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 	.status[data-kind='ok'] {
 		color: var(--text-dim);
