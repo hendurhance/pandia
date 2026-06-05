@@ -1,0 +1,8 @@
+# Revisions skipped by `git blame` — large mechanical reformats that would
+# otherwise obscure real authorship. GitHub honors this file automatically.
+#
+# Enable locally:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Add the full SHA of the one-time Phase 0 formatting commit
+# ("chore: format with prettier + rustfmt") below, one SHA per line.

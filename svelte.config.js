@@ -14,7 +14,7 @@ const config = {
 			}
 			// Enable runes for app source files
 			return { runes: true };
-		}
+		},
 	},
 
 	kit: {
@@ -23,9 +23,9 @@ const config = {
 			assets: 'dist',
 			fallback: 'index.html',
 			precompress: false,
-			strict: false
-		})
-	}
+			strict: false,
+		}),
+	},
 };
 
 export default config;

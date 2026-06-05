@@ -9,17 +9,37 @@ edition = "2021"
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.9", features = ["devtools"] }
-tauri-plugin-fs = "2.2"
-tauri-plugin-dialog = "2.4"
+tauri = { version = "2.11", features = ["devtools"] }
+tauri-plugin-fs = "2.5"
+tauri-plugin-dialog = "2.7"
 tauri-plugin-shell = "2.2"
 tauri-plugin-store = "2.4"
 tauri-plugin-http = "2"
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "2.10"
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision"] }
 tokio = { version = "1", features = ["full"] }
+
+# v1 doc model
+sonic-rs = "0.5"
+dashmap = "6"
+parking_lot = "0.12"
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+regex = "1"
+once_cell = "1"
+jsonschema = { version = "0.30", default-features = false }
+serde_yaml_ng = "0.10"
+quick-xml = { version = "0.36", features = ["serialize"] }
+csv = "1"
+# Streaming JSON→JSON (pretty/min) transcode for export-to-file without
+# materializing a serde_json::Value — keeps huge-doc export off the 50 MB cap.
+serde-transcode = "1.1"
+# Content-hash dirty flag (#31) — Blake3 is fast enough (~1 GB/s single-core)
+# that recomputing per applyOp on small/medium docs is unmeasurable; lazy docs
+# (>10 MB) keep version-based dirty as a fallback.
+blake3 = "1"
 
 [[bin]]
 name = "Pandia"

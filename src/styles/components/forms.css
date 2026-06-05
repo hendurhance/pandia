@@ -1,0 +1,90 @@
+.settings-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 1.2rem;
+	max-width: 720px;
+}
+.settings-head {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.settings-title {
+	margin: 0;
+	font-size: 18px;
+	letter-spacing: var(--label-tracking);
+}
+
+.field {
+	display: grid;
+	grid-template-columns: 160px 1fr;
+	gap: 1.2rem;
+	align-items: start;
+	padding-bottom: 0.9rem;
+	border-bottom: var(--rule-width) solid var(--rule);
+}
+.field:last-of-type {
+	border-bottom: none;
+}
+.field-label {
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: var(--label-tracking);
+	font-size: var(--font-size-xs);
+	padding-top: 0.3rem;
+}
+.field-control {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.switch {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	width: fit-content;
+	background: transparent;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+}
+.switch-knob {
+	position: relative;
+	width: 34px;
+	height: 18px;
+	background: var(--bg-elev-3);
+	border: var(--rule-width) solid var(--rule-2);
+	flex-shrink: 0;
+	transition: background 80ms linear;
+}
+.switch-knob::after {
+	content: '';
+	position: absolute;
+	top: 1px;
+	left: 1px;
+	width: 14px;
+	height: 14px;
+	background: var(--text-faint);
+	transition:
+		transform 80ms ease,
+		background 80ms linear;
+}
+.switch[aria-checked='true'] .switch-knob {
+	background: var(--accent-fill);
+	border-color: var(--accent-line);
+}
+.switch[aria-checked='true'] .switch-knob::after {
+	transform: translateX(16px);
+	background: var(--accent);
+}
+.switch-text {
+	font-size: var(--font-size-sm);
+	text-transform: uppercase;
+	letter-spacing: var(--label-tracking);
+	color: var(--text-dim);
+}
+.switch[aria-checked='true'] .switch-text {
+	color: var(--accent);
+}

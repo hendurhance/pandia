@@ -1,0 +1,37 @@
+.dialog {
+	display: flex;
+	flex-direction: column;
+	background: var(--bg-elev);
+	border: var(--rule-width) solid var(--rule-2);
+	box-shadow:
+		0 16px 48px rgba(0, 0, 0, 0.6),
+		0 1px 0 var(--accent);
+}
+.dialog-head {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.5rem 0.75rem;
+	border-bottom: var(--rule-width) solid var(--rule);
+	flex-shrink: 0;
+}
+.dialog-body {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+.dialog-foot {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.5rem 0.75rem;
+	border-top: var(--rule-width) solid var(--rule);
+	flex-shrink: 0;
+}
+.dialog-title {
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: var(--label-tracking);
+	font-size: var(--font-size-xs);
+	flex-shrink: 0;
+}
