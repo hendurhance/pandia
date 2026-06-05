@@ -12,6 +12,7 @@
     "core:window:default",
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
+    "core:window:allow-start-dragging",
     "core:app:default",
     "core:resources:default",
     "core:menu:default",

@@ -145,6 +145,7 @@
 			<span class="cap-warn text-xs dim">Max {maxTabs} tabs · close one to open another</span>
 		{/if}
 	</div>
+	<div class="tab-bar-drag" aria-hidden="true"></div>
 	<div class="tab-bar-actions">
 		<button
 			bind:this={compareBtnEl}
@@ -177,18 +178,23 @@
 		user-select: none;
 	}
 
-	
 	.tab,
 	.tab-new,
 	.tba {
 		-webkit-app-region: no-drag;
 	}
 
-	
+	.tab-bar-drag {
+		flex: 1 1 auto;
+		min-width: 24px;
+		align-self: stretch;
+		-webkit-app-region: drag;
+	}
+
 	.tab-scroll {
 		display: flex;
 		align-items: stretch;
-		flex: 1;
+		flex: 0 1 auto;
 		min-width: 0;
 		overflow-x: auto;
 		overflow-y: hidden;

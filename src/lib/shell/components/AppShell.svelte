@@ -348,10 +348,28 @@
 			unlisten?.();
 		};
 	});
+
+	function onTopBarPointerDown(e: PointerEvent) {
+		if (e.button !== 0) return;
+		const target = e.target as HTMLElement | null;
+		if (
+			target?.closest(
+				'button, input, select, a, [role="button"], [role="tab"], [data-tab-id], [data-no-drag]',
+			)
+		) return;
+		const win = getCurrentWebviewWindow();
+		void win.startDragging().catch(() => {});
+	}
 </script>
 
 <div class="shell">
-	<header class="shell-top">
+	<header
+		class="shell-top"
+		role="toolbar"
+		aria-label="Window top bar"
+		tabindex="-1"
+		onpointerdown={onTopBarPointerDown}
+	>
 		<TabBar
 			tabs={tabStore.tabs}
 			activeTabId={tabStore.activeId}
