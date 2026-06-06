@@ -322,12 +322,14 @@ fn build_menu(
     let keyboard_shortcuts = MenuItemBuilder::with_id("keyboard_shortcuts", "Keyboard Shortcuts")
         .accelerator("CmdOrCtrl+/")
         .build(app)?;
-    let view_modes_help = MenuItemBuilder::with_id("view_modes_help", "View Modes").build(app)?;
+    let view_website = MenuItemBuilder::with_id("view_website", "View Website").build(app)?;
+    let report_issue = MenuItemBuilder::with_id("report_issue", "Report Issue…").build(app)?;
 
     #[cfg(not(target_os = "macos"))]
     let help_menu = SubmenuBuilder::new(app, "Help")
         .item(&keyboard_shortcuts)
-        .item(&view_modes_help)
+        .item(&view_website)
+        .item(&report_issue)
         .separator()
         .item(&about)
         .item(&check_for_updates)
@@ -338,7 +340,8 @@ fn build_menu(
     #[cfg(target_os = "macos")]
     let help_menu = SubmenuBuilder::new(app, "Help")
         .item(&keyboard_shortcuts)
-        .item(&view_modes_help)
+        .item(&view_website)
+        .item(&report_issue)
         .build()?;
 
     #[cfg(target_os = "macos")]

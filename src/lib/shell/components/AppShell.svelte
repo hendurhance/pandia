@@ -3,6 +3,7 @@
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 	import { open as openDialog, message, ask } from '@tauri-apps/plugin-dialog';
+	import { open as openInBrowser } from '@tauri-apps/plugin-shell';
 	import { check } from '@tauri-apps/plugin-updater';
 	import { relaunch } from '@tauri-apps/plugin-process';
 	import { getVersion } from '@tauri-apps/api/app';
@@ -153,6 +154,9 @@
 		clearRecents,
 		showAbout,
 		checkForUpdates,
+		openWebsite: () => void openInBrowser('https://www.pandia.app').catch(() => {}),
+		reportIssue: () =>
+			void openInBrowser('https://github.com/hendurhance/pandia/issues/new').catch(() => {}),
 		isDev: import.meta.env.DEV,
 	};
 

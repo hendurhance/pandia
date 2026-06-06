@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { getVersion } from '@tauri-apps/api/app';
+	import { open as openInBrowser } from '@tauri-apps/plugin-shell';
 	import AppearancePanel from '$lib/settings/AppearancePanel.svelte';
 	import BehaviorPanel from '$lib/settings/BehaviorPanel.svelte';
 	import LayoutPanel from '$lib/settings/LayoutPanel.svelte';
@@ -8,6 +10,13 @@
 		onClose: () => void;
 	}
 	let { onClose }: Props = $props();
+
+	let version: string | null = $state(null);
+	$effect(() => {
+		void getVersion()
+			.then((v) => (version = v))
+			.catch(() => {});
+	});
 
 	type SettingsTab = 'appearance' | 'behavior' | 'layout' | 'data' | 'about';
 
@@ -59,15 +68,32 @@
 			{:else if active === 'about'}
 				<div class="about">
 					<h2 class="h2">Pandia</h2>
-					<div class="dim text-sm">v1.0.0-alpha.1 · terminal-noir</div>
+					<div class="dim text-sm">{version ? `v${version}` : ''}</div>
 					<p class="muted">
-						A JSON workbench. Open something, see it instantly, manipulate it without ceremony, copy
-						or export the result.
+						A JSON IDE built for files the rest of your tools choke on. Open
+						multi-gigabyte documents instantly, navigate them as a tree, code,
+						table or node graph, diff two versions, generate types in nine
+						languages, validate against JSON Schema. Everything runs locally;
+						nothing leaves your machine.
 					</p>
-					<p class="muted text-sm">
-						The document model lives in Rust. The UI is a thin renderer over slices of that model.
-						Everything else is supplementary.
-					</p>
+					<div class="links">
+						<button
+							class="link-btn"
+							onclick={() => void openInBrowser('https://www.pandia.app')}
+							>Website ↗</button
+						>
+						<button
+							class="link-btn"
+							onclick={() => void openInBrowser('https://github.com/hendurhance/pandia')}
+							>GitHub ↗</button
+						>
+						<button
+							class="link-btn"
+							onclick={() =>
+								void openInBrowser('https://github.com/hendurhance/pandia/issues/new')}
+							>Report Issue ↗</button
+						>
+					</div>
 				</div>
 			{/if}
 		</section>
@@ -171,5 +197,22 @@
 		color: var(--text-dim);
 		line-height: 1.6;
 		margin: 0;
+	}
+	.links {
+		display: flex;
+		gap: 0.6rem;
+		margin-top: 0.4rem;
+	}
+	.link-btn {
+		background: transparent;
+		border: var(--rule-width) solid var(--rule);
+		color: var(--text-dim);
+		font-size: var(--font-size-sm);
+		padding: 0.2rem 0.6rem;
+		cursor: pointer;
+	}
+	.link-btn:hover {
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 </style>

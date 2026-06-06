@@ -22,7 +22,9 @@ export interface ShellCommandDeps {
 	clearRecents: () => void;
 	showAbout: () => Promise<void> | void;
 	checkForUpdates: () => Promise<void> | void;
-	
+	openWebsite: () => void;
+	reportIssue: () => void;
+
 	isDev: boolean;
 }
 
@@ -114,6 +116,18 @@ export function buildShellCommands(deps: ShellCommandDeps): Command[] {
 			keybinding: '⌘/',
 			run: deps.openHelp,
 		},
+		{
+			id: 'help.website',
+			label: 'View Website',
+			category: 'Help',
+			run: deps.openWebsite,
+		},
+		{
+			id: 'help.reportIssue',
+			label: 'Report Issue…',
+			category: 'Help',
+			run: deps.reportIssue,
+		},
 	];
 }
 
@@ -131,7 +145,8 @@ export function buildMenuRouteMap(deps: ShellCommandDeps): Record<string, () => 
 		validate_json: deps.revealSchemaPanel,
 		clear_recent_files: deps.clearRecents,
 		keyboard_shortcuts: deps.openHelp,
-		view_modes_help: deps.openHelp,
+		view_website: deps.openWebsite,
+		report_issue: deps.reportIssue,
 		open_settings: deps.openSettings,
 		about: () => void deps.showAbout(),
 		check_for_updates: () => void deps.checkForUpdates(),
