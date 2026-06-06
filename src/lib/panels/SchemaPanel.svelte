@@ -19,7 +19,7 @@
 	interface Props {
 		tabId: string;
 		context: Context | null;
-		
+
 		onJump?: (path: Path) => void;
 	}
 

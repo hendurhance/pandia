@@ -4,13 +4,12 @@ import type { DocHandle, OpenResult } from '$lib/ipc/types';
 import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 
 export interface CompareDeps {
-	
 	mainHandle: () => DocHandle | null;
-	
+
 	setViewMode: (mode: 'compare' | 'tree') => void;
 	setBusy: (busy: boolean) => void;
 	setError: (error: string | null) => void;
-	
+
 	isHandleAlive: (h: DocHandle) => boolean;
 }
 
@@ -23,15 +22,12 @@ export class CompareController {
 
 	constructor(private deps: CompareDeps) {}
 
-	
 	active = $derived(this.handle !== null);
 
-	
 	staleSource = $derived.by(
 		() => this.borrowed && this.handle !== null && !this.deps.isHandleAlive(this.handle),
 	);
 
-	
 	start = async (target: CompareTarget) => {
 		if (target.kind === 'file') {
 			await this.pickFile();
@@ -55,7 +51,6 @@ export class CompareController {
 		}
 	};
 
-	
 	pickFile = async () => {
 		const picked = await openDialog({
 			multiple: false,
@@ -80,25 +75,20 @@ export class CompareController {
 		}
 	};
 
-	
 	exit = async () => {
 		await this.release();
 		this.clear();
 		this.deps.setViewMode('tree');
 	};
 
-	
 	release = async () => {
 		if (this.handle && !this.borrowed) {
 			try {
 				await docClose(this.handle);
-			} catch {
-				
-			}
+			} catch {}
 		}
 	};
 
-	
 	clear = () => {
 		this.handle = null;
 		this.summary = null;

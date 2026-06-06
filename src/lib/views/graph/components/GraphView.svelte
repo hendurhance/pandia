@@ -54,9 +54,7 @@
 	let loading = $state(true);
 	let error: string | null = $state(null);
 
-	const layout = $derived(
-		root ? layoutGraph(root) : { cards: [], edges: [], width: 0, height: 0 },
-	);
+	const layout = $derived(root ? layoutGraph(root) : { cards: [], edges: [], width: 0, height: 0 });
 
 	async function initExpand() {
 		try {
@@ -83,9 +81,7 @@
 					frontier = next;
 					root = { ...r }; // reveal each BFS layer as it resolves
 					if (animateExpand && frontier.length > 0) {
-						await new Promise<void>((resolve) =>
-							requestAnimationFrame(() => resolve()),
-						);
+						await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 					}
 				}
 			}
@@ -122,7 +118,6 @@
 		queueMicrotask(() => canvasApi?.fitView());
 	}
 
-	
 	function centerFirstItem() {
 		if (!root) return;
 		const first = layout.cards.find((c) => c.path.length === 0);
@@ -130,9 +125,8 @@
 		canvasApi?.centerOn(first.x + first.w / 2, first.y + first.h / 2);
 	}
 
-	
 	const EXPAND_ALL_MAX_CARDS = 500;
-	
+
 	const EXPAND_ALL_BATCH = 20;
 	let expanding = $state(false);
 
@@ -228,9 +222,7 @@
 		void getCurrentWebviewWindow()
 			.isFullscreen()
 			.then((v) => (isFullscreen = v))
-			.catch(() => {
-				
-			});
+			.catch(() => {});
 	});
 	async function toggleFullscreen() {
 		const win = getCurrentWebviewWindow();

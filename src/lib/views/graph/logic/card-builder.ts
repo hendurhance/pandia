@@ -5,20 +5,9 @@ import { hueOf, toRow } from './card-helpers';
 
 export const RENDER_CHILD_CAP = 5000;
 
-export {
-	NHUES,
-	collapseTree,
-	containerPreview,
-	hueOf,
-	scalarText,
-	toRow,
-} from './card-helpers';
+export { NHUES, collapseTree, containerPreview, hueOf, scalarText, toRow } from './card-helpers';
 
-export async function buildCard(
-	handle: DocHandle,
-	path: Path,
-	kind: NodeKind,
-): Promise<GraphCard> {
+export async function buildCard(handle: DocHandle, path: Path, kind: NodeKind): Promise<GraphCard> {
 	const slice = await docGetSlice(handle, path, 0, RENDER_CHILD_CAP);
 	return {
 		id: pathId(path),

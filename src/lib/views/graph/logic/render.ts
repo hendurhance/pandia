@@ -19,14 +19,14 @@ export interface PaintOpts {
 	ctx: CanvasRenderingContext2D;
 	layout: LayoutResult;
 	viewport: ViewportState;
-	
+
 	screenW: number;
 	screenH: number;
 	theme: GraphTheme;
 	dpr: number;
-	
+
 	highlightCardId?: string | null;
-	
+
 	edgeStyle?: EdgeStyle;
 }
 
@@ -171,7 +171,7 @@ function paintCard(
 	ctx.stroke();
 
 	ctx.save();
-	roundRectPath(ctx, card.x, card.y, card.w, HEADER_H, CARD_RADIUS,  true);
+	roundRectPath(ctx, card.x, card.y, card.w, HEADER_H, CARD_RADIUS, true);
 	ctx.clip();
 	ctx.fillStyle = mixHex(theme.bgElev, accent, headerTint);
 	ctx.fillRect(card.x, card.y, card.w, HEADER_H);
@@ -390,9 +390,8 @@ export function paintFullLayout(
 	margin = 40,
 ): HTMLCanvasElement {
 	const plan = planRasterExport(layout, margin);
-	const ratio = plan.layoutScale === 1
-		? Math.max(1, Math.min(plan.ratio, Math.round(pixelRatio)))
-		: plan.ratio;
+	const ratio =
+		plan.layoutScale === 1 ? Math.max(1, Math.min(plan.ratio, Math.round(pixelRatio))) : plan.ratio;
 	const layoutScale = plan.layoutScale;
 	const logicalW = Math.ceil((layout.width + margin * 2) * layoutScale);
 	const logicalH = Math.ceil((layout.height + margin * 2) * layoutScale);
@@ -413,11 +412,7 @@ export function paintFullLayout(
 	return canvas;
 }
 
-export function fitText(
-	ctx: CanvasRenderingContext2D,
-	text: string,
-	maxWidth: number,
-): string {
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
 	if (maxWidth <= 0) return '';
 	if (ctx.measureText(text).width <= maxWidth) return text;
 	const ell = '…';

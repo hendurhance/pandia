@@ -34,7 +34,6 @@
 		</p>
 	</header>
 
-	
 	<section class="field">
 		<div class="field-label">side panel</div>
 		<div class="field-control">
@@ -52,7 +51,6 @@
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="field-label">panels</div>
 		<div class="field-control">

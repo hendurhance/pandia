@@ -6,16 +6,16 @@
 
 	interface Props {
 		col: Column;
-		
+
 		left: number;
 		width: number;
-		
+
 		active: boolean;
-		
+
 		sortDesc: boolean;
-		
+
 		hasFilter: boolean;
-		
+
 		dragging: boolean;
 		onClick: () => void;
 		onPointerDown: (e: PointerEvent) => void;
@@ -23,10 +23,10 @@
 		onPointerUp: (e: PointerEvent) => void;
 		onPointerCancel: () => void;
 		onOpenFilter: (e: MouseEvent) => void;
-		
+
 		onResizeStart: () => void;
 		onResizeMove: (dx: number) => void;
-		
+
 		onResizeEnd: (moved: boolean) => void;
 		onAutoFit: () => void;
 	}
@@ -111,7 +111,6 @@
 </div>
 
 <style>
-	
 	.cell.head {
 		position: absolute;
 		top: 0;
@@ -181,7 +180,7 @@
 		padding: 0;
 		cursor: pointer;
 		color: var(--text-dim);
-		opacity: 0.55; 
+		opacity: 0.55;
 		transition:
 			opacity 0.1s,
 			color 0.1s;
@@ -213,7 +212,7 @@
 		font-size: 9px;
 		flex-shrink: 0;
 	}
-	
+
 	.sort-arrow.hint {
 		color: var(--text-faint);
 		opacity: 0;

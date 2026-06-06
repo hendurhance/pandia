@@ -15,13 +15,12 @@ export interface ValidationResult {
 }
 
 export interface InvalidMarksInput {
-	
 	result: ValidationResult | null;
-	
+
 	validatedVersion: number | null;
-	
+
 	liveVersion: number | null;
-	
+
 	rows: ReadonlyArray<Row>;
 }
 
@@ -30,8 +29,7 @@ export function computeInvalidMarks(input: InvalidMarksInput): Map<string, Inval
 	const { result, validatedVersion, liveVersion, rows } = input;
 	if (!result || result.valid || result.errors.length === 0) return m;
 
-	const stale =
-		liveVersion != null && validatedVersion != null && liveVersion > validatedVersion;
+	const stale = liveVersion != null && validatedVersion != null && liveVersion > validatedVersion;
 	const errKind: InvalidMark = stale ? 'stale-error' : 'error';
 	const ancKind: InvalidMark = stale ? 'stale-ancestor' : 'ancestor';
 

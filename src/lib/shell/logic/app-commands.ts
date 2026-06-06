@@ -3,7 +3,6 @@ import type { OpenSource } from '$lib/ipc/types';
 import { buildDemoSource } from './demo';
 
 export interface ShellCommandDeps {
-	
 	tabsLength: () => number;
 	activeTabId: () => string;
 	hasActiveContext: () => boolean;

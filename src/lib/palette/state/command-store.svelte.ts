@@ -15,9 +15,9 @@ export interface Command {
 	id: string;
 	label: string;
 	category: CommandCategory;
-	
+
 	keybinding?: string;
-	
+
 	enabled?: () => boolean;
 	run: () => void | Promise<void>;
 }
@@ -67,7 +67,6 @@ class UsageTracker extends PersistedStore {
 		void savePersisted(USAGE_FILE, USAGE_KEY, this.counts);
 	}
 
-	
 	topN(n: number, pool: string[]): string[] {
 		return [...pool]
 			.filter((id) => (this.counts[id] ?? 0) > 0)

@@ -108,7 +108,6 @@
 		<p class="hint text-sm dim">Persisted across launches · changes apply instantly.</p>
 	</header>
 
-	
 	<section class="field">
 		<div class="label">theme</div>
 		<div class="field-control">
@@ -154,7 +153,6 @@
 		</div>
 	</section>
 
-
 	<section class="field">
 		<div class="label">monospace font</div>
 		<div class="field-control">
@@ -192,7 +190,6 @@
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="label">font size</div>
 		<div class="field-control">
@@ -211,7 +208,6 @@
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="label">density</div>
 		<div class="field-control">
@@ -230,7 +226,6 @@
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="label"></div>
 		<div class="field-control">
@@ -250,7 +245,6 @@
 		margin-top: 0.5rem;
 	}
 
-	
 	.label {
 		color: var(--text-faint);
 		text-transform: uppercase;

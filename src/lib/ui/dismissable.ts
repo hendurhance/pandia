@@ -1,7 +1,6 @@
 interface DismissableOptions {
-	
 	onDismiss: () => void;
-	
+
 	ignore?: HTMLElement | null;
 }
 

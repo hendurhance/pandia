@@ -64,7 +64,7 @@
 			<div class="builder" class:multi={groups.length > 1}>
 				{#each groups as cols, gi (gi)}
 					{#if gi > 0}<span class="or-pill">OR</span>{/if}
-					
+
 					<div
 						class="grp"
 						class:active={gi === activeGroup}
@@ -91,7 +91,7 @@
 							</span>
 						{/each}
 						{#if cols.length === 0}<span class="grp-hint">pick a column ▾</span>{/if}
-						
+
 						{#if groups.length > 1 && cols.length !== 1}
 							{#if cols.length >= 2}<span class="grp-sep"></span>{/if}
 							<button
@@ -209,8 +209,6 @@
 		padding: 0 0.2ch;
 	}
 
-	
-	
 	.builder-scroll {
 		flex: 1 1 auto;
 		min-width: 0;

@@ -150,13 +150,11 @@
 </Dialog>
 
 <style>
-	
 	.sheet {
 		width: min(640px, 90%);
 		height: min(620px, 82vh);
 	}
 
-	
 	.formats {
 		display: flex;
 		gap: 0.2rem;
@@ -179,7 +177,6 @@
 		border-color: var(--accent);
 	}
 
-	
 	.preview-wrap {
 		flex: 1;
 		min-height: 0;

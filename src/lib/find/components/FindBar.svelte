@@ -4,19 +4,19 @@
 	interface Props {
 		open: boolean;
 		query: string;
-		
+
 		counter: string;
-		
+
 		navDisabled: boolean;
-		
+
 		isError: boolean;
-		
+
 		busy?: boolean;
 		onQueryChange: (q: string) => void;
 		onPrev: () => void;
 		onNext: () => void;
 		onClose: () => void;
-		
+
 		onCancel?: () => void;
 		replaceValue: string;
 		onReplaceChange: (v: string) => void;
@@ -107,7 +107,6 @@
 			>
 		</button>
 		<div class="cols">
-			
 			<div class="row" class:err={isError}>
 				<div class="field">
 					<input
@@ -126,7 +125,6 @@
 				</div>
 				<div class="actions">
 					{#if busy && onCancel}
-						
 						<button
 							class="ic cancel"
 							onclick={onCancel}
@@ -150,16 +148,12 @@
 						>
 					{/if}
 					<span class="sep" aria-hidden="true"></span>
-					<button
-						class="ic close"
-						onclick={onClose}
-						title="Close · esc"
-						aria-label="Close find"><Icon icon={X} size="sm" /></button
+					<button class="ic close" onclick={onClose} title="Close · esc" aria-label="Close find"
+						><Icon icon={X} size="sm" /></button
 					>
 				</div>
 			</div>
 
-			
 			{#if replaceOpen}
 				<div class="row replace">
 					<div class="field">
@@ -304,7 +298,6 @@
 		flex-shrink: 0;
 	}
 
-	
 	.ic {
 		background: transparent;
 		border: none;

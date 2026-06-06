@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -7,7 +6,10 @@ use super::types::{DocError, DocResult, Path, PathSegment};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Op {
-    SetValue { path: Path, value: Value },
+    SetValue {
+        path: Path,
+        value: Value,
+    },
 
     RenameKey {
         path: Path,
@@ -22,7 +24,10 @@ pub enum Op {
         position: Option<usize>,
     },
 
-    DeleteKey { path: Path, key: String },
+    DeleteKey {
+        path: Path,
+        key: String,
+    },
 
     InsertItem {
         path: Path,
@@ -30,13 +35,26 @@ pub enum Op {
         value: Value,
     },
 
-    DeleteItem { path: Path, index: usize },
+    DeleteItem {
+        path: Path,
+        index: usize,
+    },
 
-    MoveItem { path: Path, from: usize, to: usize },
+    MoveItem {
+        path: Path,
+        from: usize,
+        to: usize,
+    },
 
-    ReorderKeys { path: Path, order: Vec<String> },
+    ReorderKeys {
+        path: Path,
+        order: Vec<String>,
+    },
 
-    SortKeys { path: Path, descending: bool },
+    SortKeys {
+        path: Path,
+        descending: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

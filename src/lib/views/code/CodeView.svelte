@@ -1,17 +1,16 @@
 <script module lang="ts">
 	export interface CodeViewApi {
-		
 		flush: () => Promise<boolean>;
-		
+
 		revert: () => void;
-		
+
 		undo: () => boolean;
 		redo: () => boolean;
-		
+
 		cmSearch: (query: string, caseSensitive: boolean) => number;
 		cmFindNext: () => void;
 		cmFindPrev: () => void;
-		
+
 		cmReplaceAll: (query: string, replacement: string, caseSensitive: boolean) => number;
 	}
 </script>
@@ -73,17 +72,17 @@
 		sourceSize: number;
 		highlights?: Highlight[];
 		activePath?: Path | null;
-		
+
 		onScrollerReady?: (el: HTMLElement) => void;
-		
+
 		editable?: boolean;
-		
+
 		onCommit?: (text: string) => boolean | Promise<boolean>;
-		
+
 		onDirtyChange?: (dirty: boolean) => void;
-		
+
 		onReady?: (api: CodeViewApi | null) => void;
-		
+
 		onParseState?: (state: { valid: boolean; message: string | null } | null) => void;
 	}
 
@@ -147,7 +146,6 @@
 		programmatic = false;
 	}
 
-	
 	async function commit(): Promise<boolean> {
 		if (!editable || !editorView) return true;
 		const text = editorView.state.doc.toString();
@@ -298,9 +296,7 @@
 					try {
 						JSON.parse(text); // validate; an invalid buffer is discarded on unmount
 						void onCommit?.(text); // Rust re-parses with arbitrary_precision
-					} catch {
-						
-					}
+					} catch {}
 				}
 				onReady?.(null);
 			}
@@ -310,12 +306,10 @@
 		};
 	});
 
-	
 	function readOnlyExtensions() {
 		return [EditorState.readOnly.of(true), EditorView.editable.of(false)];
 	}
 
-	
 	function editExtensions() {
 		return [
 			history(),
@@ -379,7 +373,6 @@
 	<div class="host">
 		<div class="cm-wrap" bind:this={container}></div>
 		{#if editable && parseError}
-			
 			<div class="edit-bar">
 				<span class="eb-msg">
 					<span class="eb-dot" aria-hidden="true"></span>parse error · {parseError}
@@ -426,7 +419,6 @@
 		border-color: var(--accent);
 	}
 
-	
 	.edit-bar {
 		flex-shrink: 0;
 		display: flex;
@@ -455,7 +447,6 @@
 		flex-shrink: 0;
 	}
 
-	
 	.cm-wrap :global(.cm-diff-added) {
 		background: rgba(123, 166, 136, 0.18);
 	}

@@ -19,18 +19,15 @@ export class DocNavController {
 
 	constructor(private deps: DocNavDeps) {}
 
-	
 	readonly selectedIndex = $derived.by(() => {
 		void this.deps.tree.rows;
 		return this.selectedPath === null ? -1 : this.deps.tree.contentRowIdx(this.selectedPath);
 	});
 
-	
 	select = (path: Path | null) => {
 		this.selectedPath = path;
 	};
 
-	
 	selectRow = (index: number) => {
 		const row = this.deps.tree.rows[index];
 		if (row.variant !== 'content') return;
@@ -38,7 +35,6 @@ export class DocNavController {
 		this.deps.setError(null);
 	};
 
-	
 	scrollTo = (path: Path) => {
 		const idx = this.rowIndexOf(path);
 		if (idx < 0) return;
@@ -46,7 +42,6 @@ export class DocNavController {
 		this.requestScroll(idx);
 	};
 
-	
 	navigateTo = async (target: Path) => {
 		this.deps.switchToTree();
 		await this.deps.tree.ensurePathVisible(target);
@@ -56,7 +51,6 @@ export class DocNavController {
 		if (idx >= 0) this.requestScroll(idx);
 	};
 
-	
 	onGraphPick = (path: Path) => {
 		this.deps.switchToTree();
 		this.selectedPath = path;
@@ -86,7 +80,6 @@ export class DocNavController {
 		await this.navigateTo(parsed.path);
 	};
 
-	
 	onSegment = (depth: number) => {
 		if (this.selectedPath === null) {
 			this.scrollTo([]);

@@ -2,10 +2,8 @@ export abstract class PersistedStore {
 	loaded = $state(false);
 	private initPromise: Promise<void> | null = null;
 
-	
 	protected abstract load(): Promise<void>;
 
-	
 	protected onReady(): void {}
 
 	async init(): Promise<void> {
@@ -21,7 +19,6 @@ export abstract class PersistedStore {
 		await this.initPromise;
 	}
 
-	
 	async reload(): Promise<void> {
 		await this.load();
 		this.onReady();

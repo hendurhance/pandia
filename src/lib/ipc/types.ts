@@ -20,9 +20,9 @@ export interface Summary {
 	sourceSize: number;
 	lazy: boolean;
 	version: number;
-	
+
 	dirty: boolean;
-	
+
 	fileBacked: boolean;
 }
 
@@ -93,7 +93,7 @@ export interface DiffEntry {
 	kind: DiffKind;
 	leftPreview?: string;
 	rightPreview?: string;
-	
+
 	fromIndex?: number;
 }
 
@@ -109,7 +109,7 @@ export interface SearchHit {
 export interface SearchOptions {
 	query: string;
 	caseSensitive?: boolean;
-	
+
 	maxResults?: number;
 }
 

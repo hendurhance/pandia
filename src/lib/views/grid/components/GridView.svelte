@@ -28,13 +28,13 @@
 		handle: DocHandle;
 		path: Path;
 		schema: ColumnSchema;
-		
+
 		onOpenInTree?: (cellPath: Path) => void;
-		
+
 		onCellSelect?: (cell: { path: Path; kind: NodeKind | null } | null) => void;
-		
+
 		docKey?: string | null;
-		
+
 		onExtract?: (values: unknown[]) => void;
 	}
 
@@ -119,7 +119,6 @@
 	} | null>(null);
 	let colDropGap = $state<number | null>(null);
 
-	
 	function colContentX(clientX: number): number {
 		if (!headerEl) return 0;
 		return contentXFromClient(clientX, headerEl.getBoundingClientRect().left, data.scrollLeft);
@@ -164,11 +163,7 @@
 		active: () => !!colDrag?.moved && !!scroller,
 		onTick: () => {
 			if (!colDrag) return;
-			colDropGap = gapForX(
-				colContentX(colDrag.lastX),
-				columnLayout.offsets,
-				columnLayout.widths,
-			);
+			colDropGap = gapForX(colContentX(colDrag.lastX), columnLayout.offsets, columnLayout.widths);
 		},
 	});
 	const startAutoScroll = () => autoScroller.start();
@@ -339,7 +334,6 @@
 		</div>
 	{/if}
 
-	
 	<div class="top" style="height: {HEADER_HEIGHT}px;">
 		<div class="corner" style="width: {indexWidth}px;" aria-hidden="true">#</div>
 		<div class="header" bind:this={headerEl}>
@@ -387,7 +381,6 @@
 		</div>
 	</div>
 
-	
 	<div class="body">
 		<div class="index-gutter" style="width: {indexWidth}px;">
 			<div class="index-track" style="transform: translateY(-{data.scrollTop}px);">
@@ -549,7 +542,7 @@
 		position: relative;
 		height: 100%;
 	}
-	
+
 	.col-drop-line {
 		position: absolute;
 		top: 0;

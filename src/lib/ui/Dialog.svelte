@@ -3,7 +3,7 @@
 
 	interface Props {
 		onClose: () => void;
-		
+
 		children: Snippet;
 	}
 
@@ -28,7 +28,6 @@
 </div>
 
 <style>
-	
 	.scrim {
 		position: fixed;
 		inset: 0;

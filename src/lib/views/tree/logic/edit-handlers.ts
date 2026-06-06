@@ -34,12 +34,10 @@ export interface EditCallbacks {
 }
 
 export interface EditDeps extends EditCallbacks {
-	
 	buffer: () => string;
 }
 
 export function createEditHandlers(deps: EditDeps) {
-	
 	function onAreaKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
@@ -54,13 +52,11 @@ export function createEditHandlers(deps: EditDeps) {
 		}
 	}
 
-	
 	function commitBool(value: 'true' | 'false') {
 		deps.onInput(value);
 		deps.onCommit();
 	}
 
-	
 	function onBoolFocusOut(e: FocusEvent) {
 		const next = e.relatedTarget as Node | null;
 		if (next && (e.currentTarget as HTMLElement).contains(next)) return;

@@ -9,7 +9,7 @@
 		onEdgeStyle: (s: EdgeStyle) => void;
 		onAnimateExpand: (v: boolean) => void;
 		onClose: () => void;
-		
+
 		anchor?: HTMLElement | null;
 	}
 

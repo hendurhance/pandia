@@ -11,9 +11,9 @@ export interface EditState {
 export interface DocEditDeps {
 	rows: () => Row[];
 	handle: () => DocHandle | null;
-	
+
 	apply: (op: Op) => Promise<ApplyResult | null>;
-	
+
 	setError: (msg: string | null) => void;
 }
 
@@ -24,7 +24,6 @@ export class DocEditController {
 
 	constructor(private deps: DocEditDeps) {}
 
-	
 	get active(): boolean {
 		return this.state !== null;
 	}
@@ -51,10 +50,7 @@ export class DocEditController {
 						this.state = { rowIndex, field: 'value', buffer: full };
 						return;
 					}
-				} catch {
-					
-					
-				}
+				} catch {}
 			}
 			this.state = { rowIndex, field: 'value', buffer: row.preview.replace(/^"|"$/g, '') };
 			return;
@@ -95,7 +91,6 @@ export class DocEditController {
 		this.state = null;
 	};
 
-	
 	private parseValue(text: string, kind: ContentRow['kind']): unknown | typeof INVALID {
 		if (kind === 'string') return text;
 		try {

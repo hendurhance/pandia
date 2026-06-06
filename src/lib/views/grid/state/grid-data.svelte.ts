@@ -22,9 +22,9 @@ export interface GridRow {
 export interface GridQuery {
 	sortKey: string | null;
 	sortDesc: boolean;
-	
+
 	filterGroups: GridFilter[][];
-	
+
 	quick: string;
 	quickKeys: string[];
 	filtering: boolean;
@@ -35,7 +35,7 @@ export interface GridDataDeps {
 	path: () => Path;
 	rowCount: () => number;
 	query: () => GridQuery;
-	
+
 	onFilterOverflow: (message: string) => void;
 }
 
@@ -55,7 +55,6 @@ export class GridDataController {
 
 	constructor(private deps: GridDataDeps) {}
 
-	
 	readonly effectiveRowCount = $derived.by(() =>
 		this.deps.query().filtering ? (this.filteredTotal ?? 0) : this.deps.rowCount(),
 	);
@@ -92,7 +91,6 @@ export class GridDataController {
 		return (v as Record<string, unknown>)[colKey] ?? MISSING;
 	};
 
-	
 	loadedColumnTexts = (colKey: string): string[] => {
 		const out: string[] = [];
 		for (const rows of this.chunks.values()) {
@@ -182,14 +180,12 @@ export class GridDataController {
 		return work;
 	}
 
-	
 	fetchVisible = () => {
 		const first = this.chunkStart(this.rowRange.start);
 		const last = this.chunkStart(Math.max(this.rowRange.start, this.rowRange.end - 1));
 		for (let s = first; s <= last; s += CHUNK) void this.fetchChunk(s);
 	};
 
-	
 	fetchRange = async (lo: number, hi: number) => {
 		for (let s = this.chunkStart(lo); s <= this.chunkStart(hi); s += CHUNK) {
 			await this.fetchChunk(s);
@@ -206,7 +202,6 @@ export class GridDataController {
 		this.viewportHeight = height;
 	};
 
-	
 	reset = () => {
 		this.generation += 1;
 		if (this.filterJobId) {

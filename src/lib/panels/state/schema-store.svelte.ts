@@ -3,7 +3,7 @@ import type { SchemaValidationResult } from '$lib/ipc/types';
 interface TabSchema {
 	text: string;
 	result: SchemaValidationResult | null;
-	
+
 	validatedVersion: number | null;
 	busy: boolean;
 	error: string | null;

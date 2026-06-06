@@ -136,9 +136,7 @@ describe('rectsOverlap', () => {
 		expect(rectsOverlap(a, b)).toBe(false);
 	});
 	it('detects 1-px interior overlap', () => {
-		expect(
-			rectsOverlap({ x: 0, y: 0, w: 11, h: 11 }, { x: 10, y: 10, w: 5, h: 5 }),
-		).toBe(true);
+		expect(rectsOverlap({ x: 0, y: 0, w: 11, h: 11 }, { x: 10, y: 10, w: 5, h: 5 })).toBe(true);
 	});
 });
 

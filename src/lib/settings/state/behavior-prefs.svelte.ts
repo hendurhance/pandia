@@ -39,9 +39,7 @@ function sanitize(raw: unknown): Persisted {
 	if (ms < SCHEMA_DEBOUNCE_MANUAL) ms = SCHEMA_DEBOUNCE_MANUAL;
 	if (ms > SCHEMA_DEBOUNCE_MAX) ms = SCHEMA_DEBOUNCE_MAX;
 	let idle =
-		typeof r.autoSaveIdleMs === 'number'
-			? Math.round(r.autoSaveIdleMs)
-			: AUTO_SAVE_IDLE_DEFAULT;
+		typeof r.autoSaveIdleMs === 'number' ? Math.round(r.autoSaveIdleMs) : AUTO_SAVE_IDLE_DEFAULT;
 	if (idle < AUTO_SAVE_IDLE_MIN) idle = AUTO_SAVE_IDLE_MIN;
 	if (idle > AUTO_SAVE_IDLE_MAX) idle = AUTO_SAVE_IDLE_MAX;
 	return {
@@ -49,8 +47,7 @@ function sanitize(raw: unknown): Persisted {
 		autoRepairOnPaste: typeof r.autoRepairOnPaste === 'boolean' ? r.autoRepairOnPaste : true,
 		autoSaveOnIdle: typeof r.autoSaveOnIdle === 'boolean' ? r.autoSaveOnIdle : false,
 		autoSaveIdleMs: idle,
-		warnLargeFileOpen:
-			typeof r.warnLargeFileOpen === 'boolean' ? r.warnLargeFileOpen : true,
+		warnLargeFileOpen: typeof r.warnLargeFileOpen === 'boolean' ? r.warnLargeFileOpen : true,
 	};
 }
 

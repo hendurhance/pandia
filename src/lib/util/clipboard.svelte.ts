@@ -2,7 +2,6 @@ export class CopyFlag {
 	done = $state(false);
 	private timer: ReturnType<typeof setTimeout> | null = null;
 
-	
 	async copy(text: string, ms = 1500): Promise<boolean> {
 		try {
 			await navigator.clipboard.writeText(text);
@@ -13,7 +12,6 @@ export class CopyFlag {
 		}
 	}
 
-	
 	flash(ms = 1500): void {
 		this.done = true;
 		if (this.timer) clearTimeout(this.timer);

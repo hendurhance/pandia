@@ -37,7 +37,6 @@
 </div>
 
 <style>
-	
 	.label {
 		color: var(--text-dim);
 		font-size: 11.5px;

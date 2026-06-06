@@ -75,8 +75,7 @@
 						class="recent-x"
 						onclick={() => removeRecent(r.path)}
 						title="Remove from recents"
-						aria-label="Remove from recents"
-						><Icon icon={X} size="xs" /></button
+						aria-label="Remove from recents"><Icon icon={X} size="xs" /></button
 					>
 				</li>
 			{/each}

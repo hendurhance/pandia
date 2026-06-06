@@ -13,11 +13,9 @@ export interface GridSelectDeps {
 }
 
 export class GridSelectionController {
-	
 	selected: { row: number; col: string } | null = $state(null);
 	readonly inspectorCopy = new CopyFlag();
 
-	
 	selectedRows = $state(new Set<number>());
 	private selAnchorPos: number | null = null; // visible position of the last click
 	readonly rowsCopy = new CopyFlag();
@@ -30,7 +28,6 @@ export class GridSelectionController {
 		return this.deps.data.getCell(this.selected.row, this.selected.col);
 	});
 
-	
 	readonly selectedPath = $derived.by<Path | null>(() => {
 		if (!this.selected) return null;
 		void this.deps.data.chunks; // re-read once the row's chunk loads
@@ -39,7 +36,6 @@ export class GridSelectionController {
 		return [...this.deps.path(), orig, this.selected.col];
 	});
 
-	
 	readonly selectedKind = $derived.by<NodeKind | null>(() => {
 		const v = this.selectedValue;
 		return v === UNLOADED || v === MISSING || v === undefined ? null : valueKind(v);
@@ -82,9 +78,7 @@ export class GridSelectionController {
 		try {
 			const vals = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
 			await this.rowsCopy.copy(JSON.stringify(vals, null, 2));
-		} catch {
-			
-		}
+		} catch {}
 	};
 
 	extractSelected = async () => {
@@ -92,9 +86,7 @@ export class GridSelectionController {
 		if (idx.length === 0) return;
 		try {
 			this.deps.onExtract(await docGetRowsAt(this.deps.handle(), this.deps.path(), idx));
-		} catch {
-			
-		}
+		} catch {}
 	};
 
 	selectCell = (row: number, col: string) => {
@@ -108,7 +100,6 @@ export class GridSelectionController {
 		await this.inspectorCopy.copy(inspectorText(v));
 	};
 
-	
 	openSelectedInTree = () => {
 		if (this.selectedPath) this.deps.onOpenInTree(this.selectedPath);
 	};
@@ -120,7 +111,6 @@ export class GridSelectionController {
 		}
 	};
 
-	
 	reset = () => {
 		this.selected = null;
 		this.selectedRows = new Set();

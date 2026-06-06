@@ -1,10 +1,9 @@
 interface ResizableOptions {
-	
 	onMove: (dx: number) => void;
 	onStart?: () => void;
-	
+
 	onEnd?: (moved: boolean) => void;
-	
+
 	swallow?: boolean;
 }
 
@@ -37,9 +36,7 @@ export function resizable(node: HTMLElement, options: ResizableOptions) {
 		active = false;
 		try {
 			node.releasePointerCapture(e.pointerId);
-		} catch {
-			
-		}
+		} catch {}
 		opts.onEnd?.(moved);
 	}
 

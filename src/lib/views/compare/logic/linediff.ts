@@ -1,15 +1,15 @@
 export interface DiffRow {
 	type: 'context' | 'add' | 'del';
 	text: string;
-	
+
 	leftNo: number | null;
 	rightNo: number | null;
 }
 export interface GapRow {
 	type: 'gap';
-	
+
 	count: number;
-	
+
 	lines: DiffRow[];
 }
 export type UnifiedRow = DiffRow | GapRow;

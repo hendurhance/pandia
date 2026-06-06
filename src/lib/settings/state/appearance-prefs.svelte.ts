@@ -61,7 +61,7 @@ function sanitize(raw: unknown): Persisted {
 class AppearancePrefs extends PersistedStore {
 	themeId: string = $state(DEFAULT_THEME_ID);
 	autoMode: boolean = $state(false);
-	
+
 	systemPrefersDark: boolean = $state(true);
 	fontFamily: string = $state(DEFAULT_MONO);
 	fontSizeBase: number = $state(DEFAULT_FONT_SIZE);
@@ -78,9 +78,7 @@ class AppearancePrefs extends PersistedStore {
 			this.fontFamily = p.fontFamily;
 			this.fontSizeBase = p.fontSizeBase;
 			this.density = p.density;
-		} catch {
-			
-		}
+		} catch {}
 	}
 
 	protected onReady(): void {
@@ -99,7 +97,6 @@ class AppearancePrefs extends PersistedStore {
 		});
 	}
 
-	
 	private resolvedId(): string {
 		if (!this.autoMode) return this.themeId;
 		const fam = familyOf(this.themeId);
@@ -134,7 +131,6 @@ class AppearancePrefs extends PersistedStore {
 		} satisfies Persisted);
 	}
 
-	
 	async setTheme(id: string): Promise<void> {
 		if (!(id in THEMES)) return;
 		if (!this.autoMode && this.themeId === id) return;
@@ -144,7 +140,6 @@ class AppearancePrefs extends PersistedStore {
 		await this.persist();
 	}
 
-	
 	async setAuto(idInFamily: string): Promise<void> {
 		const fam = familyOf(idInFamily);
 		if (!fam?.dark || !fam.light) return;

@@ -94,4 +94,3 @@ describe('gapAt', () => {
 		expect(gapAt(rows, offsets, 0, 50)).toBeNull();
 	});
 });
-

@@ -94,8 +94,7 @@
 		return true;
 	}
 
-	let navRequest: { path: Path; nonce: number; tabId: string } | null =
-		$state(null);
+	let navRequest: { path: Path; nonce: number; tabId: string } | null = $state(null);
 	let historyRequest: { delta: number; nonce: number; tabId: string } | null = $state(null);
 	let compareRequest: { target: CompareTarget; nonce: number; tabId: string } | null = $state(null);
 	let actionNonce = 0;
@@ -390,7 +389,8 @@
 			target?.closest(
 				'button, input, select, a, [role="button"], [role="tab"], [data-tab-id], [data-no-drag]',
 			)
-		) return;
+		)
+			return;
 		const win = getCurrentWebviewWindow();
 		void win.startDragging().catch(() => {});
 	}
@@ -520,7 +520,7 @@
 	.shell {
 		display: grid;
 		grid-template-rows: auto 1fr auto;
-		
+
 		grid-template-columns: minmax(0, 1fr);
 		height: 100%;
 		min-height: 0;
@@ -531,7 +531,6 @@
 		background: var(--bg);
 	}
 
-	
 	:global([data-platform='mac']) .shell-top {
 		padding-left: 78px;
 		-webkit-app-region: drag;
@@ -564,8 +563,6 @@
 		flex: 1;
 	}
 
-	
-
 	.shell {
 		position: relative;
 	}
@@ -589,7 +586,6 @@
 		letter-spacing: var(--label-tracking);
 	}
 
-	
 	.settings-overlay {
 		position: fixed;
 		inset: 0;

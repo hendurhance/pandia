@@ -4,11 +4,11 @@ import type { DocHandle } from '$lib/ipc/types';
 export interface BackupFlushDeps {
 	handle: () => DocHandle | null;
 	sourceName: () => string | null;
-	
+
 	isDirty: () => boolean;
-	
+
 	codeDirty: () => boolean;
-	
+
 	flushCodeBuffer: () => Promise<boolean>;
 }
 

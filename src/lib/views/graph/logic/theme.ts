@@ -16,9 +16,9 @@ export interface GraphTheme {
 	syntaxBoolean: string;
 	syntaxNull: string;
 	syntaxPunct: string;
-	
+
 	monoFamily: string;
-	
+
 	isLight: boolean;
 }
 
@@ -59,9 +59,7 @@ export function readGraphTheme(): GraphTheme {
 		const resolved = getComputedStyle(probe).fontFamily;
 		document.body.removeChild(probe);
 		if (resolved) monoFamily = resolved;
-	} catch {
-		
-	}
+	} catch {}
 	const bg = v(cs, '--bg', '#1b1b1d');
 	const bgElev = v(cs, '--bg-elev', '#212124');
 	return {

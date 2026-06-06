@@ -9,9 +9,8 @@ const CHUNK = 200;
 const OBJECT_REORDER_MAX = 2000;
 
 export interface CutMark {
-	
 	path: Path;
-	
+
 	text: string;
 }
 
@@ -20,21 +19,20 @@ export interface NodeActionDeps {
 	rows: () => Row[];
 	selectedIndex: () => number;
 	setSelectedPath: (path: Path) => void;
-	
+
 	siblingCount: (parentPath: Path) => number | null;
 	prompt: PromptController;
-	
+
 	apply: (op: Op) => Promise<ApplyResult | null>;
 	setError: (msg: string) => void;
 	flash: (msg: string) => void;
 	onOpenInNewTab: (source: OpenSource) => void;
-	
+
 	getCutMark: () => CutMark | null;
 	setCutMark: (mark: CutMark | null) => void;
 }
 
 export function createNodeActions(deps: NodeActionDeps) {
-	
 	async function fetchObjectKeys(path: Path): Promise<string[] | null> {
 		const handle = deps.handle();
 		if (!handle) return null;
@@ -52,14 +50,12 @@ export function createNodeActions(deps: NodeActionDeps) {
 		return keys;
 	}
 
-	
 	async function copyValueJson(row: ContentRow): Promise<boolean> {
 		const handle = deps.handle();
 		if (!handle) return false;
 		try {
 			const value = await docGetValue(handle, row.path);
-			const text =
-				typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+			const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 			await navigator.clipboard.writeText(text);
 			return true;
 		} catch (e) {
@@ -86,7 +82,6 @@ export function createNodeActions(deps: NodeActionDeps) {
 	}
 
 	return {
-		
 		selectedContentRow(): ContentRow | null {
 			const i = deps.selectedIndex();
 			if (i < 0) return null;
@@ -181,7 +176,6 @@ export function createNodeActions(deps: NodeActionDeps) {
 
 		remove,
 
-		
 		async move(row: ContentRow, dir: -1 | 1) {
 			const handle = deps.handle();
 			if (row.depth === 0 || !handle) return;
@@ -211,7 +205,6 @@ export function createNodeActions(deps: NodeActionDeps) {
 			await deps.apply({ kind: 'reorderKeys', path: parentPath, order });
 		},
 
-		
 		async reorderTo(dragged: ContentRow, gap: number) {
 			const handle = deps.handle();
 			if (dragged.depth === 0 || !handle) return;
@@ -241,7 +234,6 @@ export function createNodeActions(deps: NodeActionDeps) {
 			await deps.apply({ kind: 'reorderKeys', path: parentPath, order });
 		},
 
-		
 		async sortKeys(row: ContentRow, descending: boolean) {
 			if (row.kind !== 'object' || !deps.handle()) return;
 			await deps.apply({ kind: 'sortKeys', path: row.path, descending });
@@ -264,7 +256,6 @@ export function createNodeActions(deps: NodeActionDeps) {
 			}
 		},
 
-		
 		async cut(row: ContentRow) {
 			if (row.depth === 0) return; // can't cut the root
 			const handle = deps.handle();
@@ -301,9 +292,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 
 			const cut = deps.getCutMark();
 			const isCutPaste =
-				cut !== null &&
-				cut.text === text &&
-				pathKey(cut.path.slice(0, -1)) !== pathKey(parentPath);
+				cut !== null && cut.text === text && pathKey(cut.path.slice(0, -1)) !== pathKey(parentPath);
 
 			if (typeof row.key === 'number') {
 				const inserted = await deps.apply({

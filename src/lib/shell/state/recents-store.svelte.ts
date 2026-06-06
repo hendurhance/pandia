@@ -11,7 +11,7 @@ export interface RecentFile {
 	name: string;
 	openedAt: string; // ISO timestamp
 	size?: number; // source bytes at open time (optional — older entries lack it)
-	
+
 	pinned?: boolean;
 }
 

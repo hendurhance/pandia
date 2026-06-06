@@ -77,7 +77,8 @@ export async function importSettings(raw: unknown): Promise<void> {
 	if (!raw || typeof raw !== 'object') throw new Error('settings bundle is not an object');
 	const bundle = raw as Partial<SettingsBundle>;
 	if (bundle.$kind !== 'pandia-settings') throw new Error('not a Pandia settings bundle');
-	if (bundle.version !== 1) throw new Error(`unsupported bundle version: ${String(bundle.version)}`);
+	if (bundle.version !== 1)
+		throw new Error(`unsupported bundle version: ${String(bundle.version)}`);
 	if (!bundle.files || typeof bundle.files !== 'object') throw new Error('bundle is missing files');
 	for (const [file, keys] of Object.entries(bundle.files)) {
 		if (!EXPORTABLE_FILES.includes(file)) continue;

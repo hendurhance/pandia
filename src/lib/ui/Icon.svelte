@@ -5,9 +5,9 @@
 
 	interface Props {
 		icon: Component<{ size?: number | string; strokeWidth?: number | string; color?: string }>;
-		
+
 		size?: Size;
-		
+
 		strokeWidth?: number;
 	}
 
@@ -28,7 +28,7 @@
 		vertical-align: middle;
 		line-height: 0;
 		color: inherit;
-		
+
 		flex-shrink: 0;
 	}
 	.ui-icon :global(svg) {

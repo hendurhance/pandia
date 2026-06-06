@@ -29,7 +29,6 @@
 		onOpenSource({ kind: 'file', path: picked });
 	}
 
-	
 	async function openFromText(text: string, baseName: string) {
 		try {
 			const r = await docDetectAndConvert(text);
@@ -76,7 +75,6 @@
 			<span class="title">PANDIA</span>
 		</header>
 
-		
 		<section class="block">
 			<div class="paste-wrap">
 				<!-- svelte-ignore a11y_autofocus -->
@@ -151,7 +149,6 @@
 		flex-wrap: wrap;
 	}
 
-	
 	.link {
 		background: none;
 		border: none;
@@ -176,7 +173,7 @@
 		min-height: 120px;
 		resize: vertical;
 	}
-	
+
 	.detect-chip {
 		position: absolute;
 		top: 6px;

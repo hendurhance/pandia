@@ -12,7 +12,7 @@
 		row: ContentRow;
 		onAction: (action: MenuAction) => void;
 		onClose: () => void;
-		
+
 		canMoveUp?: boolean;
 		canMoveDown?: boolean;
 	}
@@ -53,7 +53,6 @@
 							<span class="ico">{item.ico}</span><span class="lbl">{item.label}</span>
 						</button>
 					{:else}
-						
 						<div class="menu-item has-sub" role="menuitem" aria-haspopup="menu" tabindex="0">
 							<span class="ico">{item.ico}</span><span class="lbl">{item.label}</span><span
 								class="chev"><Icon icon={ChevronRight} size="xs" /></span
@@ -145,7 +144,7 @@
 	.has-sub:focus-within > .submenu {
 		display: flex;
 	}
-	
+
 	.sub-left .submenu {
 		left: auto;
 		right: 100%;

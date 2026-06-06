@@ -60,7 +60,10 @@ describe('collectExpandedDescendants', () => {
 			close([], 0),
 		];
 		const paths = collectExpandedDescendants(rows, 1, 1);
-		expect(paths).toEqual([['a', 'x'], ['a', 'y']]);
+		expect(paths).toEqual([
+			['a', 'x'],
+			['a', 'y'],
+		]);
 	});
 
 	it('skips placeholder + close + vgap rows (only collects content)', () => {

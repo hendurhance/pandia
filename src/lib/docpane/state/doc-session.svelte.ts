@@ -26,18 +26,18 @@ export interface DocSessionDeps {
 	compare: CompareController;
 	setBusy: (busy: boolean) => void;
 	setError: (msg: string | null) => void;
-	
+
 	getError: () => string | null;
 	setSelectedPath: (path: Path | null) => void;
-	
+
 	clearViewState: () => void;
-	
+
 	flushPendingEdits: () => Promise<boolean>;
-	
+
 	flash: (msg: string) => void;
-	
+
 	cancelBackupTimer: () => void;
-	
+
 	confirmLargeFile?: (path: string) => Promise<boolean>;
 }
 
@@ -45,7 +45,7 @@ export class DocSessionController {
 	handle: DocHandle | null = $state(null);
 	summary: OpenResult['summary'] | null = $state(null);
 	sourceName: string | null = $state(null);
-	
+
 	repairInfo: RepairInfo | null = $state(null);
 
 	constructor(private deps: DocSessionDeps) {}
@@ -72,7 +72,6 @@ export class DocSessionController {
 		}
 	};
 
-	
 	loadFromSource = async (source: OpenSource) => {
 		if (source.kind === 'file' && this.deps.confirmLargeFile) {
 			const proceed = await this.deps.confirmLargeFile(source.path);
@@ -121,7 +120,6 @@ export class DocSessionController {
 		this.deps.setError(null);
 	};
 
-	
 	dispose = () => {
 		if (this.handle != null) void docClose(this.handle);
 		void this.deps.compare.release();
@@ -131,9 +129,7 @@ export class DocSessionController {
 		if (!this.handle) return;
 		try {
 			this.summary = await docSummary(this.handle);
-		} catch {
-			
-		}
+		} catch {}
 	};
 
 	applyOp = async (op: Op): Promise<ApplyResult | null> => {
@@ -152,7 +148,6 @@ export class DocSessionController {
 		}
 	};
 
-	
 	commitText = async (text: string): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
@@ -197,7 +192,6 @@ export class DocSessionController {
 		}
 	};
 
-	
 	runHistory = async (delta: number) => {
 		const n = Math.abs(delta);
 		for (let i = 0; i < n; i++) {
@@ -206,7 +200,6 @@ export class DocSessionController {
 		}
 	};
 
-	
 	save = async (opts: { silent?: boolean } = {}): Promise<boolean> => {
 		if (!this.handle || !this.summary) return true;
 		if (!(await this.deps.flushPendingEdits())) return false;
@@ -257,7 +250,6 @@ export class DocSessionController {
 		return /\.[^.]+$/.test(name) ? name.replace(/\.[^.]+$/, '.json') : `${name}.json`;
 	}
 
-	
 	clearBackup = () => {
 		this.deps.cancelBackupTimer();
 		if (this.handle) void docBackupClear(this.handle).catch(() => {});

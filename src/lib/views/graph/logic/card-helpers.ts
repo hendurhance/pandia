@@ -26,8 +26,7 @@ function hash(s: string): number {
 export function hueOf(path: Path): number {
 	if (path.length === 0) return hash('root') % NHUES;
 	const last = path[path.length - 1];
-	const base =
-		typeof last === 'number' ? String(path[path.length - 2] ?? 'item') : String(last);
+	const base = typeof last === 'number' ? String(path[path.length - 2] ?? 'item') : String(last);
 	return hash(base) % NHUES;
 }
 

@@ -17,7 +17,10 @@ export function detectFormat(text: string): DetectedFormat {
 	if (/^---\s*\n/.test(t)) return 'yaml';
 	const head = t.split('\n', 12);
 	const nonEmptyHead = head.filter((l) => l.trim().length > 0);
-	if (nonEmptyHead.length > 0 && nonEmptyHead.every((l) => /^[\w$.-]+\s*:\s*(\S.*)?$/.test(l.trim()))) {
+	if (
+		nonEmptyHead.length > 0 &&
+		nonEmptyHead.every((l) => /^[\w$.-]+\s*:\s*(\S.*)?$/.test(l.trim()))
+	) {
 		return 'yaml';
 	}
 

@@ -16,7 +16,7 @@
 		onDismiss,
 	}: {
 		candidates: Candidate[];
-		
+
 		anchorEl: HTMLElement | null;
 		onPick: (target: CompareTarget) => void;
 		onDismiss: () => void;
@@ -62,7 +62,7 @@
 		max-height: 60vh;
 		overflow-y: auto;
 	}
-	
+
 	.menu-item:hover {
 		color: var(--accent);
 	}

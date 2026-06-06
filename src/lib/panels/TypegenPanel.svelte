@@ -77,7 +77,6 @@
 </script>
 
 <div class="panel">
-	
 	<div class="bar">
 		<select
 			class="lang-select"

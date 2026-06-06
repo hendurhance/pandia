@@ -126,7 +126,7 @@ export interface ColumnValue {
 }
 export interface ColumnValues {
 	values: ColumnValue[];
-	
+
 	capped: boolean;
 }
 

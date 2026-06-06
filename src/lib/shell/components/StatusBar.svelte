@@ -114,7 +114,6 @@
 		color: var(--accent);
 	}
 
-	
 	.sb-cell.editing .val {
 		color: var(--accent);
 		text-transform: uppercase;

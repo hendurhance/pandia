@@ -2,7 +2,6 @@
 	import type { Path } from '$lib/ipc/types';
 	import type { ViewportState } from '../logic/viewport';
 
-	
 	export interface GraphCanvasApi {
 		fitView: () => void;
 		zoomBy: (factor: number) => void;
@@ -29,17 +28,17 @@
 
 	interface Props {
 		layout: LayoutResult;
-		
+
 		onPickCard: (path: Path) => void;
-		
+
 		onPortToggle: (row: CardRow) => void;
-		
+
 		onScaleChange?: (scale: number) => void;
-		
+
 		onReady?: (api: GraphCanvasApi | null) => void;
-		
+
 		highlightCardId?: string | null;
-		
+
 		edgeStyle?: 'elbow' | 'curve';
 	}
 
@@ -175,9 +174,7 @@
 		if (panStart) {
 			try {
 				canvas.releasePointerCapture(panStart.pointerId);
-			} catch {
-				
-			}
+			} catch {}
 			panStart = null;
 			panMoved = false;
 		}
@@ -288,7 +285,7 @@
 	canvas {
 		display: block;
 		cursor: grab;
-		touch-action: none; 
+		touch-action: none;
 		user-select: none;
 		outline: none;
 	}

@@ -153,7 +153,7 @@
 		border-right: var(--rule-width) solid var(--rule);
 		overflow: hidden;
 	}
-	
+
 	.sidebar.right {
 		border-right: none;
 		border-left: var(--rule-width) solid var(--rule);
@@ -199,7 +199,7 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		
+
 		bottom: -1px;
 		height: 1px;
 		background: var(--accent);

@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	buildOffsets,
-	DEFAULT_ROW_H,
-	indexAtOffset,
-	visibleWindow,
-} from './virtualizer';
+import { buildOffsets, DEFAULT_ROW_H, indexAtOffset, visibleWindow } from './virtualizer';
 
 describe('buildOffsets', () => {
 	it('uniform-height fast path: zero rows', () => {

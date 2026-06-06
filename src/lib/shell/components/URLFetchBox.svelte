@@ -2,9 +2,8 @@
 	import { parseHeaders, URL_FETCH_TIMEOUT_MS } from '../logic/url-fetch';
 
 	interface Props {
-		
 		busy: boolean;
-		
+
 		onLoad: (text: string, sourceName: string) => void;
 	}
 

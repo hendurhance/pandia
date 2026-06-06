@@ -1,4 +1,3 @@
-
 export function autofocusSelect(node: HTMLInputElement) {
 	const t = setTimeout(() => {
 		node.focus();

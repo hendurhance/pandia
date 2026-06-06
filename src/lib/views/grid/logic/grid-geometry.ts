@@ -7,11 +7,10 @@ const MAX_COL_CH = 48;
 const HEADER_AFFORDANCE_CH = 5;
 
 export interface ColumnLayout {
-	
 	widths: number[];
-	
+
 	offsets: number[];
-	
+
 	total: number;
 }
 

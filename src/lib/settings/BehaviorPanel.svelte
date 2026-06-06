@@ -34,7 +34,6 @@
 		<p class="text-sm dim">How tooling reacts to edits. Persisted across launches.</p>
 	</header>
 
-	
 	<section class="field">
 		<div class="field-label">schema validation</div>
 		<div class="field-control">
@@ -59,7 +58,6 @@
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="field-label">large file warning</div>
 		<div class="field-control">
@@ -73,13 +71,12 @@
 				<span class="switch-text">{behaviorPrefs.warnLargeFileOpen ? 'on' : 'off'}</span>
 			</button>
 			<div class="text-sm dim">
-				Confirm before opening files larger than 200 MB. Validation, diff, and export can be slow
-				at that size.
+				Confirm before opening files larger than 200 MB. Validation, diff, and export can be slow at
+				that size.
 			</div>
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="field-label">auto-repair</div>
 		<div class="field-control">
@@ -99,7 +96,6 @@
 		</div>
 	</section>
 
-	
 	<section class="field">
 		<div class="field-label">auto-save</div>
 		<div class="field-control">
@@ -113,8 +109,8 @@
 				<span class="switch-text">{behaviorPrefs.autoSaveOnIdle ? 'on' : 'off'}</span>
 			</button>
 			<div class="text-sm dim">
-				Save file-backed documents automatically after a brief pause in typing. When off, ⌘S
-				saves manually and closing an unsaved tab prompts to save.
+				Save file-backed documents automatically after a brief pause in typing. When off, ⌘S saves
+				manually and closing an unsaved tab prompts to save.
 			</div>
 			{#if behaviorPrefs.autoSaveOnIdle}
 				<div class="seg">

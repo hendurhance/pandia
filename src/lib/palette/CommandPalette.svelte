@@ -172,7 +172,7 @@
 							tabindex="-1"
 						>
 							<span class="label">{@html highlightLabel(r.cmd.label, r.ranges)}</span>
-							
+
 							{#if query.trim() || r.section === 'Recent'}
 								<span class="cat">{r.cmd.category}</span>
 							{/if}
@@ -252,7 +252,6 @@
 		margin: 0;
 	}
 
-	
 	.section {
 		position: sticky;
 		top: 0;
@@ -271,7 +270,6 @@
 		border-top: none;
 	}
 
-	
 	.row {
 		align-items: baseline;
 		gap: 0.6rem;

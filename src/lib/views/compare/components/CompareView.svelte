@@ -18,9 +18,9 @@
 		rightSourceSize: number;
 		leftName: string;
 		rightName: string;
-		
+
 		staleSource?: boolean;
-		
+
 		onExit?: () => void;
 	}
 
@@ -111,13 +111,11 @@
 		return k;
 	}
 
-	
 	function leftPathOf(e: DiffEntry): Path {
 		if (e.kind !== 'moved' || e.fromIndex === undefined) return e.path;
 		return [...e.path.slice(0, -1), e.fromIndex];
 	}
 
-	
 	function entryPathDisplay(e: DiffEntry): string {
 		if (e.kind !== 'moved' || e.fromIndex === undefined) return pathToString(e.path);
 		const parent = e.path.slice(0, -1);
@@ -401,7 +399,6 @@
 		color: var(--accent);
 	}
 
-	
 	.stale-notice {
 		flex: 1;
 		display: flex;
@@ -462,7 +459,6 @@
 		border-color: var(--accent-line);
 	}
 
-	
 	.mode-seg {
 		display: flex;
 	}
@@ -486,7 +482,6 @@
 		border-color: var(--accent-line);
 	}
 
-	
 	.inline-head {
 		flex: 0 0 auto;
 		display: flex;

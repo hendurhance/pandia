@@ -3,20 +3,18 @@ import type { DocSessionController } from '../state/doc-session.svelte';
 export const AUTO_SAVE_MIN_IDLE_MS = 250;
 
 export interface AutoSaveDeps {
-	
 	isDirty: () => boolean;
-	
+
 	isFileBacked: () => boolean;
-	
+
 	autoSaveOnIdle: () => boolean;
-	
+
 	autoSaveIdleMs: () => number;
-	
+
 	save: DocSessionController['save'];
 }
 
 export interface AutoSaver {
-	
 	schedule(): () => void;
 }
 

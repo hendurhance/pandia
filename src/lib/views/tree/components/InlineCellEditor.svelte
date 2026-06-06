@@ -42,7 +42,6 @@
 </script>
 
 {#snippet microBar(label: string, saveKey: string)}
-	
 	<span class="micro-bar">
 		<span class="slot type">{label}</span>
 		<button
@@ -76,7 +75,6 @@
 	/>
 	{@render microBar('Key', '⏎')}
 {:else if kind === 'bool'}
-	
 	<span
 		class="bool-seg"
 		use:autofocusEl
@@ -105,7 +103,6 @@
 	</span>
 	<span class="edit-hint">←/→ toggle · ⏎ save</span>
 {:else if kind === 'number'}
-	
 	<span class="num-edit">
 		<input
 			class="edit-input v-input number num-input"
@@ -137,7 +134,6 @@
 	</span>
 	<span class="edit-hint">↑/↓ step · ⇧ ×10</span>
 {:else if kind === 'string'}
-	
 	<span class="str-edit">
 		<textarea
 			class="edit-area"
@@ -196,7 +192,6 @@
 		font-style: italic;
 	}
 
-	
 	.str-edit {
 		flex: 1;
 		min-width: 0;
@@ -227,7 +222,6 @@
 		margin-left: 0;
 	}
 
-	
 	.micro-bar {
 		display: inline-flex;
 		align-items: stretch;
@@ -276,7 +270,6 @@
 		background: var(--bg-elev-3);
 	}
 
-	
 	.bool-seg {
 		display: inline-flex;
 		align-items: stretch;
@@ -313,7 +306,6 @@
 		box-shadow: 0 0 0 1px var(--accent-line);
 	}
 
-	
 	.num-edit {
 		display: inline-flex;
 		align-items: stretch;

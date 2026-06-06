@@ -44,7 +44,9 @@
 		<div class="title" id="confirm-title">{title}</div>
 		<div class="dim text-sm">{message}</div>
 		<div class="actions">
-			<button class="btn" onclick={() => onPick('cancel')}>{cancelLabel}<span class="hint">esc</span></button>
+			<button class="btn" onclick={() => onPick('cancel')}
+				>{cancelLabel}<span class="hint">esc</span></button
+			>
 			<button class="btn" onclick={() => onPick('secondary')}>{secondaryLabel}</button>
 			<button
 				bind:this={primaryBtn}

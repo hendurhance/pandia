@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	createEditHandlers,
-	editSize,
-	nextNumberValue,
-	valueTypeLabel,
-} from './edit-handlers';
+import { createEditHandlers, editSize, nextNumberValue, valueTypeLabel } from './edit-handlers';
 
 describe('editSize', () => {
 	it('returns at least 4 for tiny buffers', () => {

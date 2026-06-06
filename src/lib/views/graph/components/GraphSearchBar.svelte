@@ -5,11 +5,11 @@
 	interface Props {
 		open: boolean;
 		query: string;
-		
+
 		counter: string;
-		
+
 		navDisabled: boolean;
-		
+
 		isError: boolean;
 		onQueryChange: (q: string) => void;
 		onPrev: () => void;
@@ -17,8 +17,17 @@
 		onClose: () => void;
 	}
 
-	let { open, query, counter, navDisabled, isError, onQueryChange, onPrev, onNext, onClose }: Props =
-		$props();
+	let {
+		open,
+		query,
+		counter,
+		navDisabled,
+		isError,
+		onQueryChange,
+		onPrev,
+		onNext,
+		onClose,
+	}: Props = $props();
 
 	let inputEl: HTMLInputElement | undefined = $state();
 

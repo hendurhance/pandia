@@ -14,28 +14,27 @@
 	} from '@lucide/svelte';
 
 	interface Props {
-		
 		zoomPct: number;
-		
+
 		onCenterFirst: () => void;
-		
+
 		onFitView: () => void;
-		
+
 		onExpandAll: () => void;
-		
+
 		onCollapseAll: () => void;
 		onZoomOut: () => void;
 		onZoomIn: () => void;
 		onExport: () => void;
-		
+
 		onToggleFullscreen: () => void;
-		
+
 		isFullscreen?: boolean;
-		
+
 		onToggleSettings: () => void;
-		
+
 		settingsOpen?: boolean;
-		
+
 		settingsBtn?: HTMLButtonElement | null;
 		exportBtn?: HTMLButtonElement | null;
 		exportMenuOpen?: boolean;
@@ -65,7 +64,6 @@
 </script>
 
 <div class="dock" role="toolbar" aria-label="Graph controls">
-
 	<button
 		class="dock-btn"
 		title="Center first item"
@@ -75,11 +73,9 @@
 		<Icon icon={Crosshair} size="sm" />
 	</button>
 
-
 	<button class="dock-btn" title="Fit to center" aria-label="Fit to center" onclick={onFitView}>
 		<Icon icon={Maximize} size="sm" />
 	</button>
-
 
 	<button
 		class="dock-btn"
@@ -91,13 +87,7 @@
 		<Icon icon={UnfoldVertical} size="sm" />
 	</button>
 
-
-	<button
-		class="dock-btn"
-		title="Collapse all"
-		aria-label="Collapse all"
-		onclick={onCollapseAll}
-	>
+	<button class="dock-btn" title="Collapse all" aria-label="Collapse all" onclick={onCollapseAll}>
 		<Icon icon={FoldVertical} size="sm" />
 	</button>
 
@@ -176,7 +166,9 @@
 		border-radius: 6px;
 		color: var(--text-dim);
 		cursor: pointer;
-		transition: color 80ms linear, background-color 80ms linear;
+		transition:
+			color 80ms linear,
+			background-color 80ms linear;
 	}
 	.dock-btn:hover:not(:disabled) {
 		color: var(--text);

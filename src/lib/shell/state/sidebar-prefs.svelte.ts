@@ -64,7 +64,6 @@ class SidebarPrefs extends PersistedStore {
 	side: SidebarSide = $state('left');
 	panels: PanelFlags = $state({ ...ALL_ENABLED });
 
-	
 	enabledTabs: SidebarTabId[] = $derived(SIDEBAR_TABS.filter((t) => this.panels[t]));
 
 	protected async load(): Promise<void> {

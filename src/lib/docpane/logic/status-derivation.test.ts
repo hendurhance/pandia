@@ -48,18 +48,14 @@ describe('validityFromView', () => {
 	});
 
 	it('code view without parse state falls through to schema', () => {
-		expect(
-			validityFromView({ viewMode: 'code', codeValid: null, schemaResult: okSchema }),
-		).toEqual({ kind: 'schema', ok: true, errors: 0 });
+		expect(validityFromView({ viewMode: 'code', codeValid: null, schemaResult: okSchema })).toEqual(
+			{ kind: 'schema', ok: true, errors: 0 },
+		);
 	});
 
 	it('returns null when nothing is loaded', () => {
-		expect(
-			validityFromView({ viewMode: 'tree', codeValid: null, schemaResult: null }),
-		).toBeNull();
-		expect(
-			validityFromView({ viewMode: 'graph', codeValid: null, schemaResult: null }),
-		).toBeNull();
+		expect(validityFromView({ viewMode: 'tree', codeValid: null, schemaResult: null })).toBeNull();
+		expect(validityFromView({ viewMode: 'graph', codeValid: null, schemaResult: null })).toBeNull();
 	});
 
 	it('strips message when undefined for the buffer kind', () => {

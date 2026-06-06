@@ -5,23 +5,22 @@ import type { DocHandle, Path, SearchHit } from '$lib/ipc/types';
 const FIND_DEBOUNCE_MS = 160;
 
 export interface FindDeps {
-	
 	handle: () => DocHandle | null;
-	
+
 	canOpen: () => boolean;
-	
+
 	isCodeView: () => boolean;
-	
+
 	isGraphView: () => boolean;
-	
+
 	switchToTree: () => void;
-	
+
 	codeApi: () => CodeViewApi | null;
-	
+
 	openGraphSearch: () => void;
-	
+
 	navigateToHit: (path: Path) => void | Promise<void>;
-	
+
 	afterReplace: (affectedPaths: Path[]) => Promise<void>;
 }
 
@@ -44,7 +43,6 @@ export class FindController {
 
 	constructor(private deps: FindDeps) {}
 
-	
 	counter = $derived.by(() => {
 		if (this.error) return this.error;
 		if (!this.query.trim()) return '';
@@ -86,7 +84,6 @@ export class FindController {
 		this.error = null;
 	};
 
-	
 	syncActiveView = () => {
 		const q = this.query.trim();
 		if (!this.open || !q) return;
@@ -157,7 +154,6 @@ export class FindController {
 		}
 	};
 
-	
 	cancel = () => {
 		const id = this.activeJobId;
 		this.activeJobId = null;
@@ -229,7 +225,6 @@ export class FindController {
 		}
 	};
 
-	
 	reset = () => {
 		if (this.activeJobId !== null) this.cancel();
 		this.open = false;

@@ -1,20 +1,19 @@
 import type { NodeKind, Path, PathSegment } from '$lib/ipc/types';
 
 export interface CardRow {
-	
 	key: string;
-	
+
 	value: string;
 	valueKind: NodeKind;
-	
+
 	colorHex: string | null;
-	
+
 	container: boolean;
-	
+
 	expandable: boolean;
-	
+
 	childPath: Path;
-	
+
 	children: GraphCard[];
 }
 
@@ -24,7 +23,7 @@ export interface GraphCard {
 	title: string;
 	kind: NodeKind; // object | array
 	rows: CardRow[];
-	
+
 	hue: number;
 }
 

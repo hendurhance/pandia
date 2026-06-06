@@ -31,7 +31,7 @@
 		maxTabs: number;
 		hasActiveDoc: boolean;
 		comparePickerOpen: boolean;
-		
+
 		compareBtnEl?: HTMLElement | null;
 		onActivate: (id: string) => void;
 		onClose: (id: string) => void;
@@ -72,9 +72,7 @@
 		const targetId = dragOverId;
 		try {
 			(e.currentTarget as Element).releasePointerCapture(dragStart.pointerId);
-		} catch {
-			
-		}
+		} catch {}
 		dragStart = null;
 		draggingId = null;
 		dragOverId = null;
@@ -129,8 +127,7 @@
 						onClose(tab.id);
 					}}
 					title="Close tab (⌘W)"
-					aria-label="Close tab"
-					><Icon icon={X} size="xs" /></button
+					aria-label="Close tab"><Icon icon={X} size="xs" /></button
 				>
 			</div>
 		{/each}
@@ -199,7 +196,7 @@
 		overflow-x: auto;
 		overflow-y: hidden;
 	}
-	
+
 	.tab-scroll::-webkit-scrollbar {
 		height: 4px;
 	}

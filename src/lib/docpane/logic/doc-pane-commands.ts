@@ -16,7 +16,6 @@ const TYPEGEN_TARGETS: Array<[TypegenLang, string]> = [
 ];
 
 export function createDocPaneCommands(actions: DocPaneActions): Command[] {
-	
 	const withRow = (fn: (r: ContentRow) => void) => () => {
 		const r = actions.selectedContentRow();
 		if (r) fn(r);

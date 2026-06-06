@@ -1,4 +1,3 @@
-
 export function gapForX(
 	contentX: number,
 	offsets: ArrayLike<number>,

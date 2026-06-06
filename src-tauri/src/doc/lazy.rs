@@ -1,4 +1,3 @@
-
 use std::ops::Range;
 
 use serde_json::Value;
@@ -901,9 +900,8 @@ mod tests {
 
     #[test]
     fn array_field_text_lower_extracts_lowercased_scalars() {
-        let d = doc(
-            r#"[{"n": "Hello"}, {"n": 42}, {"n": true}, {"n": null}, {"n": {"k":1}}, {}, 99]"#,
-        );
+        let d =
+            doc(r#"[{"n": "Hello"}, {"n": 42}, {"n": true}, {"n": null}, {"n": {"k":1}}, {}, 99]"#);
         let cells = d.array_field_text_lower(&Path::root(), "n").unwrap();
         assert_eq!(
             cells,
@@ -923,10 +921,7 @@ mod tests {
     fn array_field_text_lower_handles_escapes() {
         let d = doc(r#"[{"n": "Hello\nWorld"}, {"n": "Aé"}]"#);
         let cells = d.array_field_text_lower(&Path::root(), "n").unwrap();
-        assert_eq!(
-            cells,
-            vec![Some("hello\nworld".into()), Some("aé".into())]
-        );
+        assert_eq!(cells, vec![Some("hello\nworld".into()), Some("aé".into())]);
     }
 
     #[test]

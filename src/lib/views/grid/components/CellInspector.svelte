@@ -9,7 +9,7 @@
 		onOpenInTree,
 	}: {
 		value: unknown;
-		
+
 		location: string;
 		copied: boolean;
 		onCopy: () => void;

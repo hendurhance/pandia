@@ -28,7 +28,6 @@
 		armTimer = setTimeout(() => (armed = null), CONFIRM_ARM_MS);
 	}
 
-
 	let bundleBusy = $state(false);
 	let bundleStatus: { msg: string; kind: 'ok' | 'err' } | null = $state(null);
 
@@ -103,20 +102,20 @@
 		<div class="field-label">backup</div>
 		<div class="field-control">
 			<div class="btn-row">
-				<button class="btn" onclick={doExport} disabled={bundleBusy}>
-					Export settings…
-				</button>
-				<button class="btn" onclick={doImport} disabled={bundleBusy}>
-					Import settings…
-				</button>
+				<button class="btn" onclick={doExport} disabled={bundleBusy}> Export settings… </button>
+				<button class="btn" onclick={doImport} disabled={bundleBusy}> Import settings… </button>
 			</div>
 			<div class="text-sm dim">
-				Save / restore preferences (appearance, behavior, layout, type-generation language) as
-				one JSON file. Per-document state — recents, grid widths, command-usage counts — is not
+				Save / restore preferences (appearance, behavior, layout, type-generation language) as one
+				JSON file. Per-document state — recents, grid widths, command-usage counts — is not
 				included.
 			</div>
 			{#if bundleStatus}
-				<div class="text-sm" class:dim={bundleStatus.kind === 'ok'} class:err={bundleStatus.kind === 'err'}>
+				<div
+					class="text-sm"
+					class:dim={bundleStatus.kind === 'ok'}
+					class:err={bundleStatus.kind === 'err'}
+				>
 					{bundleStatus.msg}
 				</div>
 			{/if}

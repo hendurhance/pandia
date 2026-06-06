@@ -10,7 +10,7 @@
 
 	interface Props {
 		context: Context | null;
-		
+
 		onStep?: (delta: number) => void;
 	}
 
@@ -57,7 +57,6 @@
 			<span class="section-count">{total}{total >= view.cap ? ` · cap ${view.cap}` : ''}</span>
 		</div>
 		<div class="scroller">
-			
 			{#each view.undo as e, i (`u${i}`)}
 				<button
 					class="list-row entry past"
@@ -72,7 +71,6 @@
 
 			<div class="now"><span class="now-dot"></span><span>now</span></div>
 
-			
 			{#each view.redo as e, j (`r${j}`)}
 				<button
 					class="list-row entry future"

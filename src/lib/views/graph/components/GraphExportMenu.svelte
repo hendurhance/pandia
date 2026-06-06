@@ -39,7 +39,9 @@
 		<button role="menuitem" onclick={() => pick('svg')}>
 			<span class="name">SVG</span>
 			<span class="hint"
-				>{rasterDownscaled ? 'recommended — sharp at full size' : 'vector · sharp at any zoom'}</span
+				>{rasterDownscaled
+					? 'recommended — sharp at full size'
+					: 'vector · sharp at any zoom'}</span
 			>
 		</button>
 	</div>

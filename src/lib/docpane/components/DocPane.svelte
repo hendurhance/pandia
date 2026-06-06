@@ -27,7 +27,10 @@
 	import { pathToString, basename, stem } from '$lib/util/path';
 	import { computeInvalidMarks } from '../logic/invalid-marks';
 	import { kindAtSelection, validityFromView } from '../logic/status-derivation';
-	import { expandAllDisabled as canExpandAllDisabled, expandAllTitle as makeExpandAllTitle } from '../logic/expand-limits';
+	import {
+		expandAllDisabled as canExpandAllDisabled,
+		expandAllTitle as makeExpandAllTitle,
+	} from '../logic/expand-limits';
 	import { expandAll, collapseAll } from '../logic/bulk-tree-ops';
 	import { createAutoSaver } from '../logic/auto-save';
 	import Icon from '$lib/ui/Icon.svelte';
@@ -63,9 +66,9 @@
 		onStatusChange: (status: DocStatus | null) => void;
 		pendingOpen?: OpenSource | null;
 		onOpened?: () => void;
-		
+
 		onOpenInNewTab?: (source: OpenSource, opts?: { focus?: boolean }) => void;
-		
+
 		onContextChange?: (
 			ctx: {
 				handle: DocHandle;
@@ -76,11 +79,11 @@
 			} | null,
 		) => void;
 		navRequest?: { path: Path; nonce: number; tabId: string } | null;
-		
+
 		historyRequest?: { delta: number; nonce: number; tabId: string } | null;
 		compareRequest?: { target: CompareTarget; nonce: number; tabId: string } | null;
 		isHandleAlive?: (h: DocHandle) => boolean;
-		
+
 		confirmLargeFile?: (path: string) => Promise<boolean>;
 	}
 
@@ -479,9 +482,7 @@
 		};
 	});
 
-	const expandAllDisabled = $derived(
-		canExpandAllDisabled({ summary: session.summary, busy }),
-	);
+	const expandAllDisabled = $derived(canExpandAllDisabled({ summary: session.summary, busy }));
 	const expandAllTitle = $derived(makeExpandAllTitle({ summary: session.summary, busy }));
 
 	$effect(() => {
@@ -910,7 +911,6 @@
 		color: var(--accent);
 	}
 
-	
 	.tree-pane {
 		position: relative;
 		flex: 1;

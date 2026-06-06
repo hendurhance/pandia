@@ -3,18 +3,17 @@
 	import { dismissable } from './dismissable';
 
 	interface Props {
-		
 		x: number;
 		y: number;
-		
+
 		width?: number;
 		height?: number;
-		
+
 		flushAllowance?: number;
-		
+
 		anchorEl?: HTMLElement | null;
 		onClose: () => void;
-		
+
 		children: Snippet<[{ flushRight: boolean }]>;
 	}
 

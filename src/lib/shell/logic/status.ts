@@ -10,9 +10,9 @@ export interface DocStatus {
 	sizeDisplay: string | null;
 	lazy: boolean;
 	validity: ValidityStatus | null;
-	
+
 	editing?: boolean;
-	
+
 	dirty?: boolean;
 }
 

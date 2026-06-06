@@ -12,9 +12,9 @@ export interface DocContext {
 	handle: DocHandle;
 	version: number;
 	sourceName: string | null;
-	
+
 	fileBacked: boolean;
-	
+
 	save: (opts?: { silent?: boolean }) => Promise<boolean>;
 }
 
@@ -147,7 +147,6 @@ export class TabStore {
 
 	isEmpty = (id: string): boolean => (this.statuses[id] ?? null) == null;
 
-	
 	openInTab = (source: OpenSource, opts: { focus?: boolean } = {}): boolean => {
 		const focus = opts.focus ?? true;
 		if (focus && this.isEmpty(this.activeId)) {

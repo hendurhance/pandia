@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 use std::ops::Range;
 use std::path::Path as FsPath;
@@ -460,20 +459,17 @@ impl Document {
     fn compute_column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
         match &self.inner {
             DocumentImpl::Eager(v) => match resolve_eager(v, path) {
-                Ok(Value::Array(arr)) => {
-                    Ok(arr.iter().map(|el| eager_cell_text_lower(el, key)).collect())
-                }
+                Ok(Value::Array(arr)) => Ok(arr
+                    .iter()
+                    .map(|el| eager_cell_text_lower(el, key))
+                    .collect()),
                 _ => Ok(Vec::new()),
             },
             DocumentImpl::Lazy(d) => d.array_field_text_lower(path, key),
         }
     }
 
-    fn quick_text_column(
-        &mut self,
-        path: &Path,
-        key: &str,
-    ) -> DocResult<Arc<Vec<Option<String>>>> {
+    fn quick_text_column(&mut self, path: &Path, key: &str) -> DocResult<Arc<Vec<Option<String>>>> {
         let cache_key = (path.clone(), key.to_string());
         if let Some(entry) = self.quick_text_cache.get(&cache_key) {
             if entry.version == self.version {
@@ -546,26 +542,25 @@ impl Document {
                 .or_else(|| quick_text.values().next().map(|v| v.len()))
                 .unwrap_or(0);
 
-            let narrow_seed: Option<Vec<u32>> =
-                self.filter_cache.as_ref().and_then(|c| {
-                    if c.path != *path
-                        || c.groups != groups
-                        || c.quick_keys != quick_keys
-                        || c.sort != sort_owned
-                        || c.version != self.version
+            let narrow_seed: Option<Vec<u32>> = self.filter_cache.as_ref().and_then(|c| {
+                if c.path != *path
+                    || c.groups != groups
+                    || c.quick_keys != quick_keys
+                    || c.sort != sort_owned
+                    || c.version != self.version
+                {
+                    return None;
+                }
+                match (c.quick.as_deref(), quick_norm) {
+                    (Some(prev), Some(curr))
+                        if curr.len() > prev.len()
+                            && curr.to_lowercase().starts_with(&prev.to_lowercase()) =>
                     {
-                        return None;
+                        Some(c.perm.clone())
                     }
-                    match (c.quick.as_deref(), quick_norm) {
-                        (Some(prev), Some(curr))
-                            if curr.len() > prev.len()
-                                && curr.to_lowercase().starts_with(&prev.to_lowercase()) =>
-                        {
-                            Some(c.perm.clone())
-                        }
-                        _ => None,
-                    }
-                });
+                    _ => None,
+                }
+            });
 
             let candidate_indices: Box<dyn Iterator<Item = u32>> = match narrow_seed {
                 Some(perm) => Box::new(perm.into_iter()),

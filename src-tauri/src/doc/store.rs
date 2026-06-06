@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 
 use dashmap::DashMap;
@@ -40,7 +39,6 @@ impl DocStore {
     pub fn remove(&self, handle: DocHandle) -> bool {
         self.docs.remove(&handle).is_some()
     }
-
 }
 
 #[cfg(test)]

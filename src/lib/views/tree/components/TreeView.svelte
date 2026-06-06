@@ -18,12 +18,7 @@
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from '@lucide/svelte';
-	import {
-		buildOffsets,
-		DEFAULT_ROW_H,
-		OVERSCAN,
-		visibleWindow,
-	} from '../logic/virtualizer';
+	import { buildOffsets, DEFAULT_ROW_H, OVERSCAN, visibleWindow } from '../logic/virtualizer';
 	import type { DiffKind, Path } from '$lib/ipc/types';
 	import InlineCellEditor from './InlineCellEditor.svelte';
 
@@ -50,19 +45,19 @@
 		onEditInput: (text: string) => void;
 		onEditCommit: () => void;
 		onEditCancel: () => void;
-		
+
 		onReorder?: (dragged: ContentRow, gap: number) => void;
-		
+
 		readOnly?: boolean;
-		
+
 		diffHighlights?: Map<string, DiffKind>;
-		
+
 		invalidMarks?: Map<string, 'error' | 'ancestor' | 'stale-error' | 'stale-ancestor'>;
-		
+
 		cutPath?: Path | null;
-		
+
 		onScrollerReady?: (el: HTMLElement) => void;
-		
+
 		onMaterializeGap?: (gap: VirtualGapRow, fromIdx: number, toIdx: number) => void;
 	}
 
@@ -223,9 +218,7 @@
 	function onUrlClick(e: MouseEvent, url: string) {
 		e.preventDefault();
 		e.stopPropagation();
-		openInBrowser(url).catch(() => {
-			
-		});
+		openInBrowser(url).catch(() => {});
 	}
 
 	function onRowClick(i: number, row: Row) {
@@ -356,7 +349,7 @@
 				{@const diff = diffHighlights?.get(pathKey(row.path))}
 				{@const invalid = invalidMarks?.get(pathKey(row.path))}
 				{@const cut = cutKey !== null && pathKey(row.path) === cutKey}
-				
+
 				<div
 					class="r"
 					class:expandable
@@ -382,8 +375,7 @@
 							aria-label="Drag to reorder"
 							title="Drag to reorder"
 							onpointerdown={(e) => onGripDown(e, i)}
-							onclick={(e) => e.stopPropagation()}
-							><Icon icon={GripVertical} size="xs" /></span
+							onclick={(e) => e.stopPropagation()}><Icon icon={GripVertical} size="xs" /></span
 						>
 					{/if}
 					{#each Array.from({ length: row.depth }) as _, g (g)}
@@ -470,7 +462,7 @@
 	.spacer {
 		position: relative;
 		width: 100%;
-		
+
 		contain: layout style;
 	}
 
@@ -479,10 +471,10 @@
 		top: 0;
 		left: 0;
 		right: 0;
-		
+
 		contain: layout style paint;
 		will-change: transform;
-		
+
 		min-height: 22px;
 		display: flex;
 		align-items: flex-start;
@@ -508,7 +500,6 @@
 		background: var(--accent-fill);
 	}
 
-	
 	.r.cut {
 		opacity: 0.45;
 	}
@@ -518,7 +509,6 @@
 		text-decoration-color: var(--text-faint);
 	}
 
-	
 	.r[data-diff='added'] {
 		background: rgba(123, 166, 136, 0.16);
 		box-shadow: inset 2px 0 0 var(--success);
@@ -536,7 +526,6 @@
 		box-shadow: inset 2px 0 0 var(--mauve);
 	}
 
-	
 	.r[data-invalid='ancestor'] {
 		box-shadow: inset 2px 0 0 var(--accent-line);
 	}
@@ -549,7 +538,7 @@
 		text-decoration-skip-ink: none;
 		text-underline-offset: 3px;
 	}
-	
+
 	.r[data-invalid='stale-ancestor'] {
 		box-shadow: inset 2px 0 0 var(--accent-fill);
 	}
@@ -587,7 +576,7 @@
 		flex-shrink: 0;
 		text-align: center;
 	}
-	
+
 	.r.expandable .caret {
 		color: var(--accent);
 	}
@@ -607,7 +596,6 @@
 		white-space: nowrap;
 	}
 
-	
 	.v {
 		flex: 1;
 		min-width: 0;
@@ -651,7 +639,6 @@
 		color: var(--syntax-punct);
 	}
 
-	
 	.chip {
 		display: inline-block;
 		color: var(--text-dim);
@@ -665,7 +652,7 @@
 	.trigger {
 		visibility: hidden;
 		flex-shrink: 0;
-		
+
 		margin-left: auto;
 		background: transparent;
 		border: 1px solid var(--rule);
@@ -686,7 +673,6 @@
 		border-color: var(--accent);
 	}
 
-	
 	.grip {
 		position: absolute;
 		left: 0;

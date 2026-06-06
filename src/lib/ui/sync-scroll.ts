@@ -1,18 +1,16 @@
 export type SyncSide = 'left' | 'right';
 
 export interface SyncScrollOpts {
-	
 	enabled?: boolean;
-	
+
 	safetyMs?: number;
 }
 
 export interface SyncScrollPair {
-	
 	bind(side: SyncSide, el: HTMLElement): void;
-	
+
 	setEnabled(on: boolean): void;
-	
+
 	dispose(): void;
 }
 

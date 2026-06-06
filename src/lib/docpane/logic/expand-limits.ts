@@ -1,15 +1,13 @@
-
 export const EXPAND_ALL_MAX_BYTES = 50 * 1024 * 1024;
 
 export const EXPAND_ALL_MAX_ROOT_ITEMS = 100_000;
 
 export interface ExpandLimitsInput {
-	
 	summary: {
 		sourceSize: number;
 		rootChildCount: number | null;
 	} | null;
-	
+
 	busy: boolean;
 }
 

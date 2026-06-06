@@ -12,13 +12,13 @@
 		op: ColOp;
 		opChoices: ColOp[];
 		listMode: ListMode;
-		
+
 		distinctValues: ColumnValues['values'] | null;
-		
+
 		capped: boolean;
-		
+
 		current: ColFilter | undefined;
-		
+
 		searchable: boolean;
 	}
 
@@ -43,7 +43,7 @@
 		view: FilterView;
 		actions: FilterActions;
 		anchor: { left: number; top: number };
-		
+
 		anchorEl: HTMLElement | null;
 		valueSearch?: string;
 	} = $props();
@@ -166,7 +166,7 @@
 		width: 264px;
 		max-width: calc(100vw - 16px);
 		gap: 0.5rem;
-		
+
 		padding: 0.6rem;
 		font-size: 12px;
 	}

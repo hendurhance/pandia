@@ -6,7 +6,7 @@ export const SAFETY_PASSES = 100;
 
 export interface BulkExpandDeps {
 	tree: Pick<TreeRowsController, 'rows' | 'contentRowIdx' | 'toggleAt'>;
-	
+
 	setBusy: (b: boolean) => void;
 }
 
@@ -41,7 +41,7 @@ export async function expandAll(deps: BulkExpandDeps): Promise<void> {
 export interface BulkCollapseDeps {
 	tree: Pick<TreeRowsController, 'setRows' | 'toggleAt'>;
 	summary: { rootKind: NodeKind; rootChildCount: number | null } | null;
-	
+
 	selectPath: (p: Path) => void;
 }
 

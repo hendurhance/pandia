@@ -18,13 +18,13 @@
 
 	interface Props {
 		handle: DocHandle;
-		
+
 		diff: Map<string, DiffKind>;
-		
+
 		diffPaths: Path[];
-		
+
 		activePath?: Path | null;
-		
+
 		onScrollerReady?: (el: HTMLElement) => void;
 	}
 	let { handle, diff, diffPaths, activePath = null, onScrollerReady }: Props = $props();
@@ -136,9 +136,7 @@
 		if (existing) {
 			try {
 				await existing;
-			} catch {
-				
-			}
+			} catch {}
 			return;
 		}
 		const expansion = (async () => {
@@ -154,7 +152,6 @@
 		try {
 			await expansion;
 		} catch {
-			
 		} finally {
 			inFlightExpand.delete(key);
 		}
@@ -170,9 +167,7 @@
 		if (existing) {
 			try {
 				await existing;
-			} catch {
-				
-			}
+			} catch {}
 			return;
 		}
 		const work = (async () => {
@@ -186,7 +181,6 @@
 		try {
 			await work;
 		} catch {
-			
 		} finally {
 			inFlight.delete(key);
 		}
@@ -218,7 +212,6 @@
 		}
 	}
 
-	
 	function siblingCount(parentPath: Path): number | null {
 		if (parentPath.length === 0) return null;
 		const idx = contentRowIdx(parentPath);
@@ -226,7 +219,6 @@
 		return r && r.variant === 'content' ? r.childCount : null;
 	}
 
-	
 	async function ensureChunkLoaded(prefix: Path) {
 		const parentPath = prefix.slice(0, -1);
 		const pIdx = contentRowIdx(parentPath);
@@ -248,7 +240,6 @@
 		}
 	}
 
-	
 	async function ensurePathVisible(target: Path) {
 		for (let depth = 0; depth <= target.length; depth++) {
 			const prefix = target.slice(0, depth);

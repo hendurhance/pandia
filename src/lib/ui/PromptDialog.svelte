@@ -50,7 +50,6 @@
 </Dialog>
 
 <style>
-	
 	.sheet {
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
@@ -68,7 +67,6 @@
 		gap: 0.4rem;
 	}
 
-	
 	.hint {
 		color: var(--text-faint);
 		margin-left: 0.4rem;

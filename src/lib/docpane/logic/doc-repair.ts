@@ -12,17 +12,16 @@ export interface RepairInfo {
 }
 
 export interface AutoRepairDeps {
-	
 	enabled: () => boolean;
-	
+
 	error: () => string | null;
-	
+
 	reopen: (text: string, name: string) => Promise<void>;
-	
+
 	handle: () => DocHandle | null;
-	
+
 	setSummary: (summary: OpenResult['summary']) => void;
-	
+
 	setRepairInfo: (info: RepairInfo) => void;
 }
 
@@ -73,9 +72,7 @@ export async function runAutoRepair(
 		if (handle) {
 			try {
 				deps.setSummary(await docSetFilePath(handle, source.path));
-			} catch {
-				
-			}
+			} catch {}
 		}
 	}
 	deps.setRepairInfo({

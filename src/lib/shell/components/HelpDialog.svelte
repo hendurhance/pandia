@@ -121,7 +121,7 @@
 	.body {
 		overflow-y: auto;
 		padding: 0.9rem 1rem 0.4rem;
-		
+
 		columns: 2;
 		column-gap: 2rem;
 	}
@@ -138,7 +138,7 @@
 		margin-bottom: 0.25rem;
 		border-bottom: var(--rule-width) solid var(--rule);
 	}
-	
+
 	.rows {
 		display: grid;
 		grid-template-columns: auto 1fr;

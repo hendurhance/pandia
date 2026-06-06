@@ -1,9 +1,8 @@
 export interface NonceRequest<T = unknown> {
-	
 	nonce: number;
-	
+
 	tabId: string;
-	
+
 	[key: string]: T | number | string;
 }
 

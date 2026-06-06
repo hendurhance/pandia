@@ -30,7 +30,6 @@ export class GridFilterController {
 	groups = $state.raw<Map<string, ColFilter>[]>([new Map()]);
 	activeGroup = $state(0);
 
-	
 	get colFilters(): Map<string, ColFilter> {
 		return this.groups[this.activeGroup] ?? new Map();
 	}
@@ -68,16 +67,15 @@ export class GridFilterController {
 	readonly filtering = $derived(
 		this.compiledGroups.length > 0 || this.debouncedQuickValue.trim() !== '',
 	);
-	
+
 	readonly groupColumns = $derived(
 		this.groups.map((g) => [...g.entries()].filter(([, c]) => colActive(c))),
 	);
-	
+
 	readonly hasFilter = $derived(
 		this.groups.length > 1 || this.groupColumns.some((g) => g.length > 0),
 	);
 
-	
 	readonly query = $derived.by<GridQuery>(() => ({
 		sortKey: this.sortKey,
 		sortDesc: this.sortDesc,
@@ -87,7 +85,6 @@ export class GridFilterController {
 		filtering: this.filtering,
 	}));
 
-	
 	readonly openValues = $derived.by(() => {
 		if (!this.openCol) return null;
 		const cv = this.valuesByCol.get(this.openCol);
@@ -132,7 +129,6 @@ export class GridFilterController {
 		this.colFilters = next;
 	};
 
-	
 	clearColumnIn = (groupIdx: number, key: string) => {
 		const g = this.groups[groupIdx];
 		if (!g) return;
@@ -154,21 +150,18 @@ export class GridFilterController {
 		this.openCol = null;
 	};
 
-	
 	addGroup = () => {
 		this.groups = [...this.groups, new Map()];
 		this.activeGroup = this.groups.length - 1;
 		this.openCol = null;
 	};
 
-	
 	removeGroup = (i: number) => {
 		this.groups = this.groups.length <= 1 ? [new Map()] : this.groups.filter((_, k) => k !== i);
 		this.activeGroup = Math.min(this.activeGroup, this.groups.length - 1);
 		this.openCol = null;
 	};
 
-	
 	setActiveGroup = (i: number) => {
 		if (i >= 0 && i < this.groups.length) this.activeGroup = i;
 	};
@@ -228,7 +221,6 @@ export class GridFilterController {
 			next.set(key, cv);
 			this.valuesByCol = next;
 		} catch {
-			
 		} finally {
 			this.valuesLoading = null;
 		}
@@ -251,7 +243,6 @@ export class GridFilterController {
 		this.openCol = null;
 	};
 
-	
 	coerceCappedOp = () => {
 		if (
 			this.openCol &&
@@ -262,13 +253,11 @@ export class GridFilterController {
 		}
 	};
 
-	
 	resetValues = () => {
 		this.valuesByCol = new Map();
 		this.openCol = null;
 	};
 
-	
 	resetOnOverflow = (message: string) => {
 		this.sortError = message;
 		this.sortKey = null;

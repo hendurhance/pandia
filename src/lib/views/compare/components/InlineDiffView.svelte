@@ -8,7 +8,6 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronsUpDown } from '@lucide/svelte';
 
-	
 	export interface InlineMeta {
 		hunks: number;
 		addLines: number;
@@ -20,9 +19,9 @@
 		rightHandle: DocHandle;
 		leftSourceSize: number;
 		rightSourceSize: number;
-		
+
 		activeHunk: number;
-		
+
 		onMeta?: (meta: InlineMeta) => void;
 	}
 
@@ -121,7 +120,6 @@
 		};
 	});
 
-	
 	function expandGap(rowIndex: number) {
 		const r = rows[rowIndex];
 		if (r.type !== 'gap') return;
@@ -218,7 +216,6 @@
 		line-height: 1.5;
 	}
 	.spacer {
-		
 		position: relative;
 		min-width: 100%;
 	}
@@ -274,7 +271,7 @@
 
 	.row.gap {
 		background: var(--bg-elev);
-		
+
 		box-shadow:
 			inset 0 1px 0 var(--rule),
 			inset 0 -1px 0 var(--rule);
@@ -297,7 +294,6 @@
 		user-select: none;
 	}
 
-	
 	.tok-string {
 		color: var(--syntax-string);
 	}

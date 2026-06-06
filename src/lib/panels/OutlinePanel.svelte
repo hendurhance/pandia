@@ -13,7 +13,7 @@
 
 	interface Props {
 		context: Context | null;
-		
+
 		onNavigate?: (path: Path) => void;
 	}
 
@@ -60,7 +60,6 @@
 		return (n.kind === 'object' || n.kind === 'array') && (n.childCount ?? 0) > 0;
 	}
 
-	
 	async function fetchRange(path: Path, depth: number, start: number): Promise<ONode[]> {
 		if (!context) return [];
 		const views = await docGetSlice(context.handle, path, start, start + PER_LEVEL);
@@ -118,7 +117,6 @@
 		roots = roots;
 	}
 
-	
 	async function loadMore(parent: ONode | null, loaded: number) {
 		const path = parent ? parent.path : [];
 		const depth = parent ? parent.depth + 1 : 1;
@@ -228,8 +226,8 @@
 						>
 							{#if expandable(n)}
 								<span class="caret"
-								><Icon icon={n.expanded ? ChevronDown : ChevronRight} size="xs" /></span
-							>
+									><Icon icon={n.expanded ? ChevronDown : ChevronRight} size="xs" /></span
+								>
 							{:else}
 								<span class="caret"> </span>
 							{/if}
@@ -267,7 +265,6 @@
 		color: var(--accent);
 	}
 
-	
 	.scroller {
 		flex: 1;
 		min-height: 0;

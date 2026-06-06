@@ -1,4 +1,3 @@
-
 export const DEFAULT_ROW_H = 22;
 
 export const OVERSCAN = 8;
@@ -23,11 +22,7 @@ export function buildOffsets(
 	return { view: b.subarray(0, rowCount + 1), buf: b };
 }
 
-export function indexAtOffset(
-	offsets: ArrayLike<number>,
-	rowCount: number,
-	y: number,
-): number {
+export function indexAtOffset(offsets: ArrayLike<number>, rowCount: number, y: number): number {
 	let lo = 0;
 	let hi = rowCount;
 	while (lo < hi) {

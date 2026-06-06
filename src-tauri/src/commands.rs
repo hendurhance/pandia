@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 
 use crate::doc::backup::{self, BackupRecord};
@@ -424,8 +423,7 @@ pub async fn doc_get_rows_filtered(
         None => (crate::doc::jobs::CancelFlag::never(), None),
     };
     let result = doc_get_rows_filtered_inner(
-        &state, handle, &path, start, end, groups, quick, quick_keys, sort_key, descending,
-        &cancel,
+        &state, handle, &path, start, end, groups, quick, quick_keys, sort_key, descending, &cancel,
     )
     .map_err(|e| e.to_string());
     if let Some(id) = owned_id {
@@ -582,7 +580,9 @@ pub async fn doc_backup(
     display_name: Option<String>,
 ) -> Result<bool, String> {
     let (dirty, source_path, content) = {
-        let arc = state.get(handle).ok_or_else(|| DocError::NotFound(handle).to_string())?;
+        let arc = state
+            .get(handle)
+            .ok_or_else(|| DocError::NotFound(handle).to_string())?;
         let doc = arc.read();
         let s = doc.summary();
         if !s.dirty {

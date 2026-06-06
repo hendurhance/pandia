@@ -1,4 +1,3 @@
-
 mod commands;
 pub(crate) mod doc;
 

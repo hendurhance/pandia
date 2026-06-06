@@ -81,7 +81,7 @@
 	.recovery-item {
 		border-bottom: var(--rule-width) solid var(--rule);
 	}
-	
+
 	.rec-restore {
 		justify-content: space-between;
 		align-items: baseline;
@@ -104,7 +104,7 @@
 		padding: 0.7rem 1rem;
 		border-top: var(--rule-width) solid var(--rule);
 	}
-	
+
 	.rec-ghost {
 		padding: 0.3rem 0.9rem;
 	}

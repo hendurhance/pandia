@@ -1,4 +1,3 @@
-
 export function parseHeaders(text: string): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const line of text.split('\n')) {

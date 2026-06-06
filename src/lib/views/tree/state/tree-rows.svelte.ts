@@ -51,19 +51,16 @@ export class TreeRowsController {
 
 	constructor(private deps: TreeRowsDeps) {}
 
-	
 	setRows = (rows: Row[]) => {
 		this.rows = rows;
 		this.inFlight.clear();
 		this.indexDirty = true;
 	};
 
-	
 	clearChunks = () => {
 		this.inFlight.clear();
 	};
 
-	
 	contentRowIdx = (path: Path): number => {
 		if (this.indexDirty) {
 			this.rebuildIndex();
@@ -72,7 +69,6 @@ export class TreeRowsController {
 		return this.pathIndex.get(pathKey(path)) ?? -1;
 	};
 
-	
 	siblingCount = (parentPath: Path): number | null => {
 		if (parentPath.length === 0) return this.deps.summary()?.rootChildCount ?? null;
 		const idx = this.contentRowIdx(parentPath);
@@ -87,7 +83,6 @@ export class TreeRowsController {
 		return views.map((v) => viewToRow(v, path, depth));
 	}
 
-	
 	toggleAt = async (index: number) => {
 		if (!this.deps.handle()) return;
 		const row = this.rows[index];
@@ -133,9 +128,7 @@ export class TreeRowsController {
 		if (existing) {
 			try {
 				await existing;
-			} catch {
-				
-			}
+			} catch {}
 			return;
 		}
 		const work = (async () => {
@@ -155,7 +148,6 @@ export class TreeRowsController {
 		}
 	}
 
-	
 	private materializeRange(parentPath: Path, fromIdx: number, toIdx: number): boolean {
 		const parentKey = pathKey(parentPath);
 		let changed = false;
@@ -174,7 +166,6 @@ export class TreeRowsController {
 		return changed;
 	}
 
-	
 	materializeGap = (gap: VirtualGapRow, fromIdx: number, toIdx: number) => {
 		let i = this.rows.indexOf(gap);
 		if (i < 0) {
@@ -195,7 +186,6 @@ export class TreeRowsController {
 	private fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	private pendingRange: { start: number; end: number } | null = null;
 
-	
 	onVisibleRange = (start: number, end: number) => {
 		this.pendingRange = { start, end };
 		if (this.fetchDebounceTimer != null) clearTimeout(this.fetchDebounceTimer);
@@ -221,7 +211,6 @@ export class TreeRowsController {
 		}
 	}
 
-	
 	private async ensureChunkLoaded(prefix: Path) {
 		const parentPath = prefix.slice(0, -1);
 		const pIdx = this.contentRowIdx(parentPath);
@@ -244,7 +233,6 @@ export class TreeRowsController {
 		}
 	}
 
-	
 	ensurePathVisible = async (target: Path) => {
 		for (let depth = 0; depth <= target.length; depth++) {
 			const prefix = target.slice(0, depth);
@@ -263,7 +251,6 @@ export class TreeRowsController {
 		}
 	};
 
-	
 	refetchAfterOp = async (affectedPaths: Path[]) => {
 		for (const path of affectedPaths) {
 			await this.refreshPath(path);
@@ -297,7 +284,6 @@ export class TreeRowsController {
 		this.scheduleFlush();
 	}
 
-	
 	private async reExpand(paths: Path[]) {
 		for (const path of paths) {
 			await this.ensurePathVisible(path);
@@ -310,7 +296,6 @@ export class TreeRowsController {
 		}
 	}
 
-	
 	private async fetchUpdatedRow(row: ContentRow): Promise<ContentRow | null> {
 		const handle = this.deps.handle();
 		if (!handle) return null;
