@@ -86,6 +86,18 @@ impl LazyDoc {
         Ok((kind, count))
     }
 
+    pub fn child_count_uncapped(&self, path: &Path) -> DocResult<Option<u32>> {
+        // Root array's child count is already memoised at construction.
+        if path.is_root() {
+            if let Some(idx) = &self.root_index {
+                return Ok(Some(idx.len() as u32));
+            }
+        }
+        let lv = self.lookup(path)?;
+        let kind = json_type_to_node_kind(lv.get_type());
+        Ok(count_uncapped(&lv, kind))
+    }
+
     pub fn get_value(&self, path: &Path) -> DocResult<Value> {
         if path.0.len() == 1 {
             if let Some(idx) = &self.root_index {
@@ -106,6 +118,9 @@ impl LazyDoc {
     pub fn array_field_cells(&self, path: &Path, field: &str) -> DocResult<Vec<Option<Value>>> {
         let needle = sonic_pointer(&[PathSegment::Key(field.to_string())]);
         let extract = |bytes: &str| -> Option<Value> {
+            // SAFETY: `self.source` was validated as UTF-8 + well-formed JSON
+            // by `LazyDoc::new`, and `bytes` is a substring of it; the
+            // unchecked variant skips redundant re-validation in this hot path.
             match unsafe { sonic_rs::get_from_str_unchecked(bytes, &needle) } {
                 Ok(lv) => serde_json::from_str(lv.as_raw_str()).ok(),
                 Err(_) => None, // field absent / element not an object
@@ -145,6 +160,7 @@ impl LazyDoc {
     ) -> DocResult<Vec<Option<String>>> {
         let needle = sonic_pointer(&[PathSegment::Key(field.to_string())]);
         let extract = |bytes: &str| -> Option<String> {
+            // SAFETY: see `array_field_cells` — same precondition holds.
             let lv = unsafe { sonic_rs::get_from_str_unchecked(bytes, &needle) }.ok()?;
             let raw = lv.as_raw_str();
             match lv.get_type() {
@@ -623,6 +639,10 @@ fn maybe_count(lv: &LazyValue<'_>, kind: NodeKind) -> Option<u32> {
     if lv.as_raw_str().len() > COUNT_BUDGET_BYTES {
         return None;
     }
+    count_uncapped(lv, kind)
+}
+
+fn count_uncapped(lv: &LazyValue<'_>, kind: NodeKind) -> Option<u32> {
     let cloned = lv.clone();
     match kind {
         NodeKind::Object => cloned

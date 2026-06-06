@@ -134,9 +134,7 @@ export class FindController {
 		if (this.activeJobId !== null) {
 			const id = this.activeJobId;
 			this.activeJobId = null;
-			void cancelJob(id).catch(() => {
-				
-			});
+			void cancelJob(id).catch(() => {});
 		}
 		const seq = ++this.seq;
 		const jobId = crypto.randomUUID();
@@ -166,9 +164,7 @@ export class FindController {
 		this.seq++; // make any in-flight resolve a stale response
 		this.busy = false;
 		if (id) {
-			void cancelJob(id).catch(() => {
-				
-			});
+			void cancelJob(id).catch(() => {});
 		}
 	};
 

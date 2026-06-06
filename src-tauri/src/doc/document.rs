@@ -363,6 +363,19 @@ impl Document {
         }
     }
 
+    pub fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>> {
+        if path.is_root() {
+            return Ok(self.summary().root_child_count);
+        }
+        match &self.inner {
+            DocumentImpl::Eager(v) => {
+                let (_, count) = kind_and_child_count_eager(resolve_eager(v, path)?);
+                Ok(count)
+            }
+            DocumentImpl::Lazy(d) => d.child_count_uncapped(path),
+        }
+    }
+
     pub fn get_rows(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<Value>> {
         let (kind, count) = self.kind_at(path)?;
         if kind != NodeKind::Array {

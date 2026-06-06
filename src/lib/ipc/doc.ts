@@ -147,6 +147,10 @@ export function docSummary(handle: DocHandle): Promise<Summary> {
 	return invoke<Summary>('doc_summary', { handle });
 }
 
+export function docChildCount(handle: DocHandle, path: Path): Promise<number | null> {
+	return invoke<number | null>('doc_child_count', { handle, path });
+}
+
 export function docColumnSchema(handle: DocHandle, path: Path): Promise<ColumnSchema> {
 	return invoke<ColumnSchema>('doc_column_schema', { handle, path });
 }

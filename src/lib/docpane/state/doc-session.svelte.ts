@@ -105,7 +105,7 @@ export class DocSessionController {
 			try {
 				await docClose(this.handle);
 			} catch {
-				
+				// best-effort close on reset; the doc is being dropped either way
 			}
 		}
 		await this.deps.compare.release(); // borrowed tab handles stay alive

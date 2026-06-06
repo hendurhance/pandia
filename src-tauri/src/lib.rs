@@ -43,8 +43,9 @@ fn emit_file_open(app: &AppHandle, paths: Vec<String>) {
     }
 
     if let Some(state) = app.try_state::<AppState>() {
-        let mut pending = state.pending_files.lock().unwrap();
-        pending.extend(supported_paths);
+        if let Ok(mut pending) = state.pending_files.lock() {
+            pending.extend(supported_paths);
+        }
     }
 
     if let Some(window) = app.get_webview_window("main") {
@@ -83,6 +84,7 @@ pub fn run() {
             commands::doc_column_values,
             commands::doc_get_rows_at,
             commands::doc_summary,
+            commands::doc_child_count,
             commands::doc_column_schema,
             commands::doc_apply_op,
             commands::doc_set_root_text,

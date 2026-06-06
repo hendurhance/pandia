@@ -69,6 +69,16 @@ fn doc_get_value_inner(
     doc.get_value(path)
 }
 
+fn doc_child_count_inner(
+    store: &DocStore,
+    handle: DocHandle,
+    path: &Path,
+) -> DocResult<Option<u32>> {
+    let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
+    let doc = arc.read();
+    doc.child_count_at(path)
+}
+
 fn doc_summary_inner(store: &DocStore, handle: DocHandle) -> DocResult<Summary> {
     let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
     let doc = arc.read();
@@ -347,6 +357,15 @@ pub async fn doc_summary(
 }
 
 #[tauri::command]
+pub async fn doc_child_count(
+    state: tauri::State<'_, DocStore>,
+    handle: DocHandle,
+    path: Path,
+) -> Result<Option<u32>, String> {
+    doc_child_count_inner(&state, handle, &path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn doc_diff(
     state: tauri::State<'_, DocStore>,
     left: DocHandle,
@@ -563,7 +582,7 @@ pub async fn doc_backup(
     display_name: Option<String>,
 ) -> Result<bool, String> {
     let (dirty, source_path, content) = {
-        let arc = state.get(handle).ok_or("doc not found")?;
+        let arc = state.get(handle).ok_or_else(|| DocError::NotFound(handle).to_string())?;
         let doc = arc.read();
         let s = doc.summary();
         if !s.dirty {

@@ -1,6 +1,6 @@
 import { loadPersisted, savePersisted, SETTINGS_FILE } from '$lib/util/persist';
 import { PersistedStore } from '$lib/util/persisted-store.svelte';
-import { oneOf } from '$lib/util/guards';
+import { isObject, oneOf } from '$lib/util/guards';
 
 const STORE_KEY = 'sidebar';
 
@@ -31,10 +31,9 @@ function sanitize(raw: unknown): Persisted {
 		side: 'left',
 		panels: { ...ALL_ENABLED },
 	};
-	if (typeof raw !== 'object' || raw === null) return defaults;
-	const p = raw as Record<string, unknown>;
-	const rawPanels =
-		typeof p.panels === 'object' && p.panels !== null ? (p.panels as Record<string, unknown>) : {};
+	if (!isObject(raw)) return defaults;
+	const p = raw;
+	const rawPanels = isObject(p.panels) ? p.panels : {};
 	const panels: PanelFlags = {
 		outline: rawPanels.outline !== false,
 		schema: rawPanels.schema !== false,

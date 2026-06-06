@@ -60,7 +60,11 @@
 	$effect(() => filter.coerceCappedOp());
 
 	let colWidth: Map<string, number> = $state.raw(new Map());
+	// 40px ≈ ~3 chars at the current mono font — narrow enough for a `#`
+	// column but still hit-target friendly for the resize gripper.
 	const MIN_COL_PX = 40;
+	// 1200px keeps a wide column readable without letting one runaway field
+	// push the rest off-screen on a 14" display.
 	const MAX_COL_PX = 1200;
 
 	let colOrder: string[] = $state.raw([]);
@@ -245,13 +249,12 @@
 			colWidth = new Map();
 			return;
 		}
-		let cancelled = false;
+		const ac = new AbortController();
 		void loadPersisted<Record<string, number>>(WIDTHS_FILE, key).then((saved) => {
-			if (!cancelled) colWidth = new Map(saved ? Object.entries(saved) : []);
+			if (ac.signal.aborted) return;
+			colWidth = new Map(saved ? Object.entries(saved) : []);
 		});
-		return () => {
-			cancelled = true;
-		};
+		return () => ac.abort();
 	});
 
 	function persistWidths() {
@@ -265,13 +268,12 @@
 			colOrder = [];
 			return;
 		}
-		let cancelled = false;
+		const ac = new AbortController();
 		void loadPersisted<string[]>(GRID_ORDER_FILE, key).then((saved) => {
-			if (!cancelled) colOrder = saved ?? [];
+			if (ac.signal.aborted) return;
+			colOrder = saved ?? [];
 		});
-		return () => {
-			cancelled = true;
-		};
+		return () => ac.abort();
 	});
 
 	function persistOrder() {

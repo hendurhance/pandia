@@ -34,7 +34,7 @@ function getStore(file: string): Promise<Store> {
 
 export async function loadPersisted<T>(file: string, key: string): Promise<T | undefined> {
 	const store = await getStore(file);
-	return (await store.get<T>(key)) as T | undefined;
+	return await store.get<T>(key);
 }
 
 export async function savePersisted(file: string, key: string, value: unknown): Promise<void> {
@@ -43,7 +43,7 @@ export async function savePersisted(file: string, key: string, value: unknown): 
 		await store.set(key, value);
 		await store.save();
 	} catch {
-		
+		// Prefs are non-critical; a failed write is dropped silently.
 	}
 }
 

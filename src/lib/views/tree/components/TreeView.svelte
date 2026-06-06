@@ -207,11 +207,12 @@
 
 	$effect(() => {
 		const req = scrollRequest;
-		if (!req || !scroller) return;
+		const el = scroller;
+		if (!req || !el) return;
 		untrack(() => {
 			const top = offsets[req.idx] ?? 0;
 			const offset = Math.max(0, viewportHeight * 0.25);
-			scroller!.scrollTo({ top: Math.max(0, top - offset), behavior: 'smooth' });
+			el.scrollTo({ top: Math.max(0, top - offset), behavior: 'smooth' });
 		});
 	});
 

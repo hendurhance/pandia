@@ -22,9 +22,7 @@ export function createBackupFlusher(deps: BackupFlushDeps) {
 			const ok = await deps.flushCodeBuffer().catch(() => false);
 			if (!ok) return;
 		}
-		void docBackup(h, deps.sourceName()).catch(() => {
-			
-		});
+		void docBackup(h, deps.sourceName()).catch(() => {});
 	}
 
 	return { flush };

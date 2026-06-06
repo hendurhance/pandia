@@ -41,10 +41,13 @@
 		return () => window.removeEventListener('resize', onResize);
 	});
 
+	// Keep popovers at least this many pixels off the viewport edge so the
+	// shadow/rounded corner is fully visible.
+	const EDGE_MARGIN_PX = 8;
 	const flushRight = $derived(x + width + flushAllowance > vw);
 	const style = $derived.by(() => {
-		const left = Math.min(x, Math.max(0, vw - width - 8));
-		const top = Math.min(y, Math.max(0, vh - height - 8));
+		const left = Math.min(x, Math.max(0, vw - width - EDGE_MARGIN_PX));
+		const top = Math.min(y, Math.max(0, vh - height - EDGE_MARGIN_PX));
 		return `left: ${left}px; top: ${top}px;`;
 	});
 </script>

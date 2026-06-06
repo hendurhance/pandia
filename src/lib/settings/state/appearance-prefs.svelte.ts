@@ -1,6 +1,6 @@
 import { loadPersisted, savePersisted, SETTINGS_FILE } from '$lib/util/persist';
 import { PersistedStore } from '$lib/util/persisted-store.svelte';
-import { oneOf } from '$lib/util/guards';
+import { isObject, oneOf } from '$lib/util/guards';
 import {
 	applyDensity,
 	applyFontFamily,
@@ -43,8 +43,8 @@ function sanitize(raw: unknown): Persisted {
 		fontSizeBase: DEFAULT_FONT_SIZE,
 		density: DEFAULT_DENSITY,
 	};
-	if (typeof raw !== 'object' || raw === null) return fallback;
-	const r = raw as Record<string, unknown>;
+	if (!isObject(raw)) return fallback;
+	const r = raw;
 	return {
 		themeId: typeof r.themeId === 'string' && r.themeId in THEMES ? r.themeId : DEFAULT_THEME_ID,
 		autoMode: typeof r.autoMode === 'boolean' ? r.autoMode : false,

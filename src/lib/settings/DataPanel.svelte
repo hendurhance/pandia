@@ -8,6 +8,11 @@
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
 	import { exportSettings, importSettings, PERSISTED_FILES } from '$lib/util/persist';
 
+	// Window between two clicks of a destructive button before the second
+	// click reverts to "needs confirmation" again.
+	const CONFIRM_ARM_MS = 3000;
+	const BUNDLE_FLASH_MS = 3500;
+
 	let armed: string | null = $state(null);
 	let armTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -20,8 +25,9 @@
 		}
 		armed = id;
 		if (armTimer) clearTimeout(armTimer);
-		armTimer = setTimeout(() => (armed = null), 3000);
+		armTimer = setTimeout(() => (armed = null), CONFIRM_ARM_MS);
 	}
+
 
 	let bundleBusy = $state(false);
 	let bundleStatus: { msg: string; kind: 'ok' | 'err' } | null = $state(null);
@@ -30,7 +36,7 @@
 		bundleStatus = { msg, kind };
 		setTimeout(() => {
 			bundleStatus = null;
-		}, 3500);
+		}, BUNDLE_FLASH_MS);
 	}
 
 	async function doExport() {

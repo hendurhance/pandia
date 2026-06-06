@@ -1,5 +1,6 @@
 import { loadPersisted, savePersisted, SETTINGS_FILE } from '$lib/util/persist';
 import { PersistedStore } from '$lib/util/persisted-store.svelte';
+import { isObject } from '$lib/util/guards';
 
 const STORE_KEY = 'behavior';
 
@@ -29,8 +30,8 @@ function sanitize(raw: unknown): Persisted {
 		autoSaveIdleMs: AUTO_SAVE_IDLE_DEFAULT,
 		warnLargeFileOpen: true,
 	};
-	if (typeof raw !== 'object' || raw === null) return fallback;
-	const r = raw as Record<string, unknown>;
+	if (!isObject(raw)) return fallback;
+	const r = raw;
 	let ms =
 		typeof r.schemaDebounceMs === 'number'
 			? Math.round(r.schemaDebounceMs)

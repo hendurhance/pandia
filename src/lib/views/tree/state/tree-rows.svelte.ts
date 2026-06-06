@@ -1,4 +1,4 @@
-import { docGetSlice, docSummary } from '$lib/ipc/doc';
+import { docChildCount, docGetSlice, docSummary } from '$lib/ipc/doc';
 import {
 	expandGapWindow,
 	insertChildrenWithClose,
@@ -102,8 +102,19 @@ export class TreeRowsController {
 
 		try {
 			const children = await this.fetchInitialChunk(row.path, row.depth);
-			insertChildrenWithClose(this.rows, index, children, row.childCount);
-			this.rows[index] = { ...row, expanded: true };
+			let total = row.childCount;
+			if (total === null && children.length >= CHUNK) {
+				const handle = this.deps.handle();
+				if (handle) {
+					try {
+						total = await docChildCount(handle, row.path);
+					} catch {
+						total = null;
+					}
+				}
+			}
+			insertChildrenWithClose(this.rows, index, children, total);
+			this.rows[index] = { ...row, expanded: true, childCount: total };
 			this.scheduleFlush();
 		} catch (e) {
 			this.deps.setError(String(e));

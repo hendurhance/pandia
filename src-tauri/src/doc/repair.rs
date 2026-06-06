@@ -3,11 +3,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-#[allow(dead_code)]
-static ESCAPE_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"[\\"\u{0000}-\u{001F}/]"#).unwrap()
-});
-
 static UNESCAPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\\+)(.)").unwrap());
 
 static IS_ESCAPED_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\\+["/nrtbf]"#).unwrap());
@@ -61,33 +56,7 @@ pub struct DeepUnescapeResult {
 const FORMAT_THRESHOLD: usize = 500_000;
 const SAMPLE_HEAD_TAIL: usize = 50_000;
 
-#[allow(dead_code)]
-pub fn escape(text: &str) -> String {
-    if text.is_empty() {
-        return String::new();
-    }
-    ESCAPE_RE
-        .replace_all(text, |caps: &regex::Captures| {
-            let ch = &caps[0];
-            match ch {
-                "\\" => "\\\\".to_string(),
-                "\"" => "\\\"".to_string(),
-                "\x08" => "\\b".to_string(),
-                "\x0c" => "\\f".to_string(),
-                "\n" => "\\n".to_string(),
-                "\r" => "\\r".to_string(),
-                "\t" => "\\t".to_string(),
-                "/" => "/".to_string(),
-                other => other.to_string(),
-            }
-        })
-        .into_owned()
-}
-
 pub fn unescape(text: &str) -> String {
-    if text.is_empty() {
-        return String::new();
-    }
     UNESCAPE_RE
         .replace_all(text, |caps: &regex::Captures| {
             let backslashes = &caps[1];
@@ -119,9 +88,6 @@ pub fn unescape(text: &str) -> String {
 }
 
 pub fn is_escaped(text: &str) -> bool {
-    if text.is_empty() {
-        return false;
-    }
     if text.len() > 100_000 {
         let head_end = nearest_boundary(text, SAMPLE_HEAD_TAIL, false);
         let tail_start = nearest_boundary(text, text.len().saturating_sub(SAMPLE_HEAD_TAIL), true);
@@ -132,25 +98,18 @@ pub fn is_escaped(text: &str) -> bool {
 }
 
 pub fn get_escape_level(text: &str) -> u32 {
-    if text.is_empty() {
-        return 0;
-    }
     let sample = if text.len() > SAMPLE_HEAD_TAIL {
         let end = nearest_boundary(text, SAMPLE_HEAD_TAIL, false);
         &text[..end]
     } else {
         text
     };
-    let matches: Vec<&str> = QUOTE_RUN_RE
+    let max_len = QUOTE_RUN_RE
         .find_iter(sample)
-        .map(|m| m.as_str())
         .take(10)
-        .collect();
-    if matches.is_empty() {
-        return 0;
-    }
-    let escape_lengths: Vec<usize> = matches.iter().map(|m| m.len() - 1).collect();
-    let max_len = *escape_lengths.iter().max().unwrap_or(&0);
+        .map(|m| m.as_str().len() - 1)
+        .max()
+        .unwrap_or(0);
     (max_len / 2 + max_len % 2) as u32
 }
 
@@ -225,23 +184,23 @@ pub fn repair(input: &str) -> RepairResult {
     }
 
     let trimmed = input.trim().to_string();
-    let original_json = trimmed.clone();
 
-    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&trimmed) {
-        let formatted = format_value(&parsed, trimmed.len());
-        let len = formatted.len() as u32;
-        return RepairResult {
-            success: true,
-            repaired_json: formatted,
-            errors,
-            warnings,
-            original_length,
-            repaired_length: len,
-            was_unescaped: false,
-            cleaned_up: false,
-        };
-    } else if let Err(e) = serde_json::from_str::<serde_json::Value>(&trimmed) {
-        warnings.push(format!("Initial parse failed: {}", e));
+    match serde_json::from_str::<serde_json::Value>(&trimmed) {
+        Ok(parsed) => {
+            let formatted = format_value(&parsed, trimmed.len());
+            let len = formatted.len() as u32;
+            return RepairResult {
+                success: true,
+                repaired_json: formatted,
+                errors,
+                warnings,
+                original_length,
+                repaired_length: len,
+                was_unescaped: false,
+                cleaned_up: false,
+            };
+        }
+        Err(e) => warnings.push(format!("Initial parse failed: {}", e)),
     }
 
     let mut current = trimmed.clone();
@@ -253,24 +212,37 @@ pub fn repair(input: &str) -> RepairResult {
             warnings.push(format!("Unescape warning: {}", err));
         }
         if r.success {
-            let parsed: serde_json::Value =
-                serde_json::from_str(&r.result).expect("deep_unescape claimed success");
-            let formatted = format_value(&parsed, r.result.len());
-            let len = formatted.len() as u32;
-            warnings.push(format!(
-                "Applied {} levels of unescaping (detected escape level: {})",
-                r.iterations, level
-            ));
-            return RepairResult {
-                success: true,
-                repaired_json: formatted,
-                errors,
-                warnings,
-                original_length,
-                repaired_length: len,
-                was_unescaped: true,
-                cleaned_up: false,
-            };
+            // `deep_unescape` claims success only when its result is parseable,
+            // but be defensive in case that invariant ever slips — fall through
+            // to the next repair stage instead of panicking.
+            match serde_json::from_str::<serde_json::Value>(&r.result) {
+                Ok(parsed) => {
+                    let formatted = format_value(&parsed, r.result.len());
+                    let len = formatted.len() as u32;
+                    warnings.push(format!(
+                        "Applied {} levels of unescaping (detected escape level: {})",
+                        r.iterations, level
+                    ));
+                    return RepairResult {
+                        success: true,
+                        repaired_json: formatted,
+                        errors,
+                        warnings,
+                        original_length,
+                        repaired_length: len,
+                        was_unescaped: true,
+                        cleaned_up: false,
+                    };
+                }
+                Err(e) => {
+                    warnings.push(format!(
+                        "Unescape success but parse failed ({}), trying further repairs",
+                        e
+                    ));
+                    current = r.result;
+                    was_unescaped = true;
+                }
+            }
         } else if r.iterations > 0 {
             current = r.result;
             was_unescaped = true;
@@ -293,7 +265,7 @@ pub fn repair(input: &str) -> RepairResult {
     match serde_json::from_str::<serde_json::Value>(&current) {
         Ok(parsed) => {
             let formatted = format_value(&parsed, current.len());
-            if formatted != original_json {
+            if formatted != trimmed {
                 warnings.push("JSON was modified during repair".to_string());
             }
             let len = formatted.len() as u32;
@@ -313,7 +285,7 @@ pub fn repair(input: &str) -> RepairResult {
             errs.push(format!("Final parse failed: {}", e));
             RepairResult {
                 success: false,
-                repaired_json: original_json,
+                repaired_json: trimmed,
                 errors: errs,
                 warnings,
                 original_length,
@@ -326,10 +298,13 @@ pub fn repair(input: &str) -> RepairResult {
 }
 
 fn format_value(v: &serde_json::Value, current_len: usize) -> String {
+    // serde_json::to_string on a `Value` does no IO and uses no custom
+    // serializer — the only failure mode is OOM, which the surrounding
+    // process can't meaningfully recover from anyway.
     if current_len > FORMAT_THRESHOLD {
-        serde_json::to_string(v).unwrap_or_else(|_| String::new())
+        serde_json::to_string(v).expect("Value serialization is infallible")
     } else {
-        serde_json::to_string_pretty(v).unwrap_or_else(|_| String::new())
+        serde_json::to_string_pretty(v).expect("Value serialization is infallible")
     }
 }
 
@@ -378,7 +353,6 @@ fn advanced_repairs(json: &str, warnings: &mut Vec<String>) -> String {
     let mut current = fix_bracket_mismatches(json, warnings);
     current = fix_unquoted_keys(&current, warnings);
     current = fix_string_escaping(&current, warnings);
-    current = fix_javascript_literals(&current);
     current
 }
 
@@ -456,102 +430,65 @@ fn fix_bracket_mismatches(json: &str, warnings: &mut Vec<String>) -> String {
 fn fix_unquoted_keys(json: &str, warnings: &mut Vec<String>) -> String {
     static KEY_RE: Lazy<Regex> =
         Lazy::new(|| Regex::new(r"([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:").unwrap());
-    let mut fixed = json.to_string();
-    let mut subs: Vec<(String, String, String)> = Vec::new();
-    for caps in KEY_RE.captures_iter(&fixed) {
-        let full = caps
-            .get(0)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        let prefix = caps
-            .get(1)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        let key = caps
-            .get(2)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        if !is_quoted(&key) && should_be_quoted(&key) {
-            let replacement = format!("{}\"{}\":", prefix, key);
-            subs.push((full, replacement, key));
-        }
+    // Single pass over the document. The capture group `[a-zA-Z_$][...]` can
+    // never start with a quote so the `is_quoted` check from the TS port is
+    // unnecessary; `should_be_quoted` still filters out already-valid bare
+    // identifiers like JS keywords that need wrapping.
+    let mut quoted: Vec<String> = Vec::new();
+    let result = KEY_RE
+        .replace_all(json, |caps: &regex::Captures| {
+            let prefix = &caps[1];
+            let key = &caps[2];
+            if should_be_quoted(key) {
+                quoted.push(key.to_string());
+                format!("{}\"{}\":", prefix, key)
+            } else {
+                caps[0].to_string()
+            }
+        })
+        .into_owned();
+    for key in quoted {
+        warnings.push(format!("Added quotes around key: {}", key));
     }
-    for (full, replacement, key) in subs {
-        if let Some(idx) = fixed.find(&full) {
-            fixed.replace_range(idx..idx + full.len(), &replacement);
-            warnings.push(format!("Added quotes around key: {}", key));
-        }
-    }
-    fixed
+    result
 }
 
 fn fix_string_escaping(json: &str, warnings: &mut Vec<String>) -> String {
-    let mut fixed = json.to_string();
     static BAD_BACKSLASH_RE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r#"\\(?:[^"\\/bfnrtu]|u(?:[^0-9a-fA-F]|[0-9a-fA-F]{0,3}(?:[^0-9a-fA-F]|$)))"#)
             .unwrap()
     });
-    let before = fixed.clone();
-    fixed = BAD_BACKSLASH_RE
-        .replace_all(&fixed, |caps: &regex::Captures| {
-            let m = &caps[0];
-            let rest = &m[1..];
-            format!("\\\\{}", rest)
-        })
-        .into_owned();
-    if fixed != before {
-        warnings.push("Fixed string escaping issues".to_string());
-    }
+    // `Cow::Owned` from `replace_all` means at least one substitution happened
+    // — no need to clone-and-compare to detect modification.
+    let after_backslash = match BAD_BACKSLASH_RE.replace_all(json, |caps: &regex::Captures| {
+        format!("\\\\{}", &caps[0][1..])
+    }) {
+        std::borrow::Cow::Borrowed(_) => json.to_string(),
+        std::borrow::Cow::Owned(s) => {
+            warnings.push("Fixed string escaping issues".to_string());
+            s
+        }
+    };
 
-    let before = fixed.clone();
-    let mut next = String::with_capacity(fixed.len());
-    for c in fixed.chars() {
+    let mut next = String::with_capacity(after_backslash.len());
+    let mut control_replaced = false;
+    for c in after_backslash.chars() {
         let code = c as u32;
         if code < 0x20 && code != 0x09 && code != 0x0a && code != 0x0d {
-            let escaped = match code {
-                8 => "\\b".to_string(),
-                12 => "\\f".to_string(),
-                _ => format!("\\u{:04x}", code),
-            };
-            next.push_str(&escaped);
+            control_replaced = true;
+            match code {
+                8 => next.push_str("\\b"),
+                12 => next.push_str("\\f"),
+                _ => next.push_str(&format!("\\u{:04x}", code)),
+            }
         } else {
             next.push(c);
         }
     }
-    if next != before {
+    if control_replaced {
         warnings.push("Fixed string escaping issues".to_string());
     }
     next
-}
-
-fn fix_javascript_literals(json: &str) -> String {
-    static JS_OBJ_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\w+)\s*:\s*([^,}\]]+)").unwrap());
-    JS_OBJ_RE
-        .replace_all(json, |caps: &regex::Captures| {
-            let key = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let value = caps.get(2).map(|m| m.as_str()).unwrap_or("").trim();
-            let quoted_key = if is_quoted(key) {
-                key.to_string()
-            } else {
-                format!("\"{}\"", key)
-            };
-            let processed = if !is_quoted(value)
-                && !is_number_str(value)
-                && !is_boolean_str(value)
-                && value != "null"
-            {
-                format!("\"{}\"", value)
-            } else {
-                value.to_string()
-            };
-            format!("{}: {}", quoted_key, processed)
-        })
-        .into_owned()
-}
-
-fn is_quoted(s: &str) -> bool {
-    let s = s.trim();
-    (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\''))
 }
 
 fn should_be_quoted(key: &str) -> bool {
@@ -629,18 +566,6 @@ fn should_be_quoted(key: &str) -> bool {
     !IDENT_RE.is_match(key)
 }
 
-fn is_number_str(s: &str) -> bool {
-    let s = s.trim();
-    if s.is_empty() {
-        return false;
-    }
-    s.parse::<f64>().is_ok()
-}
-
-fn is_boolean_str(s: &str) -> bool {
-    s == "true" || s == "false"
-}
-
 fn nearest_boundary(s: &str, idx: usize, walking_back: bool) -> usize {
     let mut i = idx.min(s.len());
     if walking_back {
@@ -658,6 +583,30 @@ fn nearest_boundary(s: &str, idx: usize, walking_back: bool) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Test-only inverse of `unescape`. Lives here because the production code
+    // never re-escapes (we only decode incoming JSON), so it would otherwise
+    // be unused outside this module.
+    static ESCAPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"[\\"\u{0000}-\u{001F}/]"#).unwrap());
+
+    fn escape(text: &str) -> String {
+        ESCAPE_RE
+            .replace_all(text, |caps: &regex::Captures| {
+                let ch = &caps[0];
+                match ch {
+                    "\\" => "\\\\".to_string(),
+                    "\"" => "\\\"".to_string(),
+                    "\x08" => "\\b".to_string(),
+                    "\x0c" => "\\f".to_string(),
+                    "\n" => "\\n".to_string(),
+                    "\r" => "\\r".to_string(),
+                    "\t" => "\\t".to_string(),
+                    "/" => "/".to_string(),
+                    other => other.to_string(),
+                }
+            })
+            .into_owned()
+    }
 
     #[test]
     fn already_valid_json_passes_through() {

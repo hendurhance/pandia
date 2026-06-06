@@ -128,7 +128,7 @@ pub(crate) fn merge(a: TypeShape, b: TypeShape) -> TypeShape {
                             },
                         );
                     }
-                    (None, None) => unreachable!(),
+                    (None, None) => continue,
                 }
             }
             Object(out)

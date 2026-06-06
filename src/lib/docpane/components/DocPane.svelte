@@ -266,9 +266,10 @@
 
 	let saveFlash: string | null = $state(null);
 
+	const SAVE_FLASH_MS = 1500;
 	function flash(msg: string) {
 		saveFlash = msg;
-		setTimeout(() => (saveFlash = null), 1500);
+		setTimeout(() => (saveFlash = null), SAVE_FLASH_MS);
 	}
 
 	let exportOpen = $state(false);
