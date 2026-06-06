@@ -19,5 +19,5 @@ src-tauri/
 # Data fixtures (don't reflow)
 *fixture*.json
 
-# Design sketches — hand-authored reference HTML, not app code
-v1-design/
+# Editor configs
+.vscode/tasks.json
