@@ -50,6 +50,7 @@ export class GridDataController {
 
 	private inFlight = new Map<number, Promise<void>>();
 	private filterJobId: string | null = null;
+	private generation = 0;
 	fetching = $state(false);
 
 	constructor(private deps: GridDataDeps) {}
@@ -118,9 +119,11 @@ export class GridDataController {
 			this.filterJobId = `grid-filter-${start}-${Math.random().toString(36).slice(2, 10)}`;
 		}
 		const jobId = q.filtering ? this.filterJobId : null;
+		const gen = this.generation;
 		const work = (async () => {
 			try {
 				let rows: GridRow[];
+				let total: number | null = null;
 				if (q.filtering) {
 					const res = await docGetRowsFiltered(
 						handle,
@@ -134,7 +137,7 @@ export class GridDataController {
 						q.sortDesc,
 						jobId ?? undefined,
 					);
-					this.filteredTotal = res.total;
+					total = res.total;
 					rows = res.rows;
 				} else if (q.sortKey) {
 					const end = Math.min(start + CHUNK, this.deps.rowCount());
@@ -151,17 +154,24 @@ export class GridDataController {
 					const raw = await docGetRows(handle, path, start, end);
 					rows = raw.map((value, k) => ({ index: start + k, value }));
 				}
+				// Drop stale responses: if the user retyped the filter or
+				// changed query while this was in flight, the in-flight Rust
+				// cancel flag might have missed (response already sent), so
+				// guard the write here too.
+				if (gen !== this.generation) return;
+				if (total !== null) this.filteredTotal = total;
 				const next = new Map(this.chunks);
 				next.set(start, rows);
 				this.chunks = next;
 			} catch (e) {
 				const msg = String(e);
 				if (msg.includes('cancelled')) return;
+				if (gen !== this.generation) return;
 				if (q.sortKey || q.filtering) {
 					this.deps.onFilterOverflow(msg.replace(/^.*?Error:\s*/i, ''));
 				}
 			} finally {
-				this.inFlight.delete(start);
+				if (gen === this.generation) this.inFlight.delete(start);
 			}
 		})();
 		this.inFlight.set(start, work);
@@ -198,6 +208,7 @@ export class GridDataController {
 
 	
 	reset = () => {
+		this.generation += 1;
 		if (this.filterJobId) {
 			void cancelJob(this.filterJobId);
 			this.filterJobId = null;

@@ -47,6 +47,9 @@
 			bind:value={quick}
 			placeholder="Filter rows…"
 			spellcheck="false"
+			autocapitalize="off"
+			autocorrect="off"
+			autocomplete="off"
 			aria-label="filter rows"
 		/>
 		{#if quick}
