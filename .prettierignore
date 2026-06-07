@@ -1,0 +1,23 @@
+# Build outputs & deps
+dist/
+build/
+.svelte-kit/
+node_modules/
+package-lock.json
+package.json
+
+
+# Separate Astro project — has its own tooling
+website/
+
+# Rust — rustfmt owns this tree
+src-tauri/
+
+# Hand-formatted, large planning docs
+*.md
+
+# Data fixtures (don't reflow)
+*fixture*.json
+
+# Editor configs
+.vscode/tasks.json

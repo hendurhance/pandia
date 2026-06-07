@@ -1,151 +1,369 @@
-@import "tailwindcss";
-
-@theme {
-  /* Brand Colors */
-  --color-brand-orange: #FF6A3A;
-  --color-brand-orange-dark: #FF4F3A;
-  --color-brand-purple: #9C6BFF;
-  --color-brand-purple-dark: #8C4FFF;
-  --color-brand-dark: #1B1B1D;
-  --color-brand-darker: #121214;
-  --color-brand-light: #F5F5F7;
-  --color-brand-gray: #8E8E93;
-  --color-brand-gray-dark: #48484A;
-
-  /* Custom Fonts */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--page-text);
+  font-family: var(--disp);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; margin: 0; }
+p, figure, blockquote, dl, dd { margin: 0; }
+ol, ul, menu { list-style: none; margin: 0; padding: 0; }
+a { color: inherit; text-decoration: none; }
+button, input, optgroup, select, textarea { font: inherit; color: inherit; margin: 0; }
+button { background: transparent; border: 0; cursor: pointer; }
+img, svg, video, canvas { display: block; max-width: 100%; }
+img, video { height: auto; }
+table { border-collapse: collapse; }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
-}
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--page-rule-2); }
+::-webkit-scrollbar-thumb:hover { background: var(--page-faint); }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--color-brand-darker);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-brand-gray-dark);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-brand-gray);
-}
-
-/* Smooth scroll */
 html {
   scroll-behavior: smooth;
+  background: var(--page-bg);
+  color-scheme: dark;
 }
 
-/* Selection */
 ::selection {
-  background: var(--color-brand-purple);
-  color: white;
+  background: var(--accent-fill);
+  color: var(--page-text);
 }
 
-/* Glow effects */
-.glow-orange {
-  box-shadow: 0 0 60px rgba(255, 106, 58, 0.3);
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PANDIA — REFINED WORKBENCH
+   One CSS-variable system, two groups:
+     1. --page-*  PAGE chrome tokens that FLIP by OS scheme.
+        :root = DARK (mirrors mockups/02). @media light = PAPER (mirrors 06).
+     2. FIXED tokens (--app-* / --s-*) identical in both modes — the embedded
+        product window stays DARK on both pages; accent is constant.
+   Every page (home, docs, download, changelog) is wrapped in .pandia-page,
+   which owns the whole design system — no Tailwind, no utility classes.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --page-bg:    #1b1b1d;
+  --page-bg-2:  #212124;
+  --page-bg-3:  #2f2f33;
+  --page-card:  #212124;
+  --page-rule:  #2c2c30;
+  --page-rule-2:#3a3a3f;
+  --page-text:  #e6e6e9;
+  --page-dim:   #9b9ba2;
+  --page-faint: #5c5c64;
+  --page-ghost: #3a3a40;
+
+  --accent-soft: rgba(255,106,58,0.12);
+  --accent-fill: rgba(255,106,58,0.22);
+
+  --accent:      #ff6a3a;
+  --accent-2:    #e0a53c;
+  --accent-line: rgba(255,106,58,0.55);
+
+  --app-bg:     #1b1b1d;
+  --app-elev:   #212124;
+  --app-elev-2: #27272a;
+  --app-elev-3: #2f2f33;
+  --app-edit:   #151517;
+  --app-rule:   #2c2c30;
+  --app-rule-2: #3a3a3f;
+  --app-text:   #e6e6e9;
+  --app-dim:    #9b9ba2;
+  --app-faint:  #5c5c64;
+  --app-ghost:  #3a3a40;
+
+  --s-string: #e0a53c;
+  --s-number: #7fb069;
+  --s-bool:   #9c6bff;
+  --s-null:   #6a6a72;
+  --s-punct:  #6a6a72;
+  --s-url:    #9c6bff;
+  --green:    #7fb069;
+  --amber:    #e0a53c;
+
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --disp: 'Bricolage Grotesque', ui-sans-serif, sans-serif;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur:  180ms;
+  --maxw: 1180px;
 }
 
-.glow-purple {
-  box-shadow: 0 0 60px rgba(156, 107, 255, 0.3);
+@media (prefers-color-scheme: light) {
+  html { color-scheme: light; }
+  :root {
+    --page-bg:    #FBF8F2;
+    --page-bg-2:  #F4EEE2;
+    --page-bg-3:  #EFE8DA;
+    --page-card:  #FDFBF6;
+    --page-rule:  #E4DCCB;
+    --page-rule-2:#D6CCB6;
+    --page-text:  #1b1b1d;
+    --page-dim:   #6B6457;
+    --page-faint: #9A917F;
+    --page-ghost: #C3B9A4;
+
+    --accent-soft: rgba(255,106,58,0.10);
+    --accent-fill: rgba(255,106,58,0.16);
+  }
 }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-brand-orange), var(--color-brand-purple));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Animated gradient border */
-.gradient-border {
+.pandia-page {
+  font-family: var(--disp);
+  background: var(--page-bg);
+  color: var(--page-text);
+  min-height: 100vh;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip; /* clip, NOT hidden — hidden would create a scroll container and break the sticky nav */
   position: relative;
-  background: var(--color-brand-dark);
-  border-radius: 12px;
 }
+.pandia-page * { box-sizing: border-box; }
+.pandia-page a { color: inherit; text-decoration: none; }
 
-.gradient-border::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  padding: 1px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, var(--color-brand-orange), var(--color-brand-purple));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
+.pandia-page::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+  opacity: 0.04;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 9999;
 }
-
-/* Code block styling */
-pre {
-  background: var(--color-brand-darker) !important;
-  border: 1px solid var(--color-brand-gray-dark);
-  border-radius: 8px;
+.pandia-page::after {
+  content: "";
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse 120% 90% at 50% -10%, rgba(255,106,58,0.05), transparent 45%),
+              radial-gradient(ellipse 130% 120% at 50% 115%, rgba(0,0,0,0.45), transparent 55%);
+  pointer-events: none;
+  z-index: 9998;
 }
-
-code {
-  font-family: var(--font-mono);
-}
-
-/* Animation keyframes */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+@media (prefers-color-scheme: light) {
+  .pandia-page::before {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+    opacity: 0.035;
+    mix-blend-mode: multiply;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .pandia-page::after {
+    background: radial-gradient(ellipse 120% 90% at 50% -10%, rgba(255,106,58,0.04), transparent 45%),
+                radial-gradient(ellipse 130% 100% at 50% 110%, rgba(120,96,60,0.06), transparent 55%);
   }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.pandia-page ::selection { background: var(--accent-fill); color: var(--page-text); }
+
+.pandia-page ::-webkit-scrollbar { width: 11px; height: 11px; }
+.pandia-page ::-webkit-scrollbar-track { background: transparent; }
+.pandia-page ::-webkit-scrollbar-thumb { background: var(--page-rule-2); }
+.pandia-page ::-webkit-scrollbar-thumb:hover { background: var(--page-ghost); }
+
+.pandia-page .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 32px; }
+
+.pandia-page .spine {
+  position: fixed; top: 0; bottom: 0;
+  left: 50%; transform: translateX(-50%);
+  width: var(--maxw); max-width: 100%;
+  pointer-events: none; z-index: 0;
+}
+.pandia-page .spine::before, .pandia-page .spine::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.04) 10%, rgba(255,255,255,0.04) 90%, transparent);
+}
+@media (prefers-color-scheme: light) {
+  .pandia-page .spine::before, .pandia-page .spine::after {
+    background: linear-gradient(180deg, transparent, rgba(40,32,20,0.05) 10%, rgba(40,32,20,0.05) 90%, transparent);
+  }
+}
+.pandia-page .spine::before { left: 32px; }
+.pandia-page .spine::after  { right: 32px; }
+
+.pandia-page .eyebrow {
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.20em; text-transform: uppercase;
+  color: var(--page-faint);
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.pandia-page .eyebrow .tick { width: 7px; height: 7px; background: var(--accent); flex-shrink: 0; }
+.pandia-page .eyebrow .num { color: var(--page-ghost); }
+
+.pandia-page .kbd {
+  font-family: var(--mono); font-size: 11px; color: var(--page-dim);
+  border: 1px solid var(--page-rule-2); padding: 1px 6px; background: var(--page-card);
 }
 
-.animate-float {
-  animation: float 6s ease-in-out infinite;
+.pandia-page .btn {
+  font-family: var(--mono);
+  font-size: 12.5px; font-weight: 500; letter-spacing: 0.02em;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 9px 16px;
+  transition: all var(--dur) var(--ease);
+  cursor: pointer; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.pandia-page .btn-primary {
+  background: var(--accent); color: #1b0e07; font-weight: 600;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.30) inset, 0 8px 22px -8px rgba(255,106,58,0.55);
+}
+.pandia-page .btn-primary:hover {
+  background: #ff7a4e; transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.34) inset, 0 12px 28px -8px rgba(255,106,58,0.62);
+}
+.pandia-page .btn-primary .os { opacity: 0.72; font-weight: 500; }
+.pandia-page .btn-ghost {
+  border: 1px solid var(--page-rule-2); color: var(--page-text); background: var(--page-card);
+}
+.pandia-page .btn-ghost:hover { border-color: var(--page-faint); background: var(--page-bg-2); }
+
+.pandia-page a:focus-visible,
+.pandia-page button:focus-visible,
+.pandia-page .btn:focus-visible,
+.pandia-page summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pandia-page .vtab:focus-visible,
+.pandia-page .spot-head .seg .o:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .pandia-page *, .pandia-page *::before, .pandia-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
-.animate-slide-up {
-  animation: slide-up 0.6s ease-out forwards;
+.pandia-page section.block { padding: 108px 0; position: relative; }
+.pandia-page .block + .block { border-top: 1px solid var(--page-rule); }
+.pandia-page .sec-head { max-width: 700px; margin-bottom: 56px; }
+.pandia-page .sec-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+.pandia-page .sec-head h2 {
+  font-family: var(--disp); font-size: clamp(31px, 3.8vw, 46px); font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.04; margin-top: 18px; color: var(--page-text);
+}
+.pandia-page .sec-head h2 em { font-style: normal; color: var(--accent); }
+.pandia-page .sec-head p {
+  font-family: var(--disp); font-size: 17.5px; color: var(--page-dim);
+  margin-top: 16px; line-height: 1.6; max-width: 62ch;
+}
+.pandia-page .sec-head.center p { margin-left: auto; margin-right: auto; }
+
+.pandia-page .r { display: flex; align-items: baseline; padding: 0.5px 0; }
+.pandia-page .ind { width: 17px; flex-shrink: 0; }
+.pandia-page .tw { width: 14px; flex-shrink: 0; color: var(--app-faint); text-align: center; }
+.pandia-page .tw.x { color: var(--accent); }
+.pandia-page .k { color: var(--app-text); }
+.pandia-page .k.sel { background: var(--accent-fill); outline: 1px solid var(--accent-line); padding: 0 2px; }
+.pandia-page .cl { color: var(--s-punct); padding: 0 8px 0 1px; }
+.pandia-page .br { color: var(--s-punct); }
+.pandia-page .s { color: var(--s-string); }
+.pandia-page .n { color: var(--s-number); }
+.pandia-page .b { color: var(--s-bool); }
+.pandia-page .nu { color: var(--s-null); font-style: italic; }
+.pandia-page .chip {
+  display: inline-block; padding: 0 8px; margin-left: 2px;
+  background: var(--app-elev-3); color: var(--app-dim);
+  border: 1px solid var(--app-rule-2); font-size: 11.5px;
+}
+.pandia-page .chip b { color: var(--s-punct); font-weight: 400; }
+.pandia-page .more { color: var(--app-ghost); font-style: italic; }
+
+.pandia-page .code { padding: 12px 0 16px; overflow: hidden; }
+.pandia-page .cline { display: flex; align-items: baseline; padding: 0.5px 16px 0.5px 0; }
+.pandia-page .cline .lno {
+  width: 38px; flex-shrink: 0; text-align: right; padding-right: 10px;
+  color: var(--app-ghost); user-select: none; font-size: 11.5px;
+}
+.pandia-page .cline .fold {
+  width: 14px; flex-shrink: 0; text-align: center; color: var(--app-faint); user-select: none; font-size: 10px;
+}
+.pandia-page .cline.cur { background: var(--accent-soft); }
+.pandia-page .cline.cur .lno { color: var(--accent); }
+.pandia-page .fph { color: var(--app-faint); background: var(--app-elev-2); border: 1px solid var(--app-rule-2); padding: 0 6px; font-size: 11px; }
+.pandia-page .ccaret {
+  display: inline-block; width: 7px; height: 14px; background: var(--accent);
+  vertical-align: -2px; margin-left: 1px; animation: pandia-blink 1.15s steps(1) infinite;
+}
+@keyframes pandia-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .pandia-page .reveal { opacity: 0; transform: translateY(14px); animation: pandia-rise 0.64s var(--ease) forwards; }
+  @keyframes pandia-rise { to { opacity: 1; transform: translateY(0); } }
+  .pandia-page .d1 { animation-delay: 0.05s; }
+  .pandia-page .d2 { animation-delay: 0.14s; }
+  .pandia-page .d3 { animation-delay: 0.23s; }
+  .pandia-page .d4 { animation-delay: 0.33s; }
+  .pandia-page .d5 { animation-delay: 0.44s; }
+  .pandia-page .d6 { animation-delay: 0.58s; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pandia-page .iv { opacity: 0; transform: translateY(20px); transition: opacity 0.6s var(--ease), transform 0.6s var(--ease); }
+  .pandia-page .iv.shown { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.5s ease-out forwards;
+.pandia-page .docs-prose { font-family: var(--disp); color: var(--page-dim); max-width: 760px; }
+.pandia-page .docs-prose > :first-child { margin-top: 0; }
+.pandia-page .docs-prose h1 { font-family: var(--disp); font-size: clamp(32px, 4vw, 42px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; color: var(--page-text); }
+.pandia-page .docs-prose h1 + .lead, .pandia-page .docs-prose .lead { font-size: 18px; color: var(--page-dim); line-height: 1.6; margin-top: 16px; }
+.pandia-page .docs-prose h2 {
+  font-family: var(--disp); font-size: 23px; font-weight: 700; letter-spacing: -0.02em; color: var(--page-text);
+  margin-top: 52px; padding-top: 26px; border-top: 1px solid var(--page-rule); scroll-margin-top: 84px;
 }
-
-/* Stagger animations */
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-.stagger-4 { animation-delay: 0.4s; }
-.stagger-5 { animation-delay: 0.5s; }
+.pandia-page .docs-prose h3 { font-family: var(--disp); font-size: 17px; font-weight: 600; color: var(--page-text); margin-top: 32px; scroll-margin-top: 84px; }
+.pandia-page .docs-prose p { font-size: 15.5px; line-height: 1.72; margin-top: 16px; }
+.pandia-page .docs-prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.pandia-page .docs-prose a:hover { color: var(--page-text); }
+.pandia-page .docs-prose strong { color: var(--page-text); font-weight: 600; }
+.pandia-page .docs-prose em { font-style: italic; }
+.pandia-page .docs-prose ul, .pandia-page .docs-prose ol { margin-top: 16px; padding-left: 4px; display: flex; flex-direction: column; gap: 9px; }
+.pandia-page .docs-prose li { font-size: 15.5px; line-height: 1.6; padding-left: 22px; position: relative; }
+.pandia-page .docs-prose ul > li::before { content: ""; position: absolute; left: 0; top: 11px; width: 7px; height: 1.5px; background: var(--accent); }
+.pandia-page .docs-prose ol { counter-reset: dl; }
+.pandia-page .docs-prose ol > li { counter-increment: dl; }
+.pandia-page .docs-prose ol > li::before { content: counter(dl); position: absolute; left: 0; top: 0; font-family: var(--mono); font-size: 11px; color: var(--accent); }
+.pandia-page .docs-prose li ul, .pandia-page .docs-prose li ol { margin-top: 9px; }
+.pandia-page .docs-prose code { font-family: var(--mono); font-size: 0.86em; color: var(--page-text); background: var(--page-bg-3); border: 1px solid var(--page-rule); padding: 1px 6px; }
+.pandia-page .docs-prose pre {
+  margin-top: 20px; background: var(--app-edit); border: 1px solid var(--app-rule); color: var(--app-text);
+  font-family: var(--mono); font-size: 13px; line-height: 1.7; padding: 16px 18px; overflow-x: auto;
+}
+.pandia-page .docs-prose pre code { background: 0; border: 0; padding: 0; color: inherit; font-size: 13px; }
+.pandia-page .docs-prose pre .c { color: var(--app-faint); } /* comment */
+.pandia-page .docs-prose pre .s { color: var(--s-string); }
+.pandia-page .docs-prose pre .n { color: var(--s-number); }
+.pandia-page .docs-prose pre .k { color: var(--s-bool); }
+.pandia-page .docs-prose pre .p { color: var(--app-text); }
+.pandia-page .docs-prose pre .nu { color: var(--s-null); font-style: italic; }
+.pandia-page .docs-prose hr { border: 0; border-top: 1px solid var(--page-rule); margin: 40px 0; }
+.pandia-page .docs-prose kbd, .pandia-page .docs-prose .kbd {
+  font-family: var(--mono); font-size: 11.5px; color: var(--page-text); background: var(--page-bg-2);
+  border: 1px solid var(--page-rule-2); border-bottom-width: 2px; padding: 1px 6px; white-space: nowrap;
+}
+.pandia-page .docs-prose blockquote, .pandia-page .docs-prose .callout {
+  margin-top: 20px; padding: 14px 18px; border-left: 2px solid var(--accent); background: var(--page-bg-2);
+  font-size: 14.5px; line-height: 1.6;
+}
+.pandia-page .docs-prose .callout.warn { border-left-color: var(--amber); }
+.pandia-page .docs-prose .callout.warn strong:first-child, .pandia-page .docs-prose .callout strong:first-child { color: var(--page-text); }
+.pandia-page .docs-prose blockquote p:first-child, .pandia-page .docs-prose .callout p:first-child { margin-top: 0; }
+.pandia-page .docs-prose table { width: 100%; border-collapse: collapse; margin-top: 22px; font-size: 14px; }
+.pandia-page .docs-prose th, .pandia-page .docs-prose td { text-align: left; padding: 9px 14px; border: 1px solid var(--page-rule); vertical-align: top; }
+.pandia-page .docs-prose th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--page-faint); background: var(--page-bg-2); font-weight: 500; }
+.pandia-page .docs-prose td code { font-size: 0.85em; }
+.pandia-page .docs-prose img { max-width: 100%; height: auto; border: 1px solid var(--page-rule); margin-top: 22px; }
+.pandia-page .docs-prose .doc-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 22px; }
+.pandia-page .docs-prose .doc-card { border: 1px solid var(--page-rule); padding: 18px; background: var(--page-card); }
+.pandia-page .docs-prose .doc-card h3 { margin-top: 0; font-size: 15px; }
+.pandia-page .docs-prose .doc-card p { margin-top: 6px; font-size: 13.5px; }
+.pandia-page .docs-prose .doc-card.col-2 { grid-column: span 2; }

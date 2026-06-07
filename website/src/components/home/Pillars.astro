@@ -1,0 +1,70 @@
+---
+---
+<section class="block">
+  <div class="wrap">
+    <div class="sec-head center iv">
+      <span class="eyebrow"><span class="tick"></span>Why Pandia</span>
+      <h2>Native, private, and yours to keep.</h2>
+      <p>No accounts, no cloud, no telemetry. A small native binary that respects your machine and your data.</p>
+    </div>
+    <div class="pillars iv">
+      <div class="pillar">
+        <div class="pic">◎</div>
+        <h3>Offline &amp; private</h3>
+        <p>All processing is local. The <strong>only</strong> network call is a URL fetch you start yourself.</p>
+      </div>
+      <div class="pillar">
+        <div class="pic">⌬</div>
+        <h3>Native &amp; fast</h3>
+        <p>Built on <strong>Rust + Tauri 2</strong>. A small binary that starts instantly and stays out of the way.</p>
+      </div>
+      <div class="pillar">
+        <div class="pic">▣</div>
+        <h3>Cross-platform</h3>
+        <p>One workbench for <strong>macOS, Windows and Linux</strong> — the same views, the same shortcuts.</p>
+      </div>
+      <div class="pillar">
+        <div class="pic">◐</div>
+        <h3>Make it yours</h3>
+        <p><strong>19 themes</strong>, density options, and 12+ code fonts. Light or dark, your way.</p>
+      </div>
+      <div class="pillar">
+        <div class="pic">⎌</div>
+        <h3>Forgiving</h3>
+        <p>Per-tab <strong>undo / redo</strong> with exact inverses, plus crash recovery from auto-saved backups.</p>
+      </div>
+      <div class="pillar">
+        <div class="pic">⌥</div>
+        <h3>Free &amp; open source</h3>
+        <p><strong>Apache-2.0.</strong> Read the code, file an issue, or build it yourself. No tiers, ever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .pillars { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--page-rule); }
+  .pandia-page .pillar { padding: 32px 28px; border-right: 1px solid var(--page-rule); border-bottom: 1px solid var(--page-rule); background: var(--page-card); }
+  .pandia-page .pillar:nth-child(3n) { border-right: 0; }
+  .pandia-page .pillar:nth-child(n+4) { border-bottom: 0; }
+  .pandia-page .pillar .pic {
+    width: 40px; height: 40px; border: 1px solid var(--page-rule-2); display: grid; place-items: center;
+    margin-bottom: 18px; font-family: var(--mono); color: var(--accent); font-size: 17px; background: var(--page-bg);
+  }
+  .pandia-page .pillar h3 { font-family: var(--disp); font-size: 19px; font-weight: 600; letter-spacing: -0.015em; color: var(--page-text); }
+  .pandia-page .pillar p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 9px; line-height: 1.58; }
+  .pandia-page .pillar p strong { color: var(--page-text); font-weight: 600; }
+
+  @media (max-width: 940px) {
+    .pandia-page .pillars { grid-template-columns: 1fr 1fr; }
+    .pandia-page .pillar:nth-child(3n) { border-right: 1px solid var(--page-rule); }
+    .pandia-page .pillar:nth-child(2n) { border-right: 0; }
+    .pandia-page .pillar:nth-child(n+4) { border-bottom: 1px solid var(--page-rule); }
+    .pandia-page .pillar:nth-child(n+5) { border-bottom: 0; }
+  }
+  @media (max-width: 560px) {
+    .pandia-page .pillars { grid-template-columns: 1fr; }
+    .pandia-page .pillar { border-right: 0 !important; border-bottom: 1px solid var(--page-rule) !important; }
+    .pandia-page .pillar:last-child { border-bottom: 0 !important; }
+  }
+</style>

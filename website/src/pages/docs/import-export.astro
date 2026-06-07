@@ -1,173 +1,54 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
-
-const description = "Import JSON, YAML, XML, and CSV files. Load from URLs, parse cURL commands, fetch GitHub Gists. Drag and drop support for seamless data loading.";
 ---
+<DocsLayout
+  title="Import & auto-detect"
+  description="Bring data into Pandia from anywhere — paste, drop, open or fetch. Pandia detects the format and converts JSON, YAML, XML, CSV and cURL commands to JSON."
+  currentDoc="/docs/import-export"
+>
+  <h1>Import &amp; auto-detect</h1>
+  <p class="lead">Bring data in from anywhere — Pandia detects the format and converts it to
+  JSON, so you can start exploring straight away.</p>
 
-<DocsLayout title="Import Formats" description={description} currentDoc="/docs/import-export">
-  <article class="prose prose-invert max-w-none">
-    <!-- Header -->
-    <div class="mb-12">
-      <h1 class="text-4xl font-bold text-white mb-4">Import Formats</h1>
-      <p class="text-xl text-brand-gray">
-        Learn about the different file formats and import methods supported by Pandia.
-      </p>
-    </div>
+  <h2>Ways to open</h2>
+  <p>There are four ways to get a document into Pandia, all from the start screen:</p>
+  <ul>
+    <li><strong>Paste</strong> into the start screen's box — Pandia auto-detects as you type.</li>
+    <li><strong>Drag and drop</strong> a file anywhere onto the window.</li>
+    <li><strong>Open a file</strong> from disk.</li>
+    <li><strong>Fetch from a URL</strong> — and add request headers if the endpoint needs them.</li>
+  </ul>
+  <p>Your <strong>recent files</strong> (pin and search them) and a <strong>load demo data</strong>
+  option are on the start screen too, so you always have something to open.</p>
 
-    <!-- Supported Formats -->
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Supported File Formats</h2>
-      <p class="text-brand-gray mb-4">
-        Pandia can import data from multiple file formats and automatically convert them to JSON for editing and visualization.
-      </p>
+  <h2>Auto-detect &amp; convert</h2>
+  <p>Pandia detects and converts <strong>JSON</strong>, <strong>YAML</strong>,
+  <strong>XML</strong>, <strong>CSV</strong>, and <strong>cURL</strong> commands. JSON comes
+  through unchanged; the other four are converted to JSON for you.</p>
+  <p>For example, paste a <code>curl</code> command and Pandia pulls out the request and parses
+  its JSON body:</p>
+  <pre><code><span class="c"># paste this into the start screen box</span>
+<span class="k">curl</span> -X POST https://api.example.com/users \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'&lbrace;"name":"Ada","active":true&rbrace;'</span></code></pre>
+  <p>Pandia tokenizes the command and gives you a JSON document with the URL, method, headers
+  and the parsed body:</p>
+  <pre><code><span class="p">&lbrace;</span>
+  <span class="n">"url"</span><span class="p">:</span> <span class="s">"https://api.example.com/users"</span><span class="p">,</span>
+  <span class="n">"method"</span><span class="p">:</span> <span class="s">"POST"</span><span class="p">,</span>
+  <span class="n">"headers"</span><span class="p">:</span> <span class="p">&lbrace;</span> <span class="n">"Content-Type"</span><span class="p">:</span> <span class="s">"application/json"</span> <span class="p">&rbrace;</span><span class="p">,</span>
+  <span class="n">"body"</span><span class="p">:</span> <span class="p">&lbrace;</span> <span class="n">"name"</span><span class="p">:</span> <span class="s">"Ada"</span><span class="p">,</span> <span class="n">"active"</span><span class="p">:</span> <span class="k">true</span> <span class="p">&rbrace;</span>
+<span class="p">&rbrace;</span></code></pre>
 
-      <div class="space-y-4">
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <div class="flex items-center gap-3 mb-2">
-            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.json</code>
-            <h3 class="text-white font-medium">JSON</h3>
-          </div>
-          <p class="text-sm text-brand-gray">
-            Standard JSON files. Supports pretty-printed and minified JSON.
-          </p>
-        </div>
+  <h2>A note on JSON variants</h2>
+  <div class="callout">
+    <p><strong>Note —</strong> files like <code>.jsonc</code> and <code>.json5</code> open
+    through the strict JSON parser. If they contain comments, trailing commas, single quotes or
+    other JSON5 niceties, the strict parser will reject them — run the input through
+    <a href="/docs/repair">Repair</a> first to clean it up, then open the result.</p>
+  </div>
 
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <div class="flex items-center gap-3 mb-2">
-            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.yaml .yml</code>
-            <h3 class="text-white font-medium">YAML</h3>
-          </div>
-          <p class="text-sm text-brand-gray">
-            YAML files including support for comments. Automatically converted to JSON on import.
-          </p>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <div class="flex items-center gap-3 mb-2">
-            <code class="px-2 py-1 bg-brand-orange/10 text-brand-orange rounded">.xml</code>
-            <h3 class="text-white font-medium">XML</h3>
-          </div>
-          <p class="text-sm text-brand-gray">
-            XML files with automatic conversion to JSON. Preserves attributes and nested elements.
-          </p>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <div class="flex items-center gap-3 mb-2">
-            <code class="px-2 py-1 bg-brand-purple/10 text-brand-purple rounded">.csv .tsv</code>
-            <h3 class="text-white font-medium">CSV / TSV</h3>
-          </div>
-          <p class="text-sm text-brand-gray">
-            Comma-separated and tab-separated value files. Converted to JSON array with headers as keys.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Import Methods -->
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Import Methods</h2>
-
-      <div class="space-y-6">
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Drag & Drop</h3>
-          <p class="text-sm text-brand-gray mb-2">
-            Simply drag any supported file onto the Pandia window to open it.
-          </p>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Open File</h3>
-          <p class="text-sm text-brand-gray mb-2">
-            Use the file picker to browse and open files from your computer.
-          </p>
-          <div class="flex gap-2 text-xs text-brand-gray">
-            <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + O</kbd>
-            <span>Open file picker</span>
-          </div>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Paste from Clipboard</h3>
-          <p class="text-sm text-brand-gray mb-2">
-            Copy JSON, YAML, XML, or CSV text from anywhere and paste it directly into Pandia.
-          </p>
-          <div class="flex gap-2 text-xs text-brand-gray">
-            <kbd class="px-2 py-1 bg-brand-darker rounded">Cmd/Ctrl + V</kbd>
-            <span>Paste content</span>
-          </div>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Import from URL</h3>
-          <p class="text-sm text-brand-gray">
-            Fetch data directly from any publicly accessible URL. Perfect for API responses.
-          </p>
-          <ul class="mt-2 space-y-1 text-sm text-brand-gray">
-            <li>- REST API endpoints</li>
-            <li>- Raw GitHub files</li>
-            <li>- Any URL returning JSON/YAML/XML/CSV</li>
-          </ul>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Import from cURL</h3>
-          <p class="text-sm text-brand-gray">
-            Paste a cURL command and Pandia will execute it and load the response. Supports headers, authentication, and request methods.
-          </p>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Import from GitHub Gist</h3>
-          <p class="text-sm text-brand-gray">
-            Enter a Gist URL or ID to load JSON directly from GitHub Gists. Supports both public and secret gists.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Format Detection -->
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Automatic Format Detection</h2>
-      <p class="text-brand-gray mb-4">
-        Pandia automatically detects the format of your data based on:
-      </p>
-      <ul class="space-y-2 text-brand-gray">
-        <li class="flex items-center gap-2">
-          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span><strong class="text-white">File extension</strong> - First checks the file extension (.json, .yaml, etc.)</span>
-        </li>
-        <li class="flex items-center gap-2">
-          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span><strong class="text-white">Content patterns</strong> - Analyzes the content structure if extension is unknown</span>
-        </li>
-        <li class="flex items-center gap-2">
-          <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span><strong class="text-white">Fallback parsing</strong> - Tries all parsers if detection fails</span>
-        </li>
-      </ul>
-    </section>
-
-    <!-- Navigation -->
-    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
-      <a href="/docs/visualization" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
-        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Previous: View Modes
-      </a>
-      <a href="/docs/type-generation" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
-        Next: Type Generation
-        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-      </a>
-    </div>
-  </article>
+  <h2>Next steps</h2>
+  <p>Once your data is in, read it five ways in <a href="/docs/views">Views</a>, or send it back
+  out with <a href="/docs/export">Export</a>.</p>
 </DocsLayout>

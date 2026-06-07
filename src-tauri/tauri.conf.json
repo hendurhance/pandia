@@ -1,6 +1,6 @@
 {
   "productName": "Pandia",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "com.pandia.ide",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -20,7 +20,9 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {
@@ -48,7 +50,7 @@
       "icons/icon.ico"
     ],
     "publisher": "Pandia",
-    "copyright": "Copyright 2024 Pandia",
+    "copyright": "Copyright 2026 Pandia",
     "category": "DeveloperTool",
     "shortDescription": "A powerful cross-platform JSON IDE",
     "longDescription": "Pandia is a powerful, cross-platform desktop JSON editor with validation, formatting, repair, visualization, and comparison features.",

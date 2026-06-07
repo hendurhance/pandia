@@ -1,0 +1,59 @@
+---
+---
+<section class="cta" id="download">
+  <div class="cta-in">
+    <span class="eyebrow cta-eyebrow"><span class="tick"></span>Get Pandia</span>
+    <h2 style="margin-top:20px">Stop fighting your <em>JSON</em>.</h2>
+    <p>Download the native app, open your biggest file, and get to work. Free, offline, and open source.</p>
+    <div class="cta-row">
+      <a href="/download" class="btn btn-primary">Download for <span class="dl-os">macOS</span><span class="os"> · Free</span></a>
+      <a href="https://github.com/hendurhance/pandia" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View source
+      </a>
+    </div>
+    <div class="cta-os">
+      <a href="/download" class="dl-alt">Download for Windows</a><span class="dot"></span>
+      <a href="/download" class="dl-alt">Download for Linux</a><span class="dot"></span>
+      <span>v1.0.0 · Apache-2.0</span>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .cta {
+    position: relative; overflow: hidden;
+    background: var(--app-bg); color: #f3eadc;
+    border-top: 1px solid var(--page-rule);
+  }
+  .pandia-page .cta::before {
+    content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    width: 80%; height: 320px;
+    background: radial-gradient(ellipse at center, rgba(255,106,58,0.22), transparent 65%);
+    filter: blur(40px); pointer-events: none;
+  }
+  .pandia-page .cta-in { position: relative; max-width: var(--maxw); margin: 0 auto; padding: 88px 32px; text-align: center; }
+  .pandia-page .cta .cta-eyebrow { color: #a6998a; justify-content: center; }
+  .pandia-page .cta h2 {
+    font-family: var(--disp); font-size: clamp(34px, 5vw, 60px); font-weight: 700;
+    letter-spacing: -0.03em; line-height: 1.02; color: #fbf6ec;
+  }
+  .pandia-page .cta h2 em { font-style: normal; color: var(--accent); }
+  .pandia-page .cta p { font-family: var(--disp); font-size: 17px; color: #c7bca9; margin: 20px auto 0; max-width: 54ch; line-height: 1.6; }
+  .pandia-page .cta-row { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 38px; flex-wrap: wrap; }
+  .pandia-page .cta .btn-ghost { background: transparent; color: #f3eadc; border-color: rgba(243,234,220,0.22); }
+  .pandia-page .cta .btn-ghost:hover { border-color: rgba(243,234,220,0.5); background: rgba(243,234,220,0.06); }
+  .pandia-page .cta-os {
+    margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: #8c8170; letter-spacing: 0.04em;
+    display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  }
+  .pandia-page .cta-os .dot { width: 3px; height: 3px; background: #6a6052; }
+  .pandia-page .cta-os a { color: #c7bca9; }
+  .pandia-page .cta-os a:hover { color: #f3eadc; }
+
+  @media (max-width: 560px) {
+    .pandia-page .cta-in { padding: 60px 20px; }
+    .pandia-page .cta-row { flex-direction: column; align-items: stretch; gap: 12px; margin-top: 30px; }
+    .pandia-page .cta-row .btn { width: 100%; justify-content: center; }
+  }
+</style>

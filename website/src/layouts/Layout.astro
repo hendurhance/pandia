@@ -14,7 +14,7 @@ interface Props {
 
 const {
   title,
-  description = 'Pandia is a free, open-source JSON visualization and editing tool for developers. Transform complex JSON data into interactive diagrams, generate types, compare documents, and more—all offline and privacy-first.',
+  description = 'Pandia is a fast, native JSON workbench for macOS, Windows and Linux. Open any file instantly — even multi-gigabyte — read it five ways, generate types for 9 languages, compare, validate, repair and export. Offline, private, free and open source.',
   canonical,
   image = '/og-image.png',
   type = 'website',
@@ -24,10 +24,12 @@ const {
 } = Astro.props;
 
 const siteUrl = 'https://www.pandia.app';
-const canonicalPath = canonical ? (canonical.endsWith('/') ? canonical : `${canonical}/`) : null;
-const canonicalUrl = canonicalPath ? `${siteUrl}${canonicalPath}` : Astro.url.href;
+// Canonical: www host, https, NO trailing slash (matches trailingSlash: 'never'); root stays "/".
+const rawPath = canonical ?? Astro.url.pathname;
+const canonicalPath = rawPath.replace(/\/+$/, ''); // '' for root → bare https://www.pandia.app
+const canonicalUrl = `${siteUrl}${canonicalPath}`;
 const imageUrl = image.startsWith('http') ? image : `${siteUrl}${image}`;
-const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title : `${title} | Pandia`;
+const fullTitle = title === 'Pandia — The JSON workbench' ? title : `${title} | Pandia`;
 ---
 
 <!doctype html>
@@ -36,16 +38,14 @@ const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary Meta Tags -->
     <title>{fullTitle}</title>
     <meta name="title" content={fullTitle} />
     <meta name="description" content={description} />
-    <meta name="keywords" content="JSON viewer, JSON editor, JSON visualization, JSON to TypeScript, JSON to Go, JSON diff, JSON compare, JSON repair, JSON query, JMESPath, developer tools, data visualization, API debugging, JSON formatter, JSON validator, open source, desktop app, Tauri, offline, privacy" />
+    <meta name="keywords" content="JSON workbench, JSON viewer, JSON editor, JSON tree viewer, large JSON viewer, multi-gigabyte JSON, JSON to TypeScript, JSON to Rust, JSON to Go, type generation, JSON diff, JSON compare, JSON repair, JSON Schema validation, JSON to YAML, JSON to CSV, JSON to XML, native app, Tauri, Rust, offline, open source, developer tools" />
     <meta name="author" content="hendurhance" />
     <meta name="robots" content={noindex ? 'noindex, nofollow' : 'index, follow'} />
     <link rel="canonical" href={canonicalUrl} />
 
-    <!-- Open Graph / Facebook -->
     <meta property="og:type" content={type} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={fullTitle} />
@@ -53,40 +53,36 @@ const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title
     <meta property="og:image" content={imageUrl} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Pandia - JSON Visualization Tool" />
+    <meta property="og:image:alt" content="Pandia — the native JSON workbench" />
     <meta property="og:site_name" content="Pandia" />
     <meta property="og:locale" content="en_US" />
     {publishedTime && <meta property="article:published_time" content={publishedTime} />}
     {modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
 
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content={canonicalUrl} />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
-    <meta name="twitter:image:alt" content="Pandia - JSON Visualization Tool" />
-    <meta name="twitter:creator" content="@hendurhance" />
+    <meta name="twitter:image:alt" content="Pandia — the native JSON workbench" />
+    <meta name="twitter:creator" content="@PandiaApp" />
 
-    <!-- Additional SEO -->
     <meta name="application-name" content="Pandia" />
     <meta name="apple-mobile-web-app-title" content="Pandia" />
-    <meta name="theme-color" content="#FF6B35" />
-    <meta name="msapplication-TileColor" content="#FF6B35" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1b1d" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBF8F2" />
+    <meta name="msapplication-TileColor" content="#1b1b1d" />
 
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
 
-    <!-- Scroll to top on page load -->
     <script is:inline>
       if (history.scrollRestoration) {
         history.scrollRestoration = 'manual';
@@ -94,7 +90,6 @@ const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title
       window.scrollTo(0, 0);
     </script>
 
-    <!-- Structured Data (JSON-LD) -->
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
@@ -115,15 +110,10 @@ const fullTitle = title === 'Pandia - Beautiful JSON Visualization Tool' ? title
       },
       "license": "https://www.apache.org/licenses/LICENSE-2.0",
       "downloadUrl": "https://github.com/hendurhance/pandia/releases/latest",
-      "softwareVersion": "0.1.0",
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "5",
-        "ratingCount": "1"
-      }
+      "softwareVersion": "1.0.0"
     })} />
   </head>
-  <body class="bg-brand-darker text-brand-light font-sans antialiased">
+  <body>
     <slot />
   </body>
 </html>

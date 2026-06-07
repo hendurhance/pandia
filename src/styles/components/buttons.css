@@ -1,0 +1,88 @@
+.btn {
+	background: transparent;
+	border: var(--rule-width) solid var(--rule);
+	color: var(--text-dim);
+	padding: 0.3rem 0.7rem;
+	font-size: var(--font-size-sm);
+}
+.btn:hover:not(:disabled) {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+.btn:disabled {
+	opacity: 0.5;
+	color: var(--text-faint);
+	cursor: default;
+}
+
+.btn-primary {
+	background: var(--accent);
+	color: var(--bg);
+	border-color: var(--accent);
+	padding: 0.3rem 0.9rem;
+}
+.btn-primary:hover:not(:disabled) {
+	background: var(--bg);
+	color: var(--accent);
+}
+
+.btn-danger {
+	color: var(--danger);
+	border-color: var(--danger);
+}
+.btn-danger:hover:not(:disabled) {
+	background: var(--bg-elev);
+	color: var(--danger);
+	border-color: var(--danger);
+}
+
+.btn-ghost {
+	background: transparent;
+	border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+	color: var(--accent);
+	border-color: transparent;
+}
+
+.btn-close {
+	background: transparent;
+	border: none;
+	color: var(--text-faint);
+	font-size: 14px;
+	padding: 0 0.4rem;
+}
+.btn-close:hover {
+	color: var(--accent);
+}
+
+.btn-active {
+	background: var(--accent);
+	color: var(--bg);
+	border-color: var(--accent);
+}
+
+.seg {
+	display: flex;
+	flex-wrap: wrap;
+	border: var(--rule-width) solid var(--rule);
+	width: fit-content;
+}
+.seg > button {
+	background: var(--bg-elev);
+	border: none;
+	border-right: var(--rule-width) solid var(--rule);
+	padding: 0.25rem 0.7rem;
+	font-size: var(--font-size-sm);
+	color: var(--text-dim);
+}
+.seg > button:last-child {
+	border-right: none;
+}
+.seg > button:hover {
+	color: var(--text);
+}
+.seg > button.active {
+	background: var(--accent);
+	color: var(--bg);
+}

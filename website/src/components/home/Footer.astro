@@ -1,0 +1,76 @@
+---
+---
+<footer class="pn-foot">
+  <div class="foot-in">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a href="/" class="brand">
+          <img src="/logo.svg" alt="" class="brand-mark" width="28" height="28" />
+          <span class="brand-name">Pandia</span>
+        </a>
+        <p>A fast, native JSON workbench. Open any file, see it five ways, transform it, and ship clean output.</p>
+        <div class="lic">Apache-2.0 · v1.0.0 · com.pandia.ide</div>
+      </div>
+      <div class="foot-col">
+        <h5>Product</h5>
+        <a href="#views">Five views</a>
+        <a href="#capabilities">Capabilities</a>
+        <a href="#flow">How it works</a>
+        <a href="/download">Download</a>
+      </div>
+      <div class="foot-col">
+        <h5>Open source</h5>
+        <a href="https://github.com/hendurhance/pandia" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/hendurhance/pandia/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+        <a href="https://github.com/hendurhance/pandia/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License</a>
+        <a href="https://github.com/hendurhance/pandia/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+      </div>
+      <div class="foot-col">
+        <h5>Resources</h5>
+        <a href="/docs">Documentation</a>
+        <a href="/docs/quick-start">Quick start</a>
+        <a href="/changelog">Changelog</a>
+        <a href="#faq">FAQ</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Pandia · Free &amp; open source</span>
+      <a class="v" href="https://x.com/pandia" target="_blank" rel="noopener noreferrer">@PandiaApp on X ↗</a>
+    </div>
+  </div>
+  <div class="wordmark">PANDIA<span class="dot">.</span></div>
+</footer>
+
+<style is:global>
+  .pandia-page .pn-foot { background: var(--page-bg-2); border-top: 1px solid var(--page-rule); overflow: hidden; }
+  .pandia-page .foot-in { max-width: var(--maxw); margin: 0 auto; padding: 64px 32px 0; }
+  .pandia-page .foot-top { display: grid; grid-template-columns: 1.7fr 1fr 1fr 1fr; gap: 40px; }
+  .pandia-page .foot-brand .brand { margin-bottom: 16px; }
+  .pandia-page .foot-brand p { font-family: var(--disp); font-size: 14.5px; color: var(--page-dim); max-width: 36ch; line-height: 1.6; }
+  .pandia-page .foot-brand .lic { font-family: var(--mono); font-size: 11px; color: var(--page-faint); margin-top: 16px; letter-spacing: 0.04em; }
+  .pandia-page .foot-col h5 {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--page-faint); margin-bottom: 16px;
+  }
+  .pandia-page .foot-col a {
+    display: block; font-family: var(--mono); font-size: 12.5px; color: var(--page-dim);
+    margin-bottom: 11px; transition: color var(--dur) var(--ease);
+  }
+  .pandia-page .foot-col a:hover { color: var(--page-text); }
+  .pandia-page .foot-bottom {
+    margin-top: 52px; padding: 22px 0; border-top: 1px solid var(--page-rule);
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 11px; color: var(--page-faint); letter-spacing: 0.04em;
+  }
+  .pandia-page .foot-bottom .v { color: var(--page-dim); }
+  .pandia-page .foot-bottom a.v:hover { color: var(--page-text); }
+  .pandia-page .wordmark {
+    font-family: var(--disp); font-weight: 800; letter-spacing: -0.05em;
+    font-size: clamp(96px, 26vw, 360px); line-height: 0.78; color: var(--page-text);
+    text-align: center; margin-top: 20px; transform: translateY(20%); user-select: none;
+  }
+  .pandia-page .wordmark .dot { color: var(--accent); }
+
+  @media (max-width: 940px) { .pandia-page .foot-top { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .pandia-page .foot-top { grid-template-columns: 1fr; } }
+</style>

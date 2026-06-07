@@ -1,0 +1,52 @@
+:root {
+	--bg: #1b1b1d;
+	--bg-elev: #212124;
+	--bg-elev-2: #27272a;
+	--bg-elev-3: #2f2f33;
+	--bg-edit: #151517;
+
+	--rule: #2c2c30;
+	--rule-2: #3a3a3f;
+
+	--text: #e6e6e9;
+	--text-dim: #9b9ba2;
+	--text-faint: #5c5c64;
+	--text-ghost: #3a3a40;
+
+	--accent: #ff6a3a;
+	--accent-soft: rgba(255, 106, 58, 0.12);
+	--accent-line: rgba(255, 106, 58, 0.55);
+	--accent-fill: rgba(255, 106, 58, 0.22);
+	--accent-2: #e0a53c;
+
+	--syntax-string: #e0a53c;
+	--syntax-number: #7fb069;
+	--syntax-boolean: #9c6bff;
+	--syntax-null: #6a6a72;
+	--syntax-punct: #6a6a72;
+	--syntax-url: #9c6bff;
+
+	--success: #7fb069;
+	--warning: #e0a53c;
+	--danger: #e5484d;
+
+	--font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	--font-sans:
+		'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--font-size-base: 13px;
+	--font-size-sm: 11.5px;
+	--font-size-xs: 10.5px;
+	--line-height: 1.7;
+
+	--space-tight: 0.25rem;
+	--space-base: 0.5rem;
+	--space-loose: 1rem;
+
+	--label-tracking: 0.18em;
+	--rule-width: 1px;
+
+	--tab-h: 36px;
+	--status-h: 26px;
+
+	color-scheme: dark;
+}

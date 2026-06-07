@@ -1,100 +1,41 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
-
-const description = "Solve common Pandia issues including installation problems, performance optimization, file handling errors, and platform-specific troubleshooting guides.";
 ---
+<DocsLayout
+  title="Troubleshooting"
+  description="Common Pandia issues and quick fixes — files that won't parse, large-file operation limits, macOS launch blocks, CSV export requirements, and recovering unsaved work."
+  currentDoc="/docs/troubleshooting"
+>
+  <h1>Troubleshooting</h1>
+  <p class="lead">Common issues and quick fixes.</p>
 
-<DocsLayout title="Troubleshooting" description={description} currentDoc="/docs/troubleshooting">
-  <article class="prose prose-invert max-w-none">
-    <div class="mb-12">
-      <h1 class="text-4xl font-bold text-white mb-4">Troubleshooting</h1>
-      <p class="text-xl text-brand-gray">
-        Common issues and how to resolve them.
-      </p>
-    </div>
+  <h2>A file won't parse</h2>
+  <p>If Pandia reports the document is invalid, it isn't valid JSON. Run it through
+  <a href="/docs/repair">Repair</a>, which fixes trailing commas, unquoted keys, single quotes,
+  comments and more.</p>
 
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Common Issues</h2>
+  <h2>I can't edit or export a very large file</h2>
+  <p>Whole-document operations — full edit, export, schema-validation and JSON Schema generation —
+  are capped at <strong>200 MB</strong>. Opening and browsing the file still work at any size, and
+  most type-generation targets (TypeScript, Rust, Go and the rest) infer their shape lazily and
+  work above the ceiling too; only those whole-document operations are unavailable. See
+  <a href="/docs/performance">Large files</a> for the full picture.</p>
 
-      <div class="space-y-6">
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">App won't open on macOS</h3>
-          <p class="text-sm text-brand-gray mb-3">
-            macOS may block apps from unidentified developers.
-          </p>
-          <p class="text-sm text-brand-gray">
-            <strong class="text-white">Solution:</strong> Right-click the app and select "Open", or go to System Preferences → Security & Privacy and click "Open Anyway".
-          </p>
-        </div>
+  <h2>macOS won't open the app</h2>
+  <p>macOS may block the app on first launch. Allow it in <strong>System Settings → Privacy &amp;
+  Security</strong>, then reopen Pandia.</p>
 
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Large JSON files are slow</h3>
-          <p class="text-sm text-brand-gray mb-3">
-            Very large JSON files (>10MB) may cause performance issues.
-          </p>
-          <p class="text-sm text-brand-gray">
-            <strong class="text-white">Solution:</strong> Try collapsing nodes you don't need, or reduce the "Max nodes" setting in Preferences.
-          </p>
-        </div>
+  <h2>CSV export is unavailable</h2>
+  <p>CSV needs a root that is an <strong>array of objects</strong> — that's the shape that maps to
+  rows and columns. If your document's root is something else, CSV export won't be offered; use
+  another format such as JSON or YAML.</p>
 
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">JSON parsing error</h3>
-          <p class="text-sm text-brand-gray mb-3">
-            Your JSON may have syntax errors.
-          </p>
-          <p class="text-sm text-brand-gray">
-            <strong class="text-white">Solution:</strong> Use a JSON validator to check your JSON. Pandia will show the line number where the error occurred.
-          </p>
-        </div>
+  <h2>Recovering unsaved work</h2>
+  <p>Pandia keeps <strong>crash-recovery backups</strong> and offers to restore them on the next
+  launch after an unexpected close. See <a href="/docs/configuration">Settings</a> for more on
+  auto-save and recovery.</p>
 
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">URL import fails</h3>
-          <p class="text-sm text-brand-gray mb-3">
-            The URL may require authentication or have CORS restrictions.
-          </p>
-          <p class="text-sm text-brand-gray">
-            <strong class="text-white">Solution:</strong> Try downloading the JSON manually and opening it as a file. For authenticated endpoints, copy the response from your browser's developer tools.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Reset Settings</h2>
-      <p class="text-brand-gray mb-4">
-        If Pandia isn't behaving correctly, you can reset all settings to defaults:
-      </p>
-      <ol class="list-decimal list-inside space-y-2 text-brand-gray">
-        <li>Close Pandia completely</li>
-        <li>Delete the configuration folder (see Configuration page for location)</li>
-        <li>Restart Pandia</li>
-      </ol>
-    </section>
-
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Get Help</h2>
-      <p class="text-brand-gray mb-4">
-        Still having issues? We're here to help:
-      </p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <a href="https://github.com/hendurhance/pandia/issues" target="_blank" class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-orange/30 transition-colors">
-          <h3 class="text-white font-medium mb-1">Report a Bug</h3>
-          <p class="text-sm text-brand-gray">Open an issue on GitHub</p>
-        </a>
-        <a href="https://github.com/hendurhance/pandia/discussions" target="_blank" class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20 hover:border-brand-purple/30 transition-colors">
-          <h3 class="text-white font-medium mb-1">Ask a Question</h3>
-          <p class="text-sm text-brand-gray">Join the community discussions</p>
-        </a>
-      </div>
-    </section>
-
-    <div class="flex justify-start pt-8 border-t border-brand-gray-dark/20">
-      <a href="/docs/configuration" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
-        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Previous: Configuration
-      </a>
-    </div>
-  </article>
+  <h2>Still stuck?</h2>
+  <p>File an issue on
+  <a href="https://github.com/hendurhance/pandia/issues">GitHub</a>.</p>
 </DocsLayout>

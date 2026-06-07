@@ -1,0 +1,74 @@
+---
+---
+<section class="block" id="flow">
+  <div class="wrap">
+    <div class="sec-head center iv">
+      <span class="eyebrow"><span class="tick"></span>How it works</span>
+      <h2>Open it. See it. Shape it. <em>Ship</em> it.</h2>
+      <p>Four steps, no ceremony between them. From a file on disk to clean output, in one window.</p>
+    </div>
+
+    <div class="flow iv">
+      <div class="flow-step">
+        <div class="fnum"><span class="v">01</span> OPEN</div>
+        <h4>Open</h4>
+        <p>Drag in a file, paste, or fetch a URL. It loads instantly — no spinner, no upload.</p>
+        <div class="demo">
+          <div class="ln"><span class="mut">⇲</span> users-2026-05.json</div>
+          <div class="ln ok">✓ 1.2 GB · ready</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="fnum"><span class="v">02</span> SEE</div>
+        <h4>Navigate</h4>
+        <p>Tree, code, grid, graph — virtualized so it stays smooth. The status bar tracks your path.</p>
+        <div class="demo">
+          <div class="ln am">$[2].name</div>
+          <div class="ln"><span class="mut">→</span> <span style="color:var(--s-string)">"Carmen Herzog"</span></div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="fnum"><span class="v">03</span> SHAPE</div>
+        <h4>Transform</h4>
+        <p>Edit, sort keys, repair, filter the grid, or generate types. Every change is reversible.</p>
+        <div class="demo">
+          <div class="ln"><span class="mut">⌘Z</span> undo · <span class="mut">⌘⇧Z</span> redo</div>
+          <div class="ln ok">✓ 500-op history</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="fnum"><span class="v">04</span> SHIP</div>
+        <h4>Export</h4>
+        <p>Out to JSON, YAML, XML, CSV — or generated types for your codebase.</p>
+        <div class="demo">
+          <div class="ln"><span class="mut">⌘E</span> → User.ts</div>
+          <div class="ln ok">✓ copied to clipboard</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .flow { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--page-rule); overflow: hidden; }
+  .pandia-page .flow-step { padding: 28px 26px 30px; border-right: 1px solid var(--page-rule); background: var(--page-card); position: relative; }
+  .pandia-page .flow-step:last-child { border-right: 0; }
+  .pandia-page .flow-step .fnum {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--page-faint);
+    display: flex; align-items: center; gap: 9px; margin-bottom: 18px;
+  }
+  .pandia-page .flow-step .fnum .v { color: var(--accent); }
+  .pandia-page .flow-step h4 { font-family: var(--disp); font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--page-text); }
+  .pandia-page .flow-step p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 8px; line-height: 1.55; }
+  .pandia-page .flow-step .demo {
+    margin-top: 18px; padding: 12px 14px; border: 1px solid var(--app-rule); background: var(--app-edit);
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.85; color: var(--app-dim);
+  }
+  .pandia-page .flow-step .demo .ln { white-space: nowrap; }
+  .pandia-page .flow-step .demo .mut { color: var(--app-faint); }
+  .pandia-page .flow-step .demo .ok { color: var(--green); }
+  .pandia-page .flow-step .demo .am { color: var(--amber); }
+
+  @media (max-width: 940px) { .pandia-page .flow { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .pandia-page .flow { grid-template-columns: 1fr; } }
+</style>

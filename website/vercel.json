@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "pandia.app" }],
+      "destination": "https://www.pandia.app/:path*",
+      "permanent": true
+    },
+    { "source": "/docs/query", "destination": "/docs/search", "permanent": true },
+    { "source": "/docs/visualization", "destination": "/docs/views", "permanent": true }
+  ]
+}

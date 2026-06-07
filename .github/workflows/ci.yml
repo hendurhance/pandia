@@ -1,0 +1,61 @@
+name: CI
+
+# Quality gate for every push to main and every PR. Mirrors the toolchain setup
+# in release.yml. (release.yml stays tag-triggered and only publishes.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same ref cancels the older, still-running check.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - name: Type-check (svelte-check)
+        run: npm run check
+      - name: Lint (eslint)
+        run: npm run lint
+      - name: Format check (prettier)
+        run: npm run format:check
+      - name: Unit tests (vitest)
+        run: npm run test
+
+  rust:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      # Tauri's crate graph needs these system libs to compile on Linux.
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - name: Format check (rustfmt)
+        run: cargo fmt --check
+      # Advisory for now: catches deny-level (correctness) lints but tolerates the
+      # ~150 style warnings the Phase 5 typegen/repair rewrite removes. Tighten to
+      # `-- -D warnings` once that lands.
+      - name: Lint (clippy)
+        run: cargo clippy --all-targets
+      - name: Tests
+        run: cargo test

@@ -1,0 +1,213 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import Footer from '../components/home/Footer.astro';
+
+const VERSION = '1.0.0';
+const TAG = `v${VERSION}`;
+const BASE = `https://github.com/hendurhance/pandia/releases/download/${TAG}`;
+const RELEASES = 'https://github.com/hendurhance/pandia/releases';
+const REPO = 'https://github.com/hendurhance/pandia';
+
+const platforms = [
+  {
+    os: 'macOS', icon: 'apple', req: 'macOS 10.15+',
+    variants: [
+      { label: 'Apple Silicon', sub: '.dmg · arm64', file: `Pandia_${VERSION}_aarch64.dmg` },
+      { label: 'Intel', sub: '.dmg · x64', file: `Pandia_${VERSION}_x64.dmg` },
+    ],
+  },
+  {
+    os: 'Windows', icon: 'windows', req: 'Windows 10 / 11',
+    variants: [
+      { label: 'Installer', sub: '.msi · x64', file: `Pandia_${VERSION}_x64_en-US.msi` },
+      { label: 'Setup', sub: '.exe · x64', file: `Pandia_${VERSION}_x64-setup.exe` },
+    ],
+  },
+  {
+    os: 'Linux', icon: 'linux', req: '64-bit · webkit2gtk',
+    variants: [
+      { label: 'AppImage', sub: 'portable · x64', file: `Pandia_${VERSION}_amd64.AppImage` },
+      { label: 'Debian / Ubuntu', sub: '.deb · x64', file: `Pandia_${VERSION}_amd64.deb` },
+      { label: 'Fedora / RHEL', sub: '.rpm · x64', file: `Pandia-${VERSION}-1.x86_64.rpm` },
+    ],
+  },
+];
+
+const icons: Record<string, string> = {
+  apple: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.04.28.04.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.793 0-2.32.91-3.71.91-1.43 0-2.514-1.42-3.428-2.67-1.179-1.61-2.18-4.1-2.218-6.49-.02-1.26.24-2.5.973-3.56.973-1.36 2.66-2.27 4.42-2.3 1.31-.03 2.54.88 3.43.88.85 0 2.39-1.09 4.02-.93.68.03 2.6.27 3.83 2.06-.1.06-2.29 1.33-2.26 3.97.03 3.15 2.76 4.2 2.79 4.21z"/></svg>`,
+  windows: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>`,
+  linux: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.83 16.532c-.005.6-.345 1.245-.884 1.377-.588.134-1.434-.333-1.791-.765a25.18 25.18 0 01-.211-.01c-.315-.007-.577.01-.847.268-.18.18-.305.53-.39.876-.086.4-.155.78-.41 1.066-.486.527-.645.906-.636 1.14l-.003-.007c-.016.262.184.396.498.595.63.401 1.745.712 2.457 1.57.617.737 1.37 1.14 2.035 1.191.665.053 1.237-.2 1.574-.898l.005-.003c.21-.4.12-1.025-.056-1.69-.176-.668-.428-1.344-.463-1.897-.037-.714-.076-1.335-.196-1.814-.12-.465-.307-.797-.64-.984l-.046-.022zm-9.987.05h-.01a.755.755 0 00-.157.013c-.376.055-.706.333-1.023.752l-.91 1.664-.003.003c-.243.533-.754 1.064-1.189 1.637-.434.598-.77 1.131-.729 1.57v.006c.057.744.48 1.148 1.125 1.294.645.135 1.52.002 2.395-.464.968-.536 2.118-.469 2.857-.602.369-.066.61-.2.723-.4.11-.2.113-.602-.123-1.23v-.004l-.002-.003c-.117-.334-.03-.752.027-1.118.055-.401.083-.71-.043-.94-.16-.334-.396-.4-.69-.533-.294-.135-.64-.202-.915-.47h-.002v-.002c-.256-.268-.445-.601-.668-.838-.19-.201-.38-.336-.663-.336z"/></svg>`,
+};
+---
+<Layout
+  title="Download"
+  description="Download Pandia — the free, native JSON workbench for macOS, Windows and Linux. Open multi-gigabyte files, generate types, compare, repair and export. Offline and open source (Apache-2.0)."
+  canonical="/download"
+>
+  <div class="pandia-page dl-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block dl-top">
+        <div class="wrap dl-top-in">
+          <span class="eyebrow"><span class="tick"></span>Download <span class="num">v{VERSION}</span></span>
+          <h1>Get <em>Pandia</em>.</h1>
+          <p>The native JSON workbench — open multi-gigabyte files, see them five ways, generate
+          types, compare, repair and export. Free, offline, and open source.</p>
+          <div class="dl-cta">
+            <a id="dlPrimary" class="btn btn-primary" href={RELEASES} target="_blank" rel="noopener noreferrer">Download for <span class="dl-os">your platform</span></a>
+            <a class="btn btn-ghost" href={RELEASES} target="_blank" rel="noopener noreferrer">All releases</a>
+          </div>
+          <p class="dl-detected">Detected <span class="dl-os">your platform</span> · or choose a build below.</p>
+        </div>
+      </section>
+
+      <section class="block dl-platforms">
+        <div class="wrap">
+          <div class="dl-grid">
+            {platforms.map((p) => (
+              <div class="dl-card" data-os={p.os} data-primary={`${BASE}/${p.variants[0].file}`}>
+                <span class="dl-badge" hidden>Detected</span>
+                <div class="dl-card-head">
+                  <span class="dl-ico" set:html={icons[p.icon]} />
+                  <span class="dl-card-name">{p.os}<span class="dl-req">{p.req}</span></span>
+                </div>
+                <div class="dl-variants">
+                  {p.variants.map((v) => (
+                    <a class="dl-var" href={`${BASE}/${v.file}`} target="_blank" rel="noopener noreferrer" download>
+                      <span class="dl-var-txt"><b>{v.label}</b><i>{v.sub}</i></span>
+                      <span class="dl-var-dl">Download <span class="dl-arrow">↓</span></span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p class="dl-fine">Direct downloads from the <a href={`${RELEASES}/tag/${TAG}`} target="_blank" rel="noopener noreferrer">v{VERSION} release</a>, where every artifact and its checksum/signature is published. Prefer to build it yourself? The source is <a href={REPO} target="_blank" rel="noopener noreferrer">Apache-2.0</a>.</p>
+        </div>
+      </section>
+
+      <section class="block dl-info">
+        <div class="wrap dl-info-grid">
+          <div class="dl-col">
+            <h2>What you get</h2>
+            <ul class="dl-list">
+              <li>Free &amp; open source — <code>Apache-2.0</code>. No accounts, no telemetry.</li>
+              <li>Fully offline — your data never leaves your machine.</li>
+              <li>Native &amp; fast — built with Rust + Tauri 2.</li>
+              <li>Auto-updates in-app — new releases land quietly.</li>
+              <li>19 themes, light &amp; dark, density options.</li>
+            </ul>
+          </div>
+          <div class="dl-col">
+            <h2>Good to know</h2>
+            <ul class="dl-list">
+              <li>Opens any size — multi-GB files with no lag.</li>
+              <li>Five views: Tree · Code · Grid · Graph · Compare.</li>
+              <li>Releases &amp; checksums live on <a href={RELEASES} target="_blank" rel="noopener noreferrer">GitHub</a>.</li>
+              <li>See what changed in the <a href="/changelog">changelog</a>.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+    <Footer />
+  </div>
+
+  <style is:global>
+    .pandia-page.dl-page .dl-top { padding: 84px 0 52px; }
+    .pandia-page.dl-page .dl-top-in { text-align: center; max-width: 760px; margin: 0 auto; }
+    .pandia-page.dl-page .dl-top .eyebrow { justify-content: center; }
+    .pandia-page.dl-page .dl-top h1 {
+      font-family: var(--disp); font-size: clamp(42px, 6.2vw, 76px); font-weight: 700;
+      letter-spacing: -0.035em; line-height: 0.98; margin-top: 18px; color: var(--page-text);
+    }
+    .pandia-page.dl-page .dl-top h1 em { font-style: normal; color: var(--accent); }
+    .pandia-page.dl-page .dl-top p {
+      font-family: var(--disp); font-size: clamp(16px, 1.6vw, 19px); color: var(--page-dim);
+      max-width: 56ch; margin: 22px auto 0; line-height: 1.6;
+    }
+    .pandia-page.dl-page .dl-cta { display: flex; gap: 14px; justify-content: center; margin-top: 34px; flex-wrap: wrap; }
+    .pandia-page.dl-page .dl-detected { margin-top: 18px; font-family: var(--mono); font-size: 12px; color: var(--page-faint); letter-spacing: 0.04em; }
+
+    .pandia-page.dl-page .dl-platforms { padding-top: 0; }
+    .pandia-page.dl-page .dl-grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--page-rule); background: var(--page-card); }
+    .pandia-page.dl-page .dl-card { display: flex; flex-direction: column; padding: 26px 24px; border-right: 1px solid var(--page-rule); position: relative; }
+    .pandia-page.dl-page .dl-card:last-child { border-right: 0; }
+    .pandia-page.dl-page .dl-card.featured { background: var(--page-bg-2); }
+    .pandia-page.dl-page .dl-card.featured::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--accent); }
+    .pandia-page.dl-page .dl-badge {
+      position: absolute; top: 0; right: 0; background: var(--accent); color: #1b0e07;
+      font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 9px;
+    }
+    .pandia-page.dl-page .dl-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .pandia-page.dl-page .dl-ico { width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center; color: var(--page-text); border: 1px solid var(--page-rule-2); background: var(--page-bg); }
+    .pandia-page.dl-page .dl-ico svg { width: 22px; height: 22px; }
+    .pandia-page.dl-page .dl-card-name { font-family: var(--disp); font-size: 21px; font-weight: 700; color: var(--page-text); letter-spacing: -0.02em; display: flex; flex-direction: column; }
+    .pandia-page.dl-page .dl-card-name .dl-req { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--page-faint); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 3px; }
+
+    .pandia-page.dl-page .dl-variants { display: flex; flex-direction: column; border-top: 1px solid var(--page-rule); }
+    .pandia-page.dl-page .dl-var {
+      display: flex; align-items: center; gap: 10px; padding: 13px 2px;
+      border-bottom: 1px solid var(--page-rule); transition: background var(--dur) var(--ease);
+    }
+    .pandia-page.dl-page .dl-var:last-child { border-bottom: 0; }
+    .pandia-page.dl-page .dl-var:hover { background: var(--page-bg-3); }
+    .pandia-page.dl-page .dl-var-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .pandia-page.dl-page .dl-var-txt b { font-family: var(--disp); font-size: 15px; font-weight: 600; color: var(--page-text); }
+    .pandia-page.dl-page .dl-var-txt i { font-family: var(--mono); font-style: normal; font-size: 10.5px; color: var(--page-faint); letter-spacing: 0.04em; }
+    .pandia-page.dl-page .dl-var-dl { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--accent); white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+    .pandia-page.dl-page .dl-var:hover .dl-arrow { transform: translateY(2px); }
+    .pandia-page.dl-page .dl-arrow { transition: transform var(--dur) var(--ease); }
+
+    .pandia-page.dl-page .dl-fine { margin-top: 24px; font-family: var(--mono); font-size: 12px; color: var(--page-faint); line-height: 1.6; max-width: 74ch; }
+    .pandia-page.dl-page .dl-fine a { color: var(--page-dim); text-decoration: underline; text-underline-offset: 2px; }
+    .pandia-page.dl-page .dl-fine a:hover { color: var(--page-text); }
+
+    .pandia-page.dl-page .dl-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; }
+    .pandia-page.dl-page .dl-col h2 { font-family: var(--disp); font-size: 22px; font-weight: 700; color: var(--page-text); letter-spacing: -0.02em; margin-bottom: 18px; }
+    .pandia-page.dl-page .dl-list { list-style: none; display: flex; flex-direction: column; }
+    .pandia-page.dl-page .dl-list li {
+      font-family: var(--disp); font-size: 15px; color: var(--page-dim); line-height: 1.5;
+      padding: 12px 0 12px 22px; border-top: 1px solid var(--page-rule); position: relative;
+    }
+    .pandia-page.dl-page .dl-list li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 1.5px; background: var(--accent); }
+    .pandia-page.dl-page .dl-list code { font-family: var(--mono); font-size: 12.5px; color: var(--page-text); background: var(--page-bg-3); padding: 1px 6px; }
+    .pandia-page.dl-page .dl-list a { color: var(--accent); }
+
+    @media (max-width: 820px) {
+      .pandia-page.dl-page .dl-grid { grid-template-columns: 1fr; }
+      .pandia-page.dl-page .dl-card { border-right: 0; border-bottom: 1px solid var(--page-rule); }
+      .pandia-page.dl-page .dl-card:last-child { border-bottom: 0; }
+      .pandia-page.dl-page .dl-info-grid { grid-template-columns: 1fr; gap: 36px; }
+    }
+    @media (max-width: 560px) {
+      .pandia-page.dl-page .dl-cta { flex-direction: column; align-items: stretch; }
+      .pandia-page.dl-page .dl-cta .btn { width: 100%; justify-content: center; }
+    }
+  </style>
+
+  <script>
+    const OSES = ['macOS', 'Windows', 'Linux'];
+    function detectOS() {
+      const n = navigator as any;
+      const p = ((n.userAgentData && n.userAgentData.platform) || navigator.platform || navigator.userAgent || '').toLowerCase();
+      if (p.includes('win')) return 'Windows';
+      if (p.includes('mac')) return 'macOS';
+      if (p.includes('linux') && !p.includes('android')) return 'Linux';
+      return 'macOS';
+    }
+    const os = detectOS();
+    document.querySelectorAll('.dl-os').forEach((e) => { e.textContent = os; });
+    const card = document.querySelector('.dl-card[data-os="' + os + '"]') as HTMLElement | null;
+    if (card) {
+      card.classList.add('featured');
+      const badge = card.querySelector('.dl-badge') as HTMLElement | null;
+      if (badge) badge.hidden = false;
+      const primary = card.getAttribute('data-primary');
+      const btn = document.getElementById('dlPrimary') as HTMLAnchorElement | null;
+      if (btn && primary) { btn.href = primary; btn.setAttribute('download', ''); }
+    }
+  </script>
+</Layout>

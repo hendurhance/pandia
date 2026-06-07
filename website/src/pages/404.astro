@@ -1,0 +1,40 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import Footer from '../components/home/Footer.astro';
+---
+<Layout
+  title="Page not found"
+  description="That page doesn't exist. Head back to Pandia or jump into the documentation."
+  noindex={true}
+>
+  <div class="pandia-page nf-page">
+    <div class="spine"></div>
+    <Nav />
+    <main class="nf">
+      <div class="wrap nf-in">
+        <span class="eyebrow"><span class="tick"></span>404</span>
+        <h1>This page <em>doesn't</em> exist.</h1>
+        <p>The URL may have moved or never existed. Head back home, or jump straight into the docs.</p>
+        <div class="nf-cta">
+          <a class="btn btn-primary" href="/">Back home</a>
+          <a class="btn btn-ghost" href="/docs">Documentation</a>
+        </div>
+      </div>
+    </main>
+    <Footer />
+  </div>
+
+  <style is:global>
+    .pandia-page.nf-page .nf { display: flex; align-items: center; justify-content: center; min-height: 64vh; }
+    .pandia-page.nf-page .nf-in { text-align: center; max-width: 560px; }
+    .pandia-page.nf-page .nf .eyebrow { justify-content: center; }
+    .pandia-page.nf-page .nf h1 {
+      font-family: var(--disp); font-size: clamp(38px, 6vw, 64px); font-weight: 700;
+      letter-spacing: -0.035em; line-height: 1.0; margin-top: 16px; color: var(--page-text);
+    }
+    .pandia-page.nf-page .nf h1 em { font-style: normal; color: var(--accent); }
+    .pandia-page.nf-page .nf p { font-family: var(--disp); font-size: 17px; color: var(--page-dim); margin: 18px auto 0; line-height: 1.6; }
+    .pandia-page.nf-page .nf-cta { display: flex; gap: 14px; justify-content: center; margin-top: 30px; flex-wrap: wrap; }
+  </style>
+</Layout>

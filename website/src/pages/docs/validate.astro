@@ -1,0 +1,46 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+<DocsLayout
+  title="Validate"
+  description="Check a JSON document against a JSON Schema live, with clickable errors that jump straight to the failing node. Supports draft-07 and 2020-12."
+  currentDoc="/docs/validate"
+>
+  <h1>Validate</h1>
+  <p class="lead">Check a document against a JSON Schema, with errors you can click.</p>
+
+  <h2>Validate against a schema</h2>
+  <p>Open the <strong>Schema</strong> panel in the sidebar and paste a JSON Schema. Pandia
+  validates the document <strong>live</strong> as you edit either side. It supports both
+  <strong>draft-07</strong> and <strong>2020-12</strong>, read from the schema's
+  <code>$schema</code> declaration.</p>
+
+  <h2>Clickable errors</h2>
+  <p>Each error shows the <strong>failing path</strong> and the <strong>reason</strong> it
+  failed. Click an error to jump straight to that node in the document. The status bar shows
+  the running <strong>error count</strong>, so you always know how many issues remain.</p>
+
+  <h2>Example</h2>
+  <p>A tiny schema requiring an integer <code>id</code> and a string <code>name</code>:</p>
+  <pre><code><span class="p">&#123;</span>
+  <span class="n">"$schema"</span><span class="p">:</span> <span class="s">"https://json-schema.org/draft/2020-12/schema"</span><span class="p">,</span>
+  <span class="n">"type"</span><span class="p">:</span> <span class="s">"object"</span><span class="p">,</span>
+  <span class="n">"required"</span><span class="p">:</span> <span class="p">[</span><span class="s">"id"</span><span class="p">,</span> <span class="s">"name"</span><span class="p">],</span>
+  <span class="n">"properties"</span><span class="p">:</span> <span class="p">&#123;</span>
+    <span class="n">"id"</span><span class="p">:</span> <span class="p">&#123;</span> <span class="n">"type"</span><span class="p">:</span> <span class="s">"integer"</span> <span class="p">&#125;,</span>
+    <span class="n">"name"</span><span class="p">:</span> <span class="p">&#123;</span> <span class="n">"type"</span><span class="p">:</span> <span class="s">"string"</span> <span class="p">&#125;</span>
+  <span class="p">&#125;</span>
+<span class="p">&#125;</span></code></pre>
+  <p>Validated against this document:</p>
+  <pre><code><span class="p">&#123;</span>
+  <span class="n">"id"</span><span class="p">:</span> <span class="s">"42"</span>
+<span class="p">&#125;</span></code></pre>
+  <p>Pandia reports two errors:</p>
+  <pre><code><span class="c">/id    "42" is not of type "integer"</span>
+<span class="c">$      "name" is a required property</span></code></pre>
+  <p>Click either error to land on the offending node.</p>
+
+  <h2>Generate a schema, too</h2>
+  <p>Pandia can also generate a JSON Schema <em>from</em> a document — see
+  <a href="/docs/type-generation">Type generation</a>.</p>
+</DocsLayout>

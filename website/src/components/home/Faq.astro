@@ -1,0 +1,55 @@
+---
+---
+<section class="block" id="faq">
+  <div class="wrap">
+    <div class="sec-head center iv">
+      <span class="eyebrow"><span class="tick"></span>Questions</span>
+      <h2>The honest answers.</h2>
+    </div>
+    <div class="faq iv">
+      <div class="faq-item">
+        <button class="faq-q"><span class="qn">01</span>Is my data uploaded anywhere?<span class="qx">+</span></button>
+        <div class="faq-a"><div class="faq-a-in">No. Pandia is a native desktop app and everything is processed locally. The only time it touches the network is when <em>you</em> fetch a document from a URL. No accounts, no cloud, no telemetry.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q"><span class="qn">02</span>How large a file can it open?<span class="qx">+</span></button>
+        <div class="faq-a"><div class="faq-a-in">Any size — hundreds of MB, multiple GB. At <code>≥ 10 MB</code>, lazy zero-copy slicing (via sonic-rs) opens the file without parsing the whole tree, and the UI only fetches what's on screen — so there's no cap on opening or viewing. Only whole-document edit, export and validation materialize the root (a ~200 MB ceiling).</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q"><span class="qn">03</span>Which formats can I import and export?<span class="qx">+</span></button>
+        <div class="faq-a"><div class="faq-a-in">Import and auto-detect <code>JSON</code>, <code>YAML</code>, <code>XML</code>, <code>CSV</code> and <code>cURL</code>, or fetch from a URL. Export documents as JSON, JSON-min, YAML, CSV or XML, and graph images as PNG, JPEG or SVG. (CSV export needs a root array of objects.)</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q"><span class="qn">04</span>Can it generate types from my JSON?<span class="qx">+</span></button>
+        <div class="faq-a"><div class="faq-a-in">Yes — nine targets: <code>TypeScript</code>, <code>Rust</code>, <code>Go</code>, <code>Kotlin</code>, <code>Python</code>, <code>PHP</code>, <code>Java</code>, <code>Zod</code> and <code>JSON Schema (2020-12)</code>. Optional fields are inferred from the data; generation is deliberately not configurable.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q"><span class="qn">05</span>Does it have a query language like jq or JMESPath?<span class="qx">+</span></button>
+        <div class="faq-a"><div class="faq-a-in">No. Pandia doesn't ship a query language. Instead you navigate the tree, run substring find &amp; replace, and use the Grid's column filters (13 operators, OR-of-AND groups) and sorting to slice arrays of objects.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q"><span class="qn">06</span>Is it really free?<span class="qx">+</span></button>
+        <div class="faq-a"><div class="faq-a-in">Yes. Pandia is free and open source under <code>Apache-2.0</code>. There are no paid tiers and no plans for any. The source lives at <a href="https://github.com/hendurhance/pandia">github.com/hendurhance/pandia</a>.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .faq { max-width: 820px; margin: 0 auto; border-top: 1px solid var(--page-rule); }
+  .pandia-page .faq-item { border-bottom: 1px solid var(--page-rule); }
+  .pandia-page .faq-q {
+    width: 100%; display: flex; align-items: center; gap: 18px; padding: 22px 4px;
+    cursor: pointer; background: none; border: 0; text-align: left;
+    font-family: var(--disp); font-size: 18px; font-weight: 600; color: var(--page-text); letter-spacing: -0.01em;
+  }
+  .pandia-page .faq-q .qn { font-family: var(--mono); font-size: 12px; color: var(--page-faint); width: 30px; flex-shrink: 0; }
+  .pandia-page .faq-q .qx { margin-left: auto; font-family: var(--mono); color: var(--accent); font-size: 18px; transition: transform var(--dur) var(--ease); flex-shrink: 0; }
+  .pandia-page .faq-item.open .qx { transform: rotate(45deg); }
+  .pandia-page .faq-a { max-height: 0; overflow: hidden; transition: max-height var(--dur) var(--ease); }
+  .pandia-page .faq-a-in {
+    padding: 0 4px 24px 52px; font-family: var(--disp); font-size: 15px; color: var(--page-dim); line-height: 1.66; max-width: 64ch;
+  }
+  .pandia-page .faq-a-in code { font-family: var(--mono); font-size: 13px; color: var(--page-text); background: var(--page-bg-3); padding: 1px 6px; }
+  .pandia-page .faq-a-in a { color: var(--accent); }
+</style>
