@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { DocStatus } from '../logic/status';
+	import { updateCheck } from '$lib/shell/state/update-check.svelte';
 
 	interface Props {
 		status: DocStatus | null;
@@ -48,6 +49,16 @@
 	{/if}
 
 	<div class="sb-spacer"></div>
+
+	{#if updateCheck.availableVersion}
+		<button
+			class="sb-cell right update-cell"
+			onclick={() => void updateCheck.promptAndInstall()}
+			title="Pandia {updateCheck.availableVersion} is available — click to install"
+		>
+			<span class="val update-dot">update v{updateCheck.availableVersion}</span>
+		</button>
+	{/if}
 
 	<button
 		class="sb-cell right kbd-cell"
@@ -172,5 +183,20 @@
 	}
 	.cmd {
 		text-transform: lowercase;
+	}
+
+	.update-cell {
+		background: transparent;
+		cursor: pointer;
+		font: inherit;
+		letter-spacing: 0.08em;
+		color: var(--accent);
+	}
+	.update-cell:hover {
+		background: var(--accent-soft);
+	}
+	.update-dot::before {
+		content: '● ';
+		color: var(--accent);
 	}
 </style>

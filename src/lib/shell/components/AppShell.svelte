@@ -8,6 +8,7 @@
 	import { relaunch } from '@tauri-apps/plugin-process';
 	import { getVersion } from '@tauri-apps/api/app';
 	import { clearRecents, recentsStore } from '$lib/shell/state/recents-store.svelte';
+	import { updateCheck } from '$lib/shell/state/update-check.svelte';
 	import CommandPalette from '$lib/palette/CommandPalette.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import {
@@ -326,6 +327,11 @@
 	$effect(() => {
 		const items = recentsStore.list.slice(0, 12).map((r) => ({ path: r.path, name: r.name }));
 		void invoke('refresh_recent_files', { items });
+	});
+
+	$effect(() => {
+		const t = setTimeout(() => void updateCheck.silentCheck(), 10000);
+		return () => clearTimeout(t);
 	});
 
 	async function drainPendingFiles() {
