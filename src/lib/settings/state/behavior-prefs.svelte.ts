@@ -20,6 +20,7 @@ interface Persisted {
 	autoSaveOnIdle: boolean;
 	autoSaveIdleMs: number;
 	warnLargeFileOpen: boolean;
+	restoreTabsOnLaunch: boolean;
 }
 
 function sanitize(raw: unknown): Persisted {
@@ -29,6 +30,7 @@ function sanitize(raw: unknown): Persisted {
 		autoSaveOnIdle: false,
 		autoSaveIdleMs: AUTO_SAVE_IDLE_DEFAULT,
 		warnLargeFileOpen: true,
+		restoreTabsOnLaunch: true,
 	};
 	if (!isObject(raw)) return fallback;
 	const r = raw;
@@ -48,6 +50,8 @@ function sanitize(raw: unknown): Persisted {
 		autoSaveOnIdle: typeof r.autoSaveOnIdle === 'boolean' ? r.autoSaveOnIdle : false,
 		autoSaveIdleMs: idle,
 		warnLargeFileOpen: typeof r.warnLargeFileOpen === 'boolean' ? r.warnLargeFileOpen : true,
+		restoreTabsOnLaunch:
+			typeof r.restoreTabsOnLaunch === 'boolean' ? r.restoreTabsOnLaunch : true,
 	};
 }
 
@@ -57,6 +61,7 @@ class BehaviorPrefs extends PersistedStore {
 	autoSaveOnIdle: boolean = $state(false);
 	autoSaveIdleMs: number = $state(AUTO_SAVE_IDLE_DEFAULT);
 	warnLargeFileOpen: boolean = $state(true);
+	restoreTabsOnLaunch: boolean = $state(true);
 
 	protected async load(): Promise<void> {
 		const p = sanitize(await loadPersisted<Persisted>(SETTINGS_FILE, STORE_KEY));
@@ -65,6 +70,7 @@ class BehaviorPrefs extends PersistedStore {
 		this.autoSaveOnIdle = p.autoSaveOnIdle;
 		this.autoSaveIdleMs = p.autoSaveIdleMs;
 		this.warnLargeFileOpen = p.warnLargeFileOpen;
+		this.restoreTabsOnLaunch = p.restoreTabsOnLaunch;
 	}
 
 	private async persist(): Promise<void> {
@@ -74,6 +80,7 @@ class BehaviorPrefs extends PersistedStore {
 			autoSaveOnIdle: this.autoSaveOnIdle,
 			autoSaveIdleMs: this.autoSaveIdleMs,
 			warnLargeFileOpen: this.warnLargeFileOpen,
+			restoreTabsOnLaunch: this.restoreTabsOnLaunch,
 		} satisfies Persisted);
 	}
 
@@ -110,6 +117,12 @@ class BehaviorPrefs extends PersistedStore {
 	async setWarnLargeFileOpen(on: boolean): Promise<void> {
 		if (this.warnLargeFileOpen === on) return;
 		this.warnLargeFileOpen = on;
+		await this.persist();
+	}
+
+	async setRestoreTabsOnLaunch(on: boolean): Promise<void> {
+		if (this.restoreTabsOnLaunch === on) return;
+		this.restoreTabsOnLaunch = on;
 		await this.persist();
 	}
 }

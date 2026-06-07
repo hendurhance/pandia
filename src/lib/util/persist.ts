@@ -12,6 +12,8 @@ export const GRID_ORDER_FILE = 'pandia-grid-order.json';
 
 export const TYPEGEN_FILE = 'pandia-typegen.json';
 
+export const TABS_FILE = 'pandia-tabs.json';
+
 export const PERSISTED_FILES = [
 	SETTINGS_FILE,
 	RECENTS_FILE,

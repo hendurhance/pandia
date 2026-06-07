@@ -9,6 +9,7 @@
 	import { getVersion } from '@tauri-apps/api/app';
 	import { clearRecents, recentsStore } from '$lib/shell/state/recents-store.svelte';
 	import { updateCheck } from '$lib/shell/state/update-check.svelte';
+	import { loadOpenTabs, saveOpenTabs } from '$lib/shell/state/tabs-restore';
 	import CommandPalette from '$lib/palette/CommandPalette.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import {
@@ -197,38 +198,65 @@
 		recovery = [];
 	}
 
+	async function snapshotOpenTabs(): Promise<void> {
+		if (!behaviorPrefs.restoreTabsOnLaunch) return;
+		const filePaths: string[] = [];
+		let activeIndex = -1;
+		for (const tab of tabStore.tabs) {
+			const ctx = tabStore.contexts[tab.id];
+			if (!ctx?.fileBacked || !ctx.sourceName) continue;
+			if (tab.id === tabStore.activeId) activeIndex = filePaths.length;
+			filePaths.push(ctx.sourceName);
+		}
+		await saveOpenTabs(filePaths, activeIndex);
+	}
+
+	let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+	$effect(() => {
+		void tabStore.tabs;
+		void tabStore.activeId;
+		void tabStore.contexts;
+		if (snapshotTimer) clearTimeout(snapshotTimer);
+		snapshotTimer = setTimeout(() => void snapshotOpenTabs(), 250);
+		return () => {
+			if (snapshotTimer) clearTimeout(snapshotTimer);
+		};
+	});
+
 	$effect(() => {
 		let unlisten: (() => void) | null = null;
 		let cancelled = false;
 		const win = getCurrentWebviewWindow();
 		void win
 			.onCloseRequested(async (event) => {
-				const dirtyTabs = tabStore.tabs.filter((t) => tabStore.statuses[t.id]?.dirty);
-				if (dirtyTabs.length === 0) return; // clean exit — let it through
 				event.preventDefault();
-				const n = dirtyTabs.length;
-				const choice = await confirm.ask({
-					title: 'unsaved changes',
-					message:
-						n === 1
-							? `You have unsaved changes in ${basename(tabStore.contexts[dirtyTabs[0].id]?.sourceName ?? dirtyTabs[0].label)}.\nYour changes will be lost if you don't save them.`
-							: `You have unsaved changes in ${n} documents.\nYour changes will be lost if you don't save them.`,
-					primaryLabel: n === 1 ? 'save' : 'save all',
-					secondaryLabel: "don't save",
-				});
-				if (choice === 'cancel') return;
-				if (choice === 'primary') {
-					for (const t of dirtyTabs) {
-						const ctx = tabStore.contexts[t.id];
-						if (!ctx) continue;
-						tabStore.activate(t.id); // surface which doc the save-as dialog is for
-						const ok = await ctx.save();
-						if (!ok) return; // save failed (parse error / cancelled Save As) — abort quit
-					}
-				} else {
-					for (const t of dirtyTabs) {
-						const ctx = tabStore.contexts[t.id];
-						if (ctx) void docBackupClear(ctx.handle).catch(() => {});
+				await snapshotOpenTabs();
+				const dirtyTabs = tabStore.tabs.filter((t) => tabStore.statuses[t.id]?.dirty);
+				if (dirtyTabs.length > 0) {
+					const n = dirtyTabs.length;
+					const choice = await confirm.ask({
+						title: 'unsaved changes',
+						message:
+							n === 1
+								? `You have unsaved changes in ${basename(tabStore.contexts[dirtyTabs[0].id]?.sourceName ?? dirtyTabs[0].label)}.\nYour changes will be lost if you don't save them.`
+								: `You have unsaved changes in ${n} documents.\nYour changes will be lost if you don't save them.`,
+						primaryLabel: n === 1 ? 'save' : 'save all',
+						secondaryLabel: "don't save",
+					});
+					if (choice === 'cancel') return;
+					if (choice === 'primary') {
+						for (const t of dirtyTabs) {
+							const ctx = tabStore.contexts[t.id];
+							if (!ctx) continue;
+							tabStore.activate(t.id); // surface which doc the save-as dialog is for
+							const ok = await ctx.save();
+							if (!ok) return; // save failed (parse error / cancelled Save As) — abort quit
+						}
+					} else {
+						for (const t of dirtyTabs) {
+							const ctx = tabStore.contexts[t.id];
+							if (ctx) void docBackupClear(ctx.handle).catch(() => {});
+						}
 					}
 				}
 				await win.destroy();
@@ -332,6 +360,33 @@
 	$effect(() => {
 		const t = setTimeout(() => void updateCheck.silentCheck(), 10000);
 		return () => clearTimeout(t);
+	});
+
+	// Restore file-backed tabs from the previous session if the user opted in.
+	// Runs once on mount, after behavior prefs have loaded. Skipped when the
+	// app was launched with files (CLI args / Finder open / pending queue) so
+	// we don't fight the requested-file flow.
+	$effect(() => {
+		let cancelled = false;
+		void (async () => {
+			await behaviorPrefs.init();
+			if (cancelled || !behaviorPrefs.restoreTabsOnLaunch) return;
+			const { paths, activeIndex } = await loadOpenTabs();
+			if (cancelled || paths.length === 0) return;
+			const anyContext = Object.values(tabStore.contexts).some((c) => c != null);
+			const anyPending = Object.values(tabStore.pendingOpens).some((p) => p != null);
+			if (anyContext || anyPending) return;
+			for (let i = 0; i < paths.length; i++) {
+				const ok = tabStore.openInTab({ kind: 'file', path: paths[i] }, { focus: i === 0 });
+				if (!ok) break;
+			}
+			if (activeIndex > 0 && activeIndex < tabStore.tabs.length) {
+				tabStore.activate(tabStore.tabs[activeIndex].id);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	async function drainPendingFiles() {

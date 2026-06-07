@@ -59,6 +59,25 @@
 	</section>
 
 	<section class="field">
+		<div class="field-label">restore tabs on launch</div>
+		<div class="field-control">
+			<button
+				class="switch"
+				role="switch"
+				aria-checked={behaviorPrefs.restoreTabsOnLaunch}
+				onclick={() => behaviorPrefs.setRestoreTabsOnLaunch(!behaviorPrefs.restoreTabsOnLaunch)}
+			>
+				<span class="switch-knob"></span>
+				<span class="switch-text">{behaviorPrefs.restoreTabsOnLaunch ? 'on' : 'off'}</span>
+			</button>
+			<div class="text-sm dim">
+				Reopen file-backed tabs from your previous session on startup. Untitled / unsaved tabs are
+				not restored — those are still handled by the crash-recovery prompt.
+			</div>
+		</div>
+	</section>
+
+	<section class="field">
 		<div class="field-label">large file warning</div>
 		<div class="field-control">
 			<button
