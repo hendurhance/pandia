@@ -34,6 +34,11 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    # Release build flags — consumed by src/lib/util/flags.ts (Vite import.meta.env)
+    env:
+      VITE_BLOCK_CONTEXT_MENU: 'true'
+      VITE_ENABLE_SANDBOX: 'false'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4

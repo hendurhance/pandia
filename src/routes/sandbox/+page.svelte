@@ -12,8 +12,9 @@
 	} from '$lib/ipc/doc';
 	import type { OpenResult, NodeView, Op, Path } from '$lib/ipc/types';
 	import { fmtBytes } from '$lib/util/format';
+	import { SANDBOX_ENABLED } from '$lib/util/flags';
 
-	if (!import.meta.env.DEV && typeof window !== 'undefined') {
+	if (!SANDBOX_ENABLED && typeof window !== 'undefined') {
 		window.location.replace('/');
 	}
 
@@ -287,7 +288,7 @@
 				{#if docs.length === 0}
 					<div class="dim small">none</div>
 				{/if}
-				{#each docs as d}
+				{#each docs as d (d.handle)}
 					<div
 						class="doc-row"
 						class:active={d.handle === activeHandle}
@@ -318,7 +319,7 @@
 
 			<div class="block">
 				<div class="label">slice / value (active doc)</div>
-				<input bind:value={pathText} placeholder={'[] or ["events", 42]'} />
+				<input bind:value={pathText} placeholder="[] or [&quot;events&quot;, 42]" />
 				<div class="row">
 					<input type="number" bind:value={rangeStart} min="0" />
 					<input type="number" bind:value={rangeEnd} min="0" />

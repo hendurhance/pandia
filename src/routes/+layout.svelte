@@ -6,6 +6,7 @@
 	import { recentsStore } from '$lib/shell/state/recents-store.svelte';
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
 	import { commandUsage } from '$lib/palette/state/command-store.svelte';
+	import NativeContextMenu from '$lib/ui/NativeContextMenu.svelte';
 
 	let { children } = $props();
 
@@ -27,6 +28,8 @@
 <main>
 	{@render children()}
 </main>
+
+<NativeContextMenu />
 
 <style>
 	main {

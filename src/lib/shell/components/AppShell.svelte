@@ -10,6 +10,7 @@
 	import { clearRecents, recentsStore } from '$lib/shell/state/recents-store.svelte';
 	import { updateCheck } from '$lib/shell/state/update-check.svelte';
 	import { loadOpenTabs, saveOpenTabs } from '$lib/shell/state/tabs-restore';
+	import { SANDBOX_ENABLED } from '$lib/util/flags';
 	import CommandPalette from '$lib/palette/CommandPalette.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import {
@@ -158,7 +159,7 @@
 		openWebsite: () => void openInBrowser('https://www.pandia.app').catch(() => {}),
 		reportIssue: () =>
 			void openInBrowser('https://github.com/hendurhance/pandia/issues/new').catch(() => {}),
-		isDev: import.meta.env.DEV,
+		isDev: SANDBOX_ENABLED,
 	};
 
 	$effect(() => {
