@@ -65,18 +65,18 @@ Before submitting a bug report:
 We welcome feature suggestions! Before submitting:
 
 1. **Check existing issues and discussions** for similar suggestions
-2. **Consider the scope** - does this fit Pandia's goals?
-3. **Provide context** - why is this feature needed?
+2. **Consider the scope** — does this fit Pandia's goals? Pandia is a focused, native JSON workbench, not a kitchen-sink tool.
+3. **Provide context** — why is this feature needed?
 
 **Submit a feature request** by [creating a new issue](https://github.com/hendurhance/pandia/issues/new) with the `enhancement` label.
 
 ### Pull Requests
 
-1. **Discuss first** - For significant changes, open an issue to discuss before starting work
-2. **Keep PRs focused** - One feature or fix per PR
-3. **Update documentation** - If your change affects user-facing features
-4. **Add tests** - For new features or bug fixes
-5. **Follow coding guidelines** - See [Coding Guidelines](#coding-guidelines)
+1. **Discuss first** — for significant changes, open an issue to discuss before starting work
+2. **Keep PRs focused** — one feature or fix per PR
+3. **Update documentation** — if your change affects user-facing features
+4. **Add tests** — for new features or bug fixes
+5. **Follow coding guidelines** — see [Coding Guidelines](#coding-guidelines)
 
 #### PR Process
 
@@ -85,9 +85,13 @@ We welcome feature suggestions! Before submitting:
    git fetch upstream
    git rebase upstream/main
    ```
-2. Push your branch and create a PR
-3. Fill out the PR template with relevant information
-4. Wait for review - maintainers will provide feedback
+2. Run the checks locally before pushing:
+   ```bash
+   npm run check && npm run lint && npm test
+   cd src-tauri && cargo fmt --check && cargo clippy && cd ..
+   ```
+3. Push your branch and open a PR
+4. Wait for review — maintainers will provide feedback
 5. Address feedback and push updates
 6. Once approved, a maintainer will merge your PR
 
@@ -95,20 +99,22 @@ We welcome feature suggestions! Before submitting:
 
 ### Prerequisites
 
-- **Node.js** 18 or later
-- **Rust** (latest stable) - Install via [rustup](https://rustup.rs/)
+- **Node.js** 20 or later (LTS recommended)
+- **Rust** (latest stable) — install via [rustup](https://rustup.rs/)
 - **Platform-specific tools**:
   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-  - **Windows**: Visual Studio Build Tools with C++ workload
-  - **Linux**: See [Tauri prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites#setting-up-linux)
+  - **Windows**: Visual Studio Build Tools with the "Desktop development with C++" workload
+  - **Linux**: `webkit2gtk` and friends — see the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+Pandia is built with **Tauri 2** (Rust backend) and **SvelteKit + Svelte 5** (frontend), bundled by **Vite**.
 
 ### Installation
 
 ```bash
-# Install Node.js dependencies
+# Install frontend dependencies
 npm install
 
-# Start development server
+# Run the app in development (frontend + Tauri shell)
 npm run tauri dev
 ```
 
@@ -116,61 +122,84 @@ npm run tauri dev
 
 | Command | Description |
 |---------|-------------|
-| `npm run tauri dev` | Start the app in development mode |
-| `npm run tauri build` | Build for production |
-| `npm run test:unit` | Run unit tests |
-| `npm run test:e2e` | Run end-to-end tests |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run check` | Type-check the codebase |
+| `npm run tauri dev` | Run the full app (Rust + webview) in development |
+| `npm run tauri build` | Build the production app and platform installers |
+| `npm run dev` | Run the frontend only (Vite dev server) |
+| `npm run build` | Build the frontend bundle |
+| `npm run check` | Type-check the frontend (`svelte-check`) |
+| `npm run lint` / `lint:fix` | Lint with ESLint |
+| `npm run format` / `format:check` | Format / check with Prettier |
+| `npm test` / `npm run test:watch` | Run unit tests (Vitest) |
+
+A **husky** pre-commit hook runs **lint-staged** (ESLint + Prettier on staged files), so formatting/lint issues are caught before they land.
 
 ## Project Structure
 
 ```
 pandia/
-├── src/                      # SvelteKit frontend
-│   ├── lib/
-│   │   ├── components/       # Reusable UI components
-│   │   │   ├── layout/       # Layout components
-│   │   │   ├── modals/       # Modal dialogs
-│   │   │   ├── ui/           # Generic UI elements
-│   │   │   └── views/        # View-specific components
-│   │   ├── services/         # Business logic and API services
-│   │   ├── stores/           # Svelte stores for state management
-│   │   └── utils/            # Utility functions
-│   ├── routes/               # SvelteKit routes
-│   └── types/                # TypeScript type definitions
-├── src-tauri/                # Rust backend (Tauri)
-│   ├── src/                  # Rust source code
-│   └── Cargo.toml            # Rust dependencies
-├── tests/                    # Test suites
-│   ├── unit/                 # Unit tests
-│   ├── e2e/                  # End-to-end tests (Playwright)
-│   └── benchmarks/           # Performance benchmarks
-└── website/                  # Documentation website (Astro)
+├── src/                         # SvelteKit frontend (Svelte 5 + runes)
+│   ├── app.html
+│   ├── app.css
+│   ├── routes/                  # SvelteKit routes (app entry + sandbox)
+│   ├── styles/                  # global styles
+│   └── lib/
+│       ├── views/               # the five views: tree, code, grid, graph, compare
+│       ├── docpane/             # document canvas + view orchestration
+│       ├── panels/              # sidebar panels (outline, schema, types, history) + type generation
+│       ├── shell/               # app shell — tabs, sidebar, status bar, start screen, themes
+│       │   ├── components/
+│       │   ├── logic/           # theme palettes, command registries, …
+│       │   └── state/
+│       ├── palette/             # command palette (⌘K)
+│       ├── find/                # find & replace
+│       ├── settings/            # settings & preferences
+│       ├── ipc/                 # typed bindings to the Rust commands
+│       ├── ui/                  # generic UI components
+│       └── util/                # utilities (flags, paths, …)
+├── src-tauri/                   # Rust backend (Tauri 2)
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── lib.rs
+│   │   ├── commands.rs          # Tauri command handlers (frontend ↔ Rust)
+│   │   └── doc/                 # the JSON engine
+│   │       ├── document.rs      # open documents; eager vs. lazy backing
+│   │       ├── lazy.rs / eager.rs   # lazy zero-copy slicing for large files
+│   │       ├── detect.rs        # format auto-detect & convert (JSON/YAML/XML/CSV/cURL)
+│   │       ├── typegen.rs       # type generation (9 targets)
+│   │       ├── diff.rs          # compare / diff
+│   │       ├── repair.rs        # repair malformed JSON
+│   │       ├── schema_validate.rs   # JSON Schema validation
+│   │       ├── export.rs        # export (JSON / YAML / CSV / XML)
+│   │       ├── grid_filter.rs   # grid column filters
+│   │       ├── history.rs       # per-tab undo / redo
+│   │       └── search.rs, ops.rs, store.rs, backup.rs, …
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+└── website/                     # marketing + docs site (Astro)
 ```
+
+Unit tests live **next to the code** they cover as `*.test.ts` (e.g. `src/lib/util/path.test.ts`).
 
 ## Coding Guidelines
 
-### TypeScript/Svelte
+### TypeScript / Svelte
 
-- Use TypeScript for all new code
-- Follow the existing code style
-- Use meaningful variable and function names
-- Add JSDoc comments for public APIs
-- Prefer functional programming patterns
-- Keep components small and focused
+- Use **TypeScript** for all new code.
+- This is **Svelte 5** — use runes (`$state`, `$derived`, `$effect`) and match the surrounding patterns.
+- Use meaningful names and keep components small and focused.
+- Favor **self-documenting code**; add a comment only where the context is genuinely non-obvious (a constraint, a cross-file coupling, a why).
 
 ```typescript
-// Good
+// Good — explicit, typed, errors handled
 function parseJsonSafely(input: string): Result<unknown, ParseError> {
   try {
     return { ok: true, value: JSON.parse(input) };
   } catch (error) {
-    return { ok: false, error: new ParseError(error.message) };
+    return { ok: false, error: new ParseError(String(error)) };
   }
 }
 
-// Avoid
+// Avoid — untyped, swallows failures
 function parse(s) {
   return JSON.parse(s);
 }
@@ -178,17 +207,15 @@ function parse(s) {
 
 ### Rust
 
-- Follow Rust idioms and best practices
-- Use `clippy` for linting
-- Handle errors properly with `Result` types
-- Add documentation comments for public items
+- Follow Rust idioms; the JSON engine lives in `src-tauri/src/doc/`.
+- Run `cargo fmt` and `cargo clippy` before pushing.
+- Handle errors with `Result`; surface them to the frontend through `commands.rs`.
 
-### CSS/Styling
+### Styling
 
-- Use Tailwind CSS utility classes
-- Follow the existing design system
-- Ensure responsive design
-- Test with both light and dark themes
+- The app uses **scoped Svelte styles + CSS custom properties** — there is **no Tailwind / utility framework**.
+- Use the theme tokens rather than hard-coded colors; Pandia ships 19 themes, so **test in both light and dark**.
+- Follow the existing design system (square corners, IBM Plex Mono).
 
 ## Commit Messages
 
@@ -216,66 +243,53 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ### Examples
 
 ```
-feat(editor): add support for YAML import
+feat(typegen): add Kotlin target
 
-fix(diff): correct highlighting for nested objects
+fix(diff): correct highlighting for moved keys
 
 docs(readme): update installation instructions
 
-refactor(stores): simplify tab management logic
+refactor(shell): simplify tab management logic
 ```
 
 ## Testing
 
-### Unit Tests
+### Unit tests (Vitest)
 
-Located in `tests/unit/`. Run with:
+Tests are co-located with the code as `*.test.ts`. Run them with:
 
 ```bash
-npm run test:unit
+npm test          # one-off
+npm run test:watch
 ```
-
-When adding new features, include unit tests:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { parseJson } from '$lib/services/json';
+import { joinPath } from './path';
 
-describe('parseJson', () => {
-  it('should parse valid JSON', () => {
-    const result = parseJson('{"key": "value"}');
-    expect(result).toEqual({ key: 'value' });
-  });
-
-  it('should throw on invalid JSON', () => {
-    expect(() => parseJson('invalid')).toThrow();
+describe('joinPath', () => {
+  it('joins segments', () => {
+    expect(joinPath(['a', 'b'])).toBe('a/b');
   });
 });
 ```
 
-### End-to-End Tests
+### Rust tests
 
-Located in `tests/e2e/`. Run with:
-
-```bash
-npm run test:e2e
-```
-
-E2E tests use Playwright and test the full application flow.
-
-### Test Coverage
-
-We aim for good test coverage. Run coverage reports with:
+Backend tests run with Cargo:
 
 ```bash
-npm run test:coverage
+cd src-tauri
+cargo test
 ```
+
+When adding a feature or fixing a bug, include a test that covers it.
 
 ## Documentation
 
-- Update the README if you change user-facing features
-- Add JSDoc comments to public functions and components
-- Update the website documentation for significant features (`website/src/pages/docs/`)
+- Update the **README** if you change user-facing features.
+- Update the **docs site** for significant features (`website/src/pages/docs/`).
+- Keep comments minimal — only where the context is really important.
 
 ## Questions?
 
