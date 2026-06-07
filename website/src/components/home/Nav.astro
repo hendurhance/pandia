@@ -1,0 +1,116 @@
+---
+const links = [
+  { href: '/#views', label: 'Views' },
+  { href: '/#capabilities', label: 'Capabilities' },
+  { href: '/#flow', label: 'How it works' },
+  { href: '/docs', label: 'Docs' },
+  { href: '/#faq', label: 'FAQ' },
+];
+const REPO = 'https://github.com/hendurhance/pandia';
+const DL = '/download';
+const gh = `<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`;
+---
+<nav class="pn-nav" id="pnNav">
+  <div class="nav-in">
+    <a href="/" class="brand">
+      <img src="/logo.svg" alt="" class="brand-mark" width="28" height="28" />
+      <span class="brand-name">Pandia</span>
+    </a>
+    <div class="nav-links">
+      {links.map((l) => <a href={l.href}>{l.label}</a>)}
+    </div>
+    <div class="nav-right">
+      <a href={REPO} class="ghost-link" target="_blank" rel="noopener noreferrer"><Fragment set:html={gh} />GitHub</a>
+      <a href={DL} class="btn btn-primary">Download for <span class="dl-os">macOS</span></a>
+    </div>
+    <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu" type="button">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-menu" id="navMenu">
+    {links.map((l) => <a href={l.href} class="nm-link">{l.label}</a>)}
+    <div class="nm-actions">
+      <a href={REPO} class="ghost-link" target="_blank" rel="noopener noreferrer"><Fragment set:html={gh} />View source on GitHub</a>
+      <a href={DL} class="btn btn-primary">Download for <span class="dl-os">macOS</span> · Free</a>
+    </div>
+  </div>
+</nav>
+
+<style is:global>
+  .pandia-page .pn-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: color-mix(in srgb, var(--page-bg) 82%, transparent);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    border-bottom: 1px solid var(--page-rule);
+  }
+  .pandia-page .nav-in {
+    max-width: var(--maxw); margin: 0 auto;
+    height: 62px; display: flex; align-items: center; gap: 36px; padding: 0 32px;
+  }
+  .pandia-page .brand { display: flex; align-items: center; gap: 11px; }
+  .pandia-page .brand-mark { width: 28px; height: 28px; flex-shrink: 0; display: block; }
+  .pandia-page .brand-name {
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--page-text);
+  }
+  .pandia-page .nav-links { display: flex; align-items: center; gap: 28px; margin-left: 6px; }
+  .pandia-page .nav-links a {
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.02em;
+    color: var(--page-dim); transition: color var(--dur) var(--ease);
+  }
+  .pandia-page .nav-links a:hover { color: var(--page-text); }
+  .pandia-page .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .pandia-page .ghost-link {
+    font-family: var(--mono); font-size: 12.5px; color: var(--page-dim);
+    transition: color var(--dur) var(--ease); display: inline-flex; align-items: center; gap: 7px;
+  }
+  .pandia-page .ghost-link:hover { color: var(--page-text); }
+
+  .pandia-page .nav-burger {
+    display: none; margin-left: auto; width: 40px; height: 40px;
+    flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    background: transparent; border: 1px solid var(--page-rule-2); cursor: pointer;
+  }
+  .pandia-page .nav-burger span { display: block; width: 18px; height: 1.5px; background: var(--page-text); transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease); }
+  .pandia-page .pn-nav.open .nav-burger span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+  .pandia-page .pn-nav.open .nav-burger span:nth-child(2) { opacity: 0; }
+  .pandia-page .pn-nav.open .nav-burger span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+  .pandia-page .nav-menu { display: none; }
+  .pandia-page .nav-menu .nm-link {
+    font-family: var(--mono); font-size: 14px; color: var(--page-dim);
+    padding: 14px 0; border-bottom: 1px solid var(--page-rule);
+  }
+  .pandia-page .nav-menu .nm-link:hover { color: var(--page-text); }
+  .pandia-page .nav-menu .nm-actions { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; }
+  .pandia-page .nav-menu .nm-actions .ghost-link { justify-content: center; padding: 11px; border: 1px solid var(--page-rule-2); }
+  .pandia-page .nav-menu .nm-actions .btn-primary { justify-content: center; }
+
+  @media (max-width: 940px) {
+    .pandia-page .nav-links, .pandia-page .nav-right { display: none; }
+    .pandia-page .nav-burger { display: flex; }
+    .pandia-page .pn-nav.open .nav-menu {
+      display: flex; flex-direction: column;
+      max-width: var(--maxw); margin: 0 auto; padding: 8px 24px 22px;
+      background: var(--page-bg); border-top: 1px solid var(--page-rule);
+    }
+  }
+</style>
+
+<script>
+  const nav = document.getElementById('pnNav');
+  const burger = document.getElementById('navBurger');
+  if (nav && burger) {
+    burger.addEventListener('click', () => {
+      const open = nav.classList.toggle('open');
+      burger.setAttribute('aria-expanded', String(open));
+    });
+    nav.querySelectorAll('.nav-menu a').forEach((a) =>
+      a.addEventListener('click', () => {
+        nav.classList.remove('open');
+        burger.setAttribute('aria-expanded', 'false');
+      })
+    );
+  }
+</script>

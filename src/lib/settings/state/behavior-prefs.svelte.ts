@@ -50,8 +50,7 @@ function sanitize(raw: unknown): Persisted {
 		autoSaveOnIdle: typeof r.autoSaveOnIdle === 'boolean' ? r.autoSaveOnIdle : false,
 		autoSaveIdleMs: idle,
 		warnLargeFileOpen: typeof r.warnLargeFileOpen === 'boolean' ? r.warnLargeFileOpen : true,
-		restoreTabsOnLaunch:
-			typeof r.restoreTabsOnLaunch === 'boolean' ? r.restoreTabsOnLaunch : true,
+		restoreTabsOnLaunch: typeof r.restoreTabsOnLaunch === 'boolean' ? r.restoreTabsOnLaunch : true,
 	};
 }
 

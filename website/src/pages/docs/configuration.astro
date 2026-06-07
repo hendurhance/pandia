@@ -1,85 +1,38 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
-
-const description = "Configure Pandia preferences, default settings, editor behavior, and application options. Customize your JSON editing experience.";
 ---
+<DocsLayout
+  title="Settings"
+  description="Make Pandia yours — theme, density, code font and size, sidebar panels and behaviour. Pandia keeps crash-recovery backups, can auto-save on idle, and lets you export your settings."
+  currentDoc="/docs/configuration"
+>
+  <h1>Settings</h1>
+  <p class="lead">Make Pandia yours.</p>
 
-<DocsLayout title="Configuration" description={description} currentDoc="/docs/configuration">
-  <article class="prose prose-invert max-w-none">
-    <div class="mb-12">
-      <h1 class="text-4xl font-bold text-white mb-4">Configuration</h1>
-      <p class="text-xl text-brand-gray">
-        Customize Pandia to fit your workflow.
-      </p>
-    </div>
+  <h2>What you can set</h2>
+  <ul>
+    <li><strong>Theme</strong> — any of the built-in dark and light themes, or Auto.</li>
+    <li><strong>Density</strong> — compact, normal, or comfortable.</li>
+    <li><strong>Code font &amp; size</strong> — pick your monospace font and adjust its size.</li>
+    <li><strong>Sidebar panels</strong> — choose which panels are enabled, and which side the
+    sidebar docks.</li>
+    <li><strong>Behaviour preferences</strong> — tune how Pandia behaves day to day.</li>
+  </ul>
+  <p>For everything visual — themes, fonts, density and syntax colours — see
+  <a href="/docs/themes">Themes &amp; appearance</a>.</p>
 
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Settings Location</h2>
-      <p class="text-brand-gray mb-4">
-        Pandia stores its configuration in the following locations:
-      </p>
-      <div class="space-y-3 text-sm">
-        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20">
-          <span class="text-white font-medium">macOS:</span>
-          <code class="ml-2 text-brand-orange font-mono">~/Library/Application Support/pandia/</code>
-        </div>
-        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20">
-          <span class="text-white font-medium">Windows:</span>
-          <code class="ml-2 text-brand-orange font-mono">%APPDATA%\pandia\</code>
-        </div>
-        <div class="p-3 bg-brand-dark rounded-lg border border-brand-gray-dark/20">
-          <span class="text-white font-medium">Linux:</span>
-          <code class="ml-2 text-brand-orange font-mono">~/.config/pandia/</code>
-        </div>
-      </div>
-    </section>
+  <h2>Auto-save &amp; recovery</h2>
+  <p>Pandia keeps <strong>crash-recovery backups</strong> as you work. If it closes unexpectedly,
+  the next launch offers to restore your unsaved work. You can also turn on
+  <strong>auto-save on idle</strong> in Behaviour settings to write file-backed documents to disk
+  after a short pause.</p>
+  <div class="callout">
+    <p><strong>Note —</strong> recovery is automatic. You don't have to enable anything; if there's
+    unsaved work after an unexpected close, Pandia surfaces it for you to restore. Auto-save on idle
+    is off by default — turn it on if you want it.</p>
+  </div>
 
-    <section class="mb-12">
-      <h2 class="text-2xl font-semibold text-white mb-4">Available Settings</h2>
-      <div class="space-y-4">
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Appearance</h3>
-          <ul class="space-y-2 text-sm text-brand-gray">
-            <li>• Theme (Dark / Light / System)</li>
-            <li>• Node colors</li>
-            <li>• Font size</li>
-            <li>• Animation speed</li>
-          </ul>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Performance</h3>
-          <ul class="space-y-2 text-sm text-brand-gray">
-            <li>• Max nodes to render (default: 10,000)</li>
-            <li>• Auto-collapse threshold</li>
-            <li>• Hardware acceleration</li>
-          </ul>
-        </div>
-
-        <div class="p-4 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-          <h3 class="text-white font-medium mb-2">Behavior</h3>
-          <ul class="space-y-2 text-sm text-brand-gray">
-            <li>• Auto-update checks</li>
-            <li>• Remember window position</li>
-            <li>• Default export format</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
-      <a href="/docs/shortcuts" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
-        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Previous: Shortcuts
-      </a>
-      <a href="/docs/troubleshooting" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
-        Next: Troubleshooting
-        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-      </a>
-    </div>
-  </article>
+  <h2>Export your settings</h2>
+  <p>Your settings can be <strong>exported as a JSON bundle</strong> — handy for backing them up or
+  carrying your setup to another machine.</p>
 </DocsLayout>

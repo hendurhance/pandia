@@ -1,0 +1,99 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+<DocsLayout
+  title="Views"
+  description="The same JSON document, five ways: Tree, Code, Grid, Graph and Compare. Switch instantly with the keyboard and read your data however the task demands."
+  currentDoc="/docs/views"
+>
+  <h1>Views</h1>
+  <p class="lead">The same document, five ways. Switch with <kbd>⌘1</kbd>–<kbd>⌘4</kbd>, and open
+  Compare with <kbd>⌘D</kbd>. The default is <strong>Tree</strong>.</p>
+
+  <p>Every view reads the one document you have open — there is nothing to import or convert between
+  them. The view switcher lives in the document canvas head and appears once a document loads. Pick
+  the shape that fits the task: an outline to browse and edit, raw text to read line by line, a
+  spreadsheet for tabular data, a node diagram to see structure, or a diff to spot what changed.</p>
+
+  <h2>Tree</h2>
+  <p>The default and primary view: a virtualized, indented <code>key: value</code> outline. Because
+  rows are virtualized and streamed in slices, the Tree handles huge files without lag.</p>
+  <ul>
+    <li><strong>Carets</strong> — expandable rows show an orange caret; click a row to select it and
+    toggle it open or closed.</li>
+    <li><strong>Type-count chips</strong> — a collapsed container shows a chip like <code>&#123;3 props&#125;</code>
+    or <code>[5 items]</code>, so you know what is inside without expanding it.</li>
+    <li><strong>Kind-coloured values</strong> — strings, numbers, booleans and <code>null</code> each get
+    their own hue, while <em>keys stay uncoloured</em>. A bare URL value renders as an underlined link
+    you can open in the system browser.</li>
+    <li><strong>Indent guides</strong> — vertical guides mark each depth level and brighten on hover.</li>
+    <li><strong>Drag to reorder</strong> — grab a row's drag grip to move it; an orange drop-line shows
+    where it will land.</li>
+    <li><strong>Row menu</strong> — a <code>⋯</code> button (or right-click) opens a per-row menu of
+    structural actions. See <a href="/docs/editor">Editing</a>.</li>
+    <li><strong>Inline editors</strong> — edit a value in place with a type-aware editor.</li>
+  </ul>
+  <p>A <strong>breadcrumb bar</strong> across the top shows the path to the current node and carries
+  <strong>Expand</strong>, <strong>Collapse</strong> and <strong>Search</strong> actions. Click any
+  crumb to jump to that ancestor.</p>
+
+  <h2>Code</h2>
+  <p>A full-document raw-JSON editor backed by <strong>CodeMirror 6</strong>. Read or edit the text
+  directly, with the gutters and feedback you expect from a code editor.</p>
+  <ul>
+    <li><strong>Gutters</strong> — a line-number gutter and a fold gutter; folded ranges collapse to a
+    placeholder chip.</li>
+    <li><strong>Orange cursor and active line</strong> — the caret and the active line are tinted with
+    the accent.</li>
+    <li><strong>Live lint</strong> — invalid JSON is underlined as you type.</li>
+    <li><strong>Search highlighting</strong> — matches from the find bar are highlighted, with the
+    current match outlined.</li>
+  </ul>
+  <p>There is no minimap. To commit or revert your edits, see <a href="/docs/editor">Editing</a>.</p>
+
+  <h2>Grid</h2>
+  <p>An array of objects rendered as a virtualized spreadsheet — both rows and columns are virtualized,
+  so wide, long tables stay responsive.</p>
+  <ul>
+    <li><strong>Index column</strong> — a leading <code>#</code> column numbers the rows.</li>
+    <li><strong>Sortable headers</strong> — click a header to sort; markers flag columns whose values are
+    of mixed types or nullable.</li>
+    <li><strong>Per-column filters</strong> — narrow rows by range, by operator and value, by a checklist
+    of distinct values, or by presence (empty / not empty). There are <strong>13 operators</strong>,
+    combined as OR-of-AND groups.</li>
+    <li><strong>Quick-filter bar</strong> — a single input filters rows across the whole table.</li>
+    <li><strong>Zebra rows and kind-coloured cells</strong> — numbers are green and right-aligned;
+    strings, booleans and <code>null</code> are coloured by kind; and odd rows carry a faint stripe.</li>
+    <li><strong>Cell inspector</strong> — select a cell and a panel at the bottom shows its full value,
+    pretty-printed for objects and arrays.</li>
+  </ul>
+  <p>The Grid is available when the document is an array of objects; otherwise it explains why it can't
+  be shown.</p>
+
+  <h2>Graph</h2>
+  <p>A left-to-right node diagram drawn on a dot grid. Each object or array becomes a card; expanding a
+  row spawns the child cards it points to.</p>
+  <ul>
+    <li><strong>Cards</strong> — every card has a header and kind-coloured <code>key: value</code> rows.</li>
+    <li><strong>Expand/collapse ports</strong> — expandable rows carry a circular port on their right
+    edge; click it to grow or fold that branch.</li>
+    <li><strong>Floating dock</strong> — a bottom dock holds fit-to-view, zoom, expand-all and a settings
+    popover (elbow vs. curve edges, animated vs. instant expand).</li>
+    <li><strong>Search bar</strong> — find a node by name and centre the canvas on each match.</li>
+    <li><strong>Image export</strong> — export the diagram as <strong>PNG, JPEG or SVG</strong>.</li>
+  </ul>
+  <p>Pan with the wheel or by dragging; hold <kbd>⌘</kbd> and scroll to zoom at the cursor.</p>
+
+  <h2>Compare</h2>
+  <p>Diff the current document against another open tab or a file on disk. Open Compare with
+  <kbd>⌘D</kbd>. There are three modes:</p>
+  <ul>
+    <li><strong>Side-by-side</strong> — the two documents as code, with the diff highlighted per side.</li>
+    <li><strong>Tree</strong> — two read-only trees, diff-tinted row by row.</li>
+    <li><strong>Inline</strong> — a unified, single-column text diff.</li>
+  </ul>
+  <p><strong>Added</strong> is green, <strong>removed</strong> is the accent, <strong>changed</strong> is
+  amber, and <strong>moved</strong> entries are tracked too. <strong>Prev</strong>/<strong>Next</strong>
+  navigation steps through the differences, and a <strong>Sync scroll</strong> toggle keeps the two panes
+  aligned. For the full walkthrough, see <a href="/docs/compare">Compare</a>.</p>
+</DocsLayout>

@@ -1,78 +1,43 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
-
-const description = "Complete keyboard shortcuts reference for Pandia. Master file operations, editing, navigation, and view controls with efficient key combinations.";
-
-const shortcuts = [
-  { category: 'File', items: [
-    { keys: 'Cmd/Ctrl + O', action: 'Open file' },
-    { keys: 'Cmd/Ctrl + V', action: 'Paste JSON' },
-    { keys: 'Cmd/Ctrl + S', action: 'Save/Export' },
-    { keys: 'Cmd/Ctrl + Shift + E', action: 'Export as image' },
-  ]},
-  { category: 'Navigation', items: [
-    { keys: 'Cmd/Ctrl + F', action: 'Search' },
-    { keys: 'Cmd/Ctrl + 0', action: 'Fit to screen' },
-    { keys: 'Cmd/Ctrl + +', action: 'Zoom in' },
-    { keys: 'Cmd/Ctrl + -', action: 'Zoom out' },
-    { keys: 'Arrow keys', action: 'Navigate nodes' },
-  ]},
-  { category: 'View', items: [
-    { keys: 'Cmd/Ctrl + Shift + T', action: 'Toggle theme' },
-    { keys: 'Cmd/Ctrl + \\', action: 'Toggle sidebar' },
-    { keys: 'Cmd/Ctrl + Shift + F', action: 'Toggle fullscreen' },
-  ]},
-  { category: 'Nodes', items: [
-    { keys: 'Enter', action: 'Expand/Collapse selected' },
-    { keys: 'Cmd/Ctrl + E', action: 'Expand all' },
-    { keys: 'Cmd/Ctrl + Shift + C', action: 'Collapse all' },
-    { keys: 'Cmd/Ctrl + C', action: 'Copy selected node' },
-  ]},
-];
 ---
+<DocsLayout
+  title="Keyboard shortcuts"
+  description="The keyboard shortcuts that matter in Pandia — switch views, compare, export, undo — plus a command palette for everything else."
+  currentDoc="/docs/shortcuts"
+>
+  <h1>Keyboard shortcuts</h1>
+  <p class="lead">The keys that matter (and a palette for the rest).</p>
 
-<DocsLayout title="Keyboard Shortcuts" description={description} currentDoc="/docs/shortcuts">
-  <article class="prose prose-invert max-w-none">
-    <div class="mb-12">
-      <h1 class="text-4xl font-bold text-white mb-4">Keyboard Shortcuts</h1>
-      <p class="text-xl text-brand-gray">
-        Master these shortcuts to navigate Pandia like a pro.
-      </p>
-    </div>
+  <h2>Shortcuts</h2>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Command palette</td><td><kbd>⌘K</kbd></td></tr>
+      <tr><td>Open file</td><td><kbd>⌘O</kbd></td></tr>
+      <tr><td>New tab</td><td><kbd>⌘T</kbd></td></tr>
+      <tr><td>Close tab</td><td><kbd>⌘W</kbd></td></tr>
+      <tr><td>Save</td><td><kbd>⌘S</kbd></td></tr>
+      <tr><td>Tree view</td><td><kbd>⌘1</kbd></td></tr>
+      <tr><td>Code view</td><td><kbd>⌘2</kbd></td></tr>
+      <tr><td>Grid view</td><td><kbd>⌘3</kbd></td></tr>
+      <tr><td>Graph view</td><td><kbd>⌘4</kbd></td></tr>
+      <tr><td>Find in document</td><td><kbd>⌘F</kbd></td></tr>
+      <tr><td>Compare</td><td><kbd>⌘D</kbd></td></tr>
+      <tr><td>Export</td><td><kbd>⌘E</kbd></td></tr>
+      <tr><td>Toggle sidebar</td><td><kbd>⌘B</kbd></td></tr>
+      <tr><td>Settings</td><td><kbd>⌘,</kbd></td></tr>
+      <tr><td>Undo</td><td><kbd>⌘Z</kbd></td></tr>
+      <tr><td>Redo</td><td><kbd>⌘⇧Z</kbd></td></tr>
+      <tr><td>Commit Code-view edit</td><td><kbd>⌘⏎</kbd></td></tr>
+      <tr><td>Revert / close</td><td><kbd>Esc</kbd></td></tr>
+    </tbody>
+  </table>
 
-    {shortcuts.map((section) => (
-      <section class="mb-10">
-        <h2 class="text-xl font-semibold text-white mb-4">{section.category}</h2>
-        <div class="bg-brand-dark rounded-xl border border-brand-gray-dark/20 overflow-hidden">
-          <table class="w-full text-sm">
-            <tbody>
-              {section.items.map((item, idx) => (
-                <tr class={idx !== section.items.length - 1 ? 'border-b border-brand-gray-dark/10' : ''}>
-                  <td class="py-3 px-4 w-1/2">
-                    <kbd class="px-2 py-1 bg-brand-darker rounded text-brand-orange font-mono text-xs">{item.keys}</kbd>
-                  </td>
-                  <td class="py-3 px-4 text-brand-gray">{item.action}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    ))}
-
-    <div class="flex justify-between pt-8 border-t border-brand-gray-dark/20">
-      <a href="/docs/themes" class="group flex items-center gap-2 text-brand-gray hover:text-white transition-colors">
-        <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Previous: Themes
-      </a>
-      <a href="/docs/configuration" class="group flex items-center gap-2 text-brand-orange hover:text-brand-orange-dark transition-colors">
-        Next: Configuration
-        <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-      </a>
-    </div>
-  </article>
+  <div class="callout">
+    <p><strong>On Windows and Linux,</strong> use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd>. To
+    discover everything else, open the command palette with <kbd>⌘K</kbd> and start typing.</p>
+  </div>
 </DocsLayout>

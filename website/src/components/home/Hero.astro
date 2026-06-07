@@ -1,0 +1,95 @@
+---
+import AppWindow from './AppWindow.astro';
+---
+<header class="hero">
+  <div class="hero-grid-bg"></div>
+  <div class="wrap hero-in">
+
+    <div class="hero-tag reveal d1">
+      <span class="pill">v1.0.0</span>
+      <span class="lbl">Native JSON workbench</span>
+    </div>
+
+    <h1 class="reveal d2">The JSON <em>workbench</em>.<span class="h1-cursor"></span></h1>
+
+    <p class="hero-sub reveal d3">
+      Open any JSON instantly — even a <strong>multi-gigabyte</strong> file. See it five ways,
+      generate types for <strong>nine languages</strong>, compare, repair, and export — all in one
+      fast, native, <strong>offline</strong> app. Free and open source.
+    </p>
+
+    <div class="hero-cta reveal d4">
+      <a href="/download" class="btn btn-primary">Download for <span class="dl-os">macOS</span><span class="os"> · Free</span></a>
+      <a href="https://github.com/hendurhance/pandia" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View source
+      </a>
+    </div>
+
+    <div class="hero-meta reveal d4">
+      <span>Apache-2.0</span><span class="dot"></span>
+      <span>macOS · Windows · Linux</span><span class="dot"></span>
+      <span>Offline &amp; private</span>
+    </div>
+
+    <AppWindow />
+  </div>
+</header>
+
+<style is:global>
+  .pandia-page .hero { position: relative; padding: 92px 0 0; overflow: hidden; }
+  .pandia-page .hero-grid-bg {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.030) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.030) 1px, transparent 1px);
+    background-size: 58px 58px;
+    mask-image: radial-gradient(ellipse 92% 62% at 50% 28%, #000 28%, transparent 74%);
+    -webkit-mask-image: radial-gradient(ellipse 92% 62% at 50% 28%, #000 28%, transparent 74%);
+    pointer-events: none;
+  }
+  @media (prefers-color-scheme: light) {
+    .pandia-page .hero-grid-bg {
+      background-image:
+        linear-gradient(rgba(40,32,20,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(40,32,20,0.035) 1px, transparent 1px);
+    }
+  }
+  .pandia-page .hero-in { position: relative; z-index: 1; text-align: center; }
+
+  .pandia-page .hero-tag {
+    display: inline-flex; align-items: center; gap: 12px;
+    border: 1px solid var(--page-rule-2); padding: 6px 8px 6px 14px;
+    background: var(--page-card); margin-bottom: 34px;
+  }
+  .pandia-page .hero-tag .lbl { font-family: var(--mono); font-size: 11.5px; color: var(--page-dim); letter-spacing: 0.02em; }
+  .pandia-page .hero-tag .pill {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent-line); background: var(--accent-soft); padding: 2px 9px;
+  }
+
+  .pandia-page h1 {
+    font-family: var(--disp); font-size: clamp(46px, 6.8vw, 88px); font-weight: 700;
+    line-height: 0.97; letter-spacing: -0.035em; margin: 0 auto; max-width: 13ch; color: var(--page-text);
+  }
+  .pandia-page h1 .dim { color: var(--page-faint); }
+  .pandia-page h1 em { font-style: normal; color: var(--accent); }
+  .pandia-page .h1-cursor {
+    display: inline-block; width: 0.46em; height: 0.82em; background: var(--accent);
+    margin-left: 0.06em; vertical-align: -0.04em; animation: pandia-blink 1.15s steps(1) infinite;
+  }
+
+  .pandia-page .hero-sub {
+    font-family: var(--disp); font-size: clamp(16px, 1.6vw, 19.5px); color: var(--page-dim);
+    max-width: 58ch; margin: 28px auto 0; line-height: 1.62; font-weight: 400;
+  }
+  .pandia-page .hero-sub strong { color: var(--page-text); font-weight: 600; }
+
+  .pandia-page .hero-cta { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 40px; flex-wrap: wrap; }
+  .pandia-page .hero-cta .btn { font-size: 13.5px; padding: 12px 22px; }
+  .pandia-page .hero-meta {
+    margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: var(--page-faint);
+    letter-spacing: 0.04em; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  }
+  .pandia-page .hero-meta .dot { width: 3px; height: 3px; background: var(--page-ghost); }
+</style>

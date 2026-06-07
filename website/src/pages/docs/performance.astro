@@ -1,0 +1,60 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+<DocsLayout
+  title="Large files"
+  description="Pandia opens and scrolls multi-gigabyte JSON with no lag. At 10 MB and up, documents switch to lazy, zero-copy slicing — only the slice on screen is ever loaded."
+  currentDoc="/docs/performance"
+>
+  <h1>Large files</h1>
+  <p class="lead">Open and scroll multi-gigabyte JSON with no lag.</p>
+
+  <p>Most JSON tools choke the moment a file gets big — they read the whole thing into memory and
+  parse it up front. Pandia does not. It opens hundreds of megabytes, or several gigabytes,
+  instantly, and scrolling stays smooth the whole way down.</p>
+
+  <h2>How it stays fast</h2>
+  <p>At <strong>10 MB and above</strong>, a document switches to <strong>lazy, zero-copy
+  slicing</strong> (powered by <code>sonic-rs</code>). Instead of parsing the entire tree, Pandia
+  only loads the slice currently on screen. Opening, scrolling, and expanding never parse the whole
+  document, so a 3 GB file feels the same as a 30 KB one.</p>
+  <p>There is <strong>no cap on opening or viewing</strong>. Whatever the size, you can open the
+  file and browse it.</p>
+  <div class="callout">
+    <p><strong>Note —</strong> don't confuse the lazy threshold with a limit. The 10 MB mark is
+    where Pandia <em>starts</em> slicing for speed — it is not a ceiling. Opening and viewing
+    remain uncapped at any size.</p>
+  </div>
+
+  <h2>The 200 MB ceiling</h2>
+  <div class="callout warn">
+    <p><strong>Whole-document operations are capped at 200 MB.</strong> A few actions need the
+    <em>entire</em> document materialized at once — full <strong>edit</strong>,
+    <strong>export</strong>, and <strong>schema-validation</strong>.
+    These are limited to documents of 200 MB or less. Opening and browsing a larger file still
+    works; only those whole-document operations are unavailable above the ceiling.</p>
+    <p>Type generation is an exception: it infers types by streaming over the lazy document, so it
+    works at any size — the 200 MB ceiling only applies when generating a JSON Schema, which
+    materializes the whole document.</p>
+  </div>
+
+  <h2>Other limits</h2>
+  <p>Two views have their own thresholds, for the same reason — they materialize content rather
+  than slicing it:</p>
+  <table>
+    <thead>
+      <tr><th>Feature</th><th>Limit</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Code-view editor</td><td>50 MB</td></tr>
+      <tr><td>Inline diff</td><td>3 MB per side</td></tr>
+    </tbody>
+  </table>
+  <p>The Tree, Grid and Graph views keep working on much larger documents because they read from
+  the lazy slice, not the whole tree.</p>
+
+  <h2>Next steps</h2>
+  <p>Hitting one of these limits? See <a href="/docs/troubleshooting">Troubleshooting</a>. To pick
+  a comfortable density and font for long sessions, see <a href="/docs/themes">Themes &amp;
+  appearance</a>.</p>
+</DocsLayout>

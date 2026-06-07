@@ -1,0 +1,342 @@
+---
+const SVG = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+const icons: Record<string, string> = {
+  imp: `<svg ${SVG}><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>`,
+  repair: `<svg ${SVG}><path d="M11 4l1.4 4.6L17 10l-4.6 1.4L11 16l-1.4-4.6L5 10l4.6-1.4z"/><path d="M18 4l.6 1.8L20.4 6.4l-1.8.6L18 8.8l-.6-1.8L15.6 6.4l1.8-.6z"/></svg>`,
+  typegen: `<svg ${SVG}><path d="M9 4c-1.7 0-2.5.8-2.5 2.5V9c0 1.2-.6 2-2 2 1.4 0 2 .8 2 2v2.5C6.5 19.2 7.3 20 9 20"/><path d="M15 4c1.7 0 2.5.8 2.5 2.5V9c0 1.2.6 2 2 2-1.4 0-2 .8-2 2v2.5C17.5 19.2 16.7 20 15 20"/></svg>`,
+  compare: `<svg ${SVG}><path d="M5 8h11"/><path d="M13 5l3 3-3 3"/><path d="M19 16H8"/><path d="M11 13l-3 3 3 3"/></svg>`,
+  validate: `<svg ${SVG}><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  exp: `<svg ${SVG}><path d="M12 14V4"/><path d="M8 8l4-4 4 4"/><path d="M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>`,
+};
+---
+<section class="block" id="capabilities">
+  <div class="wrap">
+    <div class="sec-head iv">
+      <span class="eyebrow"><span class="tick"></span>Capabilities</span>
+      <h2>A workbench, not a viewer.</h2>
+      <p>Everything you reach for when JSON gets real — import, generate, compare, repair,
+      validate. Pick one to see it in action.</p>
+    </div>
+
+    <div class="cap-layout iv">
+      <div class="cap-list" role="tablist" aria-orientation="vertical" aria-label="Capabilities">
+        <div class="cap-group-label">Bring it in</div>
+        <button class="cap-item" data-cap="import" role="tab" tabindex="0" aria-selected="false" type="button">
+          <span class="cap-ico" set:html={icons.imp}></span>
+          <span class="cap-txt">
+            <span class="cap-h">Import &amp; auto-detect</span>
+            <span class="cap-p">Paste, drop, open, or fetch a URL. JSON, YAML, XML, CSV and cURL are detected and converted.</span>
+            <span class="langs"><span>JSON</span><span>YAML</span><span>XML</span><span>CSV</span><span>cURL</span><span>URL fetch</span></span>
+          </span>
+        </button>
+        <button class="cap-item" data-cap="repair" role="tab" tabindex="0" aria-selected="false" type="button">
+          <span class="cap-ico" set:html={icons.repair}></span>
+          <span class="cap-txt">
+            <span class="cap-h">Repair malformed JSON</span>
+            <span class="cap-p">Trailing commas, unquoted keys, single quotes, comments, NaN/Infinity, BOM/CRLF — fixed.</span>
+          </span>
+        </button>
+
+        <div class="cap-group-label bt">Shape it</div>
+        <button class="cap-item on" data-cap="typegen" role="tab" tabindex="0" aria-selected="true" type="button">
+          <span class="cap-ico" set:html={icons.typegen}></span>
+          <span class="cap-txt">
+            <span class="cap-h">Generate types — 9 targets</span>
+            <span class="cap-p">Turn any document into ready-to-paste definitions. Optionals are inferred for you.</span>
+            <span class="langs">
+              <span class="on">TypeScript</span><span>Rust</span><span>Go</span><span>Kotlin</span><span>Python</span><span>PHP</span><span>Java</span><span>Zod</span><span>JSON&nbsp;Schema</span>
+            </span>
+          </span>
+        </button>
+        <button class="cap-item" data-cap="compare" role="tab" tabindex="0" aria-selected="false" type="button">
+          <span class="cap-ico" set:html={icons.compare}></span>
+          <span class="cap-txt">
+            <span class="cap-h">Compare &amp; diff</span>
+            <span class="cap-p">Structural diff against another tab or file — added, removed, changed and moved.</span>
+          </span>
+        </button>
+
+        <div class="cap-group-label bt">Check &amp; ship</div>
+        <button class="cap-item" data-cap="validate" role="tab" tabindex="0" aria-selected="false" type="button">
+          <span class="cap-ico" set:html={icons.validate}></span>
+          <span class="cap-txt">
+            <span class="cap-h">Validate against a schema</span>
+            <span class="cap-p">JSON Schema draft-07 &amp; 2020-12, with inline clickable errors.</span>
+          </span>
+        </button>
+        <button class="cap-item" data-cap="export" role="tab" tabindex="0" aria-selected="false" type="button">
+          <span class="cap-ico" set:html={icons.exp}></span>
+          <span class="cap-txt">
+            <span class="cap-h">Export anywhere</span>
+            <span class="cap-p">JSON, JSON-min, YAML, CSV, XML — copy or save. Graph images as PNG, JPEG or SVG.</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="cap-spot">
+        <div class="spot-panel" data-spot="import" role="tabpanel">
+          <div class="spot-head"><span class="fdot"></span><span>Paste · auto-detect</span></div>
+          <div class="spot-code">
+            <div class="scl"><span class="lno"></span><span class="t-dim">$ curl https://api.acme.dev/v2/users -H "Auth: ***"</span></div>
+            <div class="scl"><span class="lno"></span><span class="t-acc">✓ Detected cURL — converting to JSON…</span></div>
+            <div class="scl" style="margin-top:6px"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">"users"</span><span class="j-p">:</span> <span class="j-p">[</span> <span class="t-dim">… 109,472</span> <span class="j-p">],</span></span></div>
+            <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"page"</span><span class="j-p">:</span> <span class="j-n">1</span><span class="j-p">,</span></span></div>
+            <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="j-k">"total"</span><span class="j-p">:</span> <span class="j-n">109472</span></span></div>
+            <div class="scl"><span class="lno">5</span><span><span class="j-p">}</span><span class="ccaret"></span></span></div>
+          </div>
+          <div class="spot-foot"><span>Paste · drop · open · fetch URL — JSON, YAML, XML, CSV, cURL.</span></div>
+        </div>
+
+        <div class="spot-panel" data-spot="repair" role="tabpanel">
+          <div class="spot-head"><span class="fdot"></span><span>Repair malformed JSON</span></div>
+          <div class="spot-code">
+            <div class="scl r-bad"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl r-bad"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">name</span><span class="j-p">:</span> <span class="j-s">'Carmen'</span><span class="j-p">,</span><span class="r-note">unquoted key · single quotes</span></span></div>
+            <div class="scl r-bad"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"followers"</span><span class="j-p">:</span> <span class="j-n">12846</span><span class="j-p">,</span><span class="r-note">trailing comma</span></span></div>
+            <div class="scl r-bad"><span class="lno">4</span><span><span class="j-p">}</span></span></div>
+          </div>
+          <div class="rsep">↳ repaired</div>
+          <div class="spot-code">
+            <div class="scl rok"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl rok"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">"name"</span><span class="j-p">:</span> <span class="j-s">"Carmen"</span><span class="j-p">,</span></span></div>
+            <div class="scl rok"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"followers"</span><span class="j-p">:</span> <span class="j-n">12846</span></span></div>
+            <div class="scl rok"><span class="lno">4</span><span><span class="j-p">}</span><span class="ccaret"></span></span></div>
+          </div>
+        </div>
+
+        <div class="spot-panel on" data-spot="typegen" role="tabpanel">
+          <div class="spot-head">
+            <span class="fdot"></span><span>Generated · from 109,472 records</span>
+            <span class="seg" role="tablist" aria-label="Type generation target">
+              <span class="o on" data-t="ts" role="tab" tabindex="0" aria-selected="true">TS</span>
+              <span class="o" data-t="rs" role="tab" tabindex="0" aria-selected="false">Rust</span>
+              <span class="o" data-t="go" role="tab" tabindex="0" aria-selected="false">Go</span>
+              <span class="o" data-t="zod" role="tab" tabindex="0" aria-selected="false">Zod</span>
+            </span>
+          </div>
+          <div class="spot-code">
+            <div class="spot-block on" data-b="ts">
+              <div class="scl"><span class="lno">1</span><span><span class="kw">interface</span> <span class="ty">User</span> <span class="pu">{</span></span></div>
+              <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="pr">id</span><span class="pu">:</span> <span class="ty">number</span><span class="pu">;</span></span></div>
+              <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="pr">name</span><span class="pu">:</span> <span class="ty">string</span><span class="pu">;</span></span></div>
+              <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="pr">verified</span><span class="pu">:</span> <span class="ty">boolean</span><span class="pu">;</span></span></div>
+              <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="pr">followers</span><span class="pu">:</span> <span class="ty">number</span> <span class="pu">|</span> <span class="opt">null</span><span class="pu">;</span></span></div>
+              <div class="scl"><span class="lno">6</span><span>&nbsp;&nbsp;<span class="pr">deletedAt</span><span class="pu">:</span> <span class="ty">string</span> <span class="pu">|</span> <span class="opt">null</span><span class="pu">;</span><span class="ccaret"></span></span></div>
+              <div class="scl"><span class="lno">7</span><span><span class="pu">}</span></span></div>
+              <div class="scl" style="margin-top:6px"><span class="lno"></span><span><span class="kw">type</span> <span class="ty">Users</span> <span class="pu">=</span> <span class="ty">User</span><span class="pu">[];</span></span></div>
+            </div>
+            <div class="spot-block" data-b="rs">
+              <div class="scl"><span class="lno">1</span><span><span class="opt">#[derive(Serialize, Deserialize)]</span></span></div>
+              <div class="scl"><span class="lno">2</span><span><span class="kw">pub struct</span> <span class="ty">User</span> <span class="pu">{</span></span></div>
+              <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">id</span><span class="pu">:</span> <span class="ty">i64</span><span class="pu">,</span></span></div>
+              <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">name</span><span class="pu">:</span> <span class="ty">String</span><span class="pu">,</span></span></div>
+              <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">verified</span><span class="pu">:</span> <span class="ty">bool</span><span class="pu">,</span></span></div>
+              <div class="scl"><span class="lno">6</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">followers</span><span class="pu">:</span> <span class="ty">Option</span><span class="pu">&lt;</span><span class="ty">i64</span><span class="pu">&gt;,</span><span class="ccaret"></span></span></div>
+              <div class="scl"><span class="lno">7</span><span><span class="pu">}</span></span></div>
+            </div>
+            <div class="spot-block" data-b="go">
+              <div class="scl"><span class="lno">1</span><span><span class="kw">type</span> <span class="ty">User</span> <span class="kw">struct</span> <span class="pu">{</span></span></div>
+              <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="pr">ID</span> <span class="ty">int64</span> <span class="opt">`json:"id"`</span></span></div>
+              <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="pr">Name</span> <span class="ty">string</span> <span class="opt">`json:"name"`</span></span></div>
+              <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="pr">Verified</span> <span class="ty">bool</span> <span class="opt">`json:"verified"`</span></span></div>
+              <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="pr">Followers</span> <span class="pu">*</span><span class="ty">int64</span> <span class="opt">`json:"followers"`</span><span class="ccaret"></span></span></div>
+              <div class="scl"><span class="lno">6</span><span><span class="pu">}</span></span></div>
+            </div>
+            <div class="spot-block" data-b="zod">
+              <div class="scl"><span class="lno">1</span><span><span class="kw">const</span> <span class="ty">User</span> <span class="pu">=</span> z<span class="pu">.</span><span class="nm">object</span><span class="pu">({</span></span></div>
+              <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="pr">id</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">number</span><span class="pu">(),</span></span></div>
+              <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="pr">name</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">string</span><span class="pu">(),</span></span></div>
+              <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="pr">verified</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">boolean</span><span class="pu">(),</span></span></div>
+              <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="pr">followers</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">number</span><span class="pu">().</span><span class="nm">nullable</span><span class="pu">(),</span><span class="ccaret"></span></span></div>
+              <div class="scl"><span class="lno">6</span><span><span class="pu">});</span></span></div>
+            </div>
+          </div>
+          <div class="spot-foot">
+            <span>Optional fields inferred · not configurable by design</span>
+            <span class="grow"></span>
+            <span class="copybtn" id="copyTypes">⎘ Copy</span>
+          </div>
+        </div>
+
+        <div class="spot-panel" data-spot="compare" role="tabpanel">
+          <div class="spot-head"><span class="fdot"></span><span>Compare · users-04 ↔ users-05</span><span class="cmp-tally"><b class="t-add">+1</b><b class="t-chg">~1</b><b class="t-rem">−1</b></span></div>
+          <div class="spot-code">
+            <div class="scl"><span class="lno"></span><span>&nbsp;&nbsp;<span class="j-k">"name"</span><span class="j-p">:</span> <span class="j-s">"Carmen Herzog"</span><span class="j-p">,</span></span></div>
+            <div class="scl d-chg"><span class="lno">~</span><span>&nbsp;&nbsp;<span class="j-k">"followers"</span><span class="j-p">:</span> <span class="j-n">12846</span><span class="j-p">,</span></span></div>
+            <div class="scl d-add"><span class="lno">+</span><span>&nbsp;&nbsp;<span class="j-k">"verified"</span><span class="j-p">:</span> <span class="j-b">true</span><span class="j-p">,</span></span></div>
+            <div class="scl d-add"><span class="lno">+</span><span>&nbsp;&nbsp;<span class="j-k">"website"</span><span class="j-p">:</span> <span class="j-s">"herzog.dev"</span><span class="j-p">,</span></span></div>
+            <div class="scl d-rem"><span class="lno">−</span><span>&nbsp;&nbsp;<span class="j-k">"legacy"</span><span class="j-p">:</span> <span class="j-b">true</span></span></div>
+          </div>
+          <div class="spot-foot"><span>Side-by-side · tree · inline — added, removed, changed &amp; moved.</span></div>
+        </div>
+
+        <div class="spot-panel" data-spot="validate" role="tabpanel">
+          <div class="spot-head"><span class="fdot"></span><span>Validate · JSON Schema 2020-12</span></div>
+          <div class="spot-code">
+            <div class="scl"><span class="lno">1</span><span><span class="j-p">{</span> <span class="j-k">"age"</span><span class="j-p">:</span> <span class="j-s">"31"</span><span class="j-p">,</span> <span class="j-k">"email"</span><span class="j-p">:</span> <span class="j-s">"x@"</span><span class="j-p">,</span> <span class="j-k">"role"</span><span class="j-p">:</span> <span class="j-s">"owner"</span> <span class="j-p">}</span></span></div>
+          </div>
+          <div class="v-errs">
+            <div class="v-err"><span class="v-x">✗</span><code>/age</code> expected integer, got string</div>
+            <div class="v-err"><span class="v-x">✗</span><code>/email</code> must match format "email"</div>
+            <div class="v-err"><span class="v-x">✗</span><code>/role</code> not one of [admin, editor, viewer]</div>
+          </div>
+          <div class="spot-foot"><span>3 errors · click to jump to the offending node.</span></div>
+        </div>
+
+        <div class="spot-panel" data-spot="export" role="tabpanel">
+          <div class="spot-head"><span class="fdot"></span><span>Export</span><span class="exp-fmts"><b class="on">YAML</b><b>JSON</b><b>CSV</b><b>XML</b></span></div>
+          <div class="spot-code">
+            <div class="scl"><span class="lno">1</span><span><span class="j-k">users</span><span class="j-p">:</span></span></div>
+            <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-p">-</span> <span class="j-k">id</span><span class="j-p">:</span> <span class="j-n">4821</span></span></div>
+            <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="j-k">name</span><span class="j-p">:</span> <span class="j-s">Carmen Herzog</span></span></div>
+            <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="j-k">verified</span><span class="j-p">:</span> <span class="j-b">true</span></span></div>
+            <div class="scl"><span class="lno">5</span><span><span class="j-k">total</span><span class="j-p">:</span> <span class="j-n">109472</span><span class="ccaret"></span></span></div>
+          </div>
+          <div class="spot-foot"><span>JSON · JSON-min · YAML · CSV · XML — copy or save to file.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .cap-layout { display: grid; grid-template-columns: 1fr 1.1fr; border: 1px solid var(--page-rule); overflow: hidden; }
+  .pandia-page .cap-list { background: var(--page-card); border-right: 1px solid var(--page-rule); }
+  .pandia-page .cap-group-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--page-faint); padding: 20px 24px 10px;
+  }
+  .pandia-page .cap-group-label.bt { border-top: 1px solid var(--page-rule); }
+  .pandia-page .cap-item {
+    display: flex; align-items: flex-start; gap: 14px; width: 100%; text-align: left;
+    padding: 16px 24px; border: 0; border-top: 1px solid var(--page-rule); background: transparent;
+    cursor: pointer; transition: background var(--dur) var(--ease); position: relative; font: inherit; color: inherit;
+  }
+  .pandia-page .cap-item:hover { background: var(--page-bg-2); }
+  .pandia-page .cap-item.on { background: var(--page-bg-2); }
+  .pandia-page .cap-item.on::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+  .pandia-page .cap-ico {
+    width: 28px; height: 28px; flex-shrink: 0; margin-top: 1px;
+    border: 1px solid var(--page-rule-2); display: grid; place-items: center;
+    font-family: var(--mono); font-size: 13px; color: var(--page-dim); background: var(--page-bg);
+  }
+  .pandia-page .cap-ico svg { width: 17px; height: 17px; }
+  .pandia-page .cap-item.on .cap-ico { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+  .pandia-page .cap-txt { display: flex; flex-direction: column; min-width: 0; }
+  .pandia-page .cap-h { font-family: var(--disp); font-size: 16px; font-weight: 600; color: var(--page-text); letter-spacing: -0.01em; }
+  .pandia-page .cap-p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 3px; line-height: 1.5; }
+  .pandia-page .cap-txt .langs { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .pandia-page .cap-txt .langs span {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+    color: var(--page-dim); border: 1px solid var(--page-rule-2); padding: 2px 7px; background: var(--page-bg);
+  }
+  .pandia-page .cap-txt .langs span.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+
+  .pandia-page .cap-spot { background: var(--app-bg); color: var(--app-text); position: relative; overflow: hidden; display: flex; }
+  .pandia-page .cap-spot .spot-panel { display: none; flex: 1; flex-direction: column; min-width: 0; }
+  .pandia-page .cap-spot .spot-panel.on { display: flex; animation: capSlide 340ms var(--ease) both; }
+  @keyframes capSlide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+
+  .pandia-page .spot-head {
+    height: 38px; display: flex; align-items: center; gap: 9px; flex-shrink: 0;
+    border-bottom: 1px solid var(--app-rule); padding: 0 16px;
+    font-family: var(--mono); font-size: 11px; color: var(--app-dim);
+  }
+  .pandia-page .spot-head .fdot { width: 6px; height: 6px; background: var(--s-bool); flex-shrink: 0; }
+  .pandia-page .spot-head .seg { margin-left: auto; display: flex; height: 100%; }
+  .pandia-page .spot-head .seg .o {
+    display: flex; align-items: center; padding: 0 11px; height: 100%;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+    color: var(--app-faint); border-left: 1px solid var(--app-rule); cursor: pointer;
+    transition: color var(--dur) var(--ease);
+  }
+  .pandia-page .spot-head .seg .o:hover { color: var(--app-dim); }
+  .pandia-page .spot-head .seg .o.on { color: var(--app-text); position: relative; }
+  .pandia-page .spot-head .seg .o.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); }
+  .pandia-page .spot-head .cmp-tally { margin-left: auto; display: flex; gap: 10px; font-size: 10.5px; }
+  .pandia-page .spot-head .cmp-tally .t-add { color: var(--green); }
+  .pandia-page .spot-head .cmp-tally .t-chg { color: var(--amber); }
+  .pandia-page .spot-head .cmp-tally .t-rem { color: var(--accent); }
+  .pandia-page .spot-head .exp-fmts { margin-left: auto; display: flex; gap: 6px; }
+  .pandia-page .spot-head .exp-fmts b { font-weight: 400; color: var(--app-faint); padding: 2px 7px; border: 1px solid var(--app-rule); }
+  .pandia-page .spot-head .exp-fmts b.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+
+  .pandia-page .spot-code { flex: 1; padding: 16px 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.95; overflow: hidden; background: var(--app-edit); }
+  .pandia-page .spot-block { display: none; }
+  .pandia-page .spot-block.on { display: block; }
+  /* language switch fades the code in via JS (index.astro) — so switching INTO the
+     typegen capability uses the same single slide (capSlide) as every other panel. */
+
+  .pandia-page .scl { display: flex; padding: 0 18px; }
+  .pandia-page .scl .lno { width: 26px; flex-shrink: 0; color: var(--app-ghost); text-align: right; padding-right: 16px; user-select: none; }
+  .pandia-page .kw { color: var(--s-bool); }
+  .pandia-page .ty { color: var(--s-string); }
+  .pandia-page .pr { color: var(--app-text); }
+  .pandia-page .pu { color: var(--s-punct); }
+  .pandia-page .opt { color: var(--s-null); font-style: italic; }
+  .pandia-page .nm { color: var(--s-number); }
+
+  .pandia-page .cap-spot .j-k { color: var(--app-text); }
+  .pandia-page .cap-spot .j-s { color: var(--s-string); }
+  .pandia-page .cap-spot .j-n { color: var(--s-number); }
+  .pandia-page .cap-spot .j-b { color: var(--s-bool); }
+  .pandia-page .cap-spot .j-nu { color: var(--s-null); font-style: italic; }
+  .pandia-page .cap-spot .j-p { color: var(--s-punct); }
+  .pandia-page .cap-spot .t-dim { color: var(--app-faint); }
+  .pandia-page .cap-spot .t-acc { color: var(--accent); }
+
+  .pandia-page .cap-spot .scl.r-bad { background: rgba(229,72,77,0.06); }
+  .pandia-page .cap-spot .r-note { color: var(--danger, #e5484d); font-size: 10px; margin-left: 12px; }
+  .pandia-page .cap-spot .scl.rok { background: rgba(127,176,105,0.06); }
+  .pandia-page .cap-spot .rsep {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent); padding: 7px 18px; background: var(--app-elev);
+    border-top: 1px solid var(--app-rule); border-bottom: 1px solid var(--app-rule);
+  }
+
+  .pandia-page .cap-spot .scl.d-add { background: rgba(127,176,105,0.10); }
+  .pandia-page .cap-spot .scl.d-add .lno { color: var(--green); }
+  .pandia-page .cap-spot .scl.d-rem { background: rgba(255,106,58,0.10); }
+  .pandia-page .cap-spot .scl.d-rem .lno { color: var(--accent); }
+  .pandia-page .cap-spot .scl.d-chg { background: rgba(224,165,60,0.10); }
+  .pandia-page .cap-spot .scl.d-chg .lno { color: var(--amber); }
+
+  .pandia-page .cap-spot .v-errs { border-top: 1px solid var(--app-rule); background: var(--app-bg); }
+  .pandia-page .cap-spot .v-err {
+    display: flex; gap: 10px; align-items: baseline; padding: 9px 18px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--app-dim); border-bottom: 1px solid var(--app-rule);
+  }
+  .pandia-page .cap-spot .v-err:last-child { border-bottom: 0; }
+  .pandia-page .cap-spot .v-err .v-x { color: var(--danger, #e5484d); }
+  .pandia-page .cap-spot .v-err code { color: var(--amber); }
+
+  .pandia-page .spot-foot {
+    border-top: 1px solid var(--app-rule); padding: 11px 18px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--app-faint); background: var(--app-elev-2);
+  }
+  .pandia-page .spot-foot .grow { flex: 1; }
+  .pandia-page .spot-foot .copybtn {
+    font-family: var(--mono); font-size: 11px; color: var(--app-dim);
+    border: 1px solid var(--app-rule-2); padding: 4px 11px;
+    display: inline-flex; gap: 7px; align-items: center; cursor: pointer;
+    transition: all var(--dur) var(--ease);
+  }
+  .pandia-page .spot-foot .copybtn:hover { border-color: var(--app-faint); color: var(--app-text); }
+
+  @media (max-width: 940px) {
+    .pandia-page .cap-layout { grid-template-columns: 1fr; }
+    .pandia-page .cap-list { border-right: 0; border-bottom: 1px solid var(--page-rule); }
+    .pandia-page .cap-spot { min-height: 340px; }
+  }
+  @media (max-width: 560px) {
+    .pandia-page .spot-head { height: auto; flex-wrap: wrap; padding: 9px 12px 0; }
+    .pandia-page .spot-head .seg { margin-left: 0; width: 100%; height: 34px; border-top: 1px solid var(--app-rule); }
+    .pandia-page .spot-head .seg .o { flex: 1; justify-content: center; border-left: 0; border-right: 1px solid var(--app-rule); }
+    .pandia-page .spot-head .seg .o:last-child { border-right: 0; }
+    .pandia-page .spot-foot { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+    .pandia-page .spot-foot .grow { display: none; }
+    .pandia-page .spot-foot .copybtn { justify-content: center; }
+  }
+</style>

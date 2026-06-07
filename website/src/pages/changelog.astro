@@ -1,204 +1,170 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Navigation from '../components/Navigation.astro';
-import Footer from '../components/Footer.astro';
+import Nav from '../components/home/Nav.astro';
+import Footer from '../components/home/Footer.astro';
 
-const description = "See what's new in Pandia. Track all releases, new features, improvements, and bug fixes in our JSON visualization tool.";
+const REPO = 'https://github.com/hendurhance/pandia';
+const RELEASES = 'https://github.com/hendurhance/pandia/releases';
 
 interface Release {
   version: string;
   date: string;
   tag?: string;
-  changes: {
-    features?: string[];
-    improvements?: string[];
-    fixes?: string[];
-    breaking?: string[];
-  };
+  tagKind?: 'beta' | 'stable';
+  link?: string;
+  groups: { label: string; items: string[] }[];
 }
 
 const releases: Release[] = [
   {
+    version: '1.0.0',
+    date: 'June 7, 2026',
+    tag: 'Stable',
+    tagKind: 'stable',
+    link: `${RELEASES}/tag/v1.0.0`,
+    groups: [
+      {
+        label: 'Highlights',
+        items: [
+          'First stable release — Pandia is now 1.0.',
+          'The full workbench: five views (Tree, Code, Grid, Graph, Compare), type generation for 9 languages, validate, compare, repair and export.',
+          'Opens and scrolls multi-gigabyte files with no lag.',
+          'Offline, private and free — your data never leaves your machine.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.1.0',
-    date: 'February 2026',
+    date: 'February 14, 2026',
     tag: 'Beta',
-    changes: {
-      features: [
-        'Initial public release of Pandia',
-        'Multiple view modes: Tree, Graph, Grid, and Code view',
-        'Type generation for TypeScript, Go, Rust, Python, Java, Kotlin, PHP, Zod, JSON Schema, GraphQL, Mongoose, BigQuery, and MySQL',
-        'Multi-format import: JSON, YAML, XML, CSV, URLs, cURL commands, and GitHub Gists',
-        'Flexible export to YAML, XML, CSV, Base64, and URL-encoded formats',
-        'JSON Query with JSON Query Language, JMESPath, and Lodash expressions',
-        'Compare & Diff with side-by-side and unified views',
-        'JSON Repair for malformed JSON',
-        'Interactive graph visualization with pan, zoom, and export to PNG/SVG',
-        'Find & Replace with regex support',
-        'Snippet Manager for saving frequently used JSON',
-        'JSON Path Finder for easy navigation',
-        'Custom themes including dark and light modes',
-        'Full keyboard shortcuts support',
-        'Tab management for multiple JSON files',
-        'Auto-save functionality',
-        'Cross-platform support: macOS, Windows, and Linux',
-      ],
-    },
+    tagKind: 'beta',
+    link: `${RELEASES}/tag/v0.1.0`,
+    groups: [
+      {
+        label: 'Highlights',
+        items: [
+          'First public beta — a native JSON workbench for macOS, Windows and Linux, built with Rust + Tauri.',
+          'Open, navigate and edit JSON across multiple views.',
+          'Generate types from any document.',
+          'Import & export common formats — JSON, YAML, XML, CSV.',
+          'Compare documents and auto-repair malformed JSON.',
+          'Offline, private and free — your data never leaves your machine.',
+        ],
+      },
+    ],
   },
 ];
 ---
-
 <Layout
   title="Changelog"
-  description={description}
+  description="Pandia changelog — every release, what changed. A free, native JSON workbench for macOS, Windows and Linux."
   canonical="/changelog"
   type="article"
 >
-  <Navigation currentPage="changelog" />
-
-  <main class="pt-24 pb-16 min-h-screen">
-    <div class="max-w-4xl mx-auto px-6">
-      <!-- Header -->
-      <div class="mb-12">
-        <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">Changelog</h1>
-        <p class="text-xl text-brand-gray">
-          Track all updates, new features, and improvements to Pandia.
-        </p>
-      </div>
-
-      <!-- Releases -->
-      <div class="space-y-12">
-        {releases.map((release) => (
-          <article class="relative">
-            <!-- Version Header -->
-            <div class="flex flex-wrap items-center gap-3 mb-6">
-              <h2 class="text-2xl font-bold text-white">v{release.version}</h2>
-              {release.tag && (
-                <span class="px-3 py-1 text-xs font-semibold bg-brand-orange/10 text-brand-orange rounded-full">
-                  {release.tag}
-                </span>
-              )}
-              <span class="text-brand-gray text-sm">{release.date}</span>
-            </div>
-
-            <!-- Changes -->
-            <div class="space-y-6">
-              {release.changes.features && release.changes.features.length > 0 && (
-                <div>
-                  <div class="flex items-center gap-2 mb-4">
-                    <div class="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
-                      <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                    </div>
-                    <h3 class="text-lg font-semibold text-white">Features</h3>
-                  </div>
-                  <ul class="space-y-3 ml-10">
-                    {release.changes.features.map((feature) => (
-                      <li class="flex items-start gap-3 text-brand-gray">
-                        <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {release.changes.improvements && release.changes.improvements.length > 0 && (
-                <div>
-                  <div class="flex items-center gap-2 mb-4">
-                    <div class="w-8 h-8 bg-brand-purple/10 rounded-lg flex items-center justify-center">
-                      <svg class="w-4 h-4 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                    </div>
-                    <h3 class="text-lg font-semibold text-white">Improvements</h3>
-                  </div>
-                  <ul class="space-y-3 ml-10">
-                    {release.changes.improvements.map((improvement) => (
-                      <li class="flex items-start gap-3 text-brand-gray">
-                        <svg class="w-5 h-5 text-brand-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>{improvement}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {release.changes.fixes && release.changes.fixes.length > 0 && (
-                <div>
-                  <div class="flex items-center gap-2 mb-4">
-                    <div class="w-8 h-8 bg-brand-orange/10 rounded-lg flex items-center justify-center">
-                      <svg class="w-4 h-4 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                      </svg>
-                    </div>
-                    <h3 class="text-lg font-semibold text-white">Bug Fixes</h3>
-                  </div>
-                  <ul class="space-y-3 ml-10">
-                    {release.changes.fixes.map((fix) => (
-                      <li class="flex items-start gap-3 text-brand-gray">
-                        <svg class="w-5 h-5 text-brand-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>{fix}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {release.changes.breaking && release.changes.breaking.length > 0 && (
-                <div>
-                  <div class="flex items-center gap-2 mb-4">
-                    <div class="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
-                      <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    </div>
-                    <h3 class="text-lg font-semibold text-white">Breaking Changes</h3>
-                  </div>
-                  <ul class="space-y-3 ml-10">
-                    {release.changes.breaking.map((breaking) => (
-                      <li class="flex items-start gap-3 text-brand-gray">
-                        <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01" />
-                        </svg>
-                        <span>{breaking}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            <!-- Divider -->
-            <div class="mt-12 border-b border-brand-gray-dark/20"></div>
-          </article>
-        ))}
-      </div>
-
-      <!-- Footer Note -->
-      <div class="mt-12 p-6 bg-brand-dark rounded-xl border border-brand-gray-dark/20">
-        <div class="flex items-start gap-4">
-          <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <h4 class="text-white font-medium mb-1">Stay Updated</h4>
-            <p class="text-sm text-brand-gray">
-              Star the <a href="https://github.com/hendurhance/pandia" target="_blank" rel="noopener noreferrer" class="text-brand-orange hover:underline">GitHub repository</a> to get notified about new releases and updates.
-            </p>
+  <div class="pandia-page cl-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block cl-top">
+        <div class="wrap cl-top-in">
+          <span class="eyebrow"><span class="tick"></span>Changelog</span>
+          <h1>What's <em>new</em>.</h1>
+          <p>Every Pandia release and what changed. Want the latest build? Head to the
+          <a href="/download">download page</a>.</p>
+          <div class="cl-cta">
+            <a class="btn btn-ghost" href={RELEASES} target="_blank" rel="noopener noreferrer">Watch releases on GitHub</a>
           </div>
         </div>
-      </div>
-    </div>
-  </main>
+      </section>
 
-  <Footer />
+      <section class="block cl-list">
+        <div class="wrap">
+          {releases.map((r) => (
+            <article class="cl-rel">
+              <div class="cl-meta">
+                <div class="cl-ver">v{r.version}</div>
+                {r.tag && <span class={`cl-tag ${r.tagKind}`}>{r.tag}</span>}
+                <time class="cl-date">{r.date}</time>
+                {r.link && (
+                  <a class="cl-link" href={r.link} target="_blank" rel="noopener noreferrer">Release notes ↗</a>
+                )}
+              </div>
+              <div class="cl-body">
+                {r.groups.map((g) => (
+                  <div class="cl-group">
+                    <h2 class="cl-group-label">{g.label}</h2>
+                    <ul class="cl-changes">
+                      {g.items.map((it) => <li>{it}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+
+          <p class="cl-foot">More on the way. Watch the repo on
+          <a href={REPO} target="_blank" rel="noopener noreferrer">GitHub</a> to follow along.</p>
+        </div>
+      </section>
+    </main>
+    <Footer />
+  </div>
+
+  <style is:global>
+    .pandia-page.cl-page .cl-top { padding: 84px 0 40px; }
+    .pandia-page.cl-page .cl-top-in { max-width: 760px; }
+    .pandia-page.cl-page .cl-top h1 {
+      font-family: var(--disp); font-size: clamp(42px, 6vw, 72px); font-weight: 700;
+      letter-spacing: -0.035em; line-height: 0.98; margin-top: 16px; color: var(--page-text);
+    }
+    .pandia-page.cl-page .cl-top h1 em { font-style: normal; color: var(--accent); }
+    .pandia-page.cl-page .cl-top p {
+      font-family: var(--disp); font-size: clamp(16px, 1.6vw, 19px); color: var(--page-dim);
+      max-width: 58ch; margin: 20px 0 0; line-height: 1.6;
+    }
+    .pandia-page.cl-page .cl-top p a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .pandia-page.cl-page .cl-cta { margin-top: 28px; }
+
+    .pandia-page.cl-page .cl-list { padding-top: 8px; }
+    .pandia-page.cl-page .cl-rel {
+      display: grid; grid-template-columns: 210px 1fr; gap: 48px;
+      padding: 48px 0; border-top: 1px solid var(--page-rule);
+    }
+    .pandia-page.cl-page .cl-meta { position: relative; }
+    .pandia-page.cl-page .cl-ver { font-family: var(--disp); font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--page-text); }
+    .pandia-page.cl-page .cl-tag {
+      display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 10px;
+      letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 9px; border: 1px solid var(--accent-line);
+      color: var(--accent); background: var(--accent-soft);
+    }
+    .pandia-page.cl-page .cl-tag.stable { color: var(--green); border-color: var(--green); background: transparent; }
+    .pandia-page.cl-page .cl-date { display: block; margin-top: 14px; font-family: var(--mono); font-size: 12px; color: var(--page-faint); letter-spacing: 0.03em; }
+    .pandia-page.cl-page .cl-link { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 12px; color: var(--page-dim); }
+    .pandia-page.cl-page .cl-link:hover { color: var(--accent); }
+
+    .pandia-page.cl-page .cl-group + .cl-group { margin-top: 26px; }
+    .pandia-page.cl-page .cl-group-label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--page-faint); margin-bottom: 4px;
+    }
+    .pandia-page.cl-page .cl-changes { list-style: none; display: flex; flex-direction: column; }
+    .pandia-page.cl-page .cl-changes li {
+      font-family: var(--disp); font-size: 15.5px; color: var(--page-dim); line-height: 1.5;
+      padding: 12px 0 12px 22px; border-top: 1px solid var(--page-rule); position: relative;
+    }
+    .pandia-page.cl-page .cl-changes li:first-child { border-top: 0; }
+    .pandia-page.cl-page .cl-changes li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 1.5px; background: var(--accent); }
+
+    .pandia-page.cl-page .cl-foot {
+      margin-top: 12px; padding-top: 32px; border-top: 1px solid var(--page-rule);
+      font-family: var(--mono); font-size: 12.5px; color: var(--page-faint);
+    }
+    .pandia-page.cl-page .cl-foot a { color: var(--page-dim); text-decoration: underline; text-underline-offset: 2px; }
+    .pandia-page.cl-page .cl-foot a:hover { color: var(--page-text); }
+
+    @media (max-width: 760px) {
+      .pandia-page.cl-page .cl-rel { grid-template-columns: 1fr; gap: 18px; }
+    }
+  </style>
 </Layout>

@@ -1,286 +1,222 @@
 ---
-import '../styles/global.css';
-import Navigation from '../components/Navigation.astro';
-import Footer from '../components/Footer.astro';
+import Layout from './Layout.astro';
+import Nav from '../components/home/Nav.astro';
 
 interface Props {
   title: string;
   description?: string;
   currentDoc?: string;
 }
-
-const { title, description, currentDoc = '' } = Astro.props;
-
-// Generate SEO-friendly description based on title if not provided
-const defaultDescription = `Learn about ${title} in Pandia - the free, open-source JSON visualization tool. Comprehensive documentation for developers.`;
-const metaDescription = description || defaultDescription;
-
-const siteUrl = 'https://www.pandia.app';
-const docPath = currentDoc || '/docs';
-const canonicalUrl = `${siteUrl}${docPath.endsWith('/') ? docPath : `${docPath}/`}`;
-const fullTitle = `${title} | Pandia Documentation`;
+const { title, description, currentDoc = '/docs' } = Astro.props;
 
 const docsNav = [
-  {
-    category: 'Getting Started',
-    items: [
-      { title: 'Introduction', href: '/docs' },
-      { title: 'Installation', href: '/docs/installation' },
-      { title: 'Quick Start', href: '/docs/quick-start' },
-    ]
-  },
-  {
-    category: 'Views & Editing',
-    items: [
-      { title: 'View Modes', href: '/docs/visualization' },
-      { title: 'JSON Editor', href: '/docs/editor' },
-      { title: 'Compare & Diff', href: '/docs/compare' },
-    ]
-  },
-  {
-    category: 'Import & Export',
-    items: [
-      { title: 'Import Formats', href: '/docs/import-export' },
-      { title: 'Type Generation', href: '/docs/type-generation' },
-      { title: 'Export Options', href: '/docs/export' },
-    ]
-  },
-  {
-    category: 'Tools',
-    items: [
-      { title: 'JSON Query', href: '/docs/query' },
-      { title: 'Search & Replace', href: '/docs/search' },
-      { title: 'JSON Repair', href: '/docs/repair' },
-    ]
-  },
-  {
-    category: 'Customization',
-    items: [
-      { title: 'Themes', href: '/docs/themes' },
-      { title: 'Keyboard Shortcuts', href: '/docs/shortcuts' },
-      { title: 'Configuration', href: '/docs/configuration' },
-    ]
-  },
-  {
-    category: 'Help',
-    items: [
-      { title: 'Troubleshooting', href: '/docs/troubleshooting' },
-    ]
-  }
+  { category: 'Getting started', items: [
+    { title: 'Introduction', href: '/docs' },
+    { title: 'Installation', href: '/docs/installation' },
+    { title: 'Quick start', href: '/docs/quick-start' },
+  ]},
+  { category: 'The workbench', items: [
+    { title: 'Views', href: '/docs/views' },
+    { title: 'Editing', href: '/docs/editor' },
+  ]},
+  { category: 'Working with data', items: [
+    { title: 'Import & auto-detect', href: '/docs/import-export' },
+    { title: 'Type generation', href: '/docs/type-generation' },
+    { title: 'Compare & diff', href: '/docs/compare' },
+    { title: 'Validate', href: '/docs/validate' },
+    { title: 'Repair', href: '/docs/repair' },
+    { title: 'Search & replace', href: '/docs/search' },
+    { title: 'Export', href: '/docs/export' },
+  ]},
+  { category: 'Reference', items: [
+    { title: 'Large files', href: '/docs/performance' },
+    { title: 'Themes & appearance', href: '/docs/themes' },
+    { title: 'Keyboard shortcuts', href: '/docs/shortcuts' },
+    { title: 'Settings', href: '/docs/configuration' },
+    { title: 'Troubleshooting', href: '/docs/troubleshooting' },
+  ]},
 ];
+
+const norm = (s: string) => '/' + s.replace(/^\/+|\/+$/g, '');
+const cur = norm(currentDoc);
+const flat = docsNav.flatMap((s) => s.items);
+const idx = flat.findIndex((i) => norm(i.href) === cur);
+const prev = idx > 0 ? flat[idx - 1] : null;
+const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
+const canonical = cur;
 ---
-
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!-- Primary Meta Tags -->
-    <title>{fullTitle}</title>
-    <meta name="title" content={fullTitle} />
-    <meta name="description" content={metaDescription} />
-    <meta name="keywords" content="Pandia documentation, JSON visualization guide, JSON editor tutorial, JSON to TypeScript, JSON to Go, JSON diff, JSON compare, JSON repair, JSON query, developer documentation" />
-    <meta name="author" content="hendurhance" />
-    <meta name="robots" content="index, follow" />
-    <link rel="canonical" href={canonicalUrl} />
-
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="article" />
-    <meta property="og:url" content={canonicalUrl} />
-    <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={metaDescription} />
-    <meta property="og:image" content={`${siteUrl}/og-image.png`} />
-    <meta property="og:site_name" content="Pandia" />
-    <meta property="og:locale" content="en_US" />
-
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content={canonicalUrl} />
-    <meta name="twitter:title" content={fullTitle} />
-    <meta name="twitter:description" content={metaDescription} />
-    <meta name="twitter:image" content={`${siteUrl}/og-image.png`} />
-    <meta name="twitter:creator" content="@hendurhance" />
-
-    <!-- Additional SEO -->
-    <meta name="application-name" content="Pandia" />
-    <meta name="theme-color" content="#FF6B35" />
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
-    <link rel="manifest" href="/site.webmanifest" />
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-    <!-- Scroll to top on page load -->
-    <script is:inline>
-      if (history.scrollRestoration) {
-        history.scrollRestoration = 'manual';
-      }
-      window.scrollTo(0, 0);
-    </script>
-
-    <!-- Structured Data (JSON-LD) for Documentation -->
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "TechArticle",
-      "headline": title,
-      "description": metaDescription,
-      "url": canonicalUrl,
-      "author": {
-        "@type": "Person",
-        "name": "hendurhance",
-        "url": "https://github.com/hendurhance"
-      },
-      "publisher": {
-        "@type": "Organization",
-        "name": "Pandia",
-        "url": siteUrl
-      },
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": canonicalUrl
-      },
-      "isPartOf": {
-        "@type": "WebSite",
-        "name": "Pandia Documentation",
-        "url": `${siteUrl}/docs`
-      }
-    })} />
-  </head>
-  <body class="bg-brand-darker text-brand-light font-sans antialiased">
-    <Navigation currentPage="docs" />
-
-    <div class="pt-20 min-h-screen">
-      <div class="max-w-7xl mx-auto flex">
-        <!-- Sidebar -->
-        <aside class="hidden lg:block w-72 shrink-0 border-r border-brand-gray-dark/20">
-          <div id="docs-sidebar" class="sticky top-20 h-[calc(100vh-80px)] overflow-y-auto p-6">
-          <nav class="space-y-8">
-            {docsNav.map((section) => (
-              <div>
-                <h4 class="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-3">
-                  {section.category}
-                </h4>
-                <ul class="space-y-1">
-                  {section.items.map((item) => (
-                    <li>
-                      <a
-                        href={item.href}
-                        class={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                          currentDoc === item.href
-                            ? 'bg-brand-orange/10 text-brand-orange'
-                            : 'text-brand-gray hover:text-white hover:bg-brand-gray-dark/20'
-                        }`}
-                      >
-                        {item.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-
-          <!-- GitHub Link -->
-          <div class="mt-8 pt-8 border-t border-brand-gray-dark/20">
-            <a
-              href="https://github.com/hendurhance/pandia"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="flex items-center gap-2 text-sm text-brand-gray hover:text-white transition-colors"
-            >
-              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
-              </svg>
-              View on GitHub
-            </a>
-          </div>
+<Layout title={title} description={description} canonical={canonical} type="article">
+  <div class="pandia-page docs-page">
+    <div class="spine"></div>
+    <Nav />
+    <div class="docs-shell">
+      <aside class="docs-side" id="docsSide" aria-label="Documentation">
+        <div class="docs-side-head">
+          <span>Docs</span>
+          <button class="docs-side-close" id="docsSideClose" aria-label="Close" type="button">✕</button>
         </div>
+        <nav class="docs-nav">
+          {docsNav.map((sec) => (
+            <div class="docs-nav-group">
+              <div class="docs-nav-cat">{sec.category}</div>
+              <ul>
+                {sec.items.map((it) => (
+                  <li><a href={it.href} class={norm(it.href) === cur ? 'on' : ''} aria-current={norm(it.href) === cur ? 'page' : undefined}>{it.title}</a></li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
       </aside>
 
-      <!-- Mobile Sidebar Toggle -->
-      <div class="lg:hidden fixed bottom-6 right-6 z-50">
-        <button
-          id="mobile-docs-toggle"
-          class="p-4 bg-brand-orange text-white rounded-full shadow-lg shadow-brand-orange/25"
-        >
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- Mobile Sidebar -->
-      <div id="mobile-docs-sidebar" class="hidden fixed inset-0 z-40 lg:hidden">
-        <div class="absolute inset-0 bg-black/50" id="mobile-docs-overlay"></div>
-        <div class="absolute left-0 top-0 bottom-0 w-72 bg-brand-darker border-r border-brand-gray-dark/20 overflow-y-auto p-6 pt-24">
-          <nav class="space-y-8">
-            {docsNav.map((section) => (
-              <div>
-                <h4 class="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-3">
-                  {section.category}
-                </h4>
-                <ul class="space-y-1">
-                  {section.items.map((item) => (
-                    <li>
-                      <a
-                        href={item.href}
-                        class={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                          currentDoc === item.href
-                            ? 'bg-brand-orange/10 text-brand-orange'
-                            : 'text-brand-gray hover:text-white hover:bg-brand-gray-dark/20'
-                        }`}
-                      >
-                        {item.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      <!-- Main Content -->
-      <main class="flex-1 min-w-0 flex flex-col">
-        <div class="px-6 lg:px-12 py-12 flex-1">
+      <main class="docs-main">
+        <article class="docs-prose">
           <slot />
-        </div>
-        <Footer />
+        </article>
+        <nav class="docs-pn">
+          {prev ? <a class="docs-pn-a prev" href={prev.href}><span>← Previous</span><b>{prev.title}</b></a> : <span></span>}
+          {next ? <a class="docs-pn-a next" href={next.href}><span>Next →</span><b>{next.title}</b></a> : <span></span>}
+        </nav>
+        <footer class="docs-foot">
+          <span>© 2026 Pandia · Apache-2.0</span>
+          <span class="docs-foot-links">
+            <a href="/">Home</a>
+            <a href="/download">Download</a>
+            <a href="/changelog">Changelog</a>
+            <a href="https://github.com/hendurhance/pandia" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+          </span>
+        </footer>
       </main>
-      </div>
+
+      <aside class="docs-toc" aria-label="On this page">
+        <div class="docs-toc-label">On this page</div>
+        <nav id="docsToc"></nav>
+      </aside>
     </div>
 
-    <script>
-      const toggle = document.getElementById('mobile-docs-toggle');
-      const sidebar = document.getElementById('mobile-docs-sidebar');
-      const overlay = document.getElementById('mobile-docs-overlay');
+    <button class="docs-side-toggle" id="docsSideToggle" aria-label="Open docs menu" type="button">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Menu
+    </button>
+    <div class="docs-side-scrim" id="docsSideScrim"></div>
+  </div>
 
-      toggle?.addEventListener('click', () => {
-        sidebar?.classList.toggle('hidden');
-      });
+  <style is:global>
+    .pandia-page.docs-page .docs-shell {
+      max-width: 1320px; margin: 0 auto;
+      display: grid; grid-template-columns: 256px minmax(0, 1fr) 220px; gap: 0;
+      align-items: start;
+    }
+    .pandia-page.docs-page .docs-side {
+      position: sticky; top: 62px; align-self: start; max-height: calc(100vh - 62px);
+      overflow-y: auto; border-right: 1px solid var(--page-rule); padding: 28px 24px 40px; background: var(--page-bg);
+    }
+    .pandia-page.docs-page .docs-side-head { display: none; }
+    .pandia-page.docs-page .docs-nav-group + .docs-nav-group { margin-top: 26px; }
+    .pandia-page.docs-page .docs-nav-cat {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--page-faint); margin-bottom: 10px;
+    }
+    .pandia-page.docs-page .docs-nav ul { list-style: none; display: flex; flex-direction: column; }
+    .pandia-page.docs-page .docs-nav a {
+      display: block; font-family: var(--mono); font-size: 13px; color: var(--page-dim);
+      padding: 6px 12px; transition: color var(--dur) var(--ease);
+    }
+    .pandia-page.docs-page .docs-nav a:hover { color: var(--page-text); }
+    .pandia-page.docs-page .docs-nav a.on { color: var(--accent); background: var(--accent-soft); }
+    .pandia-page.docs-page .docs-gh { display: block; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--page-rule); font-family: var(--mono); font-size: 12px; color: var(--page-faint); }
+    .pandia-page.docs-page .docs-gh:hover { color: var(--page-text); }
 
-      overlay?.addEventListener('click', () => {
-        sidebar?.classList.add('hidden');
-      });
+    .pandia-page.docs-page .docs-main { min-width: 0; display: flex; flex-direction: column; padding: 0 56px; }
+    .pandia-page.docs-page .docs-prose { padding: 52px 0 8px; min-height: 60vh; }
 
-      // Scroll active sidebar link into view (sidebar only, not the page)
-      const docsSidebar = document.getElementById('docs-sidebar');
-      const activeLink = docsSidebar?.querySelector('a[class*="bg-brand-orange"]') as HTMLElement | null;
-      if (activeLink && docsSidebar) {
-        const sidebarRect = docsSidebar.getBoundingClientRect();
-        const linkRect = activeLink.getBoundingClientRect();
-        const offsetTop = activeLink.offsetTop - docsSidebar.offsetTop;
-        docsSidebar.scrollTop = offsetTop - (sidebarRect.height / 2) + (linkRect.height / 2);
+    .pandia-page.docs-page .docs-pn { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 48px 0 0; }
+    .pandia-page.docs-page .docs-pn-a { display: flex; flex-direction: column; gap: 5px; padding: 16px 18px; border: 1px solid var(--page-rule); transition: border-color var(--dur) var(--ease); }
+    .pandia-page.docs-page .docs-pn-a.next { text-align: right; }
+    .pandia-page.docs-page .docs-pn-a:hover { border-color: var(--accent-line); }
+    .pandia-page.docs-page .docs-pn-a span { font-family: var(--mono); font-size: 11px; color: var(--page-faint); }
+    .pandia-page.docs-page .docs-pn-a b { font-family: var(--disp); font-size: 15px; font-weight: 600; color: var(--page-text); }
+
+    .pandia-page.docs-page .docs-foot {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+      margin-top: 40px; padding: 22px 0 56px; border-top: 1px solid var(--page-rule);
+      font-family: var(--mono); font-size: 12px; color: var(--page-faint); letter-spacing: 0.02em;
+    }
+    .pandia-page.docs-page .docs-foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
+    .pandia-page.docs-page .docs-foot a { color: var(--page-dim); }
+    .pandia-page.docs-page .docs-foot a:hover { color: var(--page-text); }
+
+    .pandia-page.docs-page .docs-toc { position: sticky; top: 62px; align-self: start; max-height: calc(100vh - 62px); overflow-y: auto; padding: 52px 24px 40px 8px; }
+    .pandia-page.docs-page .docs-toc-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--page-faint); margin-bottom: 12px; }
+    .pandia-page.docs-page .docs-toc a { display: block; font-family: var(--mono); font-size: 12px; color: var(--page-dim); padding: 5px 0 5px 12px; border-left: 1px solid var(--page-rule); line-height: 1.4; }
+    .pandia-page.docs-page .docs-toc a:hover { color: var(--page-text); }
+    .pandia-page.docs-page .docs-toc a.h3 { padding-left: 24px; font-size: 11.5px; }
+    .pandia-page.docs-page .docs-toc a.active { color: var(--accent); border-left-color: var(--accent); }
+
+    .pandia-page.docs-page .docs-side-toggle {
+      display: none; position: fixed; bottom: 20px; left: 20px; z-index: 90;
+      align-items: center; gap: 8px; padding: 10px 16px; background: var(--accent); color: #1b0e07;
+      font-family: var(--mono); font-size: 12.5px; font-weight: 600; border: 0; cursor: pointer;
+      box-shadow: 0 8px 24px -8px rgba(255,106,58,0.6);
+    }
+    .pandia-page.docs-page .docs-side-scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 95; }
+
+    @media (max-width: 1100px) {
+      .pandia-page.docs-page .docs-shell { grid-template-columns: 240px minmax(0,1fr); }
+      .pandia-page.docs-page .docs-toc { display: none; }
+      .pandia-page.docs-page .docs-main { padding: 0 36px; }
+    }
+    @media (max-width: 860px) {
+      .pandia-page.docs-page .docs-shell { grid-template-columns: 1fr; }
+      .pandia-page.docs-page .docs-main { padding: 0 24px; }
+      .pandia-page.docs-page .docs-side {
+        position: fixed; top: 0; bottom: 0; left: 0; width: 300px; max-width: 84vw; height: 100vh; z-index: 100;
+        transform: translateX(-100%); transition: transform 240ms var(--ease); border-right: 1px solid var(--page-rule);
+        padding-top: 20px;
       }
-    </script>
-  </body>
-</html>
+      .pandia-page.docs-page.side-open .docs-side { transform: none; }
+      .pandia-page.docs-page.side-open .docs-side-scrim { display: block; }
+      .pandia-page.docs-page .docs-side-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--page-faint); }
+      .pandia-page.docs-page .docs-side-close { background: 0; border: 0; color: var(--page-dim); font-size: 16px; cursor: pointer; }
+      .pandia-page.docs-page .docs-side-toggle { display: flex; }
+      .pandia-page.docs-page .docs-pn { grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <script>
+    const page = document.querySelector('.docs-page');
+    const open = () => page?.classList.add('side-open');
+    const close = () => page?.classList.remove('side-open');
+    document.getElementById('docsSideToggle')?.addEventListener('click', open);
+    document.getElementById('docsSideClose')?.addEventListener('click', close);
+    document.getElementById('docsSideScrim')?.addEventListener('click', close);
+    document.querySelectorAll('.docs-side a').forEach((a) => a.addEventListener('click', close));
+
+    const prose = document.querySelector('.docs-prose');
+    const toc = document.getElementById('docsToc');
+    if (prose && toc) {
+      const heads = prose.querySelectorAll('h2, h3');
+      const slug = (t: string) => t.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+      const links: HTMLAnchorElement[] = [];
+      heads.forEach((h) => {
+        const el = h as HTMLElement;
+        if (!el.id) el.id = slug(el.textContent || '');
+        const a = document.createElement('a');
+        a.href = '#' + el.id;
+        a.textContent = el.textContent;
+        if (el.tagName === 'H3') a.className = 'h3';
+        toc.appendChild(a);
+        links.push(a);
+      });
+      if (!links.length) { const t = toc.closest('.docs-toc') as HTMLElement | null; if (t) t.style.display = 'none'; }
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            links.forEach((l) => l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id));
+          }
+        });
+      }, { rootMargin: '0px 0px -75% 0px' });
+      heads.forEach((h) => io.observe(h));
+    }
+  </script>
+</Layout>

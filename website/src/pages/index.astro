@@ -1,28 +1,123 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Navigation from '../components/Navigation.astro';
-import Hero from '../components/Hero.astro';
-import Features from '../components/Features.astro';
-import HowItWorks from '../components/HowItWorks.astro';
-import Download from '../components/Download.astro';
-import CTA from '../components/CTA.astro';
-import Footer from '../components/Footer.astro';
+import Nav from '../components/home/Nav.astro';
+import Hero from '../components/home/Hero.astro';
+import SignalStrip from '../components/home/SignalStrip.astro';
+import Views from '../components/home/Views.astro';
+import Capabilities from '../components/home/Capabilities.astro';
+import HowItWorks from '../components/home/HowItWorks.astro';
+import Scale from '../components/home/Scale.astro';
+import Pillars from '../components/home/Pillars.astro';
+import Faq from '../components/home/Faq.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
 
-const description = "Pandia is a free, open-source desktop app to visualize, edit, compare, and transform JSON data. Generate TypeScript, Go, Rust types. Query with JMESPath. Works offline on macOS, Windows, and Linux.";
+const description = "Pandia is a fast, native JSON workbench. Open any file instantly — even multi-gigabyte — navigate five ways, generate types for 9 languages, compare, repair, and export. Rust + Tauri 2, offline and private, free and open source.";
 ---
 
 <Layout
-  title="Pandia - Beautiful JSON Visualization Tool"
+  title="Pandia — The JSON workbench"
   description={description}
   canonical="/"
 >
-  <Navigation currentPage="home" />
-  <main>
-    <Hero />
-    <Features />
-    <HowItWorks />
-    <Download />
-    <CTA />
-  </main>
-  <Footer />
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <Hero />
+      <SignalStrip />
+      <Views />
+      <Capabilities />
+      <HowItWorks />
+      <Scale />
+      <Pillars />
+      <Faq />
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
 </Layout>
+
+<script>
+  function bindTabs(sel, onActivate) {
+    const tabs = Array.from(document.querySelectorAll(sel));
+    tabs.forEach((tab) => {
+      const activate = () => {
+        tabs.forEach((t) => { const on = t === tab; t.classList.toggle('on', on); t.setAttribute('aria-selected', String(on)); });
+        onActivate(tab);
+      };
+      tab.addEventListener('click', activate);
+      tab.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+      });
+    });
+  }
+  bindTabs('.vtab', (tab) => {
+    const v = tab.getAttribute('data-v');
+    document.querySelectorAll('.vpanel').forEach((p) => p.classList.toggle('on', p.getAttribute('data-p') === v));
+  });
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  bindTabs('.spot-head .seg .o', (opt) => {
+    const t = opt.getAttribute('data-t');
+    document.querySelectorAll('.spot-block').forEach((b) => {
+      const on = b.getAttribute('data-b') === t;
+      b.classList.toggle('on', on);
+      const el = b as HTMLElement;
+      if (on && !reduceMotion && el.animate) {
+        el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.4,0,0.2,1)' });
+      }
+    });
+  });
+  bindTabs('.cap-item', (item) => {
+    const c = item.getAttribute('data-cap');
+    document.querySelectorAll('.spot-panel').forEach((p) => p.classList.toggle('on', p.getAttribute('data-spot') === c));
+  });
+
+  const copyBtn = document.getElementById('copyTypes');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const prev = copyBtn.textContent;
+      copyBtn.textContent = '✓ Copied';
+      setTimeout(() => { copyBtn.textContent = prev; }, 1400);
+    });
+  }
+
+  document.querySelectorAll('.faq-q').forEach((q) => {
+    q.addEventListener('click', () => {
+      const item = q.parentElement;
+      if (!item) return;
+      const open = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach((i) => {
+        i.classList.remove('open');
+        const a = i.querySelector('.faq-a') as HTMLElement | null;
+        if (a) a.style.maxHeight = '';
+      });
+      if (!open) {
+        item.classList.add('open');
+        const a = item.querySelector('.faq-a') as HTMLElement | null;
+        if (a) a.style.maxHeight = a.scrollHeight + 'px';
+      }
+    });
+  });
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add('shown'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.iv').forEach((el) => io.observe(el));
+
+  const OSES = ['macOS', 'Windows', 'Linux'];
+  function detectOS() {
+    const nav = navigator as any;
+    const p = ((nav.userAgentData && nav.userAgentData.platform) || navigator.platform || navigator.userAgent || '').toLowerCase();
+    if (p.includes('win')) return 'Windows';
+    if (p.includes('mac')) return 'macOS';
+    if (p.includes('linux') && !p.includes('android')) return 'Linux';
+    return 'macOS';
+  }
+  const os = detectOS();
+  document.querySelectorAll('.dl-os').forEach((e) => { e.textContent = os; });
+  const alts = OSES.filter((o) => o !== os);
+  document.querySelectorAll('.dl-alt').forEach((e, i) => { if (alts[i]) e.textContent = 'Download for ' + alts[i]; });
+</script>

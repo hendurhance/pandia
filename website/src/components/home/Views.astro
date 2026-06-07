@@ -1,0 +1,337 @@
+---
+---
+<section class="block" id="views">
+  <div class="wrap">
+    <div class="sec-head center iv">
+      <span class="eyebrow"><span class="tick"></span>Five views</span>
+      <h2>One document, <em>five</em> ways to read it.</h2>
+      <p>The same JSON as a tree, raw code, a spreadsheet, a node graph, or a diff — switch
+      instantly with <span style="font-family:var(--mono);color:var(--page-text)">⌘1–⌘4</span>. The product window stays exactly as it ships.</p>
+    </div>
+
+    <div class="iv">
+      <div class="views-tabs" role="tablist">
+        <div class="vtab on" data-v="tree" role="tab" tabindex="0" aria-selected="true">Tree <span class="vk">⌘1</span></div>
+        <div class="vtab" data-v="code" role="tab" tabindex="0" aria-selected="false">Code <span class="vk">⌘2</span></div>
+        <div class="vtab" data-v="grid" role="tab" tabindex="0" aria-selected="false">Grid <span class="vk">⌘3</span></div>
+        <div class="vtab" data-v="graph" role="tab" tabindex="0" aria-selected="false">Graph <span class="vk">⌘4</span></div>
+        <div class="vtab" data-v="compare" role="tab" tabindex="0" aria-selected="false">Compare <span class="vk">⌘D</span></div>
+      </div>
+
+      <div class="views-stage">
+        <div class="vpanel on" data-p="tree">
+          <div class="vbar">
+            <span class="vm active">Tree <span class="vk">⌘1</span></span>
+            <span class="vm">Code <span class="vk">⌘2</span></span>
+            <span class="vm">Grid <span class="vk">⌘3</span></span>
+            <span class="vm">Graph <span class="vk">⌘4</span></span>
+            <span class="vmeta">indent guides · drag-reorder</span>
+          </div>
+          <div class="vview vtree">
+            <div class="r"><span class="tw x">▾</span><span class="br">{</span></div>
+            <div class="r"><span class="ind"></span><span class="tw"></span><span class="k">id</span><span class="cl">:</span><span class="n">4821</span></div>
+            <div class="r"><span class="ind"></span><span class="tw"></span><span class="k">name</span><span class="cl">:</span><span class="s">"Carmen Herzog"</span></div>
+            <div class="r"><span class="ind"></span><span class="tw x">▾</span><span class="k">roles</span><span class="cl">:</span><span class="chip"><b>[</b>&nbsp;2 items&nbsp;<b>]</b></span></div>
+            <div class="r"><span class="ind"></span><span class="ind"></span><span class="tw"></span><span class="k">0</span><span class="cl">:</span><span class="s">"admin"</span></div>
+            <div class="r"><span class="ind"></span><span class="ind"></span><span class="tw"></span><span class="k">1</span><span class="cl">:</span><span class="s">"editor"</span></div>
+            <div class="r"><span class="ind"></span><span class="tw x">▾</span><span class="k">profile</span><span class="cl">:</span><span class="br">{</span></div>
+            <div class="r"><span class="ind"></span><span class="ind"></span><span class="tw"></span><span class="k sel">verified</span><span class="cl">:</span><span class="b">true</span></div>
+            <div class="r"><span class="ind"></span><span class="ind"></span><span class="tw"></span><span class="k">followers</span><span class="cl">:</span><span class="n">12846</span></div>
+            <div class="r"><span class="ind"></span><span class="ind"></span><span class="tw"></span><span class="k">website</span><span class="cl">:</span><span class="b" style="color:var(--s-url);text-decoration:underline">"herzog.dev"</span></div>
+            <div class="r"><span class="ind"></span><span class="br">}</span></div>
+            <div class="r"><span class="ind"></span><span class="tw"></span><span class="k">deletedAt</span><span class="cl">:</span><span class="nu">null</span></div>
+            <div class="r"><span class="br">}</span></div>
+          </div>
+          <img class="vraster" src="/images/replicas/views-tree.png" alt="Tree view of a JSON document in Pandia" loading="lazy" width="920" height="400" />
+        </div>
+
+        <div class="vpanel" data-p="code">
+          <div class="vbar">
+            <span class="vm">Tree <span class="vk">⌘1</span></span>
+            <span class="vm active">Code <span class="vk">⌘2</span></span>
+            <span class="vm">Grid <span class="vk">⌘3</span></span>
+            <span class="vm">Graph <span class="vk">⌘4</span></span>
+            <span class="vmeta">CodeMirror 6 · line + fold gutters</span>
+          </div>
+          <div class="vview" style="padding:16px 0">
+            <div class="code">
+              <div class="cline"><span class="lno">1</span><span class="fold">▾</span><span><span class="br">{</span></span></div>
+              <div class="cline"><span class="lno">2</span><span class="fold"></span><span>&nbsp;&nbsp;<span class="k">"id"</span><span class="cl">:</span> <span class="n">4821</span><span class="br">,</span></span></div>
+              <div class="cline"><span class="lno">3</span><span class="fold"></span><span>&nbsp;&nbsp;<span class="k">"name"</span><span class="cl">:</span> <span class="s">"Carmen Herzog"</span><span class="br">,</span></span></div>
+              <div class="cline"><span class="lno">4</span><span class="fold">▾</span><span>&nbsp;&nbsp;<span class="k">"roles"</span><span class="cl">:</span> <span class="br">[</span><span class="s">"admin"</span><span class="br">,</span> <span class="s">"editor"</span><span class="br">],</span></span></div>
+              <div class="cline cur"><span class="lno">5</span><span class="fold">▾</span><span>&nbsp;&nbsp;<span class="k">"profile"</span><span class="cl">:</span> <span class="br">{</span><span class="ccaret"></span></span></div>
+              <div class="cline"><span class="lno">6</span><span class="fold"></span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"verified"</span><span class="cl">:</span> <span class="b">true</span><span class="br">,</span></span></div>
+              <div class="cline"><span class="lno">7</span><span class="fold"></span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"followers"</span><span class="cl">:</span> <span class="n">12846</span></span></div>
+              <div class="cline"><span class="lno">8</span><span class="fold"></span><span>&nbsp;&nbsp;<span class="br">},</span></span></div>
+              <div class="cline"><span class="lno">9</span><span class="fold"></span><span>&nbsp;&nbsp;<span class="k">"deletedAt"</span><span class="cl">:</span> <span class="nu">null</span></span></div>
+              <div class="cline"><span class="lno">10</span><span class="fold"></span><span><span class="br">}</span></span></div>
+            </div>
+          </div>
+          <img class="vraster" src="/images/replicas/views-code.png" alt="Code (CodeMirror) view of JSON in Pandia" loading="lazy" width="920" height="400" />
+        </div>
+
+        <div class="vpanel" data-p="grid">
+          <div class="vbar">
+            <span class="vm">Tree <span class="vk">⌘1</span></span>
+            <span class="vm">Code <span class="vk">⌘2</span></span>
+            <span class="vm active">Grid <span class="vk">⌘3</span></span>
+            <span class="vm">Graph <span class="vk">⌘4</span></span>
+            <span class="vmeta">sortable · per-column filter</span>
+          </div>
+          <div class="vview vgrid">
+            <div class="grid-toolbar">
+              <span class="filter">verified <span class="fk">=</span> true</span>
+              <span class="filter">followers <span class="fk">&gt;</span> 5000</span>
+              <span class="gmeta">71,204 of 109,472 rows</span>
+            </div>
+            <table class="gt">
+              <thead>
+                <tr>
+                  <th class="idx">#</th>
+                  <th>id <span class="so">↓</span></th>
+                  <th>name</th>
+                  <th>email</th>
+                  <th>verified</th>
+                  <th>followers <span class="nb">nullable</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="idx">0</td><td class="cn">4821</td><td class="cs">Carmen Herzog</td><td class="cs">c.herzog@ebert.biz</td><td class="cb">true</td><td class="cn">12846</td></tr>
+                <tr><td class="idx">1</td><td class="cn">4822</td><td class="cs">Anna Reuter</td><td class="cs">anna@reuter.io</td><td class="cb">true</td><td class="cn">8190</td></tr>
+                <tr><td class="idx">2</td><td class="cn">4823</td><td class="cs">Jadon Wiza</td><td class="cs">jadon.w@kihn.com</td><td class="cb">true</td><td class="cn">23117</td></tr>
+                <tr><td class="idx">3</td><td class="cn">4824</td><td class="cs">Clair Emard</td><td class="cs">clair@emard.net</td><td class="cb">true</td><td class="cnu">null</td></tr>
+                <tr><td class="idx">4</td><td class="cn">4825</td><td class="cs">Leon Bartell</td><td class="cs">leon.b@hane.org</td><td class="cb">true</td><td class="cn">6402</td></tr>
+                <tr><td class="idx">5</td><td class="cn">4826</td><td class="cs">Mara Okuneva</td><td class="cs">mara@okuneva.co</td><td class="cb">true</td><td class="cn">19553</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <img class="vraster" src="/images/replicas/views-grid.png" alt="Grid (spreadsheet) view of JSON in Pandia" loading="lazy" width="920" height="400" />
+        </div>
+
+        <div class="vpanel" data-p="graph">
+          <div class="vbar">
+            <span class="vm">Tree <span class="vk">⌘1</span></span>
+            <span class="vm">Code <span class="vk">⌘2</span></span>
+            <span class="vm">Grid <span class="vk">⌘3</span></span>
+            <span class="vm active">Graph <span class="vk">⌘4</span></span>
+            <span class="vmeta">left → right · export PNG / JPEG / SVG</span>
+          </div>
+          <div class="vview vgraph">
+            <svg class="gedge" style="inset:0" width="100%" height="100%" preserveAspectRatio="none">
+              <path d="M 178 96 H 210 V 110 H 250" fill="none" stroke="#3a3a3f" stroke-width="1.2"/>
+              <path d="M 178 96 H 210 V 210 H 250" fill="none" stroke="#3a3a3f" stroke-width="1.2"/>
+              <path d="M 412 110 H 444 V 96 H 484" fill="none" stroke="#3a3a3f" stroke-width="1.2"/>
+              <path d="M 412 110 H 444 V 160 H 484" fill="none" stroke="#3a3a3f" stroke-width="1.2"/>
+            </svg>
+            <div class="gnode accent" style="left:40px; top:74px;">
+              <div class="gh"><span class="gd"></span>root <span style="color:var(--app-faint)">{ }</span></div>
+              <div class="gr"><span class="gk">id</span><span style="color:var(--s-number)">4821</span></div>
+              <div class="gr"><span class="gk">name</span><span style="color:var(--s-string)">"Carmen…"</span></div>
+            </div>
+            <div class="gnode" style="left:250px; top:88px;">
+              <div class="gh"><span class="gd s"></span>roles [2]</div>
+              <div class="gr"><span class="gk">0</span><span style="color:var(--s-string)">"admin"</span></div>
+              <div class="gr"><span class="gk">1</span><span style="color:var(--s-string)">"editor"</span></div>
+            </div>
+            <div class="gnode" style="left:250px; top:188px;">
+              <div class="gh"><span class="gd n"></span>profile { }</div>
+              <div class="gr"><span class="gk">verified</span><span style="color:var(--s-bool)">true</span></div>
+              <div class="gr"><span class="gk">followers</span><span style="color:var(--s-number)">12846</span></div>
+            </div>
+            <div class="gnode" style="left:484px; top:74px;">
+              <div class="gh"><span class="gd s"></span>tags [3]</div>
+              <div class="gr"><span class="gk">0</span><span style="color:var(--s-string)">"pro"</span></div>
+            </div>
+            <div class="gnode" style="left:484px; top:140px;">
+              <div class="gh"><span class="gd n"></span>links { }</div>
+              <div class="gr"><span class="gk">web</span><span style="color:var(--s-url);text-decoration:underline">"herzog…"</span></div>
+            </div>
+            <div class="graph-dock">
+              <span class="dk">Fit</span><span class="dk">100%</span><span class="dk exp">Expand all</span><span class="dk">Export ⌄</span>
+            </div>
+          </div>
+          <img class="vraster" src="/images/replicas/views-graph.png" alt="Graph (node diagram) view of JSON in Pandia" loading="lazy" width="920" height="400" />
+        </div>
+
+        <div class="vpanel" data-p="compare">
+          <div class="vbar">
+            <span class="vm active">Compare <span class="vk">⌘D</span></span>
+            <span class="vm">Side-by-side</span>
+            <span class="vm">Tree</span>
+            <span class="vm">Inline</span>
+            <span class="vmeta">sync-scroll · Prev / Next</span>
+          </div>
+          <div class="cmp-summary">
+            <span class="a">+3 added</span><span class="r">−2 removed</span><span class="c">~2 changed</span><span style="color:var(--app-faint)">↔1 moved</span>
+          </div>
+          <div class="vview vcompare">
+            <div class="cmp-col">
+              <div class="cmp-head"><span class="cf">users-2026-04.json</span> <span style="color:var(--app-faint)">base</span></div>
+              <div class="dl"><span class="dg"></span>&nbsp;&nbsp;<span class="k">"name"</span><span class="cl">:</span> <span class="s">"Carmen Herzog"</span><span class="br">,</span></div>
+              <div class="dl chg"><span class="dg">~</span>&nbsp;&nbsp;<span class="k">"followers"</span><span class="cl">:</span> <span class="n">11030</span><span class="br">,</span></div>
+              <div class="dl rem"><span class="dg">−</span>&nbsp;&nbsp;<span class="k">"legacy"</span><span class="cl">:</span> <span class="b">true</span><span class="br">,</span></div>
+              <div class="dl rem"><span class="dg">−</span>&nbsp;&nbsp;<span class="k">"plan"</span><span class="cl">:</span> <span class="s">"trial"</span><span class="br">,</span></div>
+              <div class="dl"><span class="dg"></span>&nbsp;&nbsp;<span class="k">"verified"</span><span class="cl">:</span> <span class="b">true</span></div>
+            </div>
+            <div class="cmp-col">
+              <div class="cmp-head"><span class="cf">users-2026-05.json</span> <span style="color:var(--app-faint)">current</span></div>
+              <div class="dl"><span class="dg"></span>&nbsp;&nbsp;<span class="k">"name"</span><span class="cl">:</span> <span class="s">"Carmen Herzog"</span><span class="br">,</span></div>
+              <div class="dl chg"><span class="dg">~</span>&nbsp;&nbsp;<span class="k">"followers"</span><span class="cl">:</span> <span class="n">12846</span><span class="br">,</span></div>
+              <div class="dl add"><span class="dg">+</span>&nbsp;&nbsp;<span class="k">"verified"</span><span class="cl">:</span> <span class="b">true</span><span class="br">,</span></div>
+              <div class="dl add"><span class="dg">+</span>&nbsp;&nbsp;<span class="k">"website"</span><span class="cl">:</span> <span class="s">"herzog.dev"</span><span class="br">,</span></div>
+              <div class="dl add"><span class="dg">+</span>&nbsp;&nbsp;<span class="k">"deletedAt"</span><span class="cl">:</span> <span class="nu">null</span></div>
+            </div>
+          </div>
+          <img class="vraster" src="/images/replicas/views-compare.png" alt="Compare / diff view of two JSON documents in Pandia" loading="lazy" width="920" height="400" />
+        </div>
+      </div>
+
+      <div class="views-cap">
+        <span class="vc-dot"></span>
+        <span><b>Default = Tree.</b> Square corners, 1px hairlines, uncolored keys, the one orange cursor — the product shot is the app, not a render of it.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .views-tabs { display: flex; gap: 0; border: 1px solid var(--page-rule); border-bottom: 0; }
+  .pandia-page .vtab {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 9px;
+    padding: 15px 12px; cursor: pointer;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em;
+    color: var(--page-dim); border-right: 1px solid var(--page-rule);
+    background: var(--page-bg-2); transition: all var(--dur) var(--ease); position: relative;
+  }
+  .pandia-page .vtab:last-child { border-right: 0; }
+  .pandia-page .vtab .vk { color: var(--page-ghost); font-size: 10.5px; }
+  .pandia-page .vtab:hover { color: var(--page-text); background: var(--page-card); }
+  .pandia-page .vtab.on { color: var(--page-text); background: var(--page-card); }
+  .pandia-page .vtab.on .vk { color: var(--accent); }
+  .pandia-page .vtab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); z-index: 2; }
+
+  .pandia-page .views-stage { border: 1px solid var(--page-rule); background: var(--app-bg); position: relative; overflow: hidden; }
+  .pandia-page .vpanel { display: none; }
+  .pandia-page .vpanel.on { display: block; }
+  .pandia-page .vraster { display: none; width: 100%; height: auto; }
+  .pandia-page .vview { font-family: var(--mono); color: var(--app-text); min-height: 360px; }
+
+  .pandia-page .vbar {
+    height: 32px; display: flex; align-items: stretch;
+    border-bottom: 1px solid var(--app-rule); background: var(--app-elev);
+  }
+  .pandia-page .vm {
+    display: flex; align-items: center; gap: 7px; padding: 0 15px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+    color: var(--app-faint); border-right: 1px solid var(--app-rule); position: relative;
+  }
+  .pandia-page .vm .vk { color: var(--app-ghost); }
+  .pandia-page .vm.active { color: var(--app-text); background: var(--app-elev-2); }
+  .pandia-page .vm.active .vk { color: var(--accent); }
+  .pandia-page .vm.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
+  .pandia-page .vbar .vmeta {
+    margin-left: auto; display: flex; align-items: center; padding: 0 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; color: var(--app-faint); gap: 8px;
+  }
+
+  .pandia-page .vtree { padding: 16px 0 20px 18px; font-size: 12.5px; line-height: 1.9; white-space: nowrap; overflow: hidden; }
+
+  .pandia-page .vgrid { font-size: 12px; }
+  .pandia-page .grid-toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+    border-bottom: 1px solid var(--app-rule); background: var(--app-elev-2);
+    font-family: var(--mono); font-size: 11px; color: var(--app-dim);
+  }
+  .pandia-page .grid-toolbar .filter {
+    display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px;
+    border: 1px solid var(--app-rule-2); color: var(--app-dim); background: var(--app-edit);
+  }
+  .pandia-page .grid-toolbar .filter .fk { color: var(--app-text); }
+  .pandia-page .grid-toolbar .gmeta { margin-left: auto; color: var(--app-faint); }
+  .pandia-page table.gt { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .pandia-page table.gt th, .pandia-page table.gt td { text-align: left; padding: 7px 14px; border-bottom: 1px solid var(--app-rule); border-right: 1px solid var(--app-rule); white-space: nowrap; }
+  .pandia-page table.gt th:last-child, .pandia-page table.gt td:last-child { border-right: 0; }
+  .pandia-page table.gt th {
+    color: var(--app-dim); font-weight: 500; background: var(--app-elev-2);
+    letter-spacing: 0.04em; cursor: pointer; user-select: none; position: relative;
+  }
+  .pandia-page table.gt th .so { color: var(--accent); margin-left: 6px; }
+  .pandia-page table.gt th .nb { color: var(--app-faint); font-size: 10px; margin-left: 5px; }
+  .pandia-page table.gt th.idx, .pandia-page table.gt td.idx { color: var(--app-faint); width: 44px; text-align: right; background: var(--app-elev-2); }
+  .pandia-page table.gt tbody tr:nth-child(even) td { background: rgba(255,255,255,0.018); }
+  .pandia-page table.gt tbody tr:nth-child(even) td.idx { background: var(--app-elev-2); }
+  .pandia-page table.gt td.cs { color: var(--s-string); }
+  .pandia-page table.gt td.cn { color: var(--s-number); }
+  .pandia-page table.gt td.cb { color: var(--s-bool); }
+  .pandia-page table.gt td.cnu { color: var(--s-null); font-style: italic; }
+
+  .pandia-page .vgraph {
+    position: relative; min-height: 360px;
+    background-color: var(--app-bg);
+    background-image: radial-gradient(var(--app-rule-2) 1px, transparent 1px);
+    background-size: 18px 18px; overflow: hidden;
+  }
+  .pandia-page .gnode {
+    position: absolute; border: 1px solid var(--app-rule-2); background: var(--app-elev-2);
+    min-width: 132px; font-family: var(--mono); font-size: 11px;
+    box-shadow: 0 6px 18px -8px rgba(0,0,0,0.6);
+  }
+  .pandia-page .gnode .gh { padding: 5px 10px; border-bottom: 1px solid var(--app-rule); color: var(--app-text); display: flex; align-items: center; gap: 7px; }
+  .pandia-page .gnode .gh .gd { width: 6px; height: 6px; }
+  .pandia-page .gnode .gr { padding: 3px 10px; display: flex; justify-content: space-between; gap: 16px; color: var(--app-dim); }
+  .pandia-page .gnode .gr .gk { color: var(--app-text); }
+  .pandia-page .gnode.accent { border-color: var(--accent-line); }
+  .pandia-page .gnode.accent .gh .gd { background: var(--accent); }
+  .pandia-page .gnode .gh .gd.s { background: var(--s-string); }
+  .pandia-page .gnode .gh .gd.n { background: var(--s-number); }
+  .pandia-page .gedge { position: absolute; pointer-events: none; }
+  .pandia-page .graph-dock {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 0; border: 1px solid var(--app-rule-2);
+    background: var(--app-elev-2); box-shadow: 0 8px 22px -10px rgba(0,0,0,0.7); z-index: 3;
+  }
+  .pandia-page .graph-dock .dk { padding: 6px 12px; font-family: var(--mono); font-size: 11px; color: var(--app-dim); border-right: 1px solid var(--app-rule); }
+  .pandia-page .graph-dock .dk:last-child { border-right: 0; }
+  .pandia-page .graph-dock .dk.exp { color: var(--accent); }
+
+  .pandia-page .vcompare { display: grid; grid-template-columns: 1fr 1fr; min-height: 360px; }
+  .pandia-page .cmp-head {
+    height: 30px; display: flex; align-items: center; padding: 0 14px; gap: 10px;
+    border-bottom: 1px solid var(--app-rule); background: var(--app-elev-2);
+    font-family: var(--mono); font-size: 10.5px; color: var(--app-dim);
+  }
+  .pandia-page .cmp-head .cf { color: var(--app-text); }
+  .pandia-page .cmp-summary {
+    display: flex; gap: 14px; padding: 8px 14px; border-bottom: 1px solid var(--app-rule);
+    font-family: var(--mono); font-size: 11px; background: var(--app-elev);
+  }
+  .pandia-page .cmp-summary .a { color: var(--green); }
+  .pandia-page .cmp-summary .r { color: var(--accent); }
+  .pandia-page .cmp-summary .c { color: var(--amber); }
+  .pandia-page .cmp-col { border-right: 1px solid var(--app-rule); }
+  .pandia-page .cmp-col:last-child { border-right: 0; }
+  .pandia-page .dl { display: flex; padding: 1px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.85; white-space: nowrap; }
+  .pandia-page .dl .dg { width: 16px; flex-shrink: 0; color: var(--app-faint); }
+  .pandia-page .dl.add { background: rgba(127,176,105,0.10); }
+  .pandia-page .dl.add .dg { color: var(--green); }
+  .pandia-page .dl.rem { background: rgba(255,106,58,0.10); }
+  .pandia-page .dl.rem .dg { color: var(--accent); }
+  .pandia-page .dl.chg { background: rgba(224,165,60,0.10); }
+  .pandia-page .dl.chg .dg { color: var(--amber); }
+
+  .pandia-page .views-cap {
+    display: flex; align-items: center; gap: 12px; margin-top: 18px;
+    font-family: var(--mono); font-size: 12px; color: var(--page-dim);
+  }
+  .pandia-page .views-cap b { color: var(--page-text); font-weight: 600; }
+  .pandia-page .views-cap .vc-dot { width: 4px; height: 4px; background: var(--accent); flex-shrink: 0; }
+
+  @media (max-width: 940px) {
+    .pandia-page .views-tabs { flex-wrap: wrap; }
+    .pandia-page .vtab { flex: 1 1 33%; }
+    /* mobile: the live panels don't reflow (graph coords, wide table, 2-col diff)
+       → swap them for crisp @2x raster captures; tabs still switch which image shows */
+    .pandia-page .vbar, .pandia-page .vview, .pandia-page .cmp-summary { display: none; }
+    .pandia-page .vraster { display: block; }
+  }
+</style>

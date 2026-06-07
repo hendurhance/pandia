@@ -1,0 +1,44 @@
+---
+---
+<section class="proof">
+  <div class="proof-in">
+    <div class="proof-cell"><span class="pv">Open source</span><span class="pl">Apache-2.0 license</span></div>
+    <div class="proof-cell"><span class="pv">3 platforms</span><span class="pl">macOS · Windows · Linux</span></div>
+    <div class="proof-cell"><span class="pv">GB<span class="u">+</span></span><span class="pl">Opens multi-GB with no lag</span></div>
+    <div class="proof-cell"><span class="pv">Offline</span><span class="pl">Data never leaves your machine</span></div>
+  </div>
+</section>
+
+<style is:global>
+  .pandia-page .proof {
+    border-top: 1px solid var(--page-rule); border-bottom: 1px solid var(--page-rule);
+    background: var(--page-bg-2);
+  }
+  .pandia-page .proof-in {
+    max-width: var(--maxw); margin: 0 auto;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+  }
+  .pandia-page .proof-cell {
+    padding: 26px 32px; border-right: 1px solid var(--page-rule);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .pandia-page .proof-cell:last-child { border-right: 0; }
+  .pandia-page .proof-cell .pv {
+    font-family: var(--disp); font-size: 21px; font-weight: 700; color: var(--page-text); letter-spacing: -0.02em;
+  }
+  .pandia-page .proof-cell .pv .u { color: var(--page-dim); font-weight: 500; font-size: 14px; }
+  .pandia-page .proof-cell .pl {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-faint);
+  }
+
+  @media (max-width: 940px) {
+    .pandia-page .proof-in { grid-template-columns: 1fr 1fr; }
+    .pandia-page .proof-cell:nth-child(2) { border-right: 0; }
+    .pandia-page .proof-cell:nth-child(1), .pandia-page .proof-cell:nth-child(2) { border-bottom: 1px solid var(--page-rule); }
+  }
+  @media (max-width: 560px) {
+    .pandia-page .proof-cell { padding: 18px 16px; }
+    .pandia-page .proof-cell .pv { font-size: 19px; }
+    .pandia-page .proof-cell .pl { letter-spacing: 0.08em; }
+  }
+</style>
