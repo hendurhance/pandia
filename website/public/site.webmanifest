@@ -1,45 +1,20 @@
 {
   "name": "Pandia",
   "short_name": "Pandia",
-  "description": "A powerful, open-source JSON visualization and editing tool for developers",
+  "description": "A fast, native JSON workbench for macOS, Windows and Linux.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0D0D0F",
-  "theme_color": "#FF6B35",
+  "background_color": "#1b1b1d",
+  "theme_color": "#ff6a3a",
   "icons": [
-    {
-      "src": "/favicon-16x16.png",
-      "sizes": "16x16",
-      "type": "image/png"
-    },
-    {
-      "src": "/favicon-32x32.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
-      "src": "/favicon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/favicon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/favicon-16x16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/favicon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/favicon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" }
   ],
   "categories": ["developer tools", "utilities", "productivity"],
   "shortcuts": [
-    {
-      "name": "Documentation",
-      "url": "/docs",
-      "description": "Read the Pandia documentation"
-    },
-    {
-      "name": "Download",
-      "url": "/#download",
-      "description": "Download Pandia for your platform"
-    }
+    { "name": "Documentation", "url": "/docs", "description": "Read the Pandia documentation" },
+    { "name": "Download", "url": "/download", "description": "Download Pandia for your platform" }
   ]
 }
