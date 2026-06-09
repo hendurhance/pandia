@@ -1,0 +1,91 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+import { converters } from '../data/converters';
+
+export function getStaticPaths() {
+  return converters.map((c) => ({ params: { target: c.slug }, props: { c } }));
+}
+
+const { c } = Astro.props;
+const siteUrl = 'https://www.pandia.app';
+const path = `/json-to-${c.slug}`;
+const docHref = c.kind === 'type' ? '/docs/type-generation' : '/docs/export';
+const docLabel = c.kind === 'type' ? 'type generation' : 'export';
+
+const siblings = converters.filter((o) => o.slug !== c.slug).slice(0, 5);
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}/json-converter` },
+    { '@type': 'ListItem', position: 3, name: `JSON to ${c.name}`, item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: c.faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={c.title} description={c.description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>{c.kind === 'type' ? 'Type generation' : 'Convert'}</span>
+          <h1 class="iv">JSON to <em>{c.name}</em>.</h1>
+          <p class="lp-sub iv" set:html={c.sub}></p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="/json-converter" class="btn btn-ghost">All converters →</a>
+          </div>
+          <p class="lp-trust iv">Local · No upload · No size limit on opening · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <p class="lead" set:html={c.intro}></p>
+
+            <h2>Example</h2>
+            <p>Input JSON:</p>
+            <pre><code>{c.inputJson}</code></pre>
+            <p>{c.name} output:</p>
+            <pre><code>{c.output}</code></pre>
+
+            <h2>What you get</h2>
+            <ul>
+              {c.bullets.map((b) => <li set:html={b}></li>)}
+            </ul>
+            <p>It’s the same engine behind Pandia’s <a href={docHref}>{docLabel}</a> — opinionated,
+            deterministic, and built to run on files far too large for an online converter.</p>
+
+            <h2>Frequently asked questions</h2>
+            {c.faq.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">More converters:
+              {siblings.map((s, i) => (
+                <>{i > 0 ? ' · ' : ' '}<a href={`/json-to-${s.slug}`}>JSON to {s.name}</a></>
+              ))} · <a href="/json-converter">all tools</a> · <a href="/download">download</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

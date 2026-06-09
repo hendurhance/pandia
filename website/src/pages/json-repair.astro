@@ -1,0 +1,102 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-repair';
+
+const title = 'JSON Repair — Fix Broken or Malformed JSON';
+const description = 'Fix malformed JSON — trailing commas, single quotes, unquoted keys, comments, NaN/Infinity, BOM/CRLF, JSONP wrappers and missing brackets. Local, offline and free for macOS, Windows and Linux.';
+
+const before = `{
+  // user record
+  name: 'Ada',
+  "score": NaN,
+}`;
+const after = `{
+  "name": "Ada",
+  "score": null
+}`;
+
+const faqItems = [
+  { q: 'What kinds of broken JSON can Pandia repair?', a: 'Trailing commas, unquoted keys, single-quoted strings, // and /* */ comments, NaN/Infinity/undefined, BOM and CRLF, JSONP/parenthesis wrappers, missing brackets, unterminated strings and bad escape sequences.' },
+  { q: 'How does repair work?', a: 'Pandia’s parser is strict by design. If your input fails it, run Repair to coerce the text into valid JSON, then open it normally in any of the views.' },
+  { q: 'Does it work offline and on large files?', a: 'Yes — repair runs locally with no upload, so it works offline and on large inputs.' },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}/json-converter` },
+    { '@type': 'ListItem', position: 3, name: 'JSON repair', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>Repair</span>
+          <h1 class="iv">JSON <em>repair</em>.</h1>
+          <p class="lp-sub iv">Paste messy JSON and Pandia fixes it — trailing commas, single quotes, unquoted
+          keys, comments, <code>NaN</code>/<code>Infinity</code>, BOM/CRLF, JSONP wrappers and missing brackets.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="/json-converter" class="btn btn-ghost">All tools →</a>
+          </div>
+          <p class="lp-trust iv">Local · Offline · Free · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <p class="lead">Pandia’s parser is strict by design. When input arrives broken, Repair coerces it into
+            valid JSON so you can open it normally — no manual hunting for the stray comma.</p>
+
+            <h2>Example</h2>
+            <p>Before — a comment, a single-quoted string, an unquoted key and a trailing comma:</p>
+            <pre><code>{before}</code></pre>
+            <p>After — clean, valid JSON:</p>
+            <pre><code>{after}</code></pre>
+
+            <h2>What it fixes</h2>
+            <ul>
+              <li><strong>Trailing commas</strong> and <strong>unquoted keys</strong>.</li>
+              <li><strong>Single quotes</strong> and <strong>comments</strong> (<code>//</code> and <code>/* */</code>).</li>
+              <li><strong>NaN, Infinity, undefined</strong> → <code>null</code>.</li>
+              <li><strong>BOM/CRLF</strong>, <strong>JSONP wrappers</strong>, missing brackets and bad escapes.</li>
+            </ul>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/json-validator">JSON validator</a> ·
+            <a href="/json-diff">JSON diff</a> · <a href="/large-json-viewer">large JSON viewer</a> ·
+            <a href="/json-converter">all tools</a> · <a href="/download">download</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

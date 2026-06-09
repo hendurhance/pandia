@@ -11,14 +11,29 @@ import Pillars from '../components/home/Pillars.astro';
 import Faq from '../components/home/Faq.astro';
 import CtaBand from '../components/home/CtaBand.astro';
 import Footer from '../components/home/Footer.astro';
+import { faqs } from '../data/faq';
 
 const description = "Pandia is a fast, native JSON workbench. Open any file instantly — even multi-gigabyte — navigate five ways, generate types for 9 languages, compare, repair, and export. Rust + Tauri 2, offline and private, free and open source.";
+
+const stripHtml = (h: string) =>
+  h.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': 'https://www.pandia.app/#faq',
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: stripHtml(f.a) },
+  })),
+};
 ---
 
 <Layout
-  title="Pandia — The JSON workbench"
+  title="Pandia — Native JSON Viewer & Editor for Large Files"
   description={description}
   canonical="/"
+  structuredData={[faqSchema]}
 >
   <div class="pandia-page">
     <div class="spine"></div>
@@ -99,13 +114,6 @@ const description = "Pandia is a fast, native JSON workbench. Open any file inst
       }
     });
   });
-
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach((e) => {
-      if (e.isIntersecting) { e.target.classList.add('shown'); io.unobserve(e.target); }
-    });
-  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
-  document.querySelectorAll('.iv').forEach((el) => io.observe(el));
 
   const OSES = ['macOS', 'Windows', 'Linux'];
   function detectOS() {

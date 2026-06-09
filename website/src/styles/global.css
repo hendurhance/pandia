@@ -367,3 +367,21 @@ html {
 .pandia-page .docs-prose .doc-card h3 { margin-top: 0; font-size: 15px; }
 .pandia-page .docs-prose .doc-card p { margin-top: 6px; font-size: 13.5px; }
 .pandia-page .docs-prose .doc-card.col-2 { grid-column: span 2; }
+
+.pandia-page .lp-hero { padding-bottom: 72px; }
+.pandia-page .lp-hero h1 {
+  font-family: var(--disp); font-size: clamp(40px, 6.4vw, 78px); font-weight: 800;
+  letter-spacing: -0.04em; line-height: 0.98; color: var(--page-text); margin-top: 22px;
+}
+.pandia-page .lp-hero h1 em { font-style: normal; color: var(--accent); }
+.pandia-page .lp-sub {
+  font-family: var(--disp); font-size: clamp(17px, 2vw, 20px); color: var(--page-dim);
+  line-height: 1.6; max-width: 58ch; margin-top: 24px;
+}
+.pandia-page .lp-cta { display: flex; align-items: center; gap: 16px; margin-top: 34px; flex-wrap: wrap; }
+.pandia-page .lp-trust { font-family: var(--mono); font-size: 11.5px; color: var(--page-faint); letter-spacing: 0.04em; margin-top: 22px; }
+.pandia-page .docs-prose .lp-related { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--page-rule); font-size: 14px; }
+@media (max-width: 560px) {
+  .pandia-page .lp-cta { flex-direction: column; align-items: stretch; }
+  .pandia-page .lp-cta .btn { width: 100%; justify-content: center; }
+}

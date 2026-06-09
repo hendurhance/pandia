@@ -1,0 +1,133 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+import { converters } from '../data/converters';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-converter';
+
+const title = 'JSON Converter — Convert, Generate, Validate & Repair JSON';
+const description = 'A native JSON converter and toolkit: generate types for 9 languages, convert JSON to YAML, CSV and XML, and diff, validate or repair JSON — locally, offline, on files of any size. Free and open source.';
+
+const types = converters.filter((c) => c.kind === 'type');
+const formats = converters.filter((c) => c.kind === 'format');
+const tools = [
+  { href: '/json-diff', label: 'JSON diff', desc: 'Compare two documents and see what changed.' },
+  { href: '/json-validator', label: 'JSON validator', desc: 'Validate against a JSON Schema, live.' },
+  { href: '/json-repair', label: 'JSON repair', desc: 'Fix malformed JSON in one pass.' },
+];
+
+const faqItems = [
+  { q: 'Is Pandia an online JSON converter?', a: 'No — it’s a native desktop app, which is the point: your data is converted locally and never uploaded, and there’s no size limit on the file you open.' },
+  { q: 'What can it convert JSON to?', a: 'Type definitions for 9 languages (TypeScript, Rust, Go, Kotlin, Python, PHP, Java, Zod and JSON Schema), and data formats including YAML, CSV and XML. It also diffs, validates and repairs JSON.' },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>JSON toolkit</span>
+          <h1 class="iv">The JSON <em>converter</em>.</h1>
+          <p class="lp-sub iv">Generate types for 9 languages, convert between JSON, YAML, CSV and XML, and diff,
+          validate or repair — all in one native app that runs locally on files of any size. Nothing uploaded.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="/large-json-viewer" class="btn btn-ghost">Large JSON viewer →</a>
+          </div>
+          <p class="lp-trust iv">Local · No upload · No size limit on opening · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="hub-group iv">
+            <h2>Generate types from JSON</h2>
+            <div class="hub-grid">
+              {types.map((c) => (
+                <a class="hub-card" href={`/json-to-${c.slug}`}>
+                  <span class="hub-t">JSON to {c.name}</span>
+                  <span class="hub-d">{c.kind === 'type' ? `Idiomatic ${c.name} types, inferred.` : ''}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div class="hub-group iv">
+            <h2>Convert formats</h2>
+            <div class="hub-grid">
+              {formats.map((c) => (
+                <a class="hub-card" href={`/json-to-${c.slug}`}>
+                  <span class="hub-t">JSON to {c.name}</span>
+                  <span class="hub-d">Convert and export, both directions.</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div class="hub-group iv">
+            <h2>Validate, compare &amp; repair</h2>
+            <div class="hub-grid">
+              {tools.map((t) => (
+                <a class="hub-card" href={t.href}>
+                  <span class="hub-t">{t.label}</span>
+                  <span class="hub-d">{t.desc}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div class="docs-prose" style="margin-top:8px">
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+            <p class="lp-related">See also: <a href="/large-json-viewer">large JSON viewer</a> ·
+            <a href="/offline-json-editor">offline JSON editor</a> · <a href="/docs/type-generation">type generation docs</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>
+
+<style is:global>
+  .pandia-page .hub-group + .hub-group { margin-top: 44px; }
+  .pandia-page .hub-group h2 {
+    font-family: var(--disp); font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--page-text); margin-bottom: 20px;
+  }
+  .pandia-page .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .pandia-page .hub-card {
+    display: flex; flex-direction: column; gap: 6px; padding: 18px 20px;
+    border: 1px solid var(--page-rule); background: var(--page-card);
+    transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .pandia-page .hub-card:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+  .pandia-page .hub-t { font-family: var(--disp); font-size: 16px; font-weight: 600; color: var(--page-text); }
+  .pandia-page .hub-d { font-family: var(--mono); font-size: 12px; color: var(--page-dim); line-height: 1.5; }
+</style>

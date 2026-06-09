@@ -1,0 +1,115 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import Scale from '../components/home/Scale.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/large-json-viewer';
+
+const title = 'Large JSON File Viewer — Open Multi-GB JSON Instantly';
+const description = 'Open and view large JSON files — hundreds of MB to multiple GB — instantly. Pandia is a free, native, offline JSON viewer for macOS, Windows and Linux that never freezes, never uploads, and has no size limit on opening.';
+
+const faqItems = [
+  {
+    q: 'How large a JSON file can Pandia open?',
+    a: "There's no cap on opening or viewing. At 10 MB and up, Pandia switches to lazy zero-copy slicing (backed by sonic-rs) — it opens the file without parsing the whole tree and only ever loads the slice on screen, so hundreds of MB or multiple GB open instantly. Only whole-document edit, export and validation materialize the root, which sets a ~200 MB ceiling for those specific operations.",
+  },
+  {
+    q: 'How do I open a large JSON file without it crashing?',
+    a: 'Use a native viewer instead of a browser tab or a text editor. Browser tools load and parse the entire file into the page, so a 1 GB file freezes or crashes them. Pandia is a Rust desktop app that streams the file: download it, drag your JSON in, and it renders the visible portion immediately while the rest stays on disk.',
+  },
+  {
+    q: 'Is my JSON file uploaded anywhere?',
+    a: 'No. Pandia is a native desktop app and everything is processed locally on your machine. There are no accounts, no cloud and no telemetry — the only time it touches the network is when you explicitly ask it to fetch a document from a URL.',
+  },
+  {
+    q: 'Does the large JSON viewer work on Mac, Windows and Linux?',
+    a: 'Yes. Pandia ships native builds for macOS (Apple Silicon and Intel), Windows 10/11 and Linux. It is free and open source under Apache-2.0.',
+  },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'Large JSON file viewer', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>Large JSON files</span>
+          <h1 class="iv">The JSON viewer<br />for <em>large files</em>.</h1>
+          <p class="lp-sub iv">Open multi-gigabyte JSON the instant you click it — no frozen browser tab,
+          no “file too large”, no upload. Pandia is a free, native desktop app that streams only the
+          slice on screen, so a 2&nbsp;GB file opens as fast as a 2&nbsp;KB one.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="/docs/performance" class="btn btn-ghost">How it works →</a>
+          </div>
+          <p class="lp-trust iv">Offline · No upload · No file-size limit on opening · Apache-2.0</p>
+        </div>
+      </section>
+
+      <Scale />
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <h2>Why large JSON files break other viewers</h2>
+            <p>Online JSON viewers and most text editors load the <em>entire</em> file into memory and
+            parse it before they show you anything. That works for a few kilobytes. At a few hundred
+            megabytes the tab freezes; at a gigabyte it crashes or refuses to open the file at all. The
+            data never needed to be parsed all at once — it just needed a tool built for the size.</p>
+
+            <h2>What you can do with a multi-GB file in Pandia</h2>
+            <ul>
+              <li><strong>View it five ways</strong> — Tree, Code, Grid, Graph and Compare, switching instantly.</li>
+              <li><strong>Search across the whole document</strong> with find &amp; replace, even when only a slice is in memory.</li>
+              <li><strong>Filter and sort huge arrays</strong> of objects in the Grid like a spreadsheet.</li>
+              <li><strong>Navigate the structure</strong> without scrolling through millions of lines.</li>
+              <li><strong>Export, convert and validate</strong> up to the ~200&nbsp;MB whole-document ceiling.</li>
+            </ul>
+
+            <div class="doc-cards">
+              <div class="doc-card"><h3>No size limit on opening</h3><p>Hundreds of MB, multiple GB — opens instantly, scrolls without lag.</p></div>
+              <div class="doc-card"><h3>Fully offline</h3><p>Native Rust + Tauri app. Your file never leaves your machine.</p></div>
+              <div class="doc-card"><h3>Free &amp; open source</h3><p>Apache-2.0 for macOS, Windows and Linux. No accounts, no telemetry.</p></div>
+            </div>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/docs/performance">how Pandia handles large files</a> ·
+            <a href="/docs/views">the five views</a> · <a href="/download">download for your platform</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

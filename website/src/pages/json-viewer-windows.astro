@@ -1,0 +1,110 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-viewer-windows';
+
+const title = 'JSON Viewer for Windows — Native JSON Editor for Windows 10 & 11';
+const description = 'A native JSON viewer and editor for Windows 10 and 11. Pandia opens large JSON files instantly, runs fully offline, and never uploads your data. Free and open source — .msi installer or portable .exe.';
+
+const faqItems = [
+  {
+    q: 'Should I download the .msi or the .exe?',
+    a: 'Either works. The .msi is a standard Windows installer that registers Pandia and file associations; the .exe is a self-contained setup. Both are 64-bit builds for Windows 10 and 11.',
+  },
+  {
+    q: 'Does it run on Windows 10 and Windows 11?',
+    a: 'Yes — Pandia supports 64-bit Windows 10 and Windows 11. It uses the built-in WebView2 runtime that ships with current Windows.',
+  },
+  {
+    q: 'Is the Windows JSON viewer free?',
+    a: 'Yes. Pandia is free and open source under Apache-2.0 — no paid tiers, no accounts, no telemetry.',
+  },
+  {
+    q: 'Can it open very large JSON files on Windows?',
+    a: 'Yes. There is no cap on opening or viewing — Pandia streams multi-gigabyte files and only loads the on-screen slice, so big files open instantly instead of hanging.',
+  },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON viewer for Windows', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>For Windows</span>
+          <h1 class="iv">The JSON viewer<br />for <em>Windows</em>.</h1>
+          <p class="lp-sub iv">A native Windows 10 &amp; 11 app — install it like any other program and open JSON
+          straight from Explorer. Pandia handles multi-gigabyte files without freezing and never sends your
+          data anywhere.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download for Windows<span class="os"> · Free</span></a>
+            <a href="/large-json-viewer" class="btn btn-ghost">Open large files →</a>
+          </div>
+          <p class="lp-trust iv">Windows 10 / 11 · .msi or .exe · Offline · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <h2>A native app, not a web tab</h2>
+            <p>Online JSON tools load your whole file into a browser tab and choke on anything large. Pandia is a
+            real Windows application built with <strong>Rust + Tauri</strong>: it installs from a <code>.msi</code>
+            or portable <code>.exe</code>, uses the lightweight WebView2 runtime already on Windows, and opens in a
+            blink — no Electron, no gigabyte install.</p>
+
+            <h2>What you get</h2>
+            <div class="doc-cards">
+              <div class="doc-card"><h3>Five views</h3><p>Tree, Code, Grid, Graph and Compare — switch with Ctrl 1–4.</p></div>
+              <div class="doc-card"><h3>Type generation</h3><p>TypeScript, C#-friendly JSON Schema, Rust, Go, Python and more.</p></div>
+              <div class="doc-card"><h3>Large files</h3><p>Multi-GB JSON opens instantly — no cap on opening or viewing.</p></div>
+              <div class="doc-card"><h3>Fully offline</h3><p>No upload, no accounts, no telemetry. Your data stays local.</p></div>
+            </div>
+
+            <h2>Install on Windows</h2>
+            <ol>
+              <li>Download the <strong>.msi</strong> installer or the portable <strong>.exe</strong> setup (both 64-bit).</li>
+              <li>Run it — Windows may show a SmartScreen prompt; choose <em>More info → Run anyway</em>.</li>
+              <li>Launch Pandia and drag a JSON file onto the window, or open it with <kbd>Ctrl O</kbd>.</li>
+            </ol>
+            <p>Detailed steps are in the <a href="/docs/installation">installation guide</a>.</p>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/large-json-viewer">large JSON file viewer</a> ·
+            <a href="/json-viewer-mac">for Mac</a> · <a href="/json-viewer-linux">for Linux</a> ·
+            <a href="/download">all downloads</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

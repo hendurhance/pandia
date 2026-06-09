@@ -1,0 +1,112 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-viewer-mac';
+
+const title = 'JSON Viewer for Mac — Native macOS JSON Editor';
+const description = 'A native JSON viewer and editor for Mac. Pandia opens large JSON files instantly on Apple Silicon and Intel, works fully offline, and never uploads your data. Free and open source for macOS 10.15+.';
+
+const faqItems = [
+  {
+    q: 'Is there a native Apple Silicon (M1/M2/M3/M4) build?',
+    a: 'Yes. Pandia ships a native arm64 build for Apple Silicon and a separate x64 build for Intel Macs, both as signed .dmg downloads — so it runs natively without Rosetta on modern Macs.',
+  },
+  {
+    q: 'Which macOS versions are supported?',
+    a: 'macOS 10.15 (Catalina) and later. Pandia follows your system appearance, switching between dark and light automatically.',
+  },
+  {
+    q: 'Is the Mac JSON viewer free?',
+    a: 'Yes — Pandia is completely free and open source under Apache-2.0. There are no paid tiers, accounts or telemetry.',
+  },
+  {
+    q: 'Can it open large JSON files on a Mac?',
+    a: 'Yes. There is no size cap on opening or viewing — Pandia streams multi-gigabyte files and only loads the slice on screen, so they open instantly instead of freezing the app.',
+  },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON viewer for Mac', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>For macOS</span>
+          <h1 class="iv">The JSON viewer<br />built for <em>Mac</em>.</h1>
+          <p class="lp-sub iv">A real native Mac app — not a browser tab. Pandia opens, edits and explores JSON
+          on Apple Silicon and Intel, handles multi-gigabyte files without freezing, and keeps every byte
+          on your machine.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download for macOS<span class="os"> · Free</span></a>
+            <a href="/large-json-viewer" class="btn btn-ghost">Open large files →</a>
+          </div>
+          <p class="lp-trust iv">Apple Silicon &amp; Intel · macOS 10.15+ · Offline · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <h2>A real Mac app, not a browser tab</h2>
+            <p>Most “JSON viewers” are websites — you paste your data into a tab and hope it doesn’t hang.
+            Pandia is a native desktop application built with <strong>Rust + Tauri</strong>: it installs as a
+            normal <code>.dmg</code>, launches in a blink, follows your system dark/light theme, and runs
+            natively on both Apple Silicon (<code>arm64</code>) and Intel (<code>x64</code>) — no Rosetta, no
+            Electron bloat.</p>
+
+            <h2>What you get</h2>
+            <div class="doc-cards">
+              <div class="doc-card"><h3>Five views</h3><p>Tree, Code, Grid, Graph and Compare — switch with ⌘1–⌘4.</p></div>
+              <div class="doc-card"><h3>Type generation</h3><p>TypeScript, Swift-friendly JSON Schema, Rust, Go, Python and more.</p></div>
+              <div class="doc-card"><h3>Large files</h3><p>Multi-GB JSON opens instantly — no cap on opening or viewing.</p></div>
+              <div class="doc-card"><h3>Fully offline</h3><p>No upload, no accounts, no telemetry. Your data stays local.</p></div>
+            </div>
+
+            <h2>Install on macOS</h2>
+            <ol>
+              <li>Download the <strong>Apple Silicon</strong> <code>.dmg</code> (M-series) or the <strong>Intel</strong> <code>.dmg</code>.</li>
+              <li>Open the disk image and drag <strong>Pandia</strong> into your Applications folder.</li>
+              <li>Launch it, then drag any JSON file onto the window — or open it from <kbd>⌘O</kbd>.</li>
+            </ol>
+            <p>Full steps, including the first-launch Gatekeeper prompt, are in the
+            <a href="/docs/installation">installation guide</a>.</p>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/large-json-viewer">large JSON file viewer</a> ·
+            <a href="/json-viewer-windows">for Windows</a> · <a href="/json-viewer-linux">for Linux</a> ·
+            <a href="/download">all downloads</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

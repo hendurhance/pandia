@@ -1,0 +1,106 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-validator';
+
+const title = 'JSON Validator — Validate JSON & JSON Schema';
+const description = 'Validate JSON against a JSON Schema live, with clickable errors that jump to the failing node. Supports draft-07 and 2020-12. Local, offline and free for macOS, Windows and Linux.';
+
+const schema = `{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["id", "name"],
+  "properties": {
+    "id":   { "type": "integer" },
+    "name": { "type": "string" }
+  }
+}`;
+const doc = `{ "id": "42" }`;
+const errors = `/id    "42" is not of type "integer"
+$      "name" is a required property`;
+
+const faqItems = [
+  { q: 'Does Pandia validate JSON syntax or against a schema?', a: 'Both. The editor flags syntax errors live as you type, and the Schema panel validates the document against a JSON Schema, showing each failing path and reason.' },
+  { q: 'Which JSON Schema drafts are supported?', a: 'Draft-07 and 2020-12, selected automatically from the schema’s $schema declaration.' },
+  { q: 'Can it validate large JSON files offline?', a: 'Yes — validation runs entirely on your machine with no upload, so it works offline and on large documents.' },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}/json-converter` },
+    { '@type': 'ListItem', position: 3, name: 'JSON validator', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>Validate</span>
+          <h1 class="iv">JSON <em>validator</em>.</h1>
+          <p class="lp-sub iv">Check a JSON document against a JSON Schema live, with clickable errors that jump
+          straight to the failing node. Supports draft-07 and 2020-12 — all on your machine.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="/json-converter" class="btn btn-ghost">All tools →</a>
+          </div>
+          <p class="lp-trust iv">Live · draft-07 &amp; 2020-12 · Offline · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <p class="lead">Paste a JSON Schema into the Schema panel and Pandia validates the document
+            <strong>live</strong> as you edit either side. Each error shows its failing path and the reason —
+            click it to land on the offending node.</p>
+
+            <h2>Example</h2>
+            <p>A schema requiring an integer <code>id</code> and a string <code>name</code>:</p>
+            <pre><code>{schema}</code></pre>
+            <p>Validated against <code>{doc}</code>, Pandia reports two errors:</p>
+            <pre><code>{errors}</code></pre>
+
+            <h2>What you get</h2>
+            <ul>
+              <li>Live validation against <strong>draft-07</strong> and <strong>2020-12</strong>.</li>
+              <li>Clickable errors with the <strong>failing path</strong> and <strong>reason</strong>.</li>
+              <li>A running <strong>error count</strong> in the status bar.</li>
+              <li>It can also <a href="/json-to-typescript">generate a JSON Schema</a> from a document.</li>
+            </ul>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/json-diff">JSON diff</a> ·
+            <a href="/json-repair">JSON repair</a> · <a href="/large-json-viewer">large JSON viewer</a> ·
+            <a href="/json-converter">all tools</a> · <a href="/download">download</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

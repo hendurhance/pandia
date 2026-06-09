@@ -1,0 +1,97 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-diff';
+
+const title = 'JSON Diff — Compare Two JSON Files & See What Changed';
+const description = 'Compare two JSON documents and see exactly what changed — added, removed, changed and moved entries — side-by-side, as trees, or as an inline diff. Local, offline and free.';
+
+const example = `+ tags: ["admin", "early"]   (added)
+- legacy: true                (removed)
+~ name: "Ada" → "Ada L."      (changed)
+↔ id                          (moved)`;
+
+const faqItems = [
+  { q: 'How do I compare two JSON files in Pandia?', a: 'Open one document, press ⌘D, and choose what to compare it against — another open tab or a file from disk. Pandia computes the diff and switches the canvas into the Compare view.' },
+  { q: 'Is the diff structural or just text?', a: 'Structural. Pandia diffs the JSON itself and classifies every change as added, removed, changed or moved — so reordered keys and formatting noise don’t show up as false differences.' },
+  { q: 'Can it diff large JSON files?', a: 'Yes. The Side-by-side and Tree modes read both documents lazily, so they handle large files. The Inline unified diff is capped at 3 MB per side.' },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}/json-converter` },
+    { '@type': 'ListItem', position: 3, name: 'JSON diff', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>Compare &amp; diff</span>
+          <h1 class="iv">JSON <em>diff</em>.</h1>
+          <p class="lp-sub iv">Compare two JSON documents and see exactly what changed — added, removed, changed
+          and moved — side-by-side, as aligned trees, or as an inline unified diff. All on your machine.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="/json-converter" class="btn btn-ghost">All tools →</a>
+          </div>
+          <p class="lp-trust iv">Structural diff · Local · Handles large files · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <p class="lead">Pandia diffs the JSON itself, not just the text — so reordered keys and whitespace
+            don’t register as changes. Press <kbd>⌘D</kbd>, pick a second document, and every difference is
+            colour-coded and counted.</p>
+
+            <h2>Every change, classified</h2>
+            <pre><code>{example}</code></pre>
+            <p>A summary tallies the totals — for example <code>+3 −2 ~2 ↔1</code> — and <strong>Prev</strong> /
+            <strong>Next</strong> step you through each difference, with an optional <strong>sync-scroll</strong>
+            that keeps both sides locked together.</p>
+
+            <h2>Three ways to read a diff</h2>
+            <ul>
+              <li><strong>Side-by-side</strong> — old on the left, new on the right.</li>
+              <li><strong>Tree</strong> — two aligned, read-only trees for scanning structure.</li>
+              <li><strong>Inline</strong> — a single unified diff with changes interleaved.</li>
+            </ul>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/json-validator">JSON validator</a> ·
+            <a href="/json-repair">JSON repair</a> · <a href="/large-json-viewer">large JSON viewer</a> ·
+            <a href="/json-converter">all tools</a> · <a href="/download">download</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

@@ -1,0 +1,108 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/offline-json-editor';
+
+const title = 'Offline JSON Editor — Private, No-Upload JSON Viewer';
+const description = 'Edit and view JSON completely offline. Pandia is a native desktop app — no upload, no cloud, no accounts, no telemetry. Your data never leaves your machine. Free and open source for macOS, Windows and Linux.';
+
+const faqItems = [
+  {
+    q: 'Does Pandia upload my JSON anywhere?',
+    a: 'No. Pandia is a native desktop app and everything is processed locally on your machine. The only time it touches the network is when you explicitly ask it to fetch a document from a URL — otherwise it makes no requests.',
+  },
+  {
+    q: 'Does it work without an internet connection?',
+    a: 'Yes, fully. Every feature — viewing, editing, type generation, compare, validate, repair and export — runs entirely offline, so it works on a plane or an air-gapped machine.',
+  },
+  {
+    q: 'Is there any telemetry or analytics?',
+    a: 'None. There are no accounts, no usage tracking and no crash reporting that phones home. Nothing about your data or activity is collected.',
+  },
+  {
+    q: 'How can I verify it’s actually private?',
+    a: 'Pandia is open source under Apache-2.0 — you can read the source, audit the network behaviour, and build it yourself. The code lives at github.com/hendurhance/pandia.',
+  },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'Offline JSON editor', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>Private by default</span>
+          <h1 class="iv">The JSON editor<br />that works <em>offline</em>.</h1>
+          <p class="lp-sub iv">No upload, no cloud, no accounts, no telemetry. Pandia is a native desktop app that
+          processes every byte locally — so your JSON never leaves your machine, whether it’s a secret token or a
+          2&nbsp;GB export.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download free<span class="os"> · macOS, Windows, Linux</span></a>
+            <a href="https://github.com/hendurhance/pandia" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">View source →</a>
+          </div>
+          <p class="lp-trust iv">Local-only · No telemetry · Works air-gapped · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <h2>Your JSON never leaves your machine</h2>
+            <p>Most online JSON editors send the thing you paste to a server — or at least to a page you don’t
+            control — where it can be logged, cached or retained. That’s a problem when the JSON holds API keys,
+            customer records, tokens or anything under an NDA. Pandia sidesteps it entirely: it’s a native app,
+            and all processing happens on your computer.</p>
+
+            <h2>Why offline matters for JSON</h2>
+            <ul>
+              <li><strong>Sensitive data stays put</strong> — secrets, PII and production exports never hit a third party.</li>
+              <li><strong>Works anywhere</strong> — on a plane, behind a firewall, or on an air-gapped machine.</li>
+              <li><strong>No accidental leaks</strong> — there’s no paste-into-a-website step to regret.</li>
+              <li><strong>Auditable</strong> — open source, so you can verify exactly what it does.</li>
+            </ul>
+
+            <div class="doc-cards">
+              <div class="doc-card"><h3>No upload</h3><p>Files are read from disk and processed locally — never sent anywhere.</p></div>
+              <div class="doc-card"><h3>No telemetry</h3><p>No accounts, no analytics, no crash reporting that phones home.</p></div>
+              <div class="doc-card"><h3>Open source</h3><p>Apache-2.0. Read the code and audit the network behaviour yourself.</p></div>
+            </div>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/large-json-viewer">large JSON file viewer</a> ·
+            <a href="/json-viewer-mac">for Mac</a> · <a href="/json-viewer-windows">for Windows</a> ·
+            <a href="/json-viewer-linux">for Linux</a> · <a href="/download">download</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>

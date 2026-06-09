@@ -10,6 +10,7 @@ interface Props {
   publishedTime?: string;
   modifiedTime?: string;
   noindex?: boolean;
+  structuredData?: object[];
 }
 
 const {
@@ -21,6 +22,7 @@ const {
   publishedTime,
   modifiedTime,
   noindex = false,
+  structuredData = [],
 } = Astro.props;
 
 const siteUrl = 'https://www.pandia.app';
@@ -29,7 +31,63 @@ const rawPath = canonical ?? Astro.url.pathname;
 const canonicalPath = rawPath.replace(/\/+$/, ''); // '' for root → bare https://www.pandia.app
 const canonicalUrl = `${siteUrl}${canonicalPath}`;
 const imageUrl = image.startsWith('http') ? image : `${siteUrl}${image}`;
-const fullTitle = title === 'Pandia — The JSON workbench' ? title : `${title} | Pandia`;
+// A title that already leads with "Pandia —" (the homepage) skips the "| Pandia" suffix.
+const fullTitle = title.startsWith('Pandia —') ? title : `${title} | Pandia`;
+
+const orgId = `${siteUrl}/#organization`;
+const websiteId = `${siteUrl}/#website`;
+const productDescription = 'Pandia is a fast, native JSON workbench for macOS, Windows and Linux. Open any file instantly — even multi-gigabyte — read it five ways, generate types for 9 languages, compare, validate, repair and export. Offline, private, free and open source.';
+
+const jsonLdGraph = [
+  {
+    '@type': 'Organization',
+    '@id': orgId,
+    name: 'Pandia',
+    url: siteUrl,
+    logo: { '@type': 'ImageObject', url: `${siteUrl}/favicon-192x192.png`, width: 192, height: 192 },
+    sameAs: [
+      'https://github.com/hendurhance/pandia',
+      'https://x.com/PandiaApp',
+    ],
+  },
+  {
+    '@type': 'WebSite',
+    '@id': websiteId,
+    name: 'Pandia',
+    url: siteUrl,
+    description: productDescription,
+    publisher: { '@id': orgId },
+    inLanguage: 'en',
+  },
+  {
+    '@type': 'SoftwareApplication',
+    '@id': `${siteUrl}/#software`,
+    name: 'Pandia',
+    description: productDescription,
+    url: siteUrl,
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'macOS, Windows, Linux',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    publisher: { '@id': orgId },
+    author: { '@type': 'Person', name: 'hendurhance', url: 'https://github.com/hendurhance' },
+    license: 'https://www.apache.org/licenses/LICENSE-2.0',
+    downloadUrl: 'https://github.com/hendurhance/pandia/releases/latest',
+    softwareVersion: '1.0.0',
+    screenshot: `${siteUrl}/og-image.png`,
+    featureList: [
+      'Open multi-gigabyte JSON files instantly',
+      'Five views: Tree, Code, Grid, Graph and Compare',
+      'Generate types for TypeScript, Rust, Go, Kotlin, Python, PHP, Java, Zod and JSON Schema',
+      'JSON diff and compare',
+      'JSON Schema validation',
+      'JSON repair',
+      'Import and auto-detect JSON, YAML, XML, CSV and cURL',
+      'Export JSON, YAML, CSV and XML',
+      'Offline and private — no accounts, no telemetry',
+    ],
+  },
+  ...structuredData,
+];
 ---
 
 <!doctype html>
@@ -73,6 +131,7 @@ const fullTitle = title === 'Pandia — The JSON workbench' ? title : `${title} 
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBF8F2" />
     <meta name="msapplication-TileColor" content="#1b1b1d" />
 
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
@@ -90,30 +149,18 @@ const fullTitle = title === 'Pandia — The JSON workbench' ? title : `${title} 
       window.scrollTo(0, 0);
     </script>
 
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Pandia",
-      "description": description,
-      "url": siteUrl,
-      "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "macOS, Windows, Linux",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "author": {
-        "@type": "Person",
-        "name": "hendurhance",
-        "url": "https://github.com/hendurhance"
-      },
-      "license": "https://www.apache.org/licenses/LICENSE-2.0",
-      "downloadUrl": "https://github.com/hendurhance/pandia/releases/latest",
-      "softwareVersion": "1.0.0"
-    })} />
+    <script type="application/ld+json" set:html={JSON.stringify({ '@context': 'https://schema.org', '@graph': jsonLdGraph })} />
   </head>
   <body>
     <slot />
+    <script>
+      // Sitewide reveal for .iv elements (home sections + landing pages). No-op on pages without them.
+      const ivObserver = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) { e.target.classList.add('shown'); ivObserver.unobserve(e.target); }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+      document.querySelectorAll('.iv').forEach((el) => ivObserver.observe(el));
+    </script>
   </body>
 </html>

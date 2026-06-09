@@ -1,0 +1,111 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+
+const siteUrl = 'https://www.pandia.app';
+const path = '/json-viewer-linux';
+
+const title = 'JSON Viewer for Linux — AppImage, .deb & .rpm JSON Editor';
+const description = 'A native JSON viewer and editor for Linux. Pandia opens large JSON files instantly, runs fully offline, and ships as an AppImage, .deb and .rpm. Free and open source for 64-bit Linux.';
+
+const faqItems = [
+  {
+    q: 'Which Linux package should I download?',
+    a: 'Use the AppImage for a portable, distro-agnostic binary you can run anywhere; the .deb for Debian and Ubuntu; or the .rpm for Fedora and RHEL. All are 64-bit (x86_64).',
+  },
+  {
+    q: 'What dependencies does it need?',
+    a: 'Pandia uses webkit2gtk, which is available in every mainstream distro’s repositories. If a launch fails, install the webkit2gtk package for your distribution and try again.',
+  },
+  {
+    q: 'Is the Linux JSON viewer free?',
+    a: 'Yes — free and open source under Apache-2.0. No accounts, no telemetry, no paid tiers.',
+  },
+  {
+    q: 'Can it open large JSON files on Linux?',
+    a: 'Yes. There is no cap on opening or viewing — Pandia streams multi-gigabyte files and only loads the on-screen slice, so they open instantly.',
+  },
+];
+
+const breadcrumb = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+    { '@type': 'ListItem', position: 2, name: 'JSON viewer for Linux', item: `${siteUrl}${path}` },
+  ],
+};
+const faqSchema = {
+  '@type': 'FAQPage',
+  '@id': `${siteUrl}${path}#faq`,
+  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
+  <div class="pandia-page">
+    <div class="spine"></div>
+    <Nav />
+    <main>
+      <section class="block lp-hero">
+        <div class="wrap">
+          <span class="eyebrow iv"><span class="tick"></span>For Linux</span>
+          <h1 class="iv">The JSON viewer<br />for <em>Linux</em>.</h1>
+          <p class="lp-sub iv">A native Linux app shipped as an AppImage, <code>.deb</code> and <code>.rpm</code>.
+          Pandia opens multi-gigabyte JSON without freezing, runs fully offline, and stays out of your way —
+          built in Rust, not Electron.</p>
+          <div class="lp-cta iv">
+            <a href="/download" class="btn btn-primary">Download for Linux<span class="os"> · Free</span></a>
+            <a href="/large-json-viewer" class="btn btn-ghost">Open large files →</a>
+          </div>
+          <p class="lp-trust iv">AppImage · .deb · .rpm · 64-bit · Offline · Apache-2.0</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="wrap">
+          <div class="docs-prose">
+            <h2>Native, lightweight, distro-friendly</h2>
+            <p>Pandia is a native Linux application built with <strong>Rust + Tauri</strong> — it uses your
+            system’s <code>webkit2gtk</code> rather than bundling a whole browser, so the download is small and
+            startup is instant. Ship it as a portable <strong>AppImage</strong>, or install the <strong>.deb</strong>
+            / <strong>.rpm</strong> for your package manager.</p>
+
+            <h2>What you get</h2>
+            <div class="doc-cards">
+              <div class="doc-card"><h3>Five views</h3><p>Tree, Code, Grid, Graph and Compare — switch with Ctrl 1–4.</p></div>
+              <div class="doc-card"><h3>Type generation</h3><p>TypeScript, Rust, Go, Python, Kotlin, PHP, Java, Zod and JSON Schema.</p></div>
+              <div class="doc-card"><h3>Large files</h3><p>Multi-GB JSON opens instantly — no cap on opening or viewing.</p></div>
+              <div class="doc-card"><h3>Fully offline</h3><p>No upload, no accounts, no telemetry. Your data stays local.</p></div>
+            </div>
+
+            <h2>Install on Linux</h2>
+            <ol>
+              <li><strong>AppImage</strong> — <code>chmod +x</code> the file and run it; no installation needed.</li>
+              <li><strong>Debian / Ubuntu</strong> — <code>sudo apt install ./Pandia_*.deb</code>.</li>
+              <li><strong>Fedora / RHEL</strong> — <code>sudo dnf install ./Pandia-*.rpm</code>.</li>
+            </ol>
+            <p>If a launch fails, install <code>webkit2gtk</code> from your distro’s repos. See the
+            <a href="/docs/installation">installation guide</a> for details.</p>
+
+            <h2>Frequently asked questions</h2>
+            {faqItems.map((f) => (
+              <>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </>
+            ))}
+
+            <p class="lp-related">Related: <a href="/large-json-viewer">large JSON file viewer</a> ·
+            <a href="/json-viewer-mac">for Mac</a> · <a href="/json-viewer-windows">for Windows</a> ·
+            <a href="/download">all downloads</a>.</p>
+          </div>
+        </div>
+      </section>
+
+      <CtaBand />
+    </main>
+    <Footer />
+  </div>
+</Layout>
