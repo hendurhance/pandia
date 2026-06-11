@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="website/public/images/logo.png" alt="Pandia" width="120" />
+  <img src="website/public/logo.svg" alt="Pandia" width="120" />
 </p>
 
 <h1 align="center">Pandia</h1>
