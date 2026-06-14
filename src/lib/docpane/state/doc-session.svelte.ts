@@ -9,6 +9,8 @@ import {
 	docRedo,
 	docSave,
 	docBackupClear,
+	IpcError,
+	type IpcErrorKind,
 } from '$lib/ipc/doc';
 import type { ApplyResult, DocHandle, Op, OpenResult, OpenSource, Path } from '$lib/ipc/types';
 import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
@@ -48,11 +50,14 @@ export class DocSessionController {
 
 	repairInfo: RepairInfo | null = $state(null);
 
+	private lastErrorKind: IpcErrorKind | null = null;
+
 	constructor(private deps: DocSessionDeps) {}
 
 	private load = async (opener: () => Promise<OpenResult>, name: string | null) => {
 		this.deps.setBusy(true);
 		this.deps.setError(null);
+		this.lastErrorKind = null;
 		try {
 			await this.reset();
 			const res = await opener();
@@ -67,6 +72,7 @@ export class DocSessionController {
 			}
 		} catch (e) {
 			this.deps.setError(String(e));
+			this.lastErrorKind = e instanceof IpcError ? e.kind : null;
 		} finally {
 			this.deps.setBusy(false);
 		}
@@ -83,6 +89,7 @@ export class DocSessionController {
 			await runAutoRepair(source, name, {
 				enabled: () => behaviorPrefs.autoRepairOnPaste,
 				error: () => this.deps.getError(),
+				errorKind: () => this.lastErrorKind,
 				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
 				handle: () => this.handle,
 				setSummary: (s) => {

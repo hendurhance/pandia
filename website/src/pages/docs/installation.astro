@@ -1,9 +1,10 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
+import { VERSION } from '../../data/site';
 ---
 <DocsLayout
   title="Installation"
-  description="Get Pandia for macOS, Windows or Linux — free, native and fully offline. Download v1.0.0, install it in a step or two, and you're ready."
+  description={`Get Pandia for macOS, Windows or Linux — free, native and fully offline. Download v${VERSION}, install it in a step or two, and you're ready.`}
   currentDoc="/docs/installation"
 >
   <h1>Installation</h1>
@@ -12,7 +13,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 
   <h2>Download</h2>
   <p>Head to the <a href="/download">download page</a> and grab the build for your platform.
-  The latest release is <strong>v1.0.0</strong>.</p>
+  The latest release is <strong>v{VERSION}</strong>.</p>
   <table>
     <thead>
       <tr><th>Platform</th><th>Artifacts</th></tr>
@@ -46,14 +47,14 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   <p>The <code>AppImage</code> is portable — make it executable and run it directly. Or install
   the <code>.deb</code> / <code>.rpm</code> with your package manager.</p>
   <pre><code><span class="c"># AppImage — make it executable and run</span>
-<span class="k">chmod</span> +x Pandia_1.0.0_amd64.AppImage
-./Pandia_1.0.0_amd64.AppImage
+<span class="k">chmod</span> +x Pandia_{VERSION}_amd64.AppImage
+./Pandia_{VERSION}_amd64.AppImage
 
 <span class="c"># Debian / Ubuntu</span>
-<span class="k">sudo</span> dpkg -i Pandia_1.0.0_amd64.deb
+<span class="k">sudo</span> dpkg -i Pandia_{VERSION}_amd64.deb
 
 <span class="c"># Fedora / RHEL</span>
-<span class="k">sudo</span> rpm -i Pandia-1.0.0-1.x86_64.rpm</code></pre>
+<span class="k">sudo</span> rpm -i Pandia-{VERSION}-1.x86_64.rpm</code></pre>
   <div class="callout">
     <p><strong>First launch —</strong> if your OS shows a warning the first time you open Pandia,
     follow its prompt to allow the app to run.</p>

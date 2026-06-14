@@ -4,43 +4,81 @@ use super::ops::Op;
 
 pub const DEFAULT_CAP: usize = 500;
 
+pub const DEFAULT_BYTE_BUDGET: usize = 512 * 1024 * 1024;
+
+#[derive(Debug)]
+struct Entry {
+    forward: Op,
+    inverse: Op,
+    bytes: usize,
+}
+
+impl Entry {
+    fn new(forward: Op, inverse: Op) -> Self {
+        let bytes = forward.heap_bytes() + inverse.heap_bytes();
+        Self {
+            forward,
+            inverse,
+            bytes,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct History {
-    undo: VecDeque<(Op, Op)>,
-    redo: VecDeque<(Op, Op)>,
+    undo: VecDeque<Entry>,
+    redo: VecDeque<Entry>,
     cap: usize,
+    budget_bytes: usize,
+    undo_bytes: usize,
+    redo_bytes: usize,
 }
 
 impl History {
     pub fn new(cap: usize) -> Self {
+        Self::with_caps(cap, DEFAULT_BYTE_BUDGET)
+    }
+
+    pub fn with_caps(cap: usize, budget_bytes: usize) -> Self {
         Self {
             undo: VecDeque::new(),
             redo: VecDeque::new(),
             cap,
+            budget_bytes,
+            undo_bytes: 0,
+            redo_bytes: 0,
         }
     }
 
     pub fn record(&mut self, forward: Op, inverse: Op) {
         self.redo.clear();
-        self.undo.push_back((forward, inverse));
-        self.evict_undo();
+        self.redo_bytes = 0;
+        self.push_undo((forward, inverse));
     }
 
     pub fn pop_undo(&mut self) -> Option<(Op, Op)> {
-        self.undo.pop_back()
+        let e = self.undo.pop_back()?;
+        self.undo_bytes -= e.bytes;
+        Some((e.forward, e.inverse))
     }
 
     pub fn pop_redo(&mut self) -> Option<(Op, Op)> {
-        self.redo.pop_back()
+        let e = self.redo.pop_back()?;
+        self.redo_bytes -= e.bytes;
+        Some((e.forward, e.inverse))
     }
 
     pub fn push_undo(&mut self, entry: (Op, Op)) {
-        self.undo.push_back(entry);
+        let e = Entry::new(entry.0, entry.1);
+        self.undo_bytes += e.bytes;
+        self.undo.push_back(e);
         self.evict_undo();
     }
 
     pub fn push_redo(&mut self, entry: (Op, Op)) {
-        self.redo.push_back(entry);
+        let e = Entry::new(entry.0, entry.1);
+        self.redo_bytes += e.bytes;
+        self.redo.push_back(e);
         self.evict_redo();
     }
 
@@ -55,11 +93,11 @@ impl History {
     }
 
     pub fn undo_ops(&self) -> impl Iterator<Item = &Op> {
-        self.undo.iter().map(|(forward, _)| forward)
+        self.undo.iter().map(|e| &e.forward)
     }
 
     pub fn redo_ops(&self) -> impl Iterator<Item = &Op> {
-        self.redo.iter().rev().map(|(forward, _)| forward)
+        self.redo.iter().rev().map(|e| &e.forward)
     }
 
     pub fn cap(&self) -> usize {
@@ -67,14 +105,24 @@ impl History {
     }
 
     fn evict_undo(&mut self) {
-        while self.undo.len() > self.cap {
-            self.undo.pop_front();
+        while self.undo.len() > self.cap
+            || (self.undo.len() > 1 && self.undo_bytes > self.budget_bytes)
+        {
+            match self.undo.pop_front() {
+                Some(e) => self.undo_bytes -= e.bytes,
+                None => break,
+            }
         }
     }
 
     fn evict_redo(&mut self) {
-        while self.redo.len() > self.cap {
-            self.redo.pop_front();
+        while self.redo.len() > self.cap
+            || (self.redo.len() > 1 && self.redo_bytes > self.budget_bytes)
+        {
+            match self.redo.pop_front() {
+                Some(e) => self.redo_bytes -= e.bytes,
+                None => break,
+            }
         }
     }
 }
@@ -168,5 +216,26 @@ mod tests {
         let h = History::default();
         assert_eq!(h.cap(), DEFAULT_CAP);
         assert_eq!(h.cap(), 500);
+    }
+
+    #[test]
+    fn byte_budget_evicts_oldest_keeping_newest() {
+        // Budget far below a single entry's footprint: only the newest survives,
+        // well under the op-count cap.
+        let mut h = History::with_caps(100, 1);
+        h.record(op(1), op(-1));
+        h.record(op(2), op(-2));
+        h.record(op(3), op(-3));
+        assert_eq!(h.undo_len(), 1, "byte budget keeps only the newest entry");
+        assert_eq!(h.pop_undo().unwrap().0, op(3), "and it is the most recent");
+    }
+
+    #[test]
+    fn generous_budget_leaves_count_cap_in_charge() {
+        let mut h = History::with_caps(2, usize::MAX);
+        h.record(op(1), op(-1));
+        h.record(op(2), op(-2));
+        h.record(op(3), op(-3));
+        assert_eq!(h.undo_len(), 2);
     }
 }

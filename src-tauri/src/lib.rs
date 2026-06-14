@@ -70,13 +70,14 @@ pub fn run() {
         .manage(AppState {
             pending_files: Mutex::new(cli_files),
         })
-        .manage(doc::store::DocStore::new())
+        .manage(std::sync::Arc::new(doc::store::DocStore::new()))
         .manage(std::sync::Arc::new(doc::jobs::JobRegistry::default()))
         .invoke_handler(tauri::generate_handler![
             commands::doc_open,
             commands::doc_close,
             commands::doc_get_slice,
             commands::doc_get_value,
+            commands::doc_value_json,
             commands::doc_get_rows,
             commands::doc_get_rows_sorted,
             commands::doc_get_rows_filtered,

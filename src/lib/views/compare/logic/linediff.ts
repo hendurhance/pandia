@@ -179,7 +179,10 @@ export function changeAnchors(rows: UnifiedRow[]): number[] {
 			runLen = 0;
 			return;
 		}
-		if (runLen === 0 || runLen >= ANCHOR_CHUNK) anchors.push(idx);
+		if (runLen === 0 || runLen >= ANCHOR_CHUNK) {
+			anchors.push(idx);
+			runLen = 0; // restart the chunk window so the next anchor is ~ANCHOR_CHUNK later
+		}
 		runLen++;
 	});
 	return anchors;

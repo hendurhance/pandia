@@ -1,17 +1,19 @@
 import { HEADER_H, ROW_H, type LayoutResult, type PositionedCard } from './layout';
 import { hueColor, mixHex, type GraphTheme } from './theme';
 import { rectsOverlap, type Rect, type ViewportState } from './viewport';
+import {
+	CARD_RADIUS,
+	FONT_PX,
+	HEADER_FONT_WEIGHT,
+	ROW_PAD_X,
+	SWATCH_W,
+	SWATCH_GAP,
+	valueColor,
+} from './render-shared';
 
 const LOD_NO_TEXT = 0.45;
 
 const LOD_BLOCK_ONLY = 0.22;
-
-const CARD_RADIUS = 6;
-const FONT_PX = 13;
-const HEADER_FONT_WEIGHT = 600;
-const ROW_PAD_X = 11; // matches legacy .card-row padding (0.7rem ≈ 11.2px)
-const SWATCH_W = 11;
-const SWATCH_GAP = 6;
 
 export type EdgeStyle = 'elbow' | 'curve';
 
@@ -300,22 +302,6 @@ function paintRow(
 			ctx.lineTo(portX, midY + 4);
 		}
 		ctx.stroke();
-	}
-}
-
-function valueColor(row: PositionedCard['rows'][number], theme: GraphTheme): string {
-	if (row.container) return theme.textDim;
-	switch (row.valueKind) {
-		case 'string':
-			return theme.text;
-		case 'number':
-			return theme.syntaxNumber;
-		case 'bool':
-			return theme.syntaxBoolean;
-		case 'null':
-			return theme.syntaxNull;
-		default:
-			return theme.text;
 	}
 }
 

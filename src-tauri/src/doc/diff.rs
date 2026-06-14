@@ -1,7 +1,12 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::types::{Path, PathSegment};
+use super::jobs::CancelFlag;
+use super::types::{DocError, DocResult, Path, PathSegment};
+
+const CANCEL_CHECK_MASK: u32 = 0x0FFF;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -25,33 +30,49 @@ pub struct DiffEntry {
     pub from_index: Option<u32>,
 }
 
-pub fn compute_diff(left: &Value, right: &Value) -> Vec<DiffEntry> {
+pub fn compute_diff(left: &Value, right: &Value, cancel: &CancelFlag) -> DocResult<Vec<DiffEntry>> {
     let mut out = Vec::new();
     let mut stack: Vec<PathSegment> = Vec::new();
-    walk(left, right, &mut stack, &mut out);
-    out
+    let mut checked: u32 = 0;
+    walk(left, right, &mut stack, &mut out, cancel, &mut checked)?;
+    Ok(out)
 }
 
-fn walk(left: &Value, right: &Value, stack: &mut Vec<PathSegment>, out: &mut Vec<DiffEntry>) {
+fn walk(
+    left: &Value,
+    right: &Value,
+    stack: &mut Vec<PathSegment>,
+    out: &mut Vec<DiffEntry>,
+    cancel: &CancelFlag,
+    checked: &mut u32,
+) -> DocResult<()> {
+    *checked = checked.wrapping_add(1);
+    if *checked & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
+        return Err(DocError::Cancelled);
+    }
     if left == right {
-        return;
+        return Ok(());
     }
 
     match (left, right) {
         (Value::Object(l), Value::Object(r)) => {
             for (k, lv) in l.iter() {
                 stack.push(PathSegment::Key(k.clone()));
-                match r.get(k) {
-                    Some(rv) => walk(lv, rv, stack, out),
-                    None => out.push(DiffEntry {
-                        path: Path(stack.clone()),
-                        kind: DiffKind::Removed,
-                        left_preview: Some(preview(lv)),
-                        right_preview: None,
-                        from_index: None,
-                    }),
-                }
+                let res = match r.get(k) {
+                    Some(rv) => walk(lv, rv, stack, out, cancel, checked),
+                    None => {
+                        out.push(DiffEntry {
+                            path: Path(stack.clone()),
+                            kind: DiffKind::Removed,
+                            left_preview: Some(preview(lv)),
+                            right_preview: None,
+                            from_index: None,
+                        });
+                        Ok(())
+                    }
+                };
                 stack.pop();
+                res?;
             }
             for (k, rv) in r.iter() {
                 if !l.contains_key(k) {
@@ -67,7 +88,7 @@ fn walk(left: &Value, right: &Value, stack: &mut Vec<PathSegment>, out: &mut Vec
                 }
             }
         }
-        (Value::Array(l), Value::Array(r)) => diff_arrays(l, r, stack, out),
+        (Value::Array(l), Value::Array(r)) => diff_arrays(l, r, stack, out, cancel, checked)?,
         _ => out.push(DiffEntry {
             path: Path(stack.clone()),
             kind: DiffKind::Changed,
@@ -76,6 +97,7 @@ fn walk(left: &Value, right: &Value, stack: &mut Vec<PathSegment>, out: &mut Vec
             from_index: None,
         }),
     }
+    Ok(())
 }
 
 enum ArrOp<'a> {
@@ -83,7 +105,14 @@ enum ArrOp<'a> {
     Add(usize, &'a Value),    // right index
 }
 
-fn diff_arrays(l: &[Value], r: &[Value], stack: &mut Vec<PathSegment>, out: &mut Vec<DiffEntry>) {
+fn diff_arrays(
+    l: &[Value],
+    r: &[Value],
+    stack: &mut Vec<PathSegment>,
+    out: &mut Vec<DiffEntry>,
+    cancel: &CancelFlag,
+    checked: &mut u32,
+) -> DocResult<()> {
     let mut pre = 0;
     while pre < l.len() && pre < r.len() && l[pre] == r[pre] {
         pre += 1;
@@ -117,17 +146,32 @@ fn diff_arrays(l: &[Value], r: &[Value], stack: &mut Vec<PathSegment>, out: &mut
         k += 1;
     }
 
+    let mut adds_by_value: HashMap<String, Vec<usize>> = HashMap::new();
+    for (j, op) in ops.iter().enumerate() {
+        if j as u32 & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
+            return Err(DocError::Cancelled);
+        }
+        if matches!(pair[j], Pair::None) {
+            if let ArrOp::Add(_, rv) = op {
+                adds_by_value
+                    .entry(serde_json::to_string(rv).unwrap_or_default())
+                    .or_default()
+                    .push(j);
+            }
+        }
+    }
     for i in 0..n {
+        if i as u32 & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
+            return Err(DocError::Cancelled);
+        }
         if !matches!(pair[i], Pair::None) {
             continue;
         }
         if let ArrOp::Remove(_, lv) = &ops[i] {
-            for j in (i + 1)..n {
-                if !matches!(pair[j], Pair::None) {
-                    continue;
-                }
-                if let ArrOp::Add(_, rv) = &ops[j] {
-                    if *lv == *rv {
+            let key = serde_json::to_string(lv).unwrap_or_default();
+            if let Some(candidates) = adds_by_value.get_mut(&key) {
+                while let Some(j) = candidates.pop() {
+                    if matches!(pair[j], Pair::None) {
                         pair[i] = Pair::MovedTo(j);
                         pair[j] = Pair::MovedTo(i);
                         break;
@@ -152,8 +196,9 @@ fn diff_arrays(l: &[Value], r: &[Value], stack: &mut Vec<PathSegment>, out: &mut
                     _ => unreachable!("ChangedAt pairs a Remove with an Add"),
                 };
                 stack.push(PathSegment::Index(idx as u32));
-                walk(lv, rv, stack, out);
+                let res = walk(lv, rv, stack, out, cancel, checked);
                 stack.pop();
+                res?;
             }
             Pair::MovedTo(j) => {
                 emitted[j] = true;
@@ -198,8 +243,10 @@ fn diff_arrays(l: &[Value], r: &[Value], stack: &mut Vec<PathSegment>, out: &mut
             },
         }
     }
+    Ok(())
 }
 
+#[allow(clippy::needless_range_loop)]
 fn align_middle<'a>(a: &'a [Value], b: &'a [Value], base: usize) -> Vec<ArrOp<'a>> {
     let (n, m) = (a.len(), b.len());
     let mut ops = Vec::new();
@@ -275,9 +322,9 @@ fn preview(v: &Value) -> String {
             const MAX: usize = 80;
             if s.chars().count() > MAX {
                 let truncated: String = s.chars().take(MAX).collect();
-                format!("\"{}\u{2026}\"", truncated)
+                format!("\"{truncated}\u{2026}\"")
             } else {
-                format!("\"{}\"", s)
+                format!("\"{s}\"")
             }
         }
         Value::Array(a) if a.is_empty() => "[]".into(),
@@ -293,7 +340,7 @@ mod tests {
     use serde_json::json;
 
     fn diff(l: Value, r: Value) -> Vec<DiffEntry> {
-        compute_diff(&l, &r)
+        compute_diff(&l, &r, &CancelFlag::never()).expect("never cancelled")
     }
 
     fn segs(parts: &[&str]) -> Path {

@@ -1,12 +1,13 @@
 ---
 import AppWindow from './AppWindow.astro';
+import { VERSION } from '../../data/site';
 ---
 <header class="hero">
   <div class="hero-grid-bg"></div>
   <div class="wrap hero-in">
 
     <div class="hero-tag reveal d1">
-      <span class="pill">v1.0.0</span>
+      <span class="pill">v{VERSION}</span>
       <span class="lbl">Native JSON workbench</span>
     </div>
 

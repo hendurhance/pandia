@@ -1,11 +1,7 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Nav from '../components/home/Nav.astro';
-import CtaBand from '../components/home/CtaBand.astro';
-import Footer from '../components/home/Footer.astro';
+import LandingLayout from '../layouts/LandingLayout.astro';
 import { converters } from '../data/converters';
 
-const siteUrl = 'https://www.pandia.app';
 const path = '/json-converter';
 
 const title = 'JSON Converter — Convert, Generate, Validate & Repair JSON';
@@ -24,25 +20,15 @@ const faqItems = [
   { q: 'What can it convert JSON to?', a: 'Type definitions for 9 languages (TypeScript, Rust, Go, Kotlin, Python, PHP, Java, Zod and JSON Schema), and data formats including YAML, CSV and XML. It also diffs, validates and repairs JSON.' },
 ];
 
-const breadcrumb = {
-  '@type': 'BreadcrumbList',
-  itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
-    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}${path}` },
-  ],
-};
-const faqSchema = {
-  '@type': 'FAQPage',
-  '@id': `${siteUrl}${path}#faq`,
-  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
-};
 ---
 
-<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
-  <div class="pandia-page">
-    <div class="spine"></div>
-    <Nav />
-    <main>
+<LandingLayout
+  title={title}
+  description={description}
+  path={path}
+  crumbs={[{ name: 'JSON converters', path }]}
+  faqItems={faqItems}
+>
       <section class="block lp-hero">
         <div class="wrap">
           <span class="eyebrow iv"><span class="tick"></span>JSON toolkit</span>
@@ -109,11 +95,7 @@ const faqSchema = {
         </div>
       </section>
 
-      <CtaBand />
-    </main>
-    <Footer />
-  </div>
-</Layout>
+    </LandingLayout>
 
 <style is:global>
   .pandia-page .hub-group + .hub-group { margin-top: 44px; }

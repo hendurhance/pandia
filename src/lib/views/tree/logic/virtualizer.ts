@@ -46,3 +46,15 @@ export function visibleWindow(
 	while (i < rowCount && offsets[i] < limit) i++;
 	return { start, end: Math.min(rowCount, i + overscan) };
 }
+
+export function fixedWindow(
+	scrollTop: number,
+	viewportHeight: number,
+	rowCount: number,
+	rowHeight: number,
+	overscan: number = OVERSCAN,
+): { start: number; end: number } {
+	const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+	const end = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan);
+	return { start, end };
+}

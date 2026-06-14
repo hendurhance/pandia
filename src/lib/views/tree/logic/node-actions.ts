@@ -1,5 +1,6 @@
-import { docGetSlice, docGetValue } from '$lib/ipc/doc';
+import { docGetSlice, docGetValue, docValueJson } from '$lib/ipc/doc';
 import { pathKey, type ContentRow, type Row } from './model';
+import { findIndexPaged } from './paging';
 import { reorderDestination } from '$lib/util/reorder';
 import { pathToString } from '$lib/util/path';
 import type { PromptController } from '$lib/ui/prompt.svelte';
@@ -50,12 +51,37 @@ export function createNodeActions(deps: NodeActionDeps) {
 		return keys;
 	}
 
+	async function findKeyPosition(parentPath: Path, key: string | number): Promise<number | null> {
+		const handle = deps.handle();
+		if (!handle) return null;
+		return findIndexPaged(
+			(start, end) => docGetSlice(handle, parentPath, start, end),
+			(nv) => nv.key === key,
+			CHUNK,
+			OBJECT_REORDER_MAX,
+		);
+	}
+
+	function guard<A extends unknown[]>(
+		fn: (...args: A) => Promise<void>,
+	): (...args: A) => Promise<void> {
+		return async (...args: A) => {
+			try {
+				await fn(...args);
+			} catch (e) {
+				deps.setError(String(e));
+			}
+		};
+	}
+
 	async function copyValueJson(row: ContentRow): Promise<boolean> {
 		const handle = deps.handle();
 		if (!handle) return false;
 		try {
-			const value = await docGetValue(handle, row.path);
-			const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+			const text =
+				row.kind === 'string'
+					? String(await docGetValue(handle, row.path))
+					: await docValueJson(handle, row.path);
 			await navigator.clipboard.writeText(text);
 			return true;
 		} catch (e) {
@@ -98,7 +124,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			return { up: true, down: true };
 		},
 
-		async insertSibling(row: ContentRow, where: 'before' | 'after') {
+		insertSibling: guard(async (row: ContentRow, where: 'before' | 'after') => {
 			const handle = deps.handle();
 			if (row.depth === 0 || !handle) return;
 			const parentPath = row.path.slice(0, -1);
@@ -130,10 +156,9 @@ export function createNodeActions(deps: NodeActionDeps) {
 				return;
 			}
 
-			const parentSlice = await docGetSlice(handle, parentPath, 0, CHUNK);
-			const rowPosition = parentSlice.findIndex((nv) => nv.key === row.key);
+			const rowPosition = await findKeyPosition(parentPath, row.key);
 			const targetPosition =
-				rowPosition < 0 ? null : where === 'before' ? rowPosition : rowPosition + 1;
+				rowPosition === null ? null : where === 'before' ? rowPosition : rowPosition + 1;
 
 			await deps.apply({
 				kind: 'insertKey',
@@ -142,41 +167,33 @@ export function createNodeActions(deps: NodeActionDeps) {
 				value,
 				position: targetPosition,
 			});
-		},
+		}),
 
-		async duplicate(row: ContentRow) {
+		duplicate: guard(async (row: ContentRow) => {
 			const handle = deps.handle();
 			if (row.depth === 0 || !handle) return;
 			const parentPath = row.path.slice(0, -1);
-			const currentValue = await docGetValue(handle, row.path);
 
 			if (typeof row.key === 'number') {
-				await deps.apply({
-					kind: 'insertItem',
-					path: parentPath,
-					index: row.key + 1,
-					value: currentValue,
-				});
+				await deps.apply({ kind: 'duplicateItem', path: parentPath, index: row.key });
 				return;
 			}
 
 			const newKey = await deps.prompt.show('duplicate as new key:', `${row.key}_copy`);
 			if (newKey === null || newKey === '') return;
-			const parentSlice = await docGetSlice(handle, parentPath, 0, CHUNK);
-			const rowPosition = parentSlice.findIndex((nv) => nv.key === row.key);
-			const targetPosition = rowPosition < 0 ? null : rowPosition + 1;
+			const rowPosition = await findKeyPosition(parentPath, row.key);
 			await deps.apply({
-				kind: 'insertKey',
+				kind: 'duplicateKey',
 				path: parentPath,
-				key: newKey,
-				value: currentValue,
-				position: targetPosition,
+				from: String(row.key),
+				to: newKey,
+				position: rowPosition === null ? null : rowPosition + 1,
 			});
-		},
+		}),
 
 		remove,
 
-		async move(row: ContentRow, dir: -1 | 1) {
+		move: guard(async (row: ContentRow, dir: -1 | 1) => {
 			const handle = deps.handle();
 			if (row.depth === 0 || !handle) return;
 			const parentPath = row.path.slice(0, -1);
@@ -203,9 +220,9 @@ export function createNodeActions(deps: NodeActionDeps) {
 			const order = keys.slice();
 			[order[idx], order[target]] = [order[target], order[idx]];
 			await deps.apply({ kind: 'reorderKeys', path: parentPath, order });
-		},
+		}),
 
-		async reorderTo(dragged: ContentRow, gap: number) {
+		reorderTo: guard(async (dragged: ContentRow, gap: number) => {
 			const handle = deps.handle();
 			if (dragged.depth === 0 || !handle) return;
 			const parentPath = dragged.path.slice(0, -1);
@@ -232,7 +249,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			const [k] = order.splice(from, 1);
 			order.splice(to, 0, k);
 			await deps.apply({ kind: 'reorderKeys', path: parentPath, order });
-		},
+		}),
 
 		async sortKeys(row: ContentRow, descending: boolean) {
 			if (row.kind !== 'object' || !deps.handle()) return;
@@ -261,8 +278,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			const handle = deps.handle();
 			if (!handle) return;
 			try {
-				const value = await docGetValue(handle, row.path);
-				const text = JSON.stringify(value, null, 2);
+				const text = await docValueJson(handle, row.path);
 				await navigator.clipboard.writeText(text);
 				deps.setCutMark({ path: row.path, text });
 				deps.flash('cut — paste to move');
@@ -271,7 +287,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			}
 		},
 
-		async paste(row: ContentRow) {
+		paste: guard(async (row: ContentRow) => {
 			const handle = deps.handle();
 			if (row.depth === 0 || !handle) return;
 			let text: string;
@@ -281,9 +297,8 @@ export function createNodeActions(deps: NodeActionDeps) {
 				deps.setError('clipboard unavailable');
 				return;
 			}
-			let value: unknown;
 			try {
-				value = JSON.parse(text);
+				JSON.parse(text);
 			} catch {
 				deps.setError('clipboard does not contain valid JSON');
 				return;
@@ -296,23 +311,22 @@ export function createNodeActions(deps: NodeActionDeps) {
 
 			if (typeof row.key === 'number') {
 				const inserted = await deps.apply({
-					kind: 'insertItem',
+					kind: 'insertItemText',
 					path: parentPath,
 					index: row.key + 1,
-					value,
+					text,
 				});
 				if (!inserted) return;
 			} else {
 				const newKey = await deps.prompt.show('paste as new key:', `${row.key}_copy`);
 				if (newKey === null || newKey === '') return;
-				const parentSlice = await docGetSlice(handle, parentPath, 0, CHUNK);
-				const rowPosition = parentSlice.findIndex((nv) => nv.key === row.key);
+				const rowPosition = await findKeyPosition(parentPath, row.key);
 				const inserted = await deps.apply({
-					kind: 'insertKey',
+					kind: 'insertKeyText',
 					path: parentPath,
 					key: newKey,
-					value,
-					position: rowPosition < 0 ? null : rowPosition + 1,
+					text,
+					position: rowPosition === null ? null : rowPosition + 1,
 				});
 				if (!inserted) return;
 			}
@@ -335,16 +349,16 @@ export function createNodeActions(deps: NodeActionDeps) {
 				}
 			}
 			deps.setCutMark(null);
-		},
+		}),
 
 		async extract(row: ContentRow) {
 			const handle = deps.handle();
 			if (!handle) return;
 			try {
-				const value = await docGetValue(handle, row.path);
+				const text = await docValueJson(handle, row.path);
 				deps.onOpenInNewTab({
 					kind: 'text',
-					text: JSON.stringify(value, null, 2),
+					text,
 					name: extractName(row),
 				});
 			} catch (e) {

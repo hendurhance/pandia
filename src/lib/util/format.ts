@@ -5,19 +5,6 @@ export function fmtBytes(n: number): string {
 	return `${(n / 1024 / 1024 / 1024).toFixed(2)} GiB`;
 }
 
-export function formatSize(bytes?: number): string {
-	if (bytes == null) return '';
-	if (bytes < 1024) return `${bytes} B`;
-	const units = ['KB', 'MB', 'GB', 'TB'];
-	let n = bytes / 1024;
-	let u = 0;
-	while (n >= 1024 && u < units.length - 1) {
-		n /= 1024;
-		u++;
-	}
-	return `${n < 10 ? n.toFixed(1) : Math.round(n)} ${units[u]}`;
-}
-
 export function relativeTime(iso: string): string {
 	const t = new Date(iso).getTime();
 	const dt = Date.now() - t;

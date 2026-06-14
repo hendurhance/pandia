@@ -1,10 +1,6 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Nav from '../components/home/Nav.astro';
-import CtaBand from '../components/home/CtaBand.astro';
-import Footer from '../components/home/Footer.astro';
+import LandingLayout from '../layouts/LandingLayout.astro';
 
-const siteUrl = 'https://www.pandia.app';
 const path = '/json-viewer-windows';
 
 const title = 'JSON Viewer for Windows — Native JSON Editor for Windows 10 & 11';
@@ -29,25 +25,15 @@ const faqItems = [
   },
 ];
 
-const breadcrumb = {
-  '@type': 'BreadcrumbList',
-  itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
-    { '@type': 'ListItem', position: 2, name: 'JSON viewer for Windows', item: `${siteUrl}${path}` },
-  ],
-};
-const faqSchema = {
-  '@type': 'FAQPage',
-  '@id': `${siteUrl}${path}#faq`,
-  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
-};
 ---
 
-<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
-  <div class="pandia-page">
-    <div class="spine"></div>
-    <Nav />
-    <main>
+<LandingLayout
+  title={title}
+  description={description}
+  path={path}
+  crumbs={[{ name: 'JSON viewer for Windows', path }]}
+  faqItems={faqItems}
+>
       <section class="block lp-hero">
         <div class="wrap">
           <span class="eyebrow iv"><span class="tick"></span>For Windows</span>
@@ -103,8 +89,4 @@ const faqSchema = {
         </div>
       </section>
 
-      <CtaBand />
-    </main>
-    <Footer />
-  </div>
-</Layout>
+    </LandingLayout>

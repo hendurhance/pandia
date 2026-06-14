@@ -6,7 +6,7 @@ import {
 	sameVal,
 	colActive,
 	compileGroups,
-	valLabel,
+	colValueLabel,
 } from '../logic/grid-filter-model';
 import type { GridQuery } from './grid-data.svelte';
 
@@ -16,6 +16,7 @@ export interface GridFilterDeps {
 	handle: () => DocHandle;
 	path: () => Path;
 	columns: () => ColumnSchema['columns'];
+	onError: (msg: string) => void;
 }
 
 export class GridFilterController {
@@ -91,7 +92,7 @@ export class GridFilterController {
 		if (!cv) return null;
 		const q = this.valueSearch.trim().toLowerCase();
 		const values = q
-			? cv.values.filter((v) => valLabel(v.value).toLowerCase().includes(q))
+			? cv.values.filter((v) => colValueLabel(v).toLowerCase().includes(q))
 			: cv.values;
 		return { values, capped: cv.capped };
 	});
@@ -220,7 +221,8 @@ export class GridFilterController {
 			const next = new Map(this.valuesByCol);
 			next.set(key, cv);
 			this.valuesByCol = next;
-		} catch {
+		} catch (e) {
+			this.deps.onError(String(e));
 		} finally {
 			this.valuesLoading = null;
 		}

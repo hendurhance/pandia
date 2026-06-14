@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '$lib/ui/Icon.svelte';
-	import { Ban, ChevronDown, ChevronRight, ChevronUp, X } from '@lucide/svelte';
+	import { ChevronDown, ChevronRight } from '@lucide/svelte';
+	import SearchField from '$lib/ui/SearchField.svelte';
 	interface Props {
 		open: boolean;
 		query: string;
@@ -42,37 +43,8 @@
 		replaceStatus,
 	}: Props = $props();
 
-	let inputEl: HTMLInputElement | undefined = $state();
-	// replacement value, so reopening find doesn't hide their work. svelte-ignore
 	// svelte-ignore state_referenced_locally
 	let replaceOpen = $state(replaceValue.length > 0);
-
-	$effect(() => {
-		if (open) {
-			queueMicrotask(() => {
-				inputEl?.focus();
-				inputEl?.select();
-			});
-		}
-	});
-
-	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			onClose();
-			return;
-		}
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			if (e.shiftKey) onPrev();
-			else onNext();
-			return;
-		}
-	}
-
-	function onInput(e: Event) {
-		onQueryChange((e.target as HTMLInputElement).value);
-	}
 
 	function onReplaceInput(e: Event) {
 		onReplaceChange((e.target as HTMLInputElement).value);
@@ -107,51 +79,23 @@
 			>
 		</button>
 		<div class="cols">
-			<div class="row" class:err={isError}>
-				<div class="field">
-					<input
-						bind:this={inputEl}
-						value={query}
-						oninput={onInput}
-						onkeydown={onKeydown}
-						placeholder="find in document"
-						spellcheck="false"
-						autocomplete="off"
-						aria-label="search query"
-					/>
-					{#if counter}
-						<span class="counter" class:err={isError}>{counter}</span>
-					{/if}
-				</div>
-				<div class="actions">
-					{#if busy && onCancel}
-						<button
-							class="ic cancel"
-							onclick={onCancel}
-							title="Cancel search · esc"
-							aria-label="Cancel search"><Icon icon={Ban} size="sm" /></button
-						>
-					{:else}
-						<button
-							class="ic"
-							onclick={onPrev}
-							disabled={navDisabled}
-							title="Previous match · ⇧↵"
-							aria-label="Previous match"><Icon icon={ChevronUp} size="sm" /></button
-						>
-						<button
-							class="ic"
-							onclick={onNext}
-							disabled={navDisabled}
-							title="Next match · ↵"
-							aria-label="Next match"><Icon icon={ChevronDown} size="sm" /></button
-						>
-					{/if}
-					<span class="sep" aria-hidden="true"></span>
-					<button class="ic close" onclick={onClose} title="Close · esc" aria-label="Close find"
-						><Icon icon={X} size="sm" /></button
-					>
-				</div>
+			<div class="row">
+				<SearchField
+					{open}
+					{query}
+					{counter}
+					{navDisabled}
+					{isError}
+					{busy}
+					placeholder="find in document"
+					inputLabel="search query"
+					closeLabel="Close find"
+					{onQueryChange}
+					{onPrev}
+					{onNext}
+					{onClose}
+					{onCancel}
+				/>
 			</div>
 
 			{#if replaceOpen}
@@ -262,9 +206,6 @@
 	.field:focus-within {
 		border-color: var(--accent);
 	}
-	.row.err .field {
-		border-color: var(--danger);
-	}
 	.field input {
 		flex: 1;
 		min-width: 0;
@@ -287,63 +228,12 @@
 		color: var(--text-faint);
 		white-space: nowrap;
 	}
-	.counter.err {
-		color: var(--danger);
-	}
 
 	.actions {
 		display: inline-flex;
 		align-items: center;
 		gap: 1px;
 		flex-shrink: 0;
-	}
-
-	.ic {
-		background: transparent;
-		border: none;
-		width: 26px;
-		height: 26px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--text-dim);
-		cursor: pointer;
-		font-size: 13px;
-		line-height: 1;
-		padding: 0;
-		border-radius: 0;
-	}
-	.ic:hover:not(:disabled) {
-		color: var(--text);
-		background: var(--bg-elev-2);
-	}
-	.ic:focus-visible {
-		outline: none;
-		color: var(--accent);
-		background: var(--bg-elev-2);
-	}
-	.ic:disabled {
-		color: var(--text-ghost);
-		cursor: default;
-	}
-	.ic.close {
-		font-size: 16px;
-	}
-	.ic.cancel {
-		font-size: 13px;
-		color: var(--accent);
-	}
-	.ic.cancel:hover {
-		color: var(--text);
-		background: var(--accent-soft);
-	}
-
-	.sep {
-		display: inline-block;
-		width: 1px;
-		height: 16px;
-		background: var(--rule);
-		margin: 0 2px;
 	}
 
 	.repl {

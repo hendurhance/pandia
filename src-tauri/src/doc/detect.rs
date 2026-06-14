@@ -137,7 +137,7 @@ fn convert_yaml(text: &str) -> DetectResult {
         Err(e) => DetectResult {
             kind: DetectKind::Yaml,
             json: text.to_string(),
-            error: Some(format!("yaml parse failed: {}", e)),
+            error: Some(format!("yaml parse failed: {e}")),
         },
     }
 }
@@ -246,7 +246,7 @@ fn convert_xml(text: &str) -> DetectResult {
                 return DetectResult {
                     kind: DetectKind::Xml,
                     json: text.to_string(),
-                    error: Some(format!("xml parse failed: {}", e)),
+                    error: Some(format!("xml parse failed: {e}")),
                 };
             }
         }
@@ -286,7 +286,7 @@ fn convert_csv(text: &str) -> DetectResult {
             return DetectResult {
                 kind: DetectKind::Csv,
                 json: text.to_string(),
-                error: Some(format!("csv header parse failed: {}", e)),
+                error: Some(format!("csv header parse failed: {e}")),
             };
         }
     };
@@ -299,7 +299,7 @@ fn convert_csv(text: &str) -> DetectResult {
                 return DetectResult {
                     kind: DetectKind::Csv,
                     json: text.to_string(),
-                    error: Some(format!("csv row parse failed: {}", e)),
+                    error: Some(format!("csv row parse failed: {e}")),
                 };
             }
         };
@@ -352,7 +352,7 @@ fn convert_curl(text: &str) -> DetectResult {
             return DetectResult {
                 kind: DetectKind::Curl,
                 json: text.to_string(),
-                error: Some(format!("curl tokenize failed: {}", e)),
+                error: Some(format!("curl tokenize failed: {e}")),
             };
         }
     };

@@ -1,12 +1,16 @@
 import { HEADER_H, ROW_H, type CardRow, type LayoutResult, type PositionedCard } from './layout';
 import { hueColor, mixHex, type GraphTheme } from './theme';
+import {
+	CARD_RADIUS,
+	FONT_PX,
+	HEADER_FONT_WEIGHT,
+	ROW_PAD_X,
+	SWATCH_W,
+	SWATCH_GAP,
+	valueColor,
+} from './render-shared';
+import { escapeHtml as esc } from '$lib/util/escape';
 
-const CARD_RADIUS = 6;
-const FONT_PX = 13;
-const HEADER_FONT_WEIGHT = 600;
-const ROW_PAD_X = 11;
-const SWATCH_W = 11;
-const SWATCH_GAP = 6;
 const PORT_R = 8;
 const PORT_RESERVE = 18;
 
@@ -159,22 +163,6 @@ function renderRowSVG(
 	void rowIdx;
 }
 
-function valueColor(row: CardRow, theme: GraphTheme): string {
-	if (row.container) return theme.textDim;
-	switch (row.valueKind) {
-		case 'string':
-			return theme.text;
-		case 'number':
-			return theme.syntaxNumber;
-		case 'bool':
-			return theme.syntaxBoolean;
-		case 'null':
-			return theme.syntaxNull;
-		default:
-			return theme.text;
-	}
-}
-
 interface MeasureCtx {
 	measure: (s: string) => number;
 }
@@ -254,14 +242,6 @@ function contentBounds(layout: LayoutResult): {
 		return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 	}
 	return { minX, minY, maxX, maxY };
-}
-
-function esc(s: string): string {
-	return s
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
 }
 
 function n(x: number): string {

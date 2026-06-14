@@ -1,6 +1,6 @@
 {
   "productName": "Pandia",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.pandia.ide",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -26,7 +26,9 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ipc:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ipc: ws: wss: https: http:; object-src 'none'",
+      "dangerousDisableAssetCspModification": ["style-src"],
       "capabilities": ["default"]
     }
   },

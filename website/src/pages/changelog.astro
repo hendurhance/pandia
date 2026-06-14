@@ -2,59 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/home/Nav.astro';
 import Footer from '../components/home/Footer.astro';
-
-const REPO = 'https://github.com/hendurhance/pandia';
-const RELEASES = 'https://github.com/hendurhance/pandia/releases';
-
-interface Release {
-  version: string;
-  date: string;
-  tag?: string;
-  tagKind?: 'beta' | 'stable';
-  link?: string;
-  groups: { label: string; items: string[] }[];
-}
-
-const releases: Release[] = [
-  {
-    version: '1.0.0',
-    date: 'June 7, 2026',
-    tag: 'Stable',
-    tagKind: 'stable',
-    link: `${RELEASES}/tag/v1.0.0`,
-    groups: [
-      {
-        label: 'Highlights',
-        items: [
-          'First stable release — Pandia is now 1.0.',
-          'The full workbench: five views (Tree, Code, Grid, Graph, Compare), type generation for 9 languages, validate, compare, repair and export.',
-          'Opens and scrolls multi-gigabyte files with no lag.',
-          'Offline, private and free — your data never leaves your machine.',
-        ],
-      },
-    ],
-  },
-  {
-    version: '0.1.0',
-    date: 'February 14, 2026',
-    tag: 'Beta',
-    tagKind: 'beta',
-    link: `${RELEASES}/tag/v0.1.0`,
-    groups: [
-      {
-        label: 'Highlights',
-        items: [
-          'First public beta — a native JSON workbench for macOS, Windows and Linux, built with Rust + Tauri.',
-          'Open, navigate and edit JSON across multiple views.',
-          'Generate types from any document.',
-          'Import & export common formats — JSON, YAML, XML, CSV.',
-          'Compare documents and auto-repair malformed JSON.',
-          'Offline, private and free — your data never leaves your machine.',
-        ],
-      },
-    ],
-  },
-];
+import { REPO, RELEASES } from '../data/site';
+import { releases } from '../data/releases';
 ---
 <Layout
   title="Changelog"
@@ -86,9 +35,7 @@ const releases: Release[] = [
                 <div class="cl-ver">v{r.version}</div>
                 {r.tag && <span class={`cl-tag ${r.tagKind}`}>{r.tag}</span>}
                 <time class="cl-date">{r.date}</time>
-                {r.link && (
-                  <a class="cl-link" href={r.link} target="_blank" rel="noopener noreferrer">Release notes ↗</a>
-                )}
+                <a class="cl-link" href={`${RELEASES}/tag/v${r.version}`} target="_blank" rel="noopener noreferrer">Release notes ↗</a>
               </div>
               <div class="cl-body">
                 {r.groups.map((g) => (

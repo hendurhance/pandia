@@ -1,10 +1,5 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Nav from '../components/home/Nav.astro';
-import CtaBand from '../components/home/CtaBand.astro';
-import Footer from '../components/home/Footer.astro';
-
-const siteUrl = 'https://www.pandia.app';
+import LandingLayout from '../layouts/LandingLayout.astro';
 const path = '/json-validator';
 
 const title = 'JSON Validator — Validate JSON & JSON Schema';
@@ -29,26 +24,15 @@ const faqItems = [
   { q: 'Can it validate large JSON files offline?', a: 'Yes — validation runs entirely on your machine with no upload, so it works offline and on large documents.' },
 ];
 
-const breadcrumb = {
-  '@type': 'BreadcrumbList',
-  itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
-    { '@type': 'ListItem', position: 2, name: 'JSON converters', item: `${siteUrl}/json-converter` },
-    { '@type': 'ListItem', position: 3, name: 'JSON validator', item: `${siteUrl}${path}` },
-  ],
-};
-const faqSchema = {
-  '@type': 'FAQPage',
-  '@id': `${siteUrl}${path}#faq`,
-  mainEntity: faqItems.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
-};
 ---
 
-<Layout title={title} description={description} canonical={path} structuredData={[breadcrumb, faqSchema]}>
-  <div class="pandia-page">
-    <div class="spine"></div>
-    <Nav />
-    <main>
+<LandingLayout
+  title={title}
+  description={description}
+  path={path}
+  crumbs={[{ name: 'JSON converters', path: '/json-converter' }, { name: 'JSON validator', path }]}
+  faqItems={faqItems}
+>
       <section class="block lp-hero">
         <div class="wrap">
           <span class="eyebrow iv"><span class="tick"></span>Validate</span>
@@ -99,8 +83,4 @@ const faqSchema = {
         </div>
       </section>
 
-      <CtaBand />
-    </main>
-    <Footer />
-  </div>
-</Layout>
+    </LandingLayout>

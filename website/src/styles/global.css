@@ -88,7 +88,7 @@ html {
   --amber:    #e0a53c;
 
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --disp: 'Bricolage Grotesque', ui-sans-serif, sans-serif;
+  --disp: 'Bricolage Grotesque Variable', ui-sans-serif, sans-serif;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --dur:  180ms;
   --maxw: 1180px;

@@ -735,12 +735,13 @@
 				onOpenInTree={(p) => void nav.navigateTo(p)}
 				onCellSelect={(c) => (gridSelected = c)}
 				docKey={session.summary?.sourcePath ?? null}
-				onExtract={(values) => {
+				onError={(e) => (error = e)}
+				onExtract={(text, count) => {
 					const name = stem(session.sourceName ?? 'rows').slice(0, 24);
 					onOpenInNewTab({
 						kind: 'text',
-						text: JSON.stringify(values, null, 2),
-						name: `${name} ◂ ${values.length} rows.json`,
+						text,
+						name: `${name} ◂ ${count} rows.json`,
 					});
 				}}
 			/>

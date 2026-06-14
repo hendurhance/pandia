@@ -1,4 +1,5 @@
 import type { NodeKind } from '$lib/ipc/types';
+import { isLosslessNumber } from '$lib/util/lossless';
 
 export const UNLOADED = Symbol('unloaded');
 
@@ -8,6 +9,7 @@ export function valueKind(v: unknown): NodeKind {
 	if (v === null) return 'null';
 	if (typeof v === 'boolean') return 'bool';
 	if (typeof v === 'number') return 'number';
+	if (isLosslessNumber(v)) return 'number';
 	if (typeof v === 'string') return 'string';
 	if (Array.isArray(v)) return 'array';
 	return 'object';
@@ -17,6 +19,7 @@ export function cellText(v: unknown): string {
 	if (v === null) return '—';
 	if (typeof v === 'boolean') return v ? 'true' : 'false';
 	if (typeof v === 'number') return String(v);
+	if (isLosslessNumber(v)) return v.toString();
 	if (typeof v === 'string') {
 		const max = 500;
 		return v.length > max ? v.slice(0, max) + '…' : v;
@@ -48,6 +51,7 @@ export function cellTitle(v: unknown): string | undefined {
 	if (v === UNLOADED || v === MISSING) return undefined;
 	if (typeof v === 'string') return v;
 	if (v === null) return 'null';
+	if (isLosslessNumber(v)) return v.toString();
 	if (typeof v === 'object') {
 		try {
 			return JSON.stringify(v);
@@ -63,6 +67,7 @@ export function inspectorText(v: unknown): string {
 	if (v === MISSING) return '(no value)';
 	if (typeof v === 'string') return v;
 	if (v === null) return 'null';
+	if (isLosslessNumber(v)) return v.toString();
 	if (typeof v === 'object') return JSON.stringify(v, null, 2);
 	return String(v);
 }

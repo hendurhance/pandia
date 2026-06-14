@@ -1,0 +1,24 @@
+<script>
+  const OSES = ['macOS', 'Windows', 'Linux'];
+  function detectOS() {
+    const nav = navigator as any;
+    const p = (
+      (nav.userAgentData && nav.userAgentData.platform) ||
+      navigator.platform ||
+      navigator.userAgent ||
+      ''
+    ).toLowerCase();
+    if (p.includes('win')) return 'Windows';
+    if (p.includes('mac')) return 'macOS';
+    if (p.includes('linux') && !p.includes('android')) return 'Linux';
+    return 'macOS';
+  }
+  const os = detectOS();
+  document.querySelectorAll('.dl-os').forEach((e) => {
+    e.textContent = os;
+  });
+  const alts = OSES.filter((o) => o !== os);
+  document.querySelectorAll('.dl-alt').forEach((e, i) => {
+    if (alts[i]) e.textContent = 'Download for ' + alts[i];
+  });
+</script>

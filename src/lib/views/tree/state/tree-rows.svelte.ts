@@ -83,10 +83,12 @@ export class TreeRowsController {
 		return views.map((v) => viewToRow(v, path, depth));
 	}
 
+	private expanding = new Set<string>();
+
 	toggleAt = async (index: number) => {
 		if (!this.deps.handle()) return;
 		const row = this.rows[index];
-		if (row.variant !== 'content' || !isExpandable(row)) return;
+		if (row?.variant !== 'content' || !isExpandable(row)) return;
 
 		if (row.expanded) {
 			removeSubtree(this.rows, index);
@@ -95,24 +97,35 @@ export class TreeRowsController {
 			return;
 		}
 
+		// Guard against a second expand of the same node arriving while the first is
+		// still awaiting its slice: without it both calls run insertChildrenWithClose
+		// and the entire subtree is inserted twice.
+		const key = pathKey(row.path);
+		if (this.expanding.has(key)) return;
+		this.expanding.add(key);
 		try {
 			const children = await this.fetchInitialChunk(row.path, row.depth);
-			let total = row.childCount;
+			// The row may have moved or already expanded while we awaited.
+			const cur = this.rows[index];
+			if (cur?.variant !== 'content' || cur.expanded || pathKey(cur.path) !== key) return;
+			let total = cur.childCount;
 			if (total === null && children.length >= CHUNK) {
 				const handle = this.deps.handle();
 				if (handle) {
 					try {
-						total = await docChildCount(handle, row.path);
+						total = await docChildCount(handle, cur.path);
 					} catch {
 						total = null;
 					}
 				}
 			}
 			insertChildrenWithClose(this.rows, index, children, total);
-			this.rows[index] = { ...row, expanded: true, childCount: total };
+			this.rows[index] = { ...cur, expanded: true, childCount: total };
 			this.scheduleFlush();
 		} catch (e) {
 			this.deps.setError(String(e));
+		} finally {
+			this.expanding.delete(key);
 		}
 	};
 

@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import { parseLossless } from '$lib/util/lossless';
+import { toIpcError } from './error';
 import type {
 	ApplyResult,
 	BackupRecord,
@@ -22,12 +24,21 @@ import type {
 	TypegenLang,
 } from './types';
 
+export { IpcError, type IpcErrorKind } from './error';
+
+function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+	const pending = invoke<T>(cmd, args);
+	return pending.catch((e: unknown) => {
+		throw toIpcError(e);
+	});
+}
+
 export function docOpen(source: OpenSource): Promise<OpenResult> {
-	return invoke<OpenResult>('doc_open', { source });
+	return call<OpenResult>('doc_open', { source });
 }
 
 export function docClose(handle: DocHandle): Promise<boolean> {
-	return invoke<boolean>('doc_close', { handle });
+	return call<boolean>('doc_close', { handle });
 }
 
 export function docGetSlice(
@@ -36,11 +47,15 @@ export function docGetSlice(
 	start: number,
 	end: number,
 ): Promise<NodeView[]> {
-	return invoke<NodeView[]>('doc_get_slice', { handle, path, start, end });
+	return call<NodeView[]>('doc_get_slice', { handle, path, start, end });
 }
 
 export function docGetValue(handle: DocHandle, path: Path): Promise<unknown> {
-	return invoke<unknown>('doc_get_value', { handle, path });
+	return call<unknown>('doc_get_value', { handle, path });
+}
+
+export function docValueJson(handle: DocHandle, path: Path): Promise<string> {
+	return call<string>('doc_value_json', { handle, path });
 }
 
 export function docGetRows(
@@ -49,12 +64,19 @@ export function docGetRows(
 	start: number,
 	end: number,
 ): Promise<unknown[]> {
-	return invoke<unknown[]>('doc_get_rows', { handle, path, start, end });
+	return call<string[]>('doc_get_rows', { handle, path, start, end }).then((rows) =>
+		rows.map(parseLossless),
+	);
 }
 
 export interface SortedRow {
 	index: number;
 	value: unknown;
+}
+
+interface WireRow {
+	index: number;
+	value: string;
 }
 
 export function docGetRowsSorted(
@@ -65,7 +87,14 @@ export function docGetRowsSorted(
 	key: string,
 	descending: boolean,
 ): Promise<SortedRow[]> {
-	return invoke<SortedRow[]>('doc_get_rows_sorted', { handle, path, start, end, key, descending });
+	return call<WireRow[]>('doc_get_rows_sorted', {
+		handle,
+		path,
+		start,
+		end,
+		key,
+		descending,
+	}).then((rows) => rows.map((r) => ({ index: r.index, value: parseLossless(r.value) })));
 }
 
 export type FilterOp =
@@ -106,7 +135,7 @@ export function docGetRowsFiltered(
 	descending: boolean,
 	jobId?: string,
 ): Promise<FilteredRows> {
-	return invoke<FilteredRows>('doc_get_rows_filtered', {
+	return call<{ total: number; rows: WireRow[] }>('doc_get_rows_filtered', {
 		handle,
 		path,
 		start,
@@ -117,12 +146,16 @@ export function docGetRowsFiltered(
 		sortKey,
 		descending,
 		jobId,
-	});
+	}).then((fr) => ({
+		total: fr.total,
+		rows: fr.rows.map((r) => ({ index: r.index, value: parseLossless(r.value) })),
+	}));
 }
 
 export interface ColumnValue {
 	value: unknown;
 	count: number;
+	label?: string | null;
 }
 export interface ColumnValues {
 	values: ColumnValue[];
@@ -130,8 +163,8 @@ export interface ColumnValues {
 	capped: boolean;
 }
 
-export function docGetRowsAt(handle: DocHandle, path: Path, indices: number[]): Promise<unknown[]> {
-	return invoke<unknown[]>('doc_get_rows_at', { handle, path, indices });
+export function docGetRowsAt(handle: DocHandle, path: Path, indices: number[]): Promise<string> {
+	return call<string>('doc_get_rows_at', { handle, path, indices });
 }
 
 export function docColumnValues(
@@ -140,39 +173,39 @@ export function docColumnValues(
 	key: string,
 	limit: number,
 ): Promise<ColumnValues> {
-	return invoke<ColumnValues>('doc_column_values', { handle, path, key, limit });
+	return call<ColumnValues>('doc_column_values', { handle, path, key, limit });
 }
 
 export function docSummary(handle: DocHandle): Promise<Summary> {
-	return invoke<Summary>('doc_summary', { handle });
+	return call<Summary>('doc_summary', { handle });
 }
 
 export function docChildCount(handle: DocHandle, path: Path): Promise<number | null> {
-	return invoke<number | null>('doc_child_count', { handle, path });
+	return call<number | null>('doc_child_count', { handle, path });
 }
 
 export function docColumnSchema(handle: DocHandle, path: Path): Promise<ColumnSchema> {
-	return invoke<ColumnSchema>('doc_column_schema', { handle, path });
+	return call<ColumnSchema>('doc_column_schema', { handle, path });
 }
 
 export function docApplyOp(handle: DocHandle, op: Op): Promise<ApplyResult> {
-	return invoke<ApplyResult>('doc_apply_op', { handle, op });
+	return call<ApplyResult>('doc_apply_op', { handle, op });
 }
 
 export function docSetRootText(handle: DocHandle, text: string): Promise<ApplyResult> {
-	return invoke<ApplyResult>('doc_set_root_text', { handle, text });
+	return call<ApplyResult>('doc_set_root_text', { handle, text });
 }
 
 export function docUndo(handle: DocHandle): Promise<ApplyResult | null> {
-	return invoke<ApplyResult | null>('doc_undo', { handle });
+	return call<ApplyResult | null>('doc_undo', { handle });
 }
 
 export function docRedo(handle: DocHandle): Promise<ApplyResult | null> {
-	return invoke<ApplyResult | null>('doc_redo', { handle });
+	return call<ApplyResult | null>('doc_redo', { handle });
 }
 
 export function docDiff(left: DocHandle, right: DocHandle): Promise<DiffEntry[]> {
-	return invoke<DiffEntry[]>('doc_diff', { left, right });
+	return call<DiffEntry[]>('doc_diff', { left, right });
 }
 
 export function docSearch(
@@ -180,11 +213,11 @@ export function docSearch(
 	opts: SearchOptions,
 	jobId?: string,
 ): Promise<SearchHit[]> {
-	return invoke<SearchHit[]>('doc_search', { handle, opts, jobId });
+	return call<SearchHit[]>('doc_search', { handle, opts, jobId });
 }
 
 export function cancelJob(jobId: string): Promise<boolean> {
-	return invoke<boolean>('cancel_job', { jobId });
+	return call<boolean>('cancel_job', { jobId });
 }
 
 export interface ReplaceResult {
@@ -198,18 +231,18 @@ export function docReplace(
 	replacement: string,
 	caseSensitive: boolean,
 ): Promise<ReplaceResult> {
-	return invoke<ReplaceResult>('doc_replace', { handle, query, replacement, caseSensitive });
+	return call<ReplaceResult>('doc_replace', { handle, query, replacement, caseSensitive });
 }
 
 export function docRepairText(text: string): Promise<RepairResult> {
-	return invoke<RepairResult>('doc_repair_text', { text });
+	return call<RepairResult>('doc_repair_text', { text });
 }
 
 export function docValidateSchema(
 	handle: DocHandle,
 	schema: string,
 ): Promise<SchemaValidationResult> {
-	return invoke<SchemaValidationResult>('doc_validate_schema', { handle, schema });
+	return call<SchemaValidationResult>('doc_validate_schema', { handle, schema });
 }
 
 export function docGenerateTypes(
@@ -217,39 +250,39 @@ export function docGenerateTypes(
 	lang: TypegenLang,
 	typeName: string,
 ): Promise<string> {
-	return invoke<string>('doc_generate_types', { handle, lang, typeName });
+	return call<string>('doc_generate_types', { handle, lang, typeName });
 }
 
 export function docDetectAndConvert(text: string): Promise<DetectResult> {
-	return invoke<DetectResult>('doc_detect_and_convert', { text });
+	return call<DetectResult>('doc_detect_and_convert', { text });
 }
 
 export function docHistory(handle: DocHandle): Promise<HistoryView> {
-	return invoke<HistoryView>('doc_history', { handle });
+	return call<HistoryView>('doc_history', { handle });
 }
 
 export function docSave(handle: DocHandle, path?: string): Promise<SaveResult> {
-	return invoke<SaveResult>('doc_save', { handle, path: path ?? null });
+	return call<SaveResult>('doc_save', { handle, path: path ?? null });
 }
 
 export function docSetFilePath(handle: DocHandle, path: string): Promise<Summary> {
-	return invoke<Summary>('doc_set_file_path', { handle, path });
+	return call<Summary>('doc_set_file_path', { handle, path });
 }
 
 export function docBackup(handle: DocHandle, displayName: string | null): Promise<boolean> {
-	return invoke<boolean>('doc_backup', { handle, displayName });
+	return call<boolean>('doc_backup', { handle, displayName });
 }
 
 export function docBackupClear(docId: string): Promise<void> {
-	return invoke<void>('doc_backup_clear', { docId });
+	return call<void>('doc_backup_clear', { docId });
 }
 
 export function docBackupScan(): Promise<BackupRecord[]> {
-	return invoke<BackupRecord[]>('doc_backup_scan', {});
+	return call<BackupRecord[]>('doc_backup_scan', {});
 }
 
 export function docExport(handle: DocHandle, format: ExportFormat): Promise<string> {
-	return invoke<string>('doc_export', { handle, format });
+	return call<string>('doc_export', { handle, format });
 }
 
 export interface ExportPreview {
@@ -262,7 +295,7 @@ export function docExportPreview(
 	format: ExportFormat,
 	maxChars: number,
 ): Promise<ExportPreview> {
-	return invoke<ExportPreview>('doc_export_preview', { handle, format, maxChars });
+	return call<ExportPreview>('doc_export_preview', { handle, format, maxChars });
 }
 
 export function docExportToFile(
@@ -270,5 +303,5 @@ export function docExportToFile(
 	format: ExportFormat,
 	path: string,
 ): Promise<void> {
-	return invoke<void>('doc_export_to_file', { handle, format, path });
+	return call<void>('doc_export_to_file', { handle, format, path });
 }

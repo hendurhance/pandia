@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { recentsStore, removeRecent, togglePin } from '../state/recents-store.svelte';
-	import { formatSize, relativeTime } from '$lib/util/format';
+	import { fmtBytes, relativeTime } from '$lib/util/format';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { Pin, PinOff, X } from '@lucide/svelte';
 
@@ -67,7 +67,7 @@
 					>
 						<span class="recent-name">{r.name}</span>
 						<span class="recent-meta">
-							{#if r.size != null}<span class="recent-size">{formatSize(r.size)}</span>{/if}
+							{#if r.size != null}<span class="recent-size">{fmtBytes(r.size)}</span>{/if}
 							<span class="dim recent-when">{relativeTime(r.openedAt)}</span>
 						</span>
 					</button>

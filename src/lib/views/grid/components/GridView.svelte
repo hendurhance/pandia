@@ -35,7 +35,9 @@
 
 		docKey?: string | null;
 
-		onExtract?: (values: unknown[]) => void;
+		onExtract?: (text: string, count: number) => void;
+
+		onError?: (msg: string) => void;
 	}
 
 	let {
@@ -46,6 +48,7 @@
 		onCellSelect = () => {},
 		docKey = null,
 		onExtract = () => {},
+		onError = () => {},
 	}: Props = $props();
 
 	const HEADER_HEIGHT = 26;
@@ -55,6 +58,7 @@
 		handle: () => handle,
 		path: () => path,
 		columns: () => schema.columns,
+		onError: (msg) => onError(msg),
 	});
 
 	$effect(() => filter.coerceCappedOp());
@@ -279,8 +283,9 @@
 		data,
 		handle: () => handle,
 		path: () => path,
-		onExtract: (values) => onExtract(values),
+		onExtract: (text, count) => onExtract(text, count),
 		onOpenInTree: (cellPath) => onOpenInTree(cellPath),
+		onError: (msg) => onError(msg),
 	});
 
 	$effect(() => {

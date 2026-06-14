@@ -97,9 +97,17 @@ class SidebarPrefs extends PersistedStore {
 	}
 
 	setWidth(w: number): void {
+		if (this.setWidthLive(w)) this.persist();
+	}
+
+	setWidthLive(w: number): boolean {
 		const clamped = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(w)));
-		if (this.width === clamped) return;
+		if (this.width === clamped) return false;
 		this.width = clamped;
+		return true;
+	}
+
+	commitWidth(): void {
 		this.persist();
 	}
 

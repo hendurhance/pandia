@@ -5,6 +5,7 @@ import {
 	compileFilters,
 	compileGroups,
 	valLabel,
+	colValueLabel,
 	chipSummary,
 	type ColFilter,
 } from './grid-filter-model';
@@ -98,6 +99,20 @@ describe('valLabel', () => {
 		expect(valLabel([1, 2, 3])).toBe('[3]');
 		expect(valLabel({ a: 1 })).toBe('{…}');
 		expect(valLabel(42)).toBe('42');
+	});
+});
+
+describe('colValueLabel', () => {
+	it('prefers the backend lossless label so big integers read correctly', () => {
+		// `value` is the f64-rounded number that crossed IPC; `label` is the literal.
+		expect(colValueLabel({ value: 123456789012345680, label: '123456789012345678' })).toBe(
+			'123456789012345678',
+		);
+	});
+	it('falls back to valLabel when there is no numeric label', () => {
+		expect(colValueLabel({ value: 'hi' })).toBe('hi');
+		expect(colValueLabel({ value: null, label: null })).toBe('(empty)');
+		expect(colValueLabel({ value: 42 })).toBe('42');
 	});
 });
 

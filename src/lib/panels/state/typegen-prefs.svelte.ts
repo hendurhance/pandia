@@ -6,17 +6,19 @@ import { oneOf } from '$lib/util/guards';
 const STORE_FILE = TYPEGEN_FILE;
 const STORE_KEY = 'activeLang';
 
-const VALID_LANGS: TypegenLang[] = [
-	'typescript',
-	'rust',
-	'go',
-	'kotlin',
-	'json-schema',
-	'python',
-	'php',
-	'java',
-	'zod',
+export const TYPEGEN_LANGS: ReadonlyArray<{ id: TypegenLang; label: string }> = [
+	{ id: 'typescript', label: 'TypeScript' },
+	{ id: 'rust', label: 'Rust' },
+	{ id: 'go', label: 'Go' },
+	{ id: 'kotlin', label: 'Kotlin' },
+	{ id: 'json-schema', label: 'JSON Schema' },
+	{ id: 'python', label: 'Python' },
+	{ id: 'php', label: 'PHP' },
+	{ id: 'java', label: 'Java' },
+	{ id: 'zod', label: 'Zod' },
 ];
+
+const VALID_LANGS: TypegenLang[] = TYPEGEN_LANGS.map((t) => t.id);
 
 const DEFAULT_LANG: TypegenLang = 'typescript';
 
@@ -39,15 +41,3 @@ class TypegenPrefs extends PersistedStore {
 }
 
 export const typegenPrefs = new TypegenPrefs();
-
-export const TYPEGEN_LANGS: ReadonlyArray<{ id: TypegenLang; label: string }> = [
-	{ id: 'typescript', label: 'TypeScript' },
-	{ id: 'rust', label: 'Rust' },
-	{ id: 'go', label: 'Go' },
-	{ id: 'kotlin', label: 'Kotlin' },
-	{ id: 'json-schema', label: 'JSON Schema' },
-	{ id: 'python', label: 'Python' },
-	{ id: 'php', label: 'PHP' },
-	{ id: 'java', label: 'Java' },
-	{ id: 'zod', label: 'Zod' },
-];

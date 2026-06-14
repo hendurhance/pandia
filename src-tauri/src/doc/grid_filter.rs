@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
@@ -81,21 +82,21 @@ fn is_empty(cell: Option<&Value>) -> bool {
     }
 }
 
-fn cell_string(cell: Option<&Value>) -> Option<String> {
+fn cell_string(cell: Option<&Value>) -> Option<Cow<'_, str>> {
     match cell? {
-        Value::String(s) => Some(s.clone()),
-        Value::Number(n) => Some(n.to_string()),
-        Value::Bool(b) => Some(b.to_string()),
+        Value::String(s) => Some(Cow::Borrowed(s)),
+        Value::Number(n) => Some(Cow::Owned(n.to_string())),
+        Value::Bool(b) => Some(Cow::Owned(b.to_string())),
         _ => None,
     }
 }
 
-fn operand_string(f: &GridFilter) -> String {
+fn operand_string(f: &GridFilter) -> Cow<'_, str> {
     match &f.value {
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Number(n)) => n.to_string(),
-        Some(Value::Bool(b)) => b.to_string(),
-        _ => String::new(),
+        Some(Value::String(s)) => Cow::Borrowed(s),
+        Some(Value::Number(n)) => Cow::Owned(n.to_string()),
+        Some(Value::Bool(b)) => Cow::Owned(b.to_string()),
+        _ => Cow::Borrowed(""),
     }
 }
 

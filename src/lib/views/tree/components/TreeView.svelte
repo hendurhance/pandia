@@ -127,7 +127,7 @@
 		const top = scrollTop;
 		const bottom = scrollTop + viewportHeight;
 		const GAP_OVERSCAN_ROWS = 32;
-		for (let i = startIndex; i < endIndex; i++) {
+		for (let i = startIndex; i < endIndex && i < rows.length; i++) {
 			const r = rows[i];
 			if (r.variant !== 'vgap') continue;
 			const gapTop = offsets[i];
@@ -158,33 +158,56 @@
 			}
 		};
 		sync();
-		const ro = new ResizeObserver(sync);
+
+		let rafId = 0;
+		const ro = new ResizeObserver(() => {
+			if (rafId) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = 0;
+				sync();
+			});
+		});
 		ro.observe(scroller);
-		return () => ro.disconnect();
+		return () => {
+			if (rafId) cancelAnimationFrame(rafId);
+			ro.disconnect();
+		};
 	});
 
 	$effect(() => {
-		void visibleRows;
-		void heightsVersion;
+		void rows;
+		void scrollTop;
+		void viewportHeight;
 		void editing;
 		if (!scroller) return;
-		let changed = false;
-		for (const el of scroller.querySelectorAll<HTMLElement>('.r[data-ri]')) {
-			const ri = Number(el.dataset.ri);
-			if (!Number.isInteger(ri) || ri < 0 || ri >= rows.length) continue;
-			const h = el.offsetHeight;
-			if (h <= 0) continue;
-			const key = rowKey(rows[ri]);
-			if (h > DEFAULT_ROW_H + 1) {
-				if (tallHeights.get(key) !== h) {
-					tallHeights.set(key, h);
+		untrack(() => {
+			if (!scroller) return;
+
+			if (!editing) {
+				if (tallHeights.size > 0) {
+					tallHeights.clear();
+					heightsVersion += 1;
+				}
+				return;
+			}
+			let changed = false;
+			for (const el of scroller.querySelectorAll<HTMLElement>('.r[data-ri]')) {
+				const ri = Number(el.dataset.ri);
+				if (!Number.isInteger(ri) || ri < 0 || ri >= rows.length) continue;
+				const h = el.offsetHeight;
+				if (h <= 0) continue;
+				const key = rowKey(rows[ri]);
+				if (h > DEFAULT_ROW_H + 1) {
+					if (tallHeights.get(key) !== h) {
+						tallHeights.set(key, h);
+						changed = true;
+					}
+				} else if (tallHeights.delete(key)) {
 					changed = true;
 				}
-			} else if (tallHeights.delete(key)) {
-				changed = true;
 			}
-		}
-		if (changed) heightsVersion += 1;
+			if (changed) heightsVersion += 1;
+		});
 	});
 
 	let prevLen = $state(0);
@@ -440,7 +463,7 @@
 					<span class="ph"><Icon icon={MoreHorizontal} size="xs" /></span>
 					<span class="ph-label">Loading [{row.index}]</span>
 				</div>
-			{:else if isVGap(row)}{''}{:else}
+			{:else if isVGap(row)}{:else}
 				<div class="r close" data-ri={i} style="transform: translate3d(0, {offsets[i]}px, 0);">
 					{#each Array.from({ length: row.depth }) as _, g (g)}
 						<span class="guide"></span>
@@ -599,8 +622,13 @@
 	.v {
 		flex: 1;
 		min-width: 0;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
+		/* One clipped line per value: keeps every row a uniform height so the
+		   variable-height measurement loop has nothing to thrash on. A long or
+		   newline-containing value (common in large docs) would otherwise render
+		   as a tall multi-line row and stall the tree. */
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.v.string {
 		color: var(--syntax-string);

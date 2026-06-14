@@ -62,7 +62,7 @@ pub fn unescape(text: &str) -> String {
             let ch = &caps[2];
             let count = backslashes.len();
             let half = count / 2;
-            let prefix: String = std::iter::repeat('\\').take(half).collect();
+            let prefix: String = std::iter::repeat_n('\\', half).collect();
 
             let unescape_target = match ch {
                 "b" => Some('\u{0008}'),
@@ -77,11 +77,11 @@ pub fn unescape(text: &str) -> String {
 
             if count % 2 == 1 {
                 if let Some(target) = unescape_target {
-                    return format!("{}{}", prefix, target);
+                    return format!("{prefix}{target}");
                 }
             }
             let extra = if count % 2 == 1 { "\\" } else { "" };
-            format!("{}{}{}", prefix, extra, ch)
+            format!("{prefix}{extra}{ch}")
         })
         .into_owned()
 }
@@ -156,10 +156,7 @@ pub fn deep_unescape(text: &str, max_iterations: u32) -> DeepUnescapeResult {
             result: current,
             iterations,
             success: false,
-            error: Some(format!(
-                "Parse failed after {} iterations: {}",
-                iterations, e
-            )),
+            error: Some(format!("Parse failed after {iterations} iterations: {e}")),
         },
     }
 }
@@ -199,7 +196,7 @@ pub fn repair(input: &str) -> RepairResult {
                 cleaned_up: false,
             };
         }
-        Err(e) => warnings.push(format!("Initial parse failed: {}", e)),
+        Err(e) => warnings.push(format!("Initial parse failed: {e}")),
     }
 
     let mut current = trimmed.clone();
@@ -208,7 +205,7 @@ pub fn repair(input: &str) -> RepairResult {
         let level = get_escape_level(&current);
         let r = deep_unescape(&current, 5);
         if let Some(err) = &r.error {
-            warnings.push(format!("Unescape warning: {}", err));
+            warnings.push(format!("Unescape warning: {err}"));
         }
         if r.success {
             // `deep_unescape` claims success only when its result is parseable,
@@ -235,8 +232,7 @@ pub fn repair(input: &str) -> RepairResult {
                 }
                 Err(e) => {
                     warnings.push(format!(
-                        "Unescape success but parse failed ({}), trying further repairs",
-                        e
+                        "Unescape success but parse failed ({e}), trying further repairs"
                     ));
                     current = r.result;
                     was_unescaped = true;
@@ -281,7 +277,7 @@ pub fn repair(input: &str) -> RepairResult {
         }
         Err(e) => {
             let mut errs = errors.clone();
-            errs.push(format!("Final parse failed: {}", e));
+            errs.push(format!("Final parse failed: {e}"));
             RepairResult {
                 success: false,
                 repaired_json: trimmed,
@@ -401,12 +397,11 @@ fn fix_bracket_mismatches(json: &str, warnings: &mut Vec<String>) -> String {
                     let correct = if last == '{' { '}' } else { ']' };
                     out.push(correct);
                     warnings.push(format!(
-                        "Fixed bracket mismatch: expected '{}' but found '{}'",
-                        correct, c
+                        "Fixed bracket mismatch: expected '{correct}' but found '{c}'"
                     ));
                 }
                 None => {
-                    warnings.push(format!("Removed extra closing bracket '{}'", c));
+                    warnings.push(format!("Removed extra closing bracket '{c}'"));
                 }
             }
         } else {
@@ -421,7 +416,7 @@ fn fix_bracket_mismatches(json: &str, warnings: &mut Vec<String>) -> String {
     while let Some(b) = stack.pop() {
         let closing = if b == '{' { '}' } else { ']' };
         out.push(closing);
-        warnings.push(format!("Added missing closing bracket '{}'", closing));
+        warnings.push(format!("Added missing closing bracket '{closing}'"));
     }
     out
 }
@@ -440,14 +435,14 @@ fn fix_unquoted_keys(json: &str, warnings: &mut Vec<String>) -> String {
             let key = &caps[2];
             if should_be_quoted(key) {
                 quoted.push(key.to_string());
-                format!("{}\"{}\":", prefix, key)
+                format!("{prefix}\"{key}\":")
             } else {
                 caps[0].to_string()
             }
         })
         .into_owned();
     for key in quoted {
-        warnings.push(format!("Added quotes around key: {}", key));
+        warnings.push(format!("Added quotes around key: {key}"));
     }
     result
 }
@@ -478,7 +473,7 @@ fn fix_string_escaping(json: &str, warnings: &mut Vec<String>) -> String {
             match code {
                 8 => next.push_str("\\b"),
                 12 => next.push_str("\\f"),
-                _ => next.push_str(&format!("\\u{:04x}", code)),
+                _ => next.push_str(&format!("\\u{code:04x}")),
             }
         } else {
             next.push(c);

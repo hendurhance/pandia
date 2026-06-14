@@ -1,4 +1,5 @@
 ---
+import OsDetect from './OsDetect.astro';
 const links = [
   { href: '/#views', label: 'Views' },
   { href: '/#capabilities', label: 'Capabilities' },
@@ -35,6 +36,8 @@ const gh = `<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" 
     </div>
   </div>
 </nav>
+
+<OsDetect />
 
 <style is:global>
   .pandia-page .pn-nav {

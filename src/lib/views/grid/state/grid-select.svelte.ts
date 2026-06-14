@@ -8,8 +8,9 @@ export interface GridSelectDeps {
 	data: GridDataController;
 	handle: () => DocHandle;
 	path: () => Path;
-	onExtract: (values: unknown[]) => void;
+	onExtract: (text: string, count: number) => void;
 	onOpenInTree: (cellPath: Path) => void;
+	onError: (msg: string) => void;
 }
 
 export class GridSelectionController {
@@ -76,17 +77,24 @@ export class GridSelectionController {
 		const idx = [...this.selectedRows].sort((a, b) => a - b);
 		if (idx.length === 0) return;
 		try {
-			const vals = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
-			await this.rowsCopy.copy(JSON.stringify(vals, null, 2));
-		} catch {}
+			// Pretty JSON serialized in Rust — big integers survive (JSON.stringify of
+			// an IPC-parsed value would truncate them through f64).
+			const json = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
+			if (!(await this.rowsCopy.copy(json))) this.deps.onError('clipboard unavailable');
+		} catch (e) {
+			this.deps.onError(String(e));
+		}
 	};
 
 	extractSelected = async () => {
 		const idx = [...this.selectedRows].sort((a, b) => a - b);
 		if (idx.length === 0) return;
 		try {
-			this.deps.onExtract(await docGetRowsAt(this.deps.handle(), this.deps.path(), idx));
-		} catch {}
+			const json = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
+			this.deps.onExtract(json, idx.length);
+		} catch (e) {
+			this.deps.onError(String(e));
+		}
 	};
 
 	selectCell = (row: number, col: string) => {
