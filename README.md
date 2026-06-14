@@ -162,8 +162,8 @@ Anything that's *where the user is looking* stays in Svelte. Anything that's *wh
 |---|---|
 | < 10 MB | Eager parse — full feature set |
 | 10 MB – 200 MB | Lazy mode — full feature set |
-| 200 MB – 1 GB | Lazy mode — browse, search, diff, export; whole-document edit / validate disabled |
-| > 1 GB | Refused in v1 — streaming view planned for v1.x |
+| 200 MB –  GB | Lazy mode — browse, search, diff, export; whole-document edit / validate disabled |
+| > 2 GB | Refused in v1 — streaming view planned for v1.x |
 
 ## Tech stack
 

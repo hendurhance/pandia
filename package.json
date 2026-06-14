@@ -1,6 +1,6 @@
 {
   "name": "pandia",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A powerful cross-platform desktop JSON IDE",
   "private": true,
   "scripts": {
