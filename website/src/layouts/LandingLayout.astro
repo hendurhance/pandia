@@ -1,0 +1,29 @@
+---
+import Layout from './Layout.astro';
+import Nav from '../components/home/Nav.astro';
+import CtaBand from '../components/home/CtaBand.astro';
+import Footer from '../components/home/Footer.astro';
+import { breadcrumb, faqSchema, type Crumb, type Faq } from '../data/seo';
+
+interface Props {
+	title: string;
+	description: string;
+	path: string;
+	crumbs: Crumb[];
+	faqItems: Faq[];
+}
+const { title, description, path, crumbs, faqItems } = Astro.props;
+const structuredData = [breadcrumb(crumbs), faqSchema(faqItems, path)];
+---
+
+<Layout title={title} description={description} canonical={path} structuredData={structuredData}>
+	<div class="pandia-page">
+		<div class="spine"></div>
+		<Nav />
+		<main>
+			<slot />
+			<CtaBand />
+		</main>
+		<Footer />
+	</div>
+</Layout>

@@ -91,9 +91,10 @@
 				resizeStartW = sidebarPrefs.width;
 			},
 			onMove: (dx) =>
-				sidebarPrefs.setWidth(resizeStartW + (sidebarPrefs.side === 'right' ? -dx : dx)),
-			onEnd: () => {
+				sidebarPrefs.setWidthLive(resizeStartW + (sidebarPrefs.side === 'right' ? -dx : dx)),
+			onEnd: (moved) => {
 				dragging = false;
+				if (moved) sidebarPrefs.commitWidth();
 			},
 		}}
 		ondblclick={onResizeDouble}

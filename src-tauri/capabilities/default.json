@@ -31,51 +31,11 @@
       "allow": [{ "path": "**" }]
     },
     {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-copy-file",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-create",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-exists",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-remove",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-rename",
+      "identifier": "fs:allow-write-file",
       "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-stat",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-truncate",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-write-file",
       "allow": [{ "path": "**" }]
     },
     "dialog:default",
@@ -91,10 +51,7 @@
     "store:allow-save",
     {
       "identifier": "http:default",
-      "allow": [
-        { "url": "https://**" },
-        { "url": "http://**" }
-      ]
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
     },
     "updater:default",
     "updater:allow-check",

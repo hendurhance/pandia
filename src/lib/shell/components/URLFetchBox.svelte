@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fetch } from '@tauri-apps/plugin-http';
 	import { parseHeaders, URL_FETCH_TIMEOUT_MS } from '../logic/url-fetch';
 
 	interface Props {

@@ -20,6 +20,13 @@ export interface DocContext {
 
 export const MAX_TABS = 10;
 
+function omit<T>(rec: Record<string, T>, key: string): Record<string, T> {
+	if (!(key in rec)) return rec;
+	const next = { ...rec };
+	delete next[key];
+	return next;
+}
+
 export class TabStore {
 	tabs: TabMeta[] = $state([{ id: 'tab-1', label: 'untitled' }]);
 	activeId = $state('tab-1');
@@ -64,6 +71,9 @@ export class TabStore {
 		const idx = this.tabs.findIndex((t) => t.id === id);
 		if (idx < 0) return;
 		schemaStore.clear(id);
+		this.statuses = omit(this.statuses, id);
+		this.contexts = omit(this.contexts, id);
+		this.pendingOpens = omit(this.pendingOpens, id);
 		const next = this.tabs.filter((t) => t.id !== id);
 		if (next.length === 0) {
 			const fresh: TabMeta = { id: this.newId(), label: 'untitled' };

@@ -140,13 +140,30 @@ pub(crate) fn substr_contains(haystack: &str, needle: &str, case_sensitive: bool
 }
 
 pub(crate) fn string_match_snippet(s: &str, needle: &str, case_sensitive: bool) -> Option<String> {
-    let idx = if case_sensitive {
-        s.find(needle)?
-    } else {
-        let lower = s.to_lowercase();
-        lower.find(needle)?
-    };
-    Some(make_snippet(s, idx, needle.len()))
+    if case_sensitive {
+        let idx = s.find(needle)?;
+        return Some(make_snippet(s, idx, needle.len()));
+    }
+
+    let lower = s.to_lowercase();
+    let lo = lower.find(needle)?;
+    let hi = lo + needle.len();
+    let start = map_lower_offset(s, lo);
+    let end = map_lower_offset(s, hi);
+    Some(make_snippet(s, start, end.saturating_sub(start)))
+}
+
+fn map_lower_offset(s: &str, lower_offset: usize) -> usize {
+    let mut acc = 0;
+    for (orig_byte, ch) in s.char_indices() {
+        if acc >= lower_offset {
+            return orig_byte;
+        }
+        for lc in ch.to_lowercase() {
+            acc += lc.len_utf8();
+        }
+    }
+    s.len()
 }
 
 fn make_snippet(text: &str, byte_idx: usize, match_len: usize) -> String {
@@ -181,9 +198,9 @@ fn preview_of(v: &Value) -> String {
             let truncated = chars.len() < s.chars().count();
             let body: String = chars.into_iter().collect();
             if truncated {
-                format!("\"{}…\"", body)
+                format!("\"{body}…\"")
             } else {
-                format!("\"{}\"", body)
+                format!("\"{body}\"")
             }
         }
         Value::Number(n) => n.to_string(),
@@ -317,6 +334,19 @@ mod tests {
         let hits = search_in_value(&v, &opts("🦀"), &CancelFlag::never());
         assert_eq!(hits.len(), 1);
         assert!(hits[0].snippet.contains("🦀"));
+    }
+
+    #[test]
+    fn snippet_maps_offset_past_case_changing_chars() {
+        let body = format!("{}TARGET tail", "İ".repeat(10));
+        let v = json!({ "msg": body });
+        let hits = search_in_value(&v, &opts("target"), &CancelFlag::never());
+        assert_eq!(hits.len(), 1);
+        assert!(
+            hits[0].snippet.contains("TARGET"),
+            "snippet was: {}",
+            hits[0].snippet
+        );
     }
 
     #[test]

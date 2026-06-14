@@ -2,6 +2,7 @@
 	import { docGetSlice } from '$lib/ipc/doc';
 	import type { DocHandle, NodeView, Path } from '$lib/ipc/types';
 	import { pathToString } from '$lib/util/path';
+	import { fixedWindow } from '$lib/views/tree/logic/virtualizer';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
 
@@ -174,10 +175,9 @@
 	let scroller: HTMLDivElement | undefined = $state();
 	let scrollTop = $state(0);
 	let viewportHeight = $state(0);
-	const startIndex = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN));
-	const endIndex = $derived(
-		Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / ROW_H) + OVERSCAN),
-	);
+	const win = $derived(fixedWindow(scrollTop, viewportHeight, rows.length, ROW_H, OVERSCAN));
+	const startIndex = $derived(win.start);
+	const endIndex = $derived(win.end);
 	const visibleRows = $derived(rows.slice(startIndex, endIndex));
 	const totalHeight = $derived(rows.length * ROW_H);
 

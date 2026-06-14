@@ -40,11 +40,6 @@ export interface OpenResult {
 	summary: Summary;
 }
 
-export type WireNumber =
-	| { kind: 'safe'; value: number }
-	| { kind: 'bigInt'; value: string }
-	| { kind: 'bigDecimal'; value: string };
-
 export type Op =
 	| { kind: 'setValue'; path: Path; value: unknown }
 	| { kind: 'renameKey'; path: Path; from: string; to: string }
@@ -60,11 +55,20 @@ export type Op =
 	| { kind: 'deleteItem'; path: Path; index: number }
 	| { kind: 'moveItem'; path: Path; from: number; to: number }
 	| { kind: 'reorderKeys'; path: Path; order: string[] }
-	| { kind: 'sortKeys'; path: Path; descending: boolean };
+	| { kind: 'sortKeys'; path: Path; descending: boolean }
+	| { kind: 'duplicateItem'; path: Path; index: number }
+	| { kind: 'duplicateKey'; path: Path; from: string; to: string; position: number | null }
+	| { kind: 'insertItemText'; path: Path; index: number; text: string }
+	| {
+			kind: 'insertKeyText';
+			path: Path;
+			key: string;
+			text: string;
+			position: number | null;
+	  };
 
 export interface ApplyResult {
 	version: number;
-	inverse: Op;
 	affectedPaths: Path[];
 }
 

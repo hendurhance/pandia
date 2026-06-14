@@ -1,3 +1,5 @@
+import { escapeHtml } from '$lib/util/escape';
+
 export interface MatchResult {
 	score: number;
 	ranges: Array<[number, number]>;
@@ -48,22 +50,14 @@ export function fuzzyMatch(query: string, label: string): MatchResult {
 }
 
 export function highlightLabel(label: string, ranges: Array<[number, number]>): string {
-	if (ranges.length === 0) return escape(label);
+	if (ranges.length === 0) return escapeHtml(label);
 	let out = '';
 	let cur = 0;
 	for (const [s, e] of ranges) {
-		out += escape(label.slice(cur, s));
-		out += `<mark>${escape(label.slice(s, e))}</mark>`;
+		out += escapeHtml(label.slice(cur, s));
+		out += `<mark>${escapeHtml(label.slice(s, e))}</mark>`;
 		cur = e;
 	}
-	out += escape(label.slice(cur));
+	out += escapeHtml(label.slice(cur));
 	return out;
-}
-
-function escape(s: string): string {
-	return s
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
 }

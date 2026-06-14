@@ -202,11 +202,11 @@ fn write_xml_element(out: &mut String, tag: &str, value: &Value, depth: usize) {
     let indent = "  ".repeat(depth);
     match value {
         Value::Object(map) => {
-            let _ = writeln!(out, "{}<{}>", indent, tag);
+            let _ = writeln!(out, "{indent}<{tag}>");
             for (k, v) in map {
                 write_xml_element(out, &sanitize_tag(k), v, depth + 1);
             }
-            let _ = writeln!(out, "{}</{}>", indent, tag);
+            let _ = writeln!(out, "{indent}</{tag}>");
         }
         Value::Array(items) => {
             for item in items {
@@ -214,16 +214,16 @@ fn write_xml_element(out: &mut String, tag: &str, value: &Value, depth: usize) {
             }
         }
         Value::Null => {
-            let _ = writeln!(out, "{}<{}/>", indent, tag);
+            let _ = writeln!(out, "{indent}<{tag}/>");
         }
         Value::String(s) => {
             let _ = writeln!(out, "{}<{}>{}</{}>", indent, tag, escape_xml(s), tag);
         }
         Value::Bool(b) => {
-            let _ = writeln!(out, "{}<{}>{}</{}>", indent, tag, b, tag);
+            let _ = writeln!(out, "{indent}<{tag}>{b}</{tag}>");
         }
         Value::Number(n) => {
-            let _ = writeln!(out, "{}<{}>{}</{}>", indent, tag, n, tag);
+            let _ = writeln!(out, "{indent}<{tag}>{n}</{tag}>");
         }
     }
 }

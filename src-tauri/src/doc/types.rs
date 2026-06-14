@@ -53,9 +53,9 @@ impl fmt::Display for Path {
         f.write_str("$")?;
         for seg in &self.0 {
             match seg {
-                PathSegment::Key(k) if is_bare_identifier(k) => write!(f, ".{}", k)?,
+                PathSegment::Key(k) if is_bare_identifier(k) => write!(f, ".{k}")?,
                 PathSegment::Key(k) => write!(f, "[{}]", json_quote(k))?,
-                PathSegment::Index(i) => write!(f, "[{}]", i)?,
+                PathSegment::Index(i) => write!(f, "[{i}]")?,
             }
         }
         Ok(())
@@ -97,43 +97,9 @@ pub(crate) fn quote_preview(s: &str) -> String {
     const MAX: usize = 1000;
     if s.chars().count() > MAX {
         let truncated: String = s.chars().take(MAX).collect();
-        format!("\"{}\u{2026}\"", truncated)
+        format!("\"{truncated}\u{2026}\"")
     } else {
-        format!("\"{}\"", s)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
-pub enum WireNumber {
-    Safe(f64),
-    BigInt(String),
-    BigDecimal(String),
-}
-
-#[allow(dead_code)]
-const SAFE_INTEGER_MAX: i64 = (1i64 << 53) - 1;
-
-impl WireNumber {
-    #[allow(dead_code)]
-    pub fn classify(token: &str) -> Self {
-        let has_fractional = token.bytes().any(|b| matches!(b, b'.' | b'e' | b'E'));
-
-        if !has_fractional {
-            if let Ok(n) = token.parse::<i64>() {
-                if n.abs() <= SAFE_INTEGER_MAX {
-                    return WireNumber::Safe(n as f64);
-                }
-            }
-            return WireNumber::BigInt(token.to_string());
-        }
-
-        if let Ok(f) = token.parse::<f64>() {
-            if format!("{}", f) == token {
-                return WireNumber::Safe(f);
-            }
-        }
-        WireNumber::BigDecimal(token.to_string())
+        format!("\"{s}\"")
     }
 }
 
@@ -184,6 +150,12 @@ pub enum DocError {
     #[error("edit error: {0}")]
     Edit(String),
 
+    #[error("schema error: {0}")]
+    Schema(String),
+
+    #[error("export error: {0}")]
+    Export(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -192,6 +164,53 @@ pub enum DocError {
 }
 
 pub type DocResult<T> = Result<T, DocError>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WireError {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorKind {
+    NotFound,
+    InvalidPath,
+    TooLarge,
+    Parse,
+    Edit,
+    Schema,
+    Export,
+    Io,
+    Cancelled,
+}
+
+impl From<DocError> for WireError {
+    fn from(e: DocError) -> Self {
+        let kind = match &e {
+            DocError::NotFound(_) => ErrorKind::NotFound,
+            DocError::InvalidPath(_) => ErrorKind::InvalidPath,
+            DocError::TooLarge { .. } => ErrorKind::TooLarge,
+            DocError::Parse(_) => ErrorKind::Parse,
+            DocError::Edit(_) => ErrorKind::Edit,
+            DocError::Schema(_) => ErrorKind::Schema,
+            DocError::Export(_) => ErrorKind::Export,
+            DocError::Io(_) => ErrorKind::Io,
+            DocError::Cancelled => ErrorKind::Cancelled,
+        };
+        WireError {
+            kind,
+            message: e.to_string(),
+        }
+    }
+}
+
+impl From<std::io::Error> for WireError {
+    fn from(e: std::io::Error) -> Self {
+        WireError::from(DocError::from(e))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -290,67 +309,6 @@ mod tests {
             size_hint: 7,
         };
         assert_eq!(roundtrip(&leaf), leaf);
-    }
-
-    #[test]
-    fn wire_number_tags_each_variant() {
-        let safe = WireNumber::Safe(42.0);
-        let json = serde_json::to_string(&safe).unwrap();
-        assert!(json.contains("\"kind\":\"safe\""));
-        assert_eq!(roundtrip(&safe), safe);
-
-        let big = WireNumber::BigInt("18446744073709551615".into());
-        let json = serde_json::to_string(&big).unwrap();
-        assert!(json.contains("\"kind\":\"bigInt\""));
-        assert_eq!(roundtrip(&big), big);
-
-        let dec = WireNumber::BigDecimal("3.141592653589793238462643383279".into());
-        let json = serde_json::to_string(&dec).unwrap();
-        assert!(json.contains("\"kind\":\"bigDecimal\""));
-        assert_eq!(roundtrip(&dec), dec);
-    }
-
-    #[test]
-    fn wire_number_classify_safe_integers() {
-        assert_eq!(WireNumber::classify("0"), WireNumber::Safe(0.0));
-        assert_eq!(WireNumber::classify("42"), WireNumber::Safe(42.0));
-        assert_eq!(WireNumber::classify("-7"), WireNumber::Safe(-7.0));
-        let max_safe = (1i64 << 53) - 1;
-        let s = max_safe.to_string();
-        assert_eq!(WireNumber::classify(&s), WireNumber::Safe(max_safe as f64));
-    }
-
-    #[test]
-    fn wire_number_classify_big_integers() {
-        let snowflake = "1234567890123456789";
-        match WireNumber::classify(snowflake) {
-            WireNumber::BigInt(s) => assert_eq!(s, snowflake),
-            other => panic!("expected BigInt, got {:?}", other),
-        }
-
-        let token = "18446744073709551615";
-        match WireNumber::classify(token) {
-            WireNumber::BigInt(s) => assert_eq!(s, token),
-            other => panic!("expected BigInt, got {:?}", other),
-        }
-    }
-
-    #[test]
-    #[allow(clippy::approx_constant)]
-    fn wire_number_classify_safe_decimals() {
-        match WireNumber::classify("3.14") {
-            WireNumber::Safe(f) => assert!((f - 3.14).abs() < 1e-12),
-            other => panic!("expected Safe, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn wire_number_classify_big_decimals() {
-        let token = "3.141592653589793238462643383279";
-        match WireNumber::classify(token) {
-            WireNumber::BigDecimal(s) => assert_eq!(s, token),
-            other => panic!("expected BigDecimal, got {:?}", other),
-        }
     }
 
     #[test]

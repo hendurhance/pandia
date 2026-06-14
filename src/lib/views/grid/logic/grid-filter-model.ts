@@ -57,6 +57,10 @@ export function valLabel(v: unknown): string {
 	return String(v);
 }
 
+export function colValueLabel(cv: { value: unknown; label?: string | null }): string {
+	return cv.label ?? valLabel(cv.value);
+}
+
 export function chipSummary(c: ColFilter): string {
 	const parts: string[] = [];
 	const op = c.op ?? 'is';

@@ -20,18 +20,21 @@ fn backup_dir(app: &AppHandle) -> std::io::Result<PathBuf> {
     let base = app
         .path()
         .app_data_dir()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     let dir = base.join("backups");
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }
 
-fn backup_path(app: &AppHandle, doc_id: &str) -> std::io::Result<PathBuf> {
-    let safe: String = doc_id
+fn sanitize_doc_id(doc_id: &str) -> String {
+    doc_id
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
-        .collect();
-    Ok(backup_dir(app)?.join(format!("{}.json", safe)))
+        .collect()
+}
+
+fn backup_path(app: &AppHandle, doc_id: &str) -> std::io::Result<PathBuf> {
+    Ok(backup_dir(app)?.join(format!("{}.json", sanitize_doc_id(doc_id))))
 }
 
 pub fn write(
@@ -52,8 +55,7 @@ pub fn write(
         updated_at,
         content,
     };
-    let json = serde_json::to_string(&rec)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let json = serde_json::to_string(&rec).map_err(|e| std::io::Error::other(e.to_string()))?;
     std::fs::write(backup_path(app, doc_id)?, json)
 }
 
@@ -88,20 +90,78 @@ pub fn scan(app: &AppHandle) -> std::io::Result<Vec<BackupRecord>> {
             out.push(rec);
         }
     }
-    out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    let (kept, stale) = dedupe_newest_first(out);
+    for doc_id in stale {
+        let _ = clear(app, &doc_id);
+    }
+    Ok(kept)
+}
+
+fn dedupe_newest_first(mut records: Vec<BackupRecord>) -> (Vec<BackupRecord>, Vec<String>) {
+    records.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut deduped: Vec<BackupRecord> = Vec::with_capacity(out.len());
-    for rec in out.into_iter() {
+    let mut kept = Vec::with_capacity(records.len());
+    let mut stale = Vec::new();
+    for rec in records {
         let key = rec
             .original_path
             .clone()
             .or_else(|| rec.display_name.clone())
             .unwrap_or_else(|| rec.doc_id.clone());
         if seen.insert(key) {
-            deduped.push(rec);
+            kept.push(rec);
         } else {
-            let _ = clear(app, &rec.doc_id);
+            stale.push(rec.doc_id);
         }
     }
-    Ok(deduped)
+    (kept, stale)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rec(doc_id: &str, path: Option<&str>, name: Option<&str>, updated_at: &str) -> BackupRecord {
+        BackupRecord {
+            doc_id: doc_id.into(),
+            original_path: path.map(Into::into),
+            display_name: name.map(Into::into),
+            updated_at: updated_at.into(),
+            content: String::new(),
+        }
+    }
+
+    #[test]
+    fn sanitize_strips_separators_and_traversal() {
+        assert_eq!(sanitize_doc_id("../../etc/passwd"), "etcpasswd");
+        assert_eq!(sanitize_doc_id("a/b\\c"), "abc");
+        assert_eq!(sanitize_doc_id("doc-123"), "doc-123");
+        assert_eq!(sanitize_doc_id("..."), "");
+    }
+
+    #[test]
+    fn dedupe_keeps_newest_per_path() {
+        let recs = vec![
+            rec("old", Some("/a.json"), None, "1000"),
+            rec("new", Some("/a.json"), None, "2000"),
+            rec("other", Some("/b.json"), None, "1500"),
+        ];
+        let (kept, stale) = dedupe_newest_first(recs);
+        let kept_ids: Vec<_> = kept.iter().map(|r| r.doc_id.as_str()).collect();
+        assert_eq!(kept_ids, vec!["new", "other"]);
+        assert_eq!(stale, vec!["old".to_string()]);
+    }
+
+    #[test]
+    fn dedupe_falls_back_to_display_name_then_doc_id() {
+        let recs = vec![
+            rec("d1", None, Some("draft"), "2000"),
+            rec("d2", None, Some("draft"), "1000"),
+            rec("d3", None, None, "1500"),
+        ];
+        let (kept, stale) = dedupe_newest_first(recs);
+        let kept_ids: Vec<_> = kept.iter().map(|r| r.doc_id.as_str()).collect();
+        assert_eq!(kept_ids, vec!["d1", "d3"]);
+        assert_eq!(stale, vec!["d2".to_string()]);
+    }
 }

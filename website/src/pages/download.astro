@@ -2,12 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/home/Nav.astro';
 import Footer from '../components/home/Footer.astro';
-
-const VERSION = '1.0.0';
-const TAG = `v${VERSION}`;
-const BASE = `https://github.com/hendurhance/pandia/releases/download/${TAG}`;
-const RELEASES = 'https://github.com/hendurhance/pandia/releases';
-const REPO = 'https://github.com/hendurhance/pandia';
+import { VERSION, TAG, RELEASE_BASE as BASE, RELEASES, REPO } from '../data/site';
 
 const platforms = [
   {

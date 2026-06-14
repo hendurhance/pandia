@@ -27,12 +27,14 @@ use super::types::{DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
 
 const LAZY_THRESHOLD_BYTES: u64 = 10 * 1024 * 1024;
 const GET_VALUE_ROOT_LIMIT: u64 = 200 * 1024 * 1024;
-const EDIT_SIZE_LIMIT: u64 = 200 * 1024 * 1024;
+pub const EDIT_SIZE_LIMIT: u64 = 200 * 1024 * 1024;
+pub const MAX_DOC_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyResult {
     pub version: u64,
+    #[serde(skip_serializing)]
     pub inverse: Op,
     pub affected_paths: Vec<Path>,
 }
@@ -56,9 +58,9 @@ pub struct Document {
     saved_hash: blake3::Hash,
     hash_cache: parking_lot::Mutex<Option<(u64, blake3::Hash)>>,
     history: History,
-    sort_cache: Option<SortCache>,
-    filter_cache: Option<FilterCache>,
-    quick_text_cache: HashMap<(Path, String), QuickTextColumn>,
+    sort_cache: parking_lot::Mutex<Option<SortCache>>,
+    filter_cache: parking_lot::Mutex<Option<FilterCache>>,
+    quick_text_cache: parking_lot::Mutex<HashMap<(Path, String), QuickTextColumn>>,
 }
 
 #[derive(Debug)]
@@ -92,6 +94,7 @@ struct FilterCache {
 pub struct ColumnValue {
     pub value: Value,
     pub count: u32,
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -149,8 +152,19 @@ pub struct SaveResult {
 }
 
 impl Document {
+    fn ensure_within_max(size: u64) -> DocResult<()> {
+        if size > MAX_DOC_BYTES {
+            return Err(DocError::TooLarge {
+                actual: size,
+                limit: MAX_DOC_BYTES,
+            });
+        }
+        Ok(())
+    }
+
     pub fn from_text(text: &str, source_path: Option<String>) -> DocResult<Self> {
         let size = text.len() as u64;
+        Self::ensure_within_max(size)?;
 
         let inner = if size >= LAZY_THRESHOLD_BYTES {
             DocumentImpl::Lazy(LazyDoc::new(text)?)
@@ -170,9 +184,9 @@ impl Document {
             saved_hash: blake3::Hash::from_bytes([0u8; 32]),
             hash_cache: parking_lot::Mutex::new(None),
             history: History::default(),
-            sort_cache: None,
-            filter_cache: None,
-            quick_text_cache: HashMap::new(),
+            sort_cache: parking_lot::Mutex::new(None),
+            filter_cache: parking_lot::Mutex::new(None),
+            quick_text_cache: parking_lot::Mutex::new(HashMap::new()),
         };
         doc.saved_hash = doc.compute_content_hash();
         Ok(doc)
@@ -182,7 +196,7 @@ impl Document {
         let mut hasher = blake3::Hasher::new();
         match &self.inner {
             DocumentImpl::Eager(v) => {
-                if serde_json::to_writer_pretty(&mut hasher, v).is_err() {
+                if serde_json::to_writer(&mut hasher, v).is_err() {
                     return blake3::Hash::from_bytes([0u8; 32]);
                 }
             }
@@ -209,11 +223,16 @@ impl Document {
         if self.version == self.saved_version {
             return false;
         }
+        if self.source_size > LAZY_THRESHOLD_BYTES {
+            return true;
+        }
         self.current_hash() != self.saved_hash
     }
 
     pub fn from_file<P: AsRef<FsPath>>(path: P) -> DocResult<Self> {
         let p = path.as_ref();
+        let size = std::fs::metadata(p)?.len();
+        Self::ensure_within_max(size)?;
         let text = std::fs::read_to_string(p)?;
         let path_str = p.to_string_lossy().into_owned();
         let mut doc = Self::from_text(&text, Some(path_str.clone()))?;
@@ -252,7 +271,7 @@ impl Document {
                 export_value(&v, format)
             }
         };
-        result.map_err(|e| DocError::Parse(e.to_string()))
+        result.map_err(|e| DocError::Export(e.to_string()))
     }
 
     pub fn export_to_file(&self, format: ExportFormat, path: &str) -> DocResult<()> {
@@ -265,7 +284,7 @@ impl Document {
                     DocumentImpl::Eager(v) => export::write_json_value(v, pretty, &mut w),
                     DocumentImpl::Lazy(d) => export::write_json_source(d.source(), pretty, &mut w),
                 };
-                r.map_err(|e| DocError::Parse(e.to_string()))?;
+                r.map_err(|e| DocError::Export(e.to_string()))?;
             }
             _ => {
                 let full = self.export(format)?;
@@ -289,7 +308,7 @@ impl Document {
                     DocumentImpl::Eager(v) => export::preview_json_value(v, pretty, max_bytes),
                     DocumentImpl::Lazy(d) => {
                         export::preview_json_source(d.source(), pretty, max_bytes)
-                            .map_err(|e| DocError::Parse(e.to_string()))?
+                            .map_err(|e| DocError::Export(e.to_string()))?
                     }
                 };
                 if text.chars().count() > max_chars {
@@ -312,7 +331,7 @@ impl Document {
     pub fn serialize(&self) -> DocResult<String> {
         match &self.inner {
             DocumentImpl::Eager(v) => {
-                serde_json::to_string_pretty(v).map_err(|e| DocError::Parse(e.to_string()))
+                serde_json::to_string_pretty(v).map_err(|e| DocError::Export(e.to_string()))
             }
             DocumentImpl::Lazy(d) => Ok(d.source().to_string()),
         }
@@ -397,39 +416,56 @@ impl Document {
     }
 
     pub fn get_rows_sorted(
-        &mut self,
+        &self,
         path: &Path,
         key: &str,
         descending: bool,
         range: Range<u32>,
     ) -> DocResult<Vec<SortedRow>> {
-        let matches = self.sort_cache.as_ref().is_some_and(|c| {
-            c.path == *path
-                && c.key == key
-                && c.descending == descending
-                && c.version == self.version
-        });
-        if !matches {
-            let cells = self.column_cells(path, key)?;
-            let mut perm: Vec<u32> = (0..cells.len() as u32).collect();
-            perm.sort_by(|&a, &b| {
-                let ord = cmp_cell(cells[a as usize].as_ref(), cells[b as usize].as_ref());
-                if descending {
-                    ord.reverse()
-                } else {
-                    ord
+        {
+            let cache = self.sort_cache.lock();
+            if let Some(c) = cache.as_ref() {
+                if c.path == *path
+                    && c.key == key
+                    && c.descending == descending
+                    && c.version == self.version
+                {
+                    return self.window_sorted(&c.perm, path, range);
                 }
-            });
-            self.sort_cache = Some(SortCache {
+            }
+        }
+
+        let cells = self.column_cells(path, key)?;
+        let mut perm: Vec<u32> = (0..cells.len() as u32).collect();
+        perm.sort_by(|&a, &b| {
+            let ord = cmp_cell(cells[a as usize].as_ref(), cells[b as usize].as_ref());
+            if descending {
+                ord.reverse()
+            } else {
+                ord
+            }
+        });
+
+        let cache = {
+            let mut guard = self.sort_cache.lock();
+            *guard = Some(SortCache {
                 path: path.clone(),
                 key: key.to_string(),
                 descending,
                 version: self.version,
                 perm,
             });
-        }
+            guard
+        };
+        self.window_sorted(&cache.as_ref().expect("just set").perm, path, range)
+    }
 
-        let perm = &self.sort_cache.as_ref().expect("just set").perm;
+    fn window_sorted(
+        &self,
+        perm: &[u32],
+        path: &Path,
+        range: Range<u32>,
+    ) -> DocResult<Vec<SortedRow>> {
         let total = perm.len() as u32;
         let start = range.start.min(total);
         let end = range.end.min(total);
@@ -469,15 +505,18 @@ impl Document {
         }
     }
 
-    fn quick_text_column(&mut self, path: &Path, key: &str) -> DocResult<Arc<Vec<Option<String>>>> {
+    fn quick_text_column(&self, path: &Path, key: &str) -> DocResult<Arc<Vec<Option<String>>>> {
         let cache_key = (path.clone(), key.to_string());
-        if let Some(entry) = self.quick_text_cache.get(&cache_key) {
-            if entry.version == self.version {
-                return Ok(entry.text.clone());
+        {
+            let cache = self.quick_text_cache.lock();
+            if let Some(entry) = cache.get(&cache_key) {
+                if entry.version == self.version {
+                    return Ok(entry.text.clone());
+                }
             }
         }
         let text = Arc::new(self.compute_column_text_lower(path, key)?);
-        self.quick_text_cache.insert(
+        self.quick_text_cache.lock().insert(
             cache_key,
             QuickTextColumn {
                 version: self.version,
@@ -487,8 +526,9 @@ impl Document {
         Ok(text)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn get_rows_filtered(
-        &mut self,
+        &self,
         path: &Path,
         groups: &[Vec<GridFilter>],
         quick: Option<&str>,
@@ -502,47 +542,24 @@ impl Document {
         let quick_lower = quick_norm.map(str::to_lowercase);
         let quick_owned = quick_norm.map(str::to_string);
 
-        let cached = self.filter_cache.as_ref().is_some_and(|c| {
-            c.path == *path
-                && c.groups == groups
-                && c.quick.as_deref() == quick_norm
-                && c.quick_keys == quick_keys
-                && c.sort == sort_owned
-                && c.version == self.version
-        });
-
-        if !cached {
-            let mut key_cells: HashMap<String, Vec<Option<Value>>> = HashMap::new();
-            for grp in groups {
-                for f in grp {
-                    if !key_cells.contains_key(f.key.as_str()) {
-                        key_cells.insert(f.key.clone(), self.column_cells(path, &f.key)?);
-                    }
+        {
+            let cache = self.filter_cache.lock();
+            if let Some(c) = cache.as_ref() {
+                if c.path == *path
+                    && c.groups == groups
+                    && c.quick.as_deref() == quick_norm
+                    && c.quick_keys == quick_keys
+                    && c.sort == sort_owned
+                    && c.version == self.version
+                {
+                    return self.window_filtered(&c.perm, path, range);
                 }
             }
-            if let Some((sk, _)) = sort {
-                if !key_cells.contains_key(sk) {
-                    key_cells.insert(sk.to_string(), self.column_cells(path, sk)?);
-                }
-            }
+        }
 
-            let mut quick_text: HashMap<String, Arc<Vec<Option<String>>>> = HashMap::new();
-            if quick_lower.is_some() {
-                for k in quick_keys {
-                    if !quick_text.contains_key(k) {
-                        quick_text.insert(k.clone(), self.quick_text_column(path, k)?);
-                    }
-                }
-            }
-
-            let n = key_cells
-                .values()
-                .next()
-                .map(Vec::len)
-                .or_else(|| quick_text.values().next().map(|v| v.len()))
-                .unwrap_or(0);
-
-            let narrow_seed: Option<Vec<u32>> = self.filter_cache.as_ref().and_then(|c| {
+        let narrow_seed: Option<Vec<u32>> = {
+            let cache = self.filter_cache.lock();
+            cache.as_ref().and_then(|c| {
                 if c.path != *path
                     || c.groups != groups
                     || c.quick_keys != quick_keys
@@ -560,61 +577,94 @@ impl Document {
                     }
                     _ => None,
                 }
+            })
+        };
+
+        let mut key_cells: HashMap<String, Vec<Option<Value>>> = HashMap::new();
+        for grp in groups {
+            for f in grp {
+                if !key_cells.contains_key(f.key.as_str()) {
+                    key_cells.insert(f.key.clone(), self.column_cells(path, &f.key)?);
+                }
+            }
+        }
+        if let Some((sk, _)) = sort {
+            if !key_cells.contains_key(sk) {
+                key_cells.insert(sk.to_string(), self.column_cells(path, sk)?);
+            }
+        }
+
+        let mut quick_text: HashMap<String, Arc<Vec<Option<String>>>> = HashMap::new();
+        if quick_lower.is_some() {
+            for k in quick_keys {
+                if !quick_text.contains_key(k) {
+                    quick_text.insert(k.clone(), self.quick_text_column(path, k)?);
+                }
+            }
+        }
+
+        let n = key_cells
+            .values()
+            .next()
+            .map(Vec::len)
+            .or_else(|| quick_text.values().next().map(|v| v.len()))
+            .unwrap_or(0);
+
+        let candidate_indices: Box<dyn Iterator<Item = u32>> = match narrow_seed {
+            Some(perm) => Box::new(perm.into_iter()),
+            None => Box::new(0..n as u32),
+        };
+
+        let mut perm: Vec<u32> = Vec::new();
+        let mut checked: u32 = 0;
+        for i in candidate_indices {
+            checked = checked.wrapping_add(1);
+            if checked & 0x0FFF == 0 && cancel.is_cancelled() {
+                return Err(DocError::Cancelled);
+            }
+            let pass_filters = row_passes(groups, |k| {
+                key_cells
+                    .get(k)
+                    .and_then(|c| c.get(i as usize))
+                    .and_then(|o| o.as_ref())
             });
-
-            let candidate_indices: Box<dyn Iterator<Item = u32>> = match narrow_seed {
-                Some(perm) => Box::new(perm.into_iter()),
-                None => Box::new(0..n as u32),
+            if !pass_filters {
+                continue;
+            }
+            let pass_quick = match &quick_lower {
+                None => true,
+                Some(q) => {
+                    quick_keys.is_empty()
+                        || quick_keys.iter().any(|k| {
+                            quick_text
+                                .get(k)
+                                .and_then(|c| c.get(i as usize))
+                                .and_then(|o| o.as_deref())
+                                .map(|t| t.contains(q.as_str()))
+                                .unwrap_or(false)
+                        })
+                }
             };
-
-            let mut perm: Vec<u32> = Vec::new();
-            let mut checked: u32 = 0;
-            for i in candidate_indices {
-                checked = checked.wrapping_add(1);
-                if checked & 0x0FFF == 0 && cancel.is_cancelled() {
-                    return Err(DocError::Cancelled);
-                }
-                let pass_filters = row_passes(groups, |k| {
-                    key_cells
-                        .get(k)
-                        .and_then(|c| c.get(i as usize))
-                        .and_then(|o| o.as_ref())
-                });
-                if !pass_filters {
-                    continue;
-                }
-                let pass_quick = match &quick_lower {
-                    None => true,
-                    Some(q) => {
-                        quick_keys.is_empty()
-                            || quick_keys.iter().any(|k| {
-                                quick_text
-                                    .get(k)
-                                    .and_then(|c| c.get(i as usize))
-                                    .and_then(|o| o.as_deref())
-                                    .map(|t| t.contains(q.as_str()))
-                                    .unwrap_or(false)
-                            })
-                    }
-                };
-                if pass_quick {
-                    perm.push(i);
-                }
+            if pass_quick {
+                perm.push(i);
             }
+        }
 
-            if let Some((sk, desc)) = sort {
-                let cells = &key_cells[sk];
-                perm.sort_by(|&a, &b| {
-                    let ord = cmp_cell(cells[a as usize].as_ref(), cells[b as usize].as_ref());
-                    if desc {
-                        ord.reverse()
-                    } else {
-                        ord
-                    }
-                });
-            }
+        if let Some((sk, desc)) = sort {
+            let cells = &key_cells[sk];
+            perm.sort_by(|&a, &b| {
+                let ord = cmp_cell(cells[a as usize].as_ref(), cells[b as usize].as_ref());
+                if desc {
+                    ord.reverse()
+                } else {
+                    ord
+                }
+            });
+        }
 
-            self.filter_cache = Some(FilterCache {
+        let cache = {
+            let mut guard = self.filter_cache.lock();
+            *guard = Some(FilterCache {
                 path: path.clone(),
                 groups: groups.to_vec(),
                 quick: quick_owned,
@@ -623,9 +673,17 @@ impl Document {
                 version: self.version,
                 perm,
             });
-        }
+            guard
+        };
+        self.window_filtered(&cache.as_ref().expect("just set").perm, path, range)
+    }
 
-        let perm = &self.filter_cache.as_ref().expect("just set").perm;
+    fn window_filtered(
+        &self,
+        perm: &[u32],
+        path: &Path,
+        range: Range<u32>,
+    ) -> DocResult<FilteredRows> {
         let total = perm.len() as u32;
         let start = range.start.min(total);
         let end = range.end.min(total);
@@ -660,7 +718,14 @@ impl Document {
         }
         let mut values: Vec<ColumnValue> = map
             .into_values()
-            .map(|(value, count)| ColumnValue { value, count })
+            .map(|(value, count)| {
+                let label = value.is_number().then(|| value.to_string());
+                ColumnValue {
+                    value,
+                    count,
+                    label,
+                }
+            })
             .collect();
         values.sort_by(|a, b| {
             b.count
@@ -832,12 +897,8 @@ impl Document {
             }
         };
         result.map_err(|e| match e {
-            SchemaCompileError::Parse(s) => {
-                DocError::Parse(format!("schema is not valid JSON: {}", s))
-            }
-            SchemaCompileError::Compile(s) => {
-                DocError::Parse(format!("schema compile error: {}", s))
-            }
+            SchemaCompileError::Parse(s) => DocError::Schema(format!("not valid JSON: {s}")),
+            SchemaCompileError::Compile(s) => DocError::Schema(format!("compile error: {s}")),
         })
     }
 
@@ -878,6 +939,19 @@ mod tests {
     fn parse_invalid_returns_parse_error() {
         let err = Document::from_text("{not json", None).unwrap_err();
         assert!(matches!(err, DocError::Parse(_)));
+    }
+
+    #[test]
+    fn refuses_documents_over_max_bytes() {
+        assert!(Document::ensure_within_max(MAX_DOC_BYTES).is_ok());
+        let err = Document::ensure_within_max(MAX_DOC_BYTES + 1).unwrap_err();
+        assert!(matches!(
+            err,
+            DocError::TooLarge {
+                limit: MAX_DOC_BYTES,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -1124,7 +1198,7 @@ mod tests {
 
     #[test]
     fn get_rows_sorted_orders_by_key_with_original_index() {
-        let mut d = doc(r#"[{"n": 3}, {"n": 1}, {"n": 2}]"#);
+        let d = doc(r#"[{"n": 3}, {"n": 1}, {"n": 2}]"#);
         let asc = d.get_rows_sorted(&Path::root(), "n", false, 0..3).unwrap();
         assert_eq!(
             asc.iter().map(|r| r.index).collect::<Vec<_>>(),
@@ -1141,14 +1215,14 @@ mod tests {
 
     #[test]
     fn get_rows_sorted_windows_the_sorted_order() {
-        let mut d = doc(r#"[{"n": 3}, {"n": 1}, {"n": 2}, {"n": 0}]"#);
+        let d = doc(r#"[{"n": 3}, {"n": 1}, {"n": 2}, {"n": 0}]"#);
         let win = d.get_rows_sorted(&Path::root(), "n", false, 1..3).unwrap();
         assert_eq!(win.iter().map(|r| r.index).collect::<Vec<_>>(), vec![1, 2]);
     }
 
     #[test]
     fn get_rows_sorted_mixed_kinds_grouped_by_kind() {
-        let mut d = doc(r#"[{"v": "z"}, {"v": 5}, {"v": true}, {}, {"v": null}]"#);
+        let d = doc(r#"[{"v": "z"}, {"v": 5}, {"v": true}, {}, {"v": null}]"#);
         let asc = d.get_rows_sorted(&Path::root(), "v", false, 0..5).unwrap();
         let idx: Vec<u32> = asc.iter().map(|r| r.index).collect();
         assert_eq!(idx, vec![3, 4, 2, 1, 0]);
@@ -1476,7 +1550,7 @@ mod tests {
     #[test]
     fn get_rows_filtered_and_sorts() {
         use super::super::grid_filter::{FilterOp, GridFilter};
-        let mut d = doc(r#"[
+        let d = doc(r#"[
                 {"name":"a","lang":"Sindhi","v":6.1},
                 {"name":"b","lang":"English","v":2.0},
                 {"name":"c","lang":"Sindhi","v":1.0},
@@ -1566,7 +1640,7 @@ mod tests {
 
     #[test]
     fn quick_filter_prefix_narrows_against_cached_perm() {
-        let mut d = doc(r#"[
+        let d = doc(r#"[
                 {"name":"item"},
                 {"name":"item-0"},
                 {"name":"item-1"},
@@ -1610,7 +1684,7 @@ mod tests {
             .map(|i| format!(r#"{{"name":"row-{i}"}}"#))
             .collect::<Vec<_>>()
             .join(",");
-        let mut d = doc(&format!("[{body}]"));
+        let d = doc(&format!("[{body}]"));
         let qk = vec!["name".to_string()];
         let cancel = crate::doc::jobs::CancelFlag::default();
         cancel.cancel();
@@ -1622,7 +1696,7 @@ mod tests {
 
     #[test]
     fn grid_quick_filter_and_column_values() {
-        let mut d = doc(r#"[
+        let d = doc(r#"[
                 {"name":"Ada","lang":"Sindhi"},
                 {"name":"Bo","lang":"English"},
                 {"name":"Cy","lang":"Sindhi"},
@@ -1665,6 +1739,45 @@ mod tests {
             ]
         );
         assert!(d.get_rows_at(&Path::root(), &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn get_rows_at_serialized_preserves_big_integers() {
+        // Mirrors what doc_get_rows_at does: the selected rows are serialized to
+        // text in Rust, so a big integer survives instead of rounding through f64.
+        let d = doc(r#"[{"id": 123456789012345678}, {"id": 2}]"#);
+        let vals = d.get_rows_at(&Path::root(), &[0]).unwrap();
+        let json = serde_json::to_string_pretty(&vals).unwrap();
+        assert!(
+            json.contains("123456789012345678"),
+            "big integer kept as a literal, got: {json}"
+        );
+        assert!(!json.contains("123456789012345680"), "not rounded to f64");
+    }
+
+    #[test]
+    fn column_values_labels_numbers_with_lossless_literal() {
+        let d = doc(r#"[
+                {"id": 123456789012345678},
+                {"id": 123456789012345678},
+                {"id": "x"}
+            ]"#);
+        let cv = d.column_values(&Path::root(), "id", 100).unwrap();
+        // The big-int distinct value carries its exact literal as `label`, so the
+        // popover can show it correctly even though `value` rounds to f64 over IPC.
+        let big = cv
+            .values
+            .iter()
+            .find(|v| v.label.as_deref() == Some("123456789012345678"))
+            .expect("big-int label present and exact");
+        assert_eq!(big.count, 2);
+        // Non-numeric values get no label and fall back to frontend formatting.
+        let s = cv
+            .values
+            .iter()
+            .find(|v| v.value == serde_json::json!("x"))
+            .unwrap();
+        assert_eq!(s.label, None);
     }
 
     #[test]

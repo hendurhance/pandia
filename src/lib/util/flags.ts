@@ -4,7 +4,7 @@ function flag(value: string | undefined, defaultOn: boolean): boolean {
 	return defaultOn;
 }
 
-const isDev = import.meta.env.NODE_ENV === 'development';
+const isDev = import.meta.env.DEV;
 
 export const BLOCK_CONTEXT_MENU = flag(import.meta.env.VITE_BLOCK_CONTEXT_MENU, !isDev);
 

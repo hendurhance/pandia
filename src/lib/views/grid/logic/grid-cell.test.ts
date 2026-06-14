@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { LosslessNumber } from 'lossless-json';
 import {
 	UNLOADED,
 	MISSING,
@@ -35,6 +36,14 @@ describe('cellText', () => {
 		expect(cellText([1, 2, 3])).toBe('[3 items]');
 		expect(cellText({})).toBe('{}');
 		expect(cellText({ a: 1, b: 2 })).toBe('{2 keys}');
+	});
+	it('renders a lossless big integer literally, as a number', () => {
+		const big = new LosslessNumber('123456789012345678');
+		expect(cellText(big)).toBe('123456789012345678');
+		expect(valueKind(big)).toBe('number');
+		expect(isAlignRight(valueKind(big))).toBe(true);
+		expect(inspectorText(big)).toBe('123456789012345678');
+		expect(cellTitle(big)).toBe('123456789012345678');
 	});
 	it('truncates long strings at 500 chars', () => {
 		const out = cellText('a'.repeat(600));

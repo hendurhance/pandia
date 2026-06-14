@@ -171,7 +171,7 @@ pub fn generate_from_shape(shape: &TypeShape, lang: TypegenLang, type_name: &str
 
 fn sanitize_ident(name: &str, capitalize: bool) -> String {
     let cleaned: String = if name.chars().all(|c| c.is_ascii_digit()) {
-        format!("Item{}", name)
+        format!("Item{name}")
     } else {
         let mut s: String = name
             .chars()
@@ -263,15 +263,15 @@ fn ts_type(
     match shape {
         TypeShape::Primitive(p) => ts_primitive(*p).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let inner_ty = ts_type(inner, &item_name, classes, seen);
-            format!("{}[]", inner_ty)
+            format!("{inner_ty}[]")
         }
         TypeShape::Object(props) => {
             let class_name = sanitize_ident(name, true);
             if !seen.contains(&class_name) {
                 seen.insert(class_name.clone());
-                let mut body = format!("export interface {} {{\n", class_name);
+                let mut body = format!("export interface {class_name} {{\n");
                 for (k, v) in props {
                     let prop_name = ts_prop_name(k);
                     let ty = ts_type(
@@ -281,9 +281,9 @@ fn ts_type(
                         seen,
                     );
                     let q = if v.optional { "?" } else { "" };
-                    let _ = writeln!(body, "  {}{}: {};", prop_name, q, ty);
+                    let _ = writeln!(body, "  {prop_name}{q}: {ty};");
                 }
-                body.push_str("}");
+                body.push('}');
                 classes.push(body);
             }
             class_name
@@ -336,9 +336,9 @@ fn rust_type(
     match shape {
         TypeShape::Primitive(p) => rust_primitive(*p).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let inner_ty = rust_type(inner, &item_name, structs, seen);
-            format!("Vec<{}>", inner_ty)
+            format!("Vec<{inner_ty}>")
         }
         TypeShape::Object(props) => {
             let struct_name = sanitize_ident(name, true);
@@ -346,7 +346,7 @@ fn rust_type(
                 seen.insert(struct_name.clone());
                 let mut body = String::new();
                 body.push_str("#[derive(Debug, Clone, Serialize, Deserialize)]\n");
-                let _ = writeln!(body, "pub struct {} {{", struct_name);
+                let _ = writeln!(body, "pub struct {struct_name} {{");
                 for (k, v) in props {
                     let field = snake_case(&sanitize_ident(k, false));
                     let rename = if field != *k {
@@ -361,14 +361,14 @@ fn rust_type(
                         seen,
                     );
                     let ty = if v.optional {
-                        format!("Option<{}>", ty)
+                        format!("Option<{ty}>")
                     } else {
                         ty
                     };
                     body.push_str(&rename);
-                    let _ = writeln!(body, "    pub {}: {},", field, ty);
+                    let _ = writeln!(body, "    pub {field}: {ty},");
                 }
-                body.push_str("}");
+                body.push('}');
                 structs.push(body);
             }
             struct_name
@@ -409,15 +409,15 @@ fn go_type(
     match shape {
         TypeShape::Primitive(p) => go_primitive(*p).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let inner_ty = go_type(inner, &item_name, structs, seen);
-            format!("[]{}", inner_ty)
+            format!("[]{inner_ty}")
         }
         TypeShape::Object(props) => {
             let struct_name = sanitize_ident(name, true);
             if !seen.contains(&struct_name) {
                 seen.insert(struct_name.clone());
-                let mut body = format!("type {} struct {{\n", struct_name);
+                let mut body = format!("type {struct_name} struct {{\n");
                 for (k, v) in props {
                     let field = to_pascal_case(&sanitize_ident(k, true));
                     let ty = go_type(
@@ -426,15 +426,15 @@ fn go_type(
                         structs,
                         seen,
                     );
-                    let ty = if v.optional { format!("*{}", ty) } else { ty };
+                    let ty = if v.optional { format!("*{ty}") } else { ty };
                     let tag = format!(
                         "`json:\"{}{}\"`",
                         k,
                         if v.optional { ",omitempty" } else { "" }
                     );
-                    let _ = writeln!(body, "    {} {} {}", field, ty, tag);
+                    let _ = writeln!(body, "    {field} {ty} {tag}");
                 }
-                body.push_str("}");
+                body.push('}');
                 structs.push(body);
             }
             struct_name
@@ -475,15 +475,15 @@ fn kotlin_type(
     match shape {
         TypeShape::Primitive(p) => kotlin_primitive(*p).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let inner_ty = kotlin_type(inner, &item_name, classes, seen);
-            format!("List<{}>", inner_ty)
+            format!("List<{inner_ty}>")
         }
         TypeShape::Object(props) => {
             let class_name = sanitize_ident(name, true);
             if !seen.contains(&class_name) {
                 seen.insert(class_name.clone());
-                let mut body = format!("data class {}(\n", class_name);
+                let mut body = format!("data class {class_name}(\n");
                 let entries: Vec<_> = props.iter().collect();
                 for (i, (k, v)) in entries.iter().enumerate() {
                     let prop_name = to_camel_case(&sanitize_ident(k, false));
@@ -493,11 +493,11 @@ fn kotlin_type(
                         classes,
                         seen,
                     );
-                    let ty = if v.optional { format!("{}?", ty) } else { ty };
+                    let ty = if v.optional { format!("{ty}?") } else { ty };
                     let comma = if i + 1 < entries.len() { "," } else { "" };
-                    let _ = writeln!(body, "    val {}: {}{}", prop_name, ty, comma);
+                    let _ = writeln!(body, "    val {prop_name}: {ty}{comma}");
                 }
-                body.push_str(")");
+                body.push(')');
                 classes.push(body);
             }
             class_name
@@ -540,15 +540,15 @@ fn python_type(
     match shape {
         TypeShape::Primitive(p) => python_primitive(*p).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let inner_ty = python_type(inner, &item_name, classes, seen);
-            format!("list[{}]", inner_ty)
+            format!("list[{inner_ty}]")
         }
         TypeShape::Object(props) => {
             let class_name = sanitize_ident(name, true);
             if !seen.contains(&class_name) {
                 seen.insert(class_name.clone());
-                let mut body = format!("@dataclass\nclass {}:\n", class_name);
+                let mut body = format!("@dataclass\nclass {class_name}:\n");
                 if props.is_empty() {
                     body.push_str("    pass");
                 } else {
@@ -561,11 +561,11 @@ fn python_type(
                             seen,
                         );
                         let ty = if v.optional {
-                            format!("Optional[{}] = None", ty)
+                            format!("Optional[{ty}] = None")
                         } else {
                             ty
                         };
-                        let _ = writeln!(body, "    {}: {}", field, ty);
+                        let _ = writeln!(body, "    {field}: {ty}");
                     }
                     body = body.trim_end().to_string();
                 }
@@ -609,7 +609,7 @@ fn php_type(
     match shape {
         TypeShape::Primitive(p) => php_primitive(*p).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let _ = php_type(inner, &item_name, classes, seen);
             "array".to_string()
         }
@@ -617,7 +617,7 @@ fn php_type(
             let class_name = sanitize_ident(name, true);
             if !seen.contains(&class_name) {
                 seen.insert(class_name.clone());
-                let mut body = format!("final readonly class {}\n{{\n", class_name);
+                let mut body = format!("final readonly class {class_name}\n{{\n");
                 body.push_str("    public function __construct(\n");
                 let entries: Vec<_> = props.iter().collect();
                 for (i, (k, v)) in entries.iter().enumerate() {
@@ -628,7 +628,7 @@ fn php_type(
                         .map(|c| c.is_ascii_digit())
                         .unwrap_or(false)
                     {
-                        format!("item{}", prop_name)
+                        format!("item{prop_name}")
                     } else {
                         prop_name
                     };
@@ -638,14 +638,10 @@ fn php_type(
                         classes,
                         seen,
                     );
-                    let ty = if v.optional { format!("?{}", ty) } else { ty };
+                    let ty = if v.optional { format!("?{ty}") } else { ty };
                     let default = if v.optional { " = null" } else { "" };
                     let comma = if i + 1 < entries.len() { "," } else { "" };
-                    let _ = writeln!(
-                        body,
-                        "        public {} ${}{}{}",
-                        ty, prop_name, default, comma
-                    );
+                    let _ = writeln!(body, "        public {ty} ${prop_name}{default}{comma}");
                 }
                 body.push_str("    ) {}\n}");
                 classes.push(body);
@@ -689,15 +685,15 @@ fn java_type(
     match shape {
         TypeShape::Primitive(p) => java_primitive(*p, boxed).to_string(),
         TypeShape::Array(inner) => {
-            let item_name = format!("{}Item", name);
+            let item_name = format!("{name}Item");
             let inner_ty = java_type(inner, &item_name, classes, seen, true);
-            format!("List<{}>", inner_ty)
+            format!("List<{inner_ty}>")
         }
         TypeShape::Object(props) => {
             let class_name = sanitize_ident(name, true);
             if !seen.contains(&class_name) {
                 seen.insert(class_name.clone());
-                let mut body = format!("public class {} {{\n", class_name);
+                let mut body = format!("public class {class_name} {{\n");
                 for (k, v) in props {
                     let field = to_camel_case(&sanitize_ident(k, false));
                     let ty = java_type(
@@ -707,9 +703,9 @@ fn java_type(
                         seen,
                         true,
                     );
-                    let _ = writeln!(body, "    private {} {};", ty, field);
+                    let _ = writeln!(body, "    private {ty} {field};");
                 }
-                body.push_str("\n");
+                body.push('\n');
                 for (k, v) in props {
                     let field = to_camel_case(&sanitize_ident(k, false));
                     let cap = capitalize_first(&field);
@@ -722,16 +718,14 @@ fn java_type(
                     );
                     let _ = writeln!(
                         body,
-                        "    public {} get{}() {{ return this.{}; }}",
-                        ty, cap, field
+                        "    public {ty} get{cap}() {{ return this.{field}; }}"
                     );
                     let _ = writeln!(
                         body,
-                        "    public void set{}({} {}) {{ this.{} = {}; }}",
-                        cap, ty, field, field, field
+                        "    public void set{cap}({ty} {field}) {{ this.{field} = {field}; }}"
                     );
                 }
-                body.push_str("}");
+                body.push('}');
                 classes.push(body);
             }
             class_name
@@ -783,11 +777,11 @@ fn zod_schema(shape: &TypeShape, _name: &str) -> String {
                 };
                 let inner = zod_schema(&v.shape, k);
                 let inner = if v.optional {
-                    format!("{}.optional()", inner)
+                    format!("{inner}.optional()")
                 } else {
                     inner
                 };
-                let _ = writeln!(body, "  {}: {},", key, inner);
+                let _ = writeln!(body, "  {key}: {inner},");
             }
             body.push_str("})");
             body
@@ -893,7 +887,7 @@ fn is_date(s: &str) -> bool {
 }
 
 fn is_date_time(s: &str) -> bool {
-    if s.len() < 19 {
+    if s.len() < 19 || !s.is_char_boundary(10) {
         return false;
     }
     is_date(&s[..10]) && (s.as_bytes()[10] == b'T' || s.as_bytes()[10] == b' ')
@@ -1060,5 +1054,14 @@ mod tests {
         let s = gen(&json!({}), TypegenLang::Python);
         assert!(s.contains("class Root:"));
         assert!(s.contains("pass"));
+    }
+
+    #[test]
+    fn json_schema_string_with_multibyte_at_byte_10_does_not_panic() {
+        // 19 bytes, byte 10 lands inside the 3-byte '€' — not a char boundary.
+        let weird = "éééé€aaaaaaaa";
+        assert!(!is_date_time(weird));
+        let s = gen(&json!({ "k": weird }), TypegenLang::JsonSchema);
+        assert!(s.contains("\"type\""));
     }
 }

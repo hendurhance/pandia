@@ -10,8 +10,8 @@ import { faqs } from '../../data/faq';
     <div class="faq iv">
       {faqs.map((item, i) => (
         <div class="faq-item">
-          <button class="faq-q"><span class="qn">{String(i + 1).padStart(2, '0')}</span>{item.q}<span class="qx">+</span></button>
-          <div class="faq-a"><div class="faq-a-in" set:html={item.a}></div></div>
+          <button class="faq-q" type="button" id={`faq-q-${i}`} aria-expanded="false" aria-controls={`faq-a-${i}`}><span class="qn">{String(i + 1).padStart(2, '0')}</span>{item.q}<span class="qx" aria-hidden="true">+</span></button>
+          <div class="faq-a" id={`faq-a-${i}`} role="region" aria-labelledby={`faq-q-${i}`}><div class="faq-a-in" set:html={item.a}></div></div>
         </div>
       ))}
     </div>

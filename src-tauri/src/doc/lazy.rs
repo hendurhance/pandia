@@ -24,10 +24,9 @@ pub struct LazyDoc {
 
 impl LazyDoc {
     pub fn new(text: &str) -> DocResult<Self> {
-        let validated: sonic_rs::Value =
-            sonic_rs::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
-        let root_kind = json_type_to_node_kind(validated.get_type());
-        drop(validated); // we only needed it for validation + root type
+        sonic_rs::from_str::<serde::de::IgnoredAny>(text)
+            .map_err(|e| DocError::Parse(e.to_string()))?;
+        let root_kind = root_kind_of(text);
 
         let source = FastStr::new(text);
 
@@ -264,6 +263,21 @@ fn json_type_to_node_kind(t: JsonType) -> NodeKind {
     }
 }
 
+fn root_kind_of(text: &str) -> NodeKind {
+    for &b in text.as_bytes() {
+        match b {
+            b' ' | b'\t' | b'\n' | b'\r' => continue,
+            b'{' => return NodeKind::Object,
+            b'[' => return NodeKind::Array,
+            b'"' => return NodeKind::String,
+            b't' | b'f' => return NodeKind::Bool,
+            b'n' => return NodeKind::Null,
+            _ => return NodeKind::Number,
+        }
+    }
+    NodeKind::Null
+}
+
 fn sonic_pointer(segments: &[PathSegment]) -> Vec<PointerNode> {
     segments
         .iter()
@@ -403,6 +417,7 @@ fn skip_number(bytes: &[u8], mut i: usize) -> usize {
     i
 }
 
+#[allow(clippy::needless_range_loop)]
 fn slice_root_array(source: &FastStr, index: &[(u32, u32)], range: Range<u32>) -> Vec<NodeView> {
     let start = range.start as usize;
     let end = (range.end as usize).min(index.len());
@@ -429,42 +444,100 @@ fn slice_lazy_value(lv: LazyValue<'_>, range: Range<u32>) -> DocResult<Vec<NodeV
         return Ok(Vec::new());
     }
 
+    let raw = lv.as_raw_str();
     match lv.get_type() {
-        JsonType::Object => {
-            let iter = lv
-                .into_object_iter()
-                .expect("object type confirmed by get_type");
-            let mut out = Vec::new();
-            for (i, entry) in iter.enumerate() {
-                if i >= end {
-                    break;
-                }
-                if i < start {
-                    continue;
-                }
-                let (key, child) = entry.map_err(|e| DocError::Parse(e.to_string()))?;
-                out.push(node_view(PathSegment::Key(key.into_owned()), &child));
-            }
-            Ok(out)
-        }
-        JsonType::Array => {
-            let iter = lv
-                .into_array_iter()
-                .expect("array type confirmed by get_type");
-            let mut out = Vec::new();
-            for (i, entry) in iter.enumerate() {
-                if i >= end {
-                    break;
-                }
-                if i < start {
-                    continue;
-                }
-                let child = entry.map_err(|e| DocError::Parse(e.to_string()))?;
-                out.push(node_view(PathSegment::Index(i as u32), &child));
-            }
-            Ok(out)
-        }
+        JsonType::Object => slice_object_raw(raw, start, end),
+        JsonType::Array => slice_array_raw(raw, start, end),
         _ => Ok(Vec::new()),
+    }
+}
+
+fn slice_object_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeView>> {
+    let bytes = raw.as_bytes();
+    let mut i = skip_ws(bytes, 0);
+    if i >= bytes.len() || bytes[i] != b'{' {
+        return Err(DocError::Parse("expected object".into()));
+    }
+    i = skip_ws(bytes, i + 1);
+    let mut out = Vec::new();
+    if i < bytes.len() && bytes[i] == b'}' {
+        return Ok(out); // empty object
+    }
+
+    let mut idx = 0usize;
+    loop {
+        if i >= bytes.len() || bytes[i] != b'"' {
+            return Err(DocError::Parse("expected object key".into()));
+        }
+        let key_start = i;
+        i = skip_string(bytes, i)?;
+        let key_end = i;
+        i = skip_ws(bytes, i);
+        if i >= bytes.len() || bytes[i] != b':' {
+            return Err(DocError::Parse("expected ':' after object key".into()));
+        }
+        i = skip_ws(bytes, i + 1);
+        let val_start = i;
+        i = skip_value(bytes, i)?;
+        let val_end = i;
+
+        if idx >= start {
+            let key: String = serde_json::from_str(&raw[key_start..key_end])
+                .map_err(|e| DocError::Parse(e.to_string()))?;
+            let lv =
+                unsafe { sonic_rs::get_from_str_unchecked(&raw[val_start..val_end], EMPTY_PATH) }
+                    .map_err(|e| DocError::Parse(e.to_string()))?;
+            out.push(node_view(PathSegment::Key(key), &lv));
+        }
+        idx += 1;
+        if idx >= end {
+            return Ok(out);
+        }
+
+        i = skip_ws(bytes, i);
+        match bytes.get(i) {
+            Some(b',') => i = skip_ws(bytes, i + 1),
+            Some(b'}') => return Ok(out),
+            _ => return Err(DocError::Parse("expected ',' or '}' in object".into())),
+        }
+    }
+}
+
+fn slice_array_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeView>> {
+    let bytes = raw.as_bytes();
+    let mut i = skip_ws(bytes, 0);
+    if i >= bytes.len() || bytes[i] != b'[' {
+        return Err(DocError::Parse("expected array".into()));
+    }
+    i = skip_ws(bytes, i + 1);
+    let mut out = Vec::new();
+    if i < bytes.len() && bytes[i] == b']' {
+        return Ok(out); // empty array
+    }
+
+    let mut idx = 0usize;
+    loop {
+        let val_start = i;
+        i = skip_value(bytes, i)?;
+        let val_end = i;
+
+        if idx >= start {
+            let lv =
+                unsafe { sonic_rs::get_from_str_unchecked(&raw[val_start..val_end], EMPTY_PATH) }
+                    .map_err(|e| DocError::Parse(e.to_string()))?;
+            out.push(node_view(PathSegment::Index(idx as u32), &lv));
+        }
+        idx += 1;
+        if idx >= end {
+            return Ok(out);
+        }
+
+        i = skip_ws(bytes, i);
+        match bytes.get(i) {
+            Some(b',') => i = skip_ws(bytes, i + 1),
+            Some(b']') => return Ok(out),
+            _ => return Err(DocError::Parse("expected ',' or ']' in array".into())),
+        }
     }
 }
 
@@ -602,17 +675,17 @@ fn preview_lazy(lv: &LazyValue<'_>) -> String {
             let s = lv.as_str().unwrap_or("");
             if s.chars().count() > CAP {
                 let body: String = s.chars().take(CAP).collect();
-                format!("\"{}\u{2026}\"", body)
+                format!("\"{body}\u{2026}\"")
             } else {
-                format!("\"{}\"", s)
+                format!("\"{s}\"")
             }
         }
         JsonType::Object => match maybe_count(lv, NodeKind::Object) {
-            Some(n) => format!("{{{} keys}}", n),
+            Some(n) => format!("{{{n} keys}}"),
             None => "{\u{2026}}".into(),
         },
         JsonType::Array => match maybe_count(lv, NodeKind::Array) {
-            Some(n) => format!("[{} items]", n),
+            Some(n) => format!("[{n} items]"),
             None => "[\u{2026}]".into(),
         },
     }
@@ -665,12 +738,12 @@ fn preview(lv: &LazyValue<'_>, kind: NodeKind, child_count: Option<u32>) -> Stri
         },
         NodeKind::Array => match child_count {
             Some(0) => "[]".into(),
-            Some(n) => format!("[{} items]", n),
+            Some(n) => format!("[{n} items]"),
             None => "[\u{2026}]".into(),
         },
         NodeKind::Object => match child_count {
             Some(0) => "{}".into(),
-            Some(n) => format!("{{{} keys}}", n),
+            Some(n) => format!("{{{n} keys}}"),
             None => "{\u{2026}}".into(),
         },
     }
@@ -682,6 +755,50 @@ mod tests {
 
     fn doc(s: &str) -> LazyDoc {
         LazyDoc::new(s).expect("valid JSON in test")
+    }
+
+    #[test]
+    fn root_kind_read_from_first_byte_with_leading_whitespace() {
+        assert_eq!(root_kind_of("  \n\t{\"a\":1}"), NodeKind::Object);
+        assert_eq!(root_kind_of("\n[1,2,3]"), NodeKind::Array);
+        assert_eq!(root_kind_of("\"hi\""), NodeKind::String);
+        assert_eq!(root_kind_of("  -12.5"), NodeKind::Number);
+        assert_eq!(root_kind_of("true"), NodeKind::Bool);
+        assert_eq!(root_kind_of("false"), NodeKind::Bool);
+        assert_eq!(root_kind_of("null"), NodeKind::Null);
+    }
+
+    #[test]
+    fn new_detects_root_kind_matching_json_type() {
+        assert_eq!(doc(r#"{"a":1}"#).root_kind(), NodeKind::Object);
+        assert_eq!(doc("[1,2,3]").root_kind(), NodeKind::Array);
+        assert_eq!(doc("42").root_kind(), NodeKind::Number);
+        assert_eq!(doc("true").root_kind(), NodeKind::Bool);
+        assert_eq!(doc("null").root_kind(), NodeKind::Null);
+    }
+
+    #[test]
+    #[ignore = "perf probe; run with --ignored"]
+    fn perf_slice_object_past_huge_child() {
+        use std::fmt::Write;
+        use std::time::Instant;
+        let mut s = String::with_capacity(40_000_000);
+        s.push_str("{\"head\":\"x\",\"big\":[0");
+        for i in 1..4_000_000u32 {
+            s.push(',');
+            write!(s, "{i}").unwrap();
+        }
+        s.push_str("],\"tail\":\"y\"}");
+        let mb = s.len() / 1_000_000;
+        let d = doc(&s);
+        let t = Instant::now();
+        let out = d.slice(&Path::root(), 0..50).unwrap();
+        let dt = t.elapsed();
+        eprintln!(
+            "[perf] slice {mb}MB object -> {} children in {dt:?}",
+            out.len()
+        );
+        assert_eq!(out.len(), 3);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 [package]
 name = "pandia"
-version = "1.0.0"
+version = "1.0.1"
 description = "A powerful cross-platform desktop JSON IDE"
 authors = ["you"]
 edition = "2021"
@@ -21,7 +21,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision"] }
 tokio = { version = "1", features = ["full"] }
 
-# v1 doc model
 sonic-rs = "0.5"
 dashmap = "6"
 parking_lot = "0.12"
@@ -33,12 +32,8 @@ jsonschema = { version = "0.30", default-features = false }
 serde_yaml_ng = "0.10"
 quick-xml = { version = "0.36", features = ["serialize"] }
 csv = "1"
-# Streaming JSON→JSON (pretty/min) transcode for export-to-file without
-# materializing a serde_json::Value — keeps huge-doc export off the 50 MB cap.
+
 serde-transcode = "1.1"
-# Content-hash dirty flag (#31) — Blake3 is fast enough (~1 GB/s single-core)
-# that recomputing per applyOp on small/medium docs is unmeasurable; lazy docs
-# (>10 MB) keep version-based dirty as a fallback.
 blake3 = "1"
 
 [[bin]]

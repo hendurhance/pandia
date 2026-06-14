@@ -1,5 +1,5 @@
 import { readTextFile } from '@tauri-apps/plugin-fs';
-import { docRepairText, docSetFilePath } from '$lib/ipc/doc';
+import { docRepairText, docSetFilePath, type IpcErrorKind } from '$lib/ipc/doc';
 import type { DocHandle, OpenResult, OpenSource } from '$lib/ipc/types';
 
 const MAX_WARNINGS = 6;
@@ -16,6 +16,8 @@ export interface AutoRepairDeps {
 
 	error: () => string | null;
 
+	errorKind: () => IpcErrorKind | null;
+
 	reopen: (text: string, name: string) => Promise<void>;
 
 	handle: () => DocHandle | null;
@@ -25,7 +27,8 @@ export interface AutoRepairDeps {
 	setRepairInfo: (info: RepairInfo) => void;
 }
 
-export function isRepairableError(error: string): boolean {
+export function isRepairableError(error: string, kind?: IpcErrorKind | null): boolean {
+	if (kind != null) return kind === 'parse';
 	const lower = error.toLowerCase();
 	return (
 		lower.includes('parse') ||
@@ -51,7 +54,7 @@ export async function runAutoRepair(
 ): Promise<void> {
 	if (!deps.enabled()) return;
 	const err = deps.error();
-	if (err == null || !isRepairableError(err)) return;
+	if (err == null || !isRepairableError(err, deps.errorKind())) return;
 
 	const text = await readSourceText(source);
 	if (text == null) return;

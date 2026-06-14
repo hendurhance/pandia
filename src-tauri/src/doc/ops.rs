@@ -55,6 +55,70 @@ pub enum Op {
         path: Path,
         descending: bool,
     },
+
+    DuplicateItem {
+        path: Path,
+        index: usize,
+    },
+
+    DuplicateKey {
+        path: Path,
+        from: String,
+        to: String,
+        position: Option<usize>,
+    },
+
+    InsertItemText {
+        path: Path,
+        index: usize,
+        text: String,
+    },
+
+    InsertKeyText {
+        path: Path,
+        key: String,
+        text: String,
+        position: Option<usize>,
+    },
+}
+
+const OP_BASE_BYTES: usize = 64;
+const STR_BASE_BYTES: usize = 16;
+
+impl Op {
+    pub fn heap_bytes(&self) -> usize {
+        match self {
+            Op::SetValue { value, .. }
+            | Op::InsertKey { value, .. }
+            | Op::InsertItem { value, .. } => OP_BASE_BYTES + value_heap_bytes(value),
+            Op::ReorderKeys { order, .. } => {
+                OP_BASE_BYTES
+                    + order
+                        .iter()
+                        .map(|s| STR_BASE_BYTES + s.len())
+                        .sum::<usize>()
+            }
+            Op::InsertItemText { text, .. } | Op::InsertKeyText { text, .. } => {
+                OP_BASE_BYTES + STR_BASE_BYTES + text.len()
+            }
+            _ => OP_BASE_BYTES,
+        }
+    }
+}
+
+fn value_heap_bytes(v: &Value) -> usize {
+    match v {
+        Value::Null | Value::Bool(_) => 8,
+        Value::Number(_) => 16,
+        Value::String(s) => STR_BASE_BYTES + s.len(),
+        Value::Array(a) => 24 + a.iter().map(value_heap_bytes).sum::<usize>(),
+        Value::Object(o) => {
+            24 + o
+                .iter()
+                .map(|(k, val)| STR_BASE_BYTES + k.len() + value_heap_bytes(val))
+                .sum::<usize>()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -78,7 +142,7 @@ impl Op {
             Op::RenameKey { path, from, to } => {
                 let mut p = path.clone();
                 p.push(PathSegment::Key(from.clone()));
-                (format!("rename key → {}", to), p)
+                (format!("rename key → {to}"), p)
             }
             Op::InsertKey { path, key, .. } => {
                 let mut p = path.clone();
@@ -107,6 +171,26 @@ impl Op {
             }
             Op::ReorderKeys { path, .. } => ("reorder keys".to_string(), path.clone()),
             Op::SortKeys { path, .. } => ("sort keys".to_string(), path.clone()),
+            Op::DuplicateItem { path, index } => {
+                let mut p = path.clone();
+                p.push(PathSegment::Index(*index as u32));
+                ("duplicate item".to_string(), p)
+            }
+            Op::DuplicateKey { path, from, .. } => {
+                let mut p = path.clone();
+                p.push(PathSegment::Key(from.clone()));
+                ("duplicate key".to_string(), p)
+            }
+            Op::InsertItemText { path, index, .. } => {
+                let mut p = path.clone();
+                p.push(PathSegment::Index(*index as u32));
+                ("insert item".to_string(), p)
+            }
+            Op::InsertKeyText { path, key, .. } => {
+                let mut p = path.clone();
+                p.push(PathSegment::Key(key.clone()));
+                ("insert key".to_string(), p)
+            }
         };
         OpDescription {
             label,
@@ -132,6 +216,22 @@ impl Op {
             Op::MoveItem { path, from, to } => apply_move_item(root, path, *from, *to),
             Op::ReorderKeys { path, order } => apply_reorder_keys(root, path, order),
             Op::SortKeys { path, descending } => apply_sort_keys(root, path, *descending),
+            Op::DuplicateItem { path, index } => apply_duplicate_item(root, path, *index),
+            Op::DuplicateKey {
+                path,
+                from,
+                to,
+                position,
+            } => apply_duplicate_key(root, path, from, to, *position),
+            Op::InsertItemText { path, index, text } => {
+                apply_insert_item_text(root, path, *index, text)
+            }
+            Op::InsertKeyText {
+                path,
+                key,
+                text,
+                position,
+            } => apply_insert_key_text(root, path, key, text, *position),
         }
     }
 }
@@ -281,6 +381,66 @@ fn apply_insert_item(
         },
         affected_paths: vec![path.clone()],
     })
+}
+
+fn apply_insert_item_text(
+    root: &mut Value,
+    path: &Path,
+    index: usize,
+    text: &str,
+) -> DocResult<OpOutcome> {
+    let value: Value = serde_json::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
+    apply_insert_item(root, path, index, value)
+}
+
+fn apply_insert_key_text(
+    root: &mut Value,
+    path: &Path,
+    key: &str,
+    text: &str,
+    position: Option<usize>,
+) -> DocResult<OpOutcome> {
+    let value: Value = serde_json::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
+    apply_insert_key(root, path, key, value, position)
+}
+
+fn apply_duplicate_item(root: &mut Value, path: &Path, index: usize) -> DocResult<OpOutcome> {
+    let value = {
+        let target = navigate_mut(root, path)?;
+        let arr = match target {
+            Value::Array(a) => a,
+            _ => return Err(DocError::InvalidPath(path.clone())),
+        };
+        arr.get(index)
+            .ok_or_else(|| {
+                DocError::Edit(format!(
+                    "index {index} out of bounds (array has {} items)",
+                    arr.len()
+                ))
+            })?
+            .clone()
+    };
+    apply_insert_item(root, path, index + 1, value)
+}
+
+fn apply_duplicate_key(
+    root: &mut Value,
+    path: &Path,
+    from: &str,
+    to: &str,
+    position: Option<usize>,
+) -> DocResult<OpOutcome> {
+    let value = {
+        let target = navigate_mut(root, path)?;
+        let map = match target {
+            Value::Object(m) => m,
+            _ => return Err(DocError::InvalidPath(path.clone())),
+        };
+        map.get(from)
+            .ok_or_else(|| DocError::Edit(format!("key {from:?} not found")))?
+            .clone()
+    };
+    apply_insert_key(root, path, to, value, position)
 }
 
 fn apply_delete_item(root: &mut Value, path: &Path, index: usize) -> DocResult<OpOutcome> {
@@ -1162,6 +1322,107 @@ mod tests {
             .apply(&mut v)
             .unwrap_err(),
             DocError::InvalidPath(_)
+        ));
+    }
+
+    #[test]
+    fn duplicate_item_copies_value_and_inverse_removes_it() {
+        // Parse from text so the 19-digit int is a real arbitrary-precision Number.
+        let mut v: Value = serde_json::from_str("[123456789012345678, 2]").unwrap();
+        let out = Op::DuplicateItem {
+            path: root(),
+            index: 0,
+        }
+        .apply(&mut v)
+        .unwrap();
+        assert_eq!(
+            serde_json::to_string(&v).unwrap(),
+            "[123456789012345678,123456789012345678,2]",
+            "the big integer is copied literally, not via f64"
+        );
+        out.inverse.apply(&mut v).unwrap();
+        assert_eq!(serde_json::to_string(&v).unwrap(), "[123456789012345678,2]");
+    }
+
+    #[test]
+    fn duplicate_key_copies_value_to_new_key() {
+        let mut v: Value = serde_json::from_str(r#"{"id":123456789012345678}"#).unwrap();
+        let out = Op::DuplicateKey {
+            path: root(),
+            from: "id".into(),
+            to: "id_copy".into(),
+            position: None,
+        }
+        .apply(&mut v)
+        .unwrap();
+        let s = serde_json::to_string(&v).unwrap();
+        assert!(s.contains(r#""id":123456789012345678"#), "got: {s}");
+        assert!(s.contains(r#""id_copy":123456789012345678"#), "got: {s}");
+        out.inverse.apply(&mut v).unwrap();
+        assert_eq!(
+            serde_json::to_string(&v).unwrap(),
+            r#"{"id":123456789012345678}"#
+        );
+    }
+
+    #[test]
+    fn duplicate_item_out_of_bounds_errors() {
+        let mut v = json!([1]);
+        assert!(matches!(
+            Op::DuplicateItem {
+                path: root(),
+                index: 5,
+            }
+            .apply(&mut v)
+            .unwrap_err(),
+            DocError::Edit(_)
+        ));
+    }
+
+    #[test]
+    fn insert_item_text_parses_big_int_losslessly() {
+        let mut v: Value = serde_json::from_str("[1]").unwrap();
+        let out = Op::InsertItemText {
+            path: root(),
+            index: 1,
+            text: "123456789012345678".to_string(),
+        }
+        .apply(&mut v)
+        .unwrap();
+        assert_eq!(serde_json::to_string(&v).unwrap(), "[1,123456789012345678]");
+        out.inverse.apply(&mut v).unwrap();
+        assert_eq!(serde_json::to_string(&v).unwrap(), "[1]");
+    }
+
+    #[test]
+    fn insert_key_text_parses_big_int_losslessly() {
+        let mut v: Value = serde_json::from_str("{}").unwrap();
+        Op::InsertKeyText {
+            path: root(),
+            key: "id".into(),
+            text: "123456789012345678".to_string(),
+            position: None,
+        }
+        .apply(&mut v)
+        .unwrap();
+        assert_eq!(
+            serde_json::to_string(&v).unwrap(),
+            r#"{"id":123456789012345678}"#
+        );
+    }
+
+    #[test]
+    fn insert_item_text_invalid_json_errors() {
+        let mut v = json!([]);
+        assert!(matches!(
+            Op::InsertItemText {
+                path: root(),
+                index: 0,
+                text: "{bad".into(),
+            }
+            .apply(&mut v)
+            .unwrap_err(),
+            DocError::Parse(_)
         ));
     }
 }

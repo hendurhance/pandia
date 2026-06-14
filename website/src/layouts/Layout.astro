@@ -1,5 +1,11 @@
 ---
 import '../styles/global.css';
+import '@fontsource-variable/bricolage-grotesque/wght.css';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource/ibm-plex-mono/600.css';
+import '@fontsource/ibm-plex-mono/400-italic.css';
+import { VERSION } from '../data/site';
 
 interface Props {
   title: string;
@@ -72,7 +78,7 @@ const jsonLdGraph = [
     author: { '@type': 'Person', name: 'hendurhance', url: 'https://github.com/hendurhance' },
     license: 'https://www.apache.org/licenses/LICENSE-2.0',
     downloadUrl: 'https://github.com/hendurhance/pandia/releases/latest',
-    softwareVersion: '1.0.0',
+    softwareVersion: VERSION,
     screenshot: `${siteUrl}/og-image.png`,
     featureList: [
       'Open multi-gigabyte JSON files instantly',
@@ -137,10 +143,6 @@ const jsonLdGraph = [
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
     <link rel="manifest" href="/site.webmanifest" />
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
 
     <script is:inline>
       if (history.scrollRestoration) {
