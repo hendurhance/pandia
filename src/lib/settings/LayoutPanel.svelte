@@ -2,7 +2,9 @@
 	import {
 		sidebarPrefs,
 		SIDEBAR_TABS,
+		DEFAULT_VIEWS,
 		type SidebarTabId,
+		type DefaultView,
 	} from '$lib/shell/state/sidebar-prefs.svelte';
 
 	$effect(() => {
@@ -23,6 +25,13 @@
 	};
 
 	const enabledCount = $derived(SIDEBAR_TABS.filter((t) => sidebarPrefs.panels[t]).length);
+
+	const VIEW_LABELS: Record<DefaultView, string> = {
+		tree: 'Tree',
+		code: 'Code',
+		grid: 'Grid',
+		graph: 'Graph',
+	};
 </script>
 
 <div class="settings-panel">
@@ -73,6 +82,21 @@
 			<div class="text-sm dim">
 				Unchecked panels are hidden from the sidebar tab strip. At least one must stay on.
 			</div>
+		</div>
+	</section>
+
+	<section class="field">
+		<div class="field-label">default view</div>
+		<div class="field-control">
+			<div class="seg">
+				{#each DEFAULT_VIEWS as v (v)}
+					<button
+						class:active={sidebarPrefs.defaultView === v}
+						onclick={() => sidebarPrefs.setDefaultView(v)}>{VIEW_LABELS[v]}</button
+					>
+				{/each}
+			</div>
+			<div class="text-sm dim">Which view opens automatically when you open a JSON file.</div>
 		</div>
 	</section>
 </div>

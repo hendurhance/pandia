@@ -8,6 +8,9 @@ export const SIDEBAR_TABS = ['outline', 'schema', 'types', 'history'] as const;
 export type SidebarTabId = (typeof SIDEBAR_TABS)[number];
 export type SidebarSide = 'left' | 'right';
 
+export const DEFAULT_VIEWS = ['tree', 'code', 'grid', 'graph'] as const;
+export type DefaultView = (typeof DEFAULT_VIEWS)[number];
+
 export const MIN_WIDTH = 180;
 export const MAX_WIDTH = 480;
 const DEFAULT_WIDTH = 240;
@@ -21,6 +24,7 @@ interface Persisted {
 	activeTab: SidebarTabId;
 	side: SidebarSide;
 	panels: PanelFlags;
+	defaultView: DefaultView;
 }
 
 function sanitize(raw: unknown): Persisted {
@@ -30,6 +34,7 @@ function sanitize(raw: unknown): Persisted {
 		activeTab: 'outline',
 		side: 'left',
 		panels: { ...ALL_ENABLED },
+		defaultView: 'tree',
 	};
 	if (!isObject(raw)) return defaults;
 	const p = raw;
@@ -54,6 +59,7 @@ function sanitize(raw: unknown): Persisted {
 		activeTab,
 		side: p.side === 'right' ? 'right' : 'left',
 		panels,
+		defaultView: oneOf(p.defaultView, DEFAULT_VIEWS) ? p.defaultView : 'tree',
 	};
 }
 
@@ -63,6 +69,7 @@ class SidebarPrefs extends PersistedStore {
 	activeTab: SidebarTabId = $state('outline');
 	side: SidebarSide = $state('left');
 	panels: PanelFlags = $state({ ...ALL_ENABLED });
+	defaultView: DefaultView = $state('tree');
 
 	enabledTabs: SidebarTabId[] = $derived(SIDEBAR_TABS.filter((t) => this.panels[t]));
 
@@ -73,6 +80,7 @@ class SidebarPrefs extends PersistedStore {
 		this.activeTab = p.activeTab;
 		this.side = p.side;
 		this.panels = p.panels;
+		this.defaultView = p.defaultView;
 	}
 
 	private persist(): void {
@@ -82,6 +90,7 @@ class SidebarPrefs extends PersistedStore {
 			activeTab: this.activeTab,
 			side: this.side,
 			panels: this.panels,
+			defaultView: this.defaultView,
 		} satisfies Persisted);
 	}
 
@@ -121,6 +130,12 @@ class SidebarPrefs extends PersistedStore {
 	setSide(s: SidebarSide): void {
 		if (this.side === s) return;
 		this.side = s;
+		this.persist();
+	}
+
+	setDefaultView(v: DefaultView): void {
+		if (this.defaultView === v) return;
+		this.defaultView = v;
 		this.persist();
 	}
 

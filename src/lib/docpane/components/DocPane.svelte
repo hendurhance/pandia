@@ -518,6 +518,8 @@
 		const p = pendingOpen;
 		if (!p) return;
 		void (async () => {
+			await sidebarPrefs.init();
+			viewMode = sidebarPrefs.defaultView;
 			await session.loadFromSource(p);
 			onOpened();
 		})();
