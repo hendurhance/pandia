@@ -1,17 +1,36 @@
 <script lang="ts">
 	import { appearancePrefs, FONT_SIZE_MIN, FONT_SIZE_MAX } from './state/appearance-prefs.svelte';
-	import { THEMES, THEME_FAMILIES, type Theme, type Density } from '$lib/shell/logic/theme';
+	import {
+		THEMES,
+		THEME_FAMILIES,
+		familyOf,
+		type Theme,
+		type Density,
+	} from '$lib/shell/logic/theme';
 
 	$effect(() => {
 		void appearancePrefs.init();
 	});
 
 	type Mode = 'dark' | 'light' | 'auto';
-	let modeOverride = $state<Mode | null>(null);
 	const activeTheme = $derived(THEMES[appearancePrefs.themeId]);
 	const mode: Mode = $derived(
-		modeOverride ?? (appearancePrefs.autoMode ? 'auto' : (activeTheme?.colorScheme ?? 'dark')),
+		appearancePrefs.autoMode ? 'auto' : (activeTheme?.colorScheme ?? 'dark'),
 	);
+
+	const DEFAULT_FAMILY = THEME_FAMILIES[0];
+
+	async function setMode(next: Mode) {
+		if (mode === next) return;
+		const fam = familyOf(appearancePrefs.themeId) ?? DEFAULT_FAMILY;
+		if (next === 'auto') {
+			const id = fam.dark && fam.light ? fam.dark : DEFAULT_FAMILY.dark;
+			if (id) await appearancePrefs.setAuto(id);
+			return;
+		}
+		const id = fam[next] ?? DEFAULT_FAMILY[next];
+		if (id) await appearancePrefs.setTheme(id);
+	}
 
 	interface FamilyPick {
 		key: string;
@@ -115,17 +134,17 @@
 				<button
 					class:active={mode === 'dark'}
 					aria-pressed={mode === 'dark'}
-					onclick={() => (modeOverride = 'dark')}>Dark</button
+					onclick={() => setMode('dark')}>Dark</button
 				>
 				<button
 					class:active={mode === 'light'}
 					aria-pressed={mode === 'light'}
-					onclick={() => (modeOverride = 'light')}>Light</button
+					onclick={() => setMode('light')}>Light</button
 				>
 				<button
 					class:active={mode === 'auto'}
 					aria-pressed={mode === 'auto'}
-					onclick={() => (modeOverride = 'auto')}>Auto</button
+					onclick={() => setMode('auto')}>Auto</button
 				>
 			</div>
 			<div class="theme-grid">
