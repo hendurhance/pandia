@@ -55,6 +55,7 @@ pub struct Document {
     pub file_path: Option<String>,
     pub source_size: u64,
     pub recovery_note: Option<String>,
+    pub comments_stripped: bool,
     pub version: u64,
     pub saved_version: u64,
     saved_hash: blake3::Hash,
@@ -63,6 +64,14 @@ pub struct Document {
     sort_cache: parking_lot::Mutex<Option<SortCache>>,
     filter_cache: parking_lot::Mutex<Option<FilterCache>>,
     quick_text_cache: parking_lot::Mutex<HashMap<(Path, String), QuickTextColumn>>,
+    canon_cache: parking_lot::Mutex<Option<CanonCache>>,
+}
+
+#[derive(Debug)]
+struct CanonCache {
+    version: u64,
+    text: Arc<String>,
+    line_starts: Arc<Vec<u32>>,
 }
 
 #[derive(Debug)]
@@ -145,6 +154,7 @@ pub struct Summary {
     pub dirty: bool,
     pub file_backed: bool,
     pub recovery_note: Option<String>,
+    pub comments_stripped: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,14 +187,19 @@ impl Document {
     pub fn from_text(text: &str, source_path: Option<String>) -> DocResult<Self> {
         Self::ensure_within_max(text.len() as u64)?;
 
-        let (inner, size, recovery_note) = match Self::parse(text) {
-            Ok(inner) => (inner, text.len() as u64, None),
+        let (inner, size, recovery_note, comments_stripped) = match Self::parse(text) {
+            Ok(inner) => (inner, text.len() as u64, None, false),
             Err(strict) => {
                 let hint = source_path.as_deref().and_then(format::hint_from_path);
                 let r = format::recover(text, hint).ok_or(strict)?;
                 Self::ensure_within_max(r.json.len() as u64)?;
                 let size = r.json.len() as u64;
-                (Self::parse(&r.json)?, size, r.note.map(str::to_string))
+                (
+                    Self::parse(&r.json)?,
+                    size,
+                    r.note.map(str::to_string),
+                    r.comments_stripped,
+                )
             }
         };
 
@@ -194,6 +209,7 @@ impl Document {
             file_path: None,
             source_size: size,
             recovery_note,
+            comments_stripped,
             version: 0,
             saved_version: 0,
             saved_hash: blake3::Hash::from_bytes([0u8; 32]),
@@ -202,6 +218,7 @@ impl Document {
             sort_cache: parking_lot::Mutex::new(None),
             filter_cache: parking_lot::Mutex::new(None),
             quick_text_cache: parking_lot::Mutex::new(HashMap::new()),
+            canon_cache: parking_lot::Mutex::new(None),
         };
         doc.saved_hash = doc.compute_content_hash();
         Ok(doc)
@@ -270,6 +287,7 @@ impl Document {
             dirty: self.is_dirty(),
             file_backed: self.file_path.is_some(),
             recovery_note: self.recovery_note.clone(),
+            comments_stripped: self.comments_stripped,
         }
     }
 
@@ -394,6 +412,7 @@ impl Document {
             _ => self.serialize()?,
         };
         std::fs::write(&target, text)?;
+        self.comments_stripped = false;
         self.file_path = Some(target.clone());
         self.source_path = Some(target.clone());
         self.saved_version = self.version;
@@ -804,6 +823,37 @@ impl Document {
         }
     }
 
+    pub fn canonical_lines(&self) -> DocResult<(Arc<String>, Arc<Vec<u32>>)> {
+        {
+            let cache = self.canon_cache.lock();
+            if let Some(c) = cache.as_ref() {
+                if c.version == self.version {
+                    return Ok((Arc::clone(&c.text), Arc::clone(&c.line_starts)));
+                }
+            }
+        }
+        if self.source_size > GET_VALUE_ROOT_LIMIT {
+            return Err(DocError::TooLarge {
+                actual: self.source_size,
+                limit: GET_VALUE_ROOT_LIMIT,
+            });
+        }
+        let text = match &self.inner {
+            DocumentImpl::Eager(v) => super::canonical::canonical_pretty(v),
+            DocumentImpl::Lazy(d) => {
+                super::canonical::canonical_pretty(&d.get_value(&Path::root())?)
+            }
+        };
+        let text = Arc::new(text);
+        let line_starts = Arc::new(super::linediff::line_starts(&text));
+        *self.canon_cache.lock() = Some(CanonCache {
+            version: self.version,
+            text: Arc::clone(&text),
+            line_starts: Arc::clone(&line_starts),
+        });
+        Ok((text, line_starts))
+    }
+
     pub fn apply(&mut self, op: &Op) -> DocResult<ApplyResult> {
         let result = self.apply_unchecked(op)?;
         self.history.record(op.clone(), result.inverse.clone());
@@ -1028,6 +1078,32 @@ mod tests {
     }
 
     #[test]
+    fn jsonc_open_flags_comment_loss_until_first_save() {
+        let path = temp_path("comments.jsonc");
+        std::fs::write(&path, "{\n  // keep me\n  \"a\": 1,\n}").unwrap();
+        let mut d = Document::from_file(&path).unwrap();
+        let s = d.summary();
+        assert!(s.comments_stripped);
+        assert!(s.recovery_note.is_some());
+
+        d.apply(&Op::SetValue {
+            path: Path(vec![PathSegment::Key("a".into())]),
+            value: serde_json::json!(2),
+        })
+        .unwrap();
+        d.save(None).unwrap();
+        assert!(!d.summary().comments_stripped);
+        assert!(serde_json::from_str::<Value>(&std::fs::read_to_string(&path).unwrap()).is_ok());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn plain_json_never_flags_comment_loss() {
+        assert!(!doc(r#"{"a": 1}"#).summary().comments_stripped);
+        assert!(!doc("{\"a\":1}\n{\"a\":2}\n").summary().comments_stripped);
+    }
+
+    #[test]
     fn opens_json5() {
         let d = doc("{unquoted: 'single', hex: 0xFF, trailing: .5,}");
         assert_eq!(
@@ -1230,6 +1306,64 @@ mod tests {
         assert!(!d.summary().dirty);
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    const EXTREME_NUMBER_TOKENS: &[&str] = &[
+        "9007199254740991",
+        "9007199254740992",
+        "9007199254740993",
+        "12345678901234567890",
+        "123456789012345678901234567890123456789012345678901234567890",
+        "-98765432109876543210987654321",
+        "9223372036854775807",
+        "-9223372036854775808",
+        "18446744073709551615",
+        "3.14159265358979323846264338327950288419716939937510582097494",
+        "0.30000000000000004",
+        "0.000000000000000000000000000001",
+        "1e308",
+        "1e309",
+        "5e-324",
+        "1e-400",
+        "1E10",
+        "2.5e+7",
+        "2.5e-7",
+        "-0.0",
+        "0",
+        "1.5",
+        "1.50000000000000000000",
+    ];
+
+    #[test]
+    fn serialize_preserves_every_extreme_number_token() {
+        let src = format!("[{}]", EXTREME_NUMBER_TOKENS.join(","));
+        let d = doc(&src);
+        let out = d.serialize().unwrap();
+        let reparsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(serde_json::to_string(&reparsed).unwrap(), src);
+    }
+
+    #[test]
+    fn integer_negative_zero_is_normalized_by_the_parser() {
+        let d = doc("[-0, -0.0]");
+        let out = d.serialize().unwrap();
+        let reparsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(serde_json::to_string(&reparsed).unwrap(), "[0,-0.0]");
+    }
+
+    #[test]
+    fn set_value_text_edit_does_not_perturb_neighbor_tokens() {
+        let src = format!("[{}]", EXTREME_NUMBER_TOKENS.join(","));
+        let mut d = doc(&src);
+        d.apply(&Op::SetValueText {
+            path: Path(vec![PathSegment::Index(20)]),
+            text: "1.2345678901234567890123456789e-7".into(),
+        })
+        .unwrap();
+        let out = d.serialize().unwrap();
+        let reparsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let expected = src.replace(",0,1.5,", ",1.2345678901234567890123456789e-7,1.5,");
+        assert_eq!(serde_json::to_string(&reparsed).unwrap(), expected);
     }
 
     #[test]

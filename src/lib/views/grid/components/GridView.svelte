@@ -192,6 +192,7 @@
 		rowCount: () => schema.rowCount,
 		query: () => filter.query,
 		onFilterOverflow: filter.resetOnOverflow,
+		onError: (msg) => onError(msg),
 	});
 
 	let scroller: HTMLDivElement | undefined = $state();

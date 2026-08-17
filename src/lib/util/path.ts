@@ -120,6 +120,52 @@ export function basename(path: string): string {
 	return slash >= 0 ? path.slice(slash + 1) : path;
 }
 
+const ELLIPSIS = '…';
+
+export function truncatePathMiddle(path: string, budget: number): string {
+	if (path.length <= budget) return path;
+	const sep = path.includes('/') ? '/' : '\\';
+	const segs = path.split(sep);
+	const base = segs.pop() ?? '';
+
+	if (ELLIPSIS.length + sep.length + base.length > budget) {
+		return truncateBasename(base, budget);
+	}
+
+	let lo = 0;
+	let hi = segs.length;
+	let len = ELLIPSIS.length + sep.length + base.length;
+	let front = true;
+	while (lo < hi) {
+		const seg = front ? segs[lo] : segs[hi - 1];
+		if (len + seg.length + sep.length > budget) break;
+		len += seg.length + sep.length;
+		if (front) lo++;
+		else hi--;
+		front = !front;
+	}
+	return [...segs.slice(0, lo), ELLIPSIS, ...segs.slice(hi), base].join(sep);
+}
+
+function truncateBasename(name: string, budget: number): string {
+	if (name.length <= budget) return name;
+	const dot = name.lastIndexOf('.');
+	const ext = dot > 0 ? name.slice(dot) : '';
+	const stem = ext ? name.slice(0, dot) : name;
+	if (ext && budget - ext.length > ELLIPSIS.length) {
+		return middleCut(stem, budget - ext.length) + ext;
+	}
+	return middleCut(stem.length >= budget ? stem : name, budget);
+}
+
+function middleCut(s: string, width: number): string {
+	if (s.length <= width) return s;
+	if (width <= ELLIPSIS.length) return width > 0 ? ELLIPSIS : '';
+	const keep = width - ELLIPSIS.length;
+	const tail = Math.ceil(keep / 2);
+	return s.slice(0, keep - tail) + ELLIPSIS + s.slice(s.length - tail);
+}
+
 export function stem(path: string): string {
 	return basename(path).replace(/\.[^.]+$/, '');
 }

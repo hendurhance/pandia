@@ -5,7 +5,9 @@ import {
 	docGetRowsFiltered,
 	type GridFilter,
 	type SortedRow,
+	IpcError,
 } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle, Path } from '$lib/ipc/types';
 import { rowWindow } from '../logic/grid-geometry';
 import { UNLOADED, MISSING, cellText } from '../logic/grid-cell';
@@ -37,6 +39,8 @@ export interface GridDataDeps {
 	query: () => GridQuery;
 
 	onFilterOverflow: (message: string) => void;
+
+	onError: (message: string) => void;
 }
 
 export class GridDataController {
@@ -162,11 +166,12 @@ export class GridDataController {
 				next.set(start, rows);
 				this.chunks = next;
 			} catch (e) {
-				const msg = String(e);
-				if (msg.includes('cancelled')) return;
+				if (e instanceof IpcError && e.kind === 'cancelled') return;
 				if (gen !== this.generation) return;
 				if (q.sortKey || q.filtering) {
-					this.deps.onFilterOverflow(msg.replace(/^.*?Error:\s*/i, ''));
+					this.deps.onFilterOverflow(describeError(e));
+				} else {
+					this.deps.onError(describeError(e));
 				}
 			} finally {
 				if (gen === this.generation) this.inFlight.delete(start);

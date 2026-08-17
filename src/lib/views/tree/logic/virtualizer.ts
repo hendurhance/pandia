@@ -47,6 +47,27 @@ export function visibleWindow(
 	return { start, end: Math.min(rowCount, i + overscan) };
 }
 
+export interface ScrollAnchor {
+	index: number;
+	delta: number;
+}
+
+export function captureScrollAnchor(
+	offsets: ArrayLike<number>,
+	rowCount: number,
+	scrollTop: number,
+): ScrollAnchor | null {
+	if (rowCount <= 0) return null;
+	let i = indexAtOffset(offsets, rowCount, scrollTop);
+	if (i < rowCount - 1 && offsets[i] < scrollTop) i += 1;
+	if (i > rowCount - 1) i = rowCount - 1;
+	return { index: i, delta: offsets[i] - scrollTop };
+}
+
+export function restoreScrollTop(offsets: ArrayLike<number>, index: number, delta: number): number {
+	return Math.max(0, offsets[index] - delta);
+}
+
 export function fixedWindow(
 	scrollTop: number,
 	viewportHeight: number,

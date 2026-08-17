@@ -18,7 +18,14 @@
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from '@lucide/svelte';
-	import { buildOffsets, DEFAULT_ROW_H, OVERSCAN, visibleWindow } from '../logic/virtualizer';
+	import {
+		buildOffsets,
+		captureScrollAnchor,
+		DEFAULT_ROW_H,
+		OVERSCAN,
+		restoreScrollTop,
+		visibleWindow,
+	} from '../logic/virtualizer';
 	import type { DiffKind, Path } from '$lib/ipc/types';
 	import InlineCellEditor from './InlineCellEditor.svelte';
 	import { fmtKbd } from '$lib/util/platform';
@@ -123,6 +130,28 @@
 		onVisibleRange(startIndex, endIndex);
 	});
 
+	const ROW_SLACK_CH = 12;
+	let maxRowCh = $state(0);
+	let maxRowLen = 0;
+	$effect(() => {
+		const vis = visibleRows;
+		const len = rows.length;
+		untrack(() => {
+			let m = len < maxRowLen ? 0 : maxRowCh;
+			maxRowLen = len;
+			for (const r of vis) {
+				if (r.variant === 'vgap') continue;
+				const text =
+					r.variant === 'content'
+						? renderKey(r).length + Math.max(r.preview.length, chipText(r)?.length ?? 0)
+						: 16;
+				const est = Math.ceil((r.depth * 8) / 3 + text * 1.01) + ROW_SLACK_CH;
+				if (est > m) m = est;
+			}
+			if (m !== maxRowCh) maxRowCh = m;
+		});
+	});
+
 	$effect(() => {
 		if (!onMaterializeGap) return;
 		const top = scrollTop;
@@ -208,6 +237,38 @@
 				}
 			}
 			if (changed) heightsVersion += 1;
+		});
+	});
+
+	let anchor: { key: string; index: number; delta: number } | null = null;
+	$effect(() => {
+		const offs = offsets;
+		if (!scroller) return;
+		untrack(() => {
+			const a = anchor;
+			if (!a || rows.length === 0) return;
+			let idx = a.index < rows.length && rowKey(rows[a.index]) === a.key ? a.index : -1;
+			if (idx < 0) {
+				for (let i = 0; i < rows.length; i++) {
+					if (rowKey(rows[i]) === a.key) {
+						idx = i;
+						break;
+					}
+				}
+			}
+			if (idx < 0) return;
+			const top = restoreScrollTop(offs, idx, a.delta);
+			if (Math.abs(top - scrollTop) < 1 || !scroller) return;
+			scroller.scrollTop = top;
+			scrollTop = top;
+		});
+	});
+	$effect(() => {
+		const offs = offsets;
+		const top = scrollTop;
+		untrack(() => {
+			const a = captureScrollAnchor(offs, rows.length, top);
+			anchor = a ? { key: rowKey(rows[a.index]), index: a.index, delta: a.delta } : null;
 		});
 	});
 
@@ -357,7 +418,7 @@
 	onpointerup={onDragUp}
 	onpointercancel={onDragCancel}
 >
-	<div class="spacer" style="height: {totalHeight}px">
+	<div class="spacer" style="height: {totalHeight}px; width: max(100%, {maxRowCh}ch);">
 		{#if dropTarget}
 			<div
 				class="drop-line"
@@ -485,7 +546,6 @@
 	}
 	.spacer {
 		position: relative;
-		width: 100%;
 
 		contain: layout style;
 	}
@@ -681,6 +741,9 @@
 	.trigger {
 		visibility: hidden;
 		flex-shrink: 0;
+
+		position: sticky;
+		right: 0.5rem;
 
 		margin-left: auto;
 		background: transparent;

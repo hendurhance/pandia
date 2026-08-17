@@ -20,7 +20,16 @@ export function valueTypeLabel(k: ContentRow['kind']): string {
 	}
 }
 
+const JSON_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
+
 export function nextNumberValue(buffer: string, delta: number): string {
+	const t = buffer.trim();
+	if (JSON_NUMBER.test(t)) {
+		if (/^-?\d+$/.test(t) && Number.isInteger(delta)) {
+			return (BigInt(t) + BigInt(delta)).toString();
+		}
+		if (String(Number(t)) !== t) return buffer;
+	}
 	const cur = parseFloat(buffer);
 	const base = Number.isFinite(cur) ? cur : 0;
 	const next = Math.round((base + delta) * 1e9) / 1e9;

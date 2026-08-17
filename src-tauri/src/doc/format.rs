@@ -25,17 +25,18 @@ pub fn hint_from_path(path: &str) -> Option<InputFormat> {
 pub struct Recovered {
     pub json: String,
     pub note: Option<&'static str>,
+    pub comments_stripped: bool,
 }
 
-impl Recovered {
-    fn plain(json: String) -> Self {
-        Self { json, note: None }
-    }
+pub const COMMENTS_STRIPPED_NOTE: &str =
+    "Removed the comments — saving will write plain JSON without them";
 
+impl Recovered {
     fn noted(json: String, note: &'static str) -> Self {
         Self {
             json,
             note: Some(note),
+            comments_stripped: false,
         }
     }
 }
@@ -60,27 +61,37 @@ pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
     };
 
     let dialect = attempts.into_iter().find_map(|attempt| {
-        match attempt {
-            Attempt::Ndjson => ndjson_to_array(body),
-            Attempt::Relaxed => relaxed_to_json(body),
-            Attempt::RelaxedNdjson => relaxed_to_json(body).as_deref().and_then(ndjson_to_array),
-        }
-        .filter(|candidate| is_valid_json(candidate))
+        let (json, comments) = match attempt {
+            Attempt::Ndjson => (ndjson_to_array(body)?, false),
+            Attempt::Relaxed => relaxed_to_json(body)?,
+            Attempt::RelaxedNdjson => {
+                let (json, comments) = relaxed_to_json(body)?;
+                (ndjson_to_array(&json)?, comments)
+            }
+        };
+        is_valid_json(&json).then_some((json, comments))
     });
-    if let Some(json) = dialect {
-        return Some(match note {
-            Some(note) => Recovered::noted(json, note),
-            None => Recovered::plain(json),
+    if let Some((json, comments_stripped)) = dialect {
+        let note = if comments_stripped {
+            Some(COMMENTS_STRIPPED_NOTE)
+        } else {
+            note
+        };
+        return Some(Recovered {
+            json,
+            note,
+            comments_stripped,
         });
     }
 
     let inner = unwrap_quoted(body)?;
-    let json = relaxed_to_json(&inner.json)
-        .or_else(|| ndjson_to_array(&inner.json))
-        .filter(|c| is_valid_json(c))?;
+    let (json, comments_stripped) = relaxed_to_json(&inner.json)
+        .or_else(|| ndjson_to_array(&inner.json).map(|json| (json, false)))
+        .filter(|(c, _)| is_valid_json(c))?;
     Some(Recovered {
         json,
         note: inner.note,
+        comments_stripped,
     })
 }
 
@@ -266,17 +277,19 @@ enum Ctx {
     Arr,
 }
 
-fn relaxed_to_json(text: &str) -> Option<String> {
+fn relaxed_to_json(text: &str) -> Option<(String, bool)> {
     let b = text.as_bytes();
     let mut out = String::with_capacity(text.len());
     let mut stack: Vec<Ctx> = Vec::new();
     let mut changed = false;
+    let mut saw_comment = false;
     let mut i = 0;
 
     while i < b.len() {
         match b[i] {
             b'/' if b.get(i + 1) == Some(&b'/') => {
                 changed = true;
+                saw_comment = true;
                 i += 2;
                 while i < b.len() && b[i] != b'\n' {
                     i += 1;
@@ -284,6 +297,7 @@ fn relaxed_to_json(text: &str) -> Option<String> {
             }
             b'/' if b.get(i + 1) == Some(&b'*') => {
                 changed = true;
+                saw_comment = true;
                 i += 2;
                 while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
                     if b[i] == b'\n' {
@@ -347,7 +361,7 @@ fn relaxed_to_json(text: &str) -> Option<String> {
         }
     }
 
-    changed.then_some(out)
+    changed.then_some((out, saw_comment))
 }
 
 fn is_token_delim(c: u8) -> bool {
@@ -631,9 +645,27 @@ mod tests {
     }
 
     #[test]
-    fn dialect_recoveries_carry_no_note() {
-        assert_eq!(recover("{\"a\":1}\n{\"a\":2}\n", None).unwrap().note, None);
-        assert_eq!(recover("{/* c */ \"a\": 1,}", None).unwrap().note, None);
+    fn lossless_dialect_recoveries_carry_no_note() {
+        let ndjson = recover("{\"a\":1}\n{\"a\":2}\n", None).unwrap();
+        assert_eq!(ndjson.note, None);
+        assert!(!ndjson.comments_stripped);
+        let relaxed = recover("{'a': 1,}", None).unwrap();
+        assert_eq!(relaxed.note, None);
+        assert!(!relaxed.comments_stripped);
+    }
+
+    #[test]
+    fn comment_stripping_carries_a_note_and_flag() {
+        let r = recover("{/* c */ \"a\": 1,}", None).unwrap();
+        assert_eq!(r.note, Some(COMMENTS_STRIPPED_NOTE));
+        assert!(r.comments_stripped);
+    }
+
+    #[test]
+    fn comment_note_outranks_the_junk_strip_note() {
+        let r = recover("\u{feff}{// c\n \"a\": 1}", None).unwrap();
+        assert_eq!(r.note, Some(COMMENTS_STRIPPED_NOTE));
+        assert!(r.comments_stripped);
     }
 
     #[test]
@@ -757,8 +789,12 @@ mod tests {
 
     #[test]
     fn commented_ndjson_needs_both_passes() {
-        let v = value("// log\n{\"a\":1}\n{\"a\":2}\n");
-        assert_eq!(v, serde_json::json!([{"a": 1}, {"a": 2}]));
+        let r = recover("// log\n{\"a\":1}\n{\"a\":2}\n", None).expect("recovers");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&r.json).unwrap(),
+            serde_json::json!([{"a": 1}, {"a": 2}])
+        );
+        assert!(r.comments_stripped, "flag survives the relaxed+ndjson pass");
     }
 
     #[test]

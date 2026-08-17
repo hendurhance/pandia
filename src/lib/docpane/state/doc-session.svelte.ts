@@ -13,6 +13,7 @@ import {
 	IpcError,
 	type IpcErrorKind,
 } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type {
 	ApplyResult,
 	Diagnosis,
@@ -27,7 +28,12 @@ import { basename } from '$lib/util/path';
 import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
-import { runAutoRepair, readSourceText, type RepairInfo } from '../logic/doc-repair';
+import {
+	runAutoRepair,
+	runFormatDetect,
+	readSourceText,
+	type RepairInfo,
+} from '../logic/doc-repair';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { addRecent } from '$lib/shell/state/recents-store.svelte';
 
@@ -50,6 +56,8 @@ export interface DocSessionDeps {
 	cancelBackupTimer: () => void;
 
 	confirmLargeFile?: (path: string) => Promise<boolean>;
+
+	confirmCommentLoss?: (name: string) => Promise<'save' | 'saveAs' | 'cancel'>;
 }
 
 export class DocSessionController {
@@ -81,7 +89,7 @@ export class DocSessionController {
 				await this.deps.tree.toggleAt(0);
 			}
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			this.lastErrorKind = e instanceof IpcError ? e.kind : null;
 		} finally {
 			this.deps.setBusy(false);
@@ -96,8 +104,15 @@ export class DocSessionController {
 		const name = source.kind === 'file' ? source.path : (source.name ?? '(inline)');
 		await this.load(() => docOpen(source), name);
 		if (this.deps.getError() !== null) {
+			await runFormatDetect(source, {
+				error: () => this.deps.getError(),
+				errorKind: () => this.lastErrorKind,
+				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
+			});
+		}
+		if (this.deps.getError() !== null) {
 			await runAutoRepair(source, name, {
-				enabled: () => behaviorPrefs.autoRepairOnPaste,
+				enabled: () => behaviorPrefs.autoRepairOnOpen,
 				error: () => this.deps.getError(),
 				errorKind: () => this.lastErrorKind,
 				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
@@ -177,7 +192,7 @@ export class DocSessionController {
 			}
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -193,7 +208,7 @@ export class DocSessionController {
 			}
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -207,7 +222,7 @@ export class DocSessionController {
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -221,7 +236,7 @@ export class DocSessionController {
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -240,6 +255,13 @@ export class DocSessionController {
 		if (!this.summary.fileBacked) {
 			return this.saveAs(opts);
 		}
+		if (this.summary.commentsStripped) {
+			if (opts.silent) return false;
+			const choice =
+				(await this.deps.confirmCommentLoss?.(basename(this.sourceName ?? 'this file'))) ?? 'save';
+			if (choice === 'cancel') return false;
+			if (choice === 'saveAs') return this.saveAs(opts);
+		}
 		try {
 			const res = await docSave(this.handle);
 			this.clearBackup();
@@ -247,7 +269,7 @@ export class DocSessionController {
 			if (!opts.silent) this.deps.flash(`saved ${basename(res.path)}`);
 			return true;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return false;
 		}
 	};
@@ -262,7 +284,7 @@ export class DocSessionController {
 				filters: [{ name: 'JSON', extensions: ['json'] }],
 			});
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return false;
 		}
 		if (typeof picked !== 'string') return false; // cancelled
@@ -274,7 +296,7 @@ export class DocSessionController {
 			if (!opts.silent) this.deps.flash(`saved ${basename(res.path)}`);
 			return true;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return false;
 		}
 	};

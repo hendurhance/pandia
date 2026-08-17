@@ -1,99 +1,120 @@
 import { describe, it, expect } from 'vitest';
-import { unifiedDiff, changeCounts, changeAnchors, type UnifiedRow, type GapRow } from './linediff';
+import {
+	unifiedRows,
+	gapRows,
+	changeCounts,
+	changeAnchors,
+	type UnifiedRow,
+	type GapRow,
+} from './linediff';
+import type { LineDiffResult, LineHunk } from '$lib/ipc/types';
+
+function hunk(leftStart: number, leftLen: number, rightStart: number, rightLen: number): LineHunk {
+	return { leftStart, leftLen, rightStart, rightLen };
+}
+
+function diff(hunks: LineHunk[], leftLines: number, rightLines: number): LineDiffResult {
+	return { hunks, leftLines, rightLines };
+}
 
 function sum(rows: UnifiedRow[]): string[] {
 	return rows.map((r) => {
 		if (r.type === 'gap') return `gap:${r.count}`;
-		return `${r.type}:${r.text}(${r.leftNo ?? '_'},${r.rightNo ?? '_'})`;
+		return `${r.type}:(${r.leftNo ?? '_'},${r.rightNo ?? '_'})`;
 	});
 }
 
-describe('unifiedDiff — basics', () => {
-	it('returns no rows for identical text', () => {
-		expect(unifiedDiff('a\nb\nc', 'a\nb\nc')).toEqual([]);
+describe('unifiedRows — basics', () => {
+	it('returns no rows when there are no hunks', () => {
+		expect(unifiedRows(diff([], 3, 3))).toEqual([]);
 	});
 
 	it('renders a single-line replace as del + add with correct line numbers', () => {
-		expect(sum(unifiedDiff('a\nb\nc', 'a\nX\nc', 3))).toEqual([
-			'context:a(1,1)',
-			'del:b(2,_)',
-			'add:X(_,2)',
-			'context:c(3,3)',
+		expect(sum(unifiedRows(diff([hunk(1, 1, 1, 1)], 3, 3)))).toEqual([
+			'context:(1,1)',
+			'del:(2,_)',
+			'add:(_,2)',
+			'context:(3,3)',
 		]);
 	});
 
-	it('keeps surrounding lines as context for a pure insertion (LCS, not del+add all)', () => {
-		expect(sum(unifiedDiff('a\nc', 'a\nb\nc', 3))).toEqual([
-			'context:a(1,1)',
-			'add:b(_,2)',
-			'context:c(2,3)',
+	it('renders a pure insertion with surrounding context', () => {
+		expect(sum(unifiedRows(diff([hunk(1, 0, 1, 1)], 2, 3)))).toEqual([
+			'context:(1,1)',
+			'add:(_,2)',
+			'context:(2,3)',
 		]);
 	});
 
 	it('renders a pure deletion, with right-side numbering continuing past it', () => {
-		expect(sum(unifiedDiff('a\nb\nc', 'a\nc', 3))).toEqual([
-			'context:a(1,1)',
-			'del:b(2,_)',
-			'context:c(3,2)',
+		expect(sum(unifiedRows(diff([hunk(1, 1, 1, 0)], 3, 2)))).toEqual([
+			'context:(1,1)',
+			'del:(2,_)',
+			'context:(3,2)',
 		]);
 	});
 });
 
-describe('unifiedDiff — context collapsing', () => {
+describe('unifiedRows — context collapsing', () => {
 	it('collapses leading and trailing context into gaps, keeping `ctx` lines', () => {
-		const rows = unifiedDiff('a\nb\nc\nd\ne\nf\ng', 'a\nb\nc\nX\ne\nf\ng', 1);
+		const rows = unifiedRows(diff([hunk(3, 1, 3, 1)], 7, 7), 1);
 		expect(sum(rows)).toEqual([
 			'gap:2',
-			'context:c(3,3)',
-			'del:d(4,_)',
-			'add:X(_,4)',
-			'context:e(5,5)',
+			'context:(3,3)',
+			'del:(4,_)',
+			'add:(_,4)',
+			'context:(5,5)',
 			'gap:2',
 		]);
-		// the hidden lines are carried on the gap for expand-on-click
-		expect((rows[0] as GapRow).lines.map((l) => l.text)).toEqual(['a', 'b']);
-		expect((rows[rows.length - 1] as GapRow).lines.map((l) => l.text)).toEqual(['f', 'g']);
+		expect(rows[0]).toEqual({ type: 'gap', count: 2, leftStart: 0, rightStart: 0 });
+		expect(rows[rows.length - 1]).toEqual({ type: 'gap', count: 2, leftStart: 5, rightStart: 5 });
 	});
 
 	it('collapses a long context run *between* two changes into a middle gap', () => {
-		expect(sum(unifiedDiff('X\nb\nc\nd\nY\nf', 'A\nb\nc\nd\nB\nf', 1))).toEqual([
-			'del:X(1,_)',
-			'add:A(_,1)',
-			'context:b(2,2)',
+		expect(sum(unifiedRows(diff([hunk(0, 1, 0, 1), hunk(4, 1, 4, 1)], 6, 6), 1))).toEqual([
+			'del:(1,_)',
+			'add:(_,1)',
+			'context:(2,2)',
 			'gap:1',
-			'context:d(4,4)',
-			'del:Y(5,_)',
-			'add:B(_,5)',
-			'context:f(6,6)',
+			'context:(4,4)',
+			'del:(5,_)',
+			'add:(_,5)',
+			'context:(6,6)',
 		]);
 	});
 
 	it('does not collapse a middle context run shorter than 2×ctx', () => {
-		expect(sum(unifiedDiff('X\nb\nc\nY\nf', 'A\nb\nc\nB\nf', 2))).toEqual([
-			'del:X(1,_)',
-			'add:A(_,1)',
-			'context:b(2,2)',
-			'context:c(3,3)',
-			'del:Y(4,_)',
-			'add:B(_,4)',
-			'context:f(5,5)',
+		expect(sum(unifiedRows(diff([hunk(0, 1, 0, 1), hunk(3, 1, 3, 1)], 5, 5), 2))).toEqual([
+			'del:(1,_)',
+			'add:(_,1)',
+			'context:(2,2)',
+			'context:(3,3)',
+			'del:(4,_)',
+			'add:(_,4)',
+			'context:(5,5)',
 		]);
 	});
 });
 
-describe('changeCounts', () => {
-	it('counts top-level add/del rows only (gap-hidden context is not counted)', () => {
-		const rows = unifiedDiff('a\nb\nc\nd\ne\nf\ng', 'a\nb\nc\nX\ne\nf\ng', 1);
-		expect(changeCounts(rows)).toEqual({ adds: 1, dels: 1 });
+describe('gapRows', () => {
+	it('expands a gap into context rows numbered from its start lines', () => {
+		const gap: GapRow = { type: 'gap', count: 3, leftStart: 4, rightStart: 6 };
+		expect(sum(gapRows(gap))).toEqual(['context:(5,7)', 'context:(6,8)', 'context:(7,9)']);
 	});
-	it('is zero for identical text', () => {
-		expect(changeCounts(unifiedDiff('a\nb', 'a\nb'))).toEqual({ adds: 0, dels: 0 });
+});
+
+describe('changeCounts', () => {
+	it('sums added and deleted lines across hunks', () => {
+		expect(changeCounts([hunk(1, 1, 1, 2), hunk(9, 3, 10, 0)])).toEqual({ adds: 2, dels: 4 });
+	});
+	it('is zero without hunks', () => {
+		expect(changeCounts([])).toEqual({ adds: 0, dels: 0 });
 	});
 });
 
 describe('changeAnchors', () => {
 	it('marks the first index of each change run', () => {
-		const rows = unifiedDiff('X\nb\nc\nd\nY\nf', 'A\nb\nc\nd\nB\nf', 1);
+		const rows = unifiedRows(diff([hunk(0, 1, 0, 1), hunk(4, 1, 4, 1)], 6, 6), 1);
 		// rows: [del,add,ctx,gap,ctx,del,add,ctx] → runs start at 0 and 5
 		expect(changeAnchors(rows)).toEqual([0, 5]);
 	});
@@ -101,7 +122,6 @@ describe('changeAnchors', () => {
 		const make = (n: number): UnifiedRow[] =>
 			Array.from({ length: n }, (_, i) => ({
 				type: 'add',
-				text: 'x',
 				leftNo: null,
 				rightNo: i + 1,
 			}));
@@ -109,6 +129,6 @@ describe('changeAnchors', () => {
 		expect(changeAnchors(make(150))).toEqual([0, 50, 100]);
 	});
 	it('returns no anchors when there are no changes', () => {
-		expect(changeAnchors(unifiedDiff('a\nb', 'a\nb'))).toEqual([]);
+		expect(changeAnchors(unifiedRows(diff([], 2, 2)))).toEqual([]);
 	});
 });

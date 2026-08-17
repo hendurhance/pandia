@@ -23,7 +23,7 @@ export interface Command {
 }
 
 class CommandRegistry {
-	list: Command[] = $state([]);
+	list: Command[] = $state.raw([]);
 
 	register(cmd: Command): () => void {
 		const next = untrack(() => [...this.list.filter((c) => c.id !== cmd.id), cmd]);

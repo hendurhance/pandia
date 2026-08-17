@@ -1,4 +1,5 @@
 import { docChildCount, docGetSlice, docSummary } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import {
 	expandGapWindow,
 	insertChildrenWithClose,
@@ -123,7 +124,7 @@ export class TreeRowsController {
 			this.rows[index] = { ...cur, expanded: true, childCount: total };
 			this.scheduleFlush();
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 		} finally {
 			this.expanding.delete(key);
 		}
@@ -155,7 +156,7 @@ export class TreeRowsController {
 		try {
 			await work;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 		} finally {
 			this.inFlight.delete(key);
 		}
@@ -326,7 +327,7 @@ export class TreeRowsController {
 			if (!newView) return null;
 			return viewToRow(newView, parentPath, row.depth - 1);
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	}

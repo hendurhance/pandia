@@ -1,5 +1,6 @@
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { docOpen, docClose, docSummary } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle, OpenResult } from '$lib/ipc/types';
 import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
@@ -46,7 +47,7 @@ export class CompareController {
 			this.borrowed = true;
 			this.deps.setViewMode('compare');
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 		} finally {
 			this.deps.setBusy(false);
 		}
@@ -70,7 +71,7 @@ export class CompareController {
 			this.borrowed = false;
 			this.deps.setViewMode('compare');
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 		} finally {
 			this.deps.setBusy(false);
 		}

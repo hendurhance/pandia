@@ -4,8 +4,9 @@
 	import CompareTree from './CompareTree.svelte';
 	import { highlightsForSide } from '$lib/views/code/logic/highlights';
 	import { docDiff } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type { DiffEntry, DiffKind, DocHandle, Path } from '$lib/ipc/types';
-	import { pathToString } from '$lib/util/path';
+	import { pathToString, truncatePathMiddle } from '$lib/util/path';
 	import { pathKey } from '$lib/views/tree/logic/model';
 	import { createSyncScrollPair } from '$lib/ui/sync-scroll';
 	import Icon from '$lib/ui/Icon.svelte';
@@ -35,7 +36,7 @@
 		onExit,
 	}: Props = $props();
 
-	let entries: DiffEntry[] = $state([]);
+	let entries: DiffEntry[] = $state.raw([]);
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let activeIndex = $state(-1);
@@ -87,7 +88,7 @@
 				}
 			})
 			.catch((e) => {
-				if (leftHandle === l && rightHandle === r) error = String(e);
+				if (leftHandle === l && rightHandle === r) error = describeError(e);
 			})
 			.finally(() => {
 				if (leftHandle === l && rightHandle === r) loading = false;
@@ -165,12 +166,28 @@
 		for (const e of entries) if (e.kind !== 'removed') m.set(pathKey(e.path), e.kind);
 		return m;
 	});
-	const leftDiffPaths = $derived(
-		entries.filter((e) => e.kind !== 'added').map((e) => leftPathOf(e)),
-	);
-	const rightDiffPaths = $derived(entries.filter((e) => e.kind !== 'removed').map((e) => e.path));
 	const activePath = $derived<Path | null>(
 		activeIndex >= 0 && activeIndex < entries.length ? entries[activeIndex].path : null,
+	);
+
+	let chPx = $state(0);
+	let headW = $state(0);
+	let inlineW = $state(0);
+
+	function measureCh(el: HTMLElement) {
+		const ctx = document.createElement('canvas').getContext('2d');
+		if (!ctx) return;
+		const cs = getComputedStyle(el);
+		ctx.font = `${cs.fontSize} ${cs.fontFamily}`;
+		const w = ctx.measureText('0000000000').width / 10;
+		if (w > 0) chPx = w;
+	}
+
+	const paneBudget = $derived(
+		chPx > 0 && headW > 0 ? Math.max(8, Math.floor((headW - 16) / chPx) - 5) : Infinity,
+	);
+	const inlineBudget = $derived(
+		chPx > 0 && inlineW > 0 ? Math.max(8, Math.floor(((inlineW - 40) / chPx - 8) / 2)) : Infinity,
 	);
 
 	const summaryText = $derived.by(() => {
@@ -247,38 +264,41 @@
 		</div>
 	{:else}
 		{#if mode === 'inline'}
-			<div class="inline-head rule-b">
-				<span class="dim text-sm">L · {leftName}</span>
+			<div class="inline-head rule-b" bind:clientWidth={inlineW}>
+				<span class="dim text-sm file" use:measureCh title={leftName}
+					>L · {truncatePathMiddle(leftName, inlineBudget)}</span
+				>
 				<span class="arrow-head" aria-hidden="true">→</span>
-				<span class="dim text-sm">R · {rightName}</span>
+				<span class="dim text-sm file" title={rightName}
+					>R · {truncatePathMiddle(rightName, inlineBudget)}</span
+				>
 			</div>
-			<InlineDiffView
-				{leftHandle}
-				{rightHandle}
-				{leftSourceSize}
-				{rightSourceSize}
-				{activeHunk}
-				onMeta={onInlineMeta}
-			/>
+			<InlineDiffView {leftHandle} {rightHandle} {activeHunk} onMeta={onInlineMeta} />
 		{:else if mode === 'tree'}
 			<div class="split">
 				<div class="pane">
-					<div class="pane-head rule-b"><span class="dim text-sm">L · {leftName}</span></div>
+					<div class="pane-head rule-b" bind:clientWidth={headW}>
+						<span class="dim text-sm file" use:measureCh title={leftName}
+							>L · {truncatePathMiddle(leftName, paneBudget)}</span
+						>
+					</div>
 					<CompareTree
 						handle={leftHandle}
 						diff={leftDiff}
-						diffPaths={leftDiffPaths}
 						activePath={activeIndex >= 0 ? leftPathOf(entries[activeIndex]) : null}
 						onScrollerReady={(el) => sync.bind('left', el)}
 					/>
 				</div>
 				<div class="divider"></div>
 				<div class="pane">
-					<div class="pane-head rule-b"><span class="dim text-sm">R · {rightName}</span></div>
+					<div class="pane-head rule-b">
+						<span class="dim text-sm file" title={rightName}
+							>R · {truncatePathMiddle(rightName, paneBudget)}</span
+						>
+					</div>
 					<CompareTree
 						handle={rightHandle}
 						diff={rightDiff}
-						diffPaths={rightDiffPaths}
 						{activePath}
 						onScrollerReady={(el) => sync.bind('right', el)}
 					/>
@@ -287,8 +307,10 @@
 		{:else}
 			<div class="split">
 				<div class="pane">
-					<div class="pane-head rule-b">
-						<span class="dim text-sm">L · {leftName}</span>
+					<div class="pane-head rule-b" bind:clientWidth={headW}>
+						<span class="dim text-sm file" use:measureCh title={leftName}
+							>L · {truncatePathMiddle(leftName, paneBudget)}</span
+						>
 					</div>
 					<CodeView
 						handle={leftHandle}
@@ -301,7 +323,9 @@
 				<div class="divider"></div>
 				<div class="pane">
 					<div class="pane-head rule-b">
-						<span class="dim text-sm">R · {rightName}</span>
+						<span class="dim text-sm file" title={rightName}
+							>R · {truncatePathMiddle(rightName, paneBudget)}</span
+						>
 					</div>
 					<CodeView
 						handle={rightHandle}
@@ -489,9 +513,18 @@
 		gap: 0.5rem;
 		padding: 0.25rem 0.6rem;
 		background: var(--bg-elev);
+		white-space: nowrap;
+		overflow: hidden;
 	}
 	.arrow-head {
 		color: var(--text-faint);
+		flex-shrink: 0;
+	}
+	.file {
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.split {
@@ -508,8 +541,12 @@
 	}
 	.pane-head {
 		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
 		padding: 0.25rem 0.6rem;
 		background: var(--bg-elev);
+		white-space: nowrap;
+		overflow: hidden;
 	}
 	.rule-b {
 		border-bottom: 1px solid var(--rule);

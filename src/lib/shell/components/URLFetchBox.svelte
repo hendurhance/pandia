@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fetch } from '@tauri-apps/plugin-http';
 	import { parseHeaders, URL_FETCH_TIMEOUT_MS } from '../logic/url-fetch';
+	import { describeError } from '$lib/ipc/error-copy';
 
 	interface Props {
 		busy: boolean;
@@ -41,7 +42,7 @@
 					? timedOut
 						? `timed out after ${URL_FETCH_TIMEOUT_MS / 1000}s`
 						: 'cancelled'
-					: String(e);
+					: describeError(e);
 		} finally {
 			clearTimeout(timer);
 			urlBusy = false;

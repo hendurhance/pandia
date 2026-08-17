@@ -1,0 +1,1734 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Removing Pandia's Ceilings</title>
+		<style>
+			:root {
+				--bg: #fbfaf9;
+				--bg-elev: #ffffff;
+				--bg-sunk: #f2f0ee;
+				--rule: #e2deda;
+				--rule-firm: #cfc9c3;
+				--text: #1f1d1c;
+				--text-dim: #6b6560;
+				--text-faint: #98918a;
+				--accent: #d8481b;
+				--accent-soft: rgba(216, 72, 27, 0.09);
+				--add: #4c7a32;
+				--del: #c0342f;
+				--warn: #a9741b;
+				--shadow: 0 1px 2px rgba(31, 29, 28, 0.05), 0 8px 24px -12px rgba(31, 29, 28, 0.18);
+
+				--font-display: ui-serif, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+				--font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+				--font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+				--measure: 68ch;
+				--step--1: 0.812rem;
+				--step-0: 1rem;
+				--step-1: 1.32rem;
+				--step-2: 1.76rem;
+				--step-3: 2.45rem;
+				--step-4: 3.3rem;
+			}
+
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--bg: #1b1b1d;
+					--bg-elev: #212124;
+					--bg-sunk: #151517;
+					--rule: #2c2c30;
+					--rule-firm: #3a3a3f;
+					--text: #e6e6e9;
+					--text-dim: #9b9ba2;
+					--text-faint: #5c5c64;
+					--accent: #ff6a3a;
+					--accent-soft: rgba(255, 106, 58, 0.12);
+					--add: #7fb069;
+					--del: #e65155;
+					--warn: #e0a53c;
+					--shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+				}
+			}
+
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+
+			html {
+				-webkit-text-size-adjust: 100%;
+			}
+
+			body {
+				margin: 0;
+				background: var(--bg);
+				color: var(--text);
+				font-family: var(--font-body);
+				font-size: var(--step-0);
+				line-height: 1.62;
+				-webkit-font-smoothing: antialiased;
+			}
+
+			.shell {
+				display: grid;
+				grid-template-columns: 1fr;
+				gap: 0;
+				max-width: 100rem;
+				margin: 0 auto;
+				padding: 0 1.5rem 8rem;
+			}
+
+			@media (min-width: 68rem) {
+				.shell {
+					grid-template-columns: 15rem minmax(0, 1fr);
+					gap: 4rem;
+					padding-inline: 3rem;
+				}
+			}
+
+			/* ---------- rail ---------- */
+
+			.rail {
+				display: none;
+			}
+
+			@media (min-width: 68rem) {
+				.rail {
+					display: block;
+					position: sticky;
+					top: 0;
+					align-self: start;
+					max-height: 100vh;
+					overflow-y: auto;
+					padding: 4.5rem 0 3rem;
+				}
+			}
+
+			.rail-label {
+				font-family: var(--font-mono);
+				font-size: 0.68rem;
+				letter-spacing: 0.13em;
+				text-transform: uppercase;
+				color: var(--text-faint);
+				margin: 0 0 1rem;
+			}
+
+			.rail ol {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+				display: flex;
+				flex-direction: column;
+				gap: 0.6rem;
+				counter-reset: rail;
+			}
+
+			.rail a {
+				display: grid;
+				grid-template-columns: 1.7rem 1fr;
+				gap: 0.35rem;
+				color: var(--text-dim);
+				text-decoration: none;
+				font-size: 0.86rem;
+				line-height: 1.35;
+				padding: 0.15rem 0;
+				border-radius: 3px;
+			}
+
+			.rail a::before {
+				counter-increment: rail;
+				content: counter(rail, decimal-leading-zero);
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				color: var(--text-faint);
+				padding-top: 0.15em;
+			}
+
+			.rail a:hover {
+				color: var(--accent);
+			}
+			.rail a:hover::before {
+				color: var(--accent);
+			}
+			.rail a:focus-visible {
+				outline: 2px solid var(--accent);
+				outline-offset: 3px;
+			}
+
+			/* ---------- masthead ---------- */
+
+			.masthead {
+				padding: 4.5rem 0 3rem;
+				border-bottom: 1px solid var(--rule);
+				margin-bottom: 3.5rem;
+			}
+
+			.eyebrow {
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				letter-spacing: 0.15em;
+				text-transform: uppercase;
+				color: var(--accent);
+				margin: 0 0 1.4rem;
+			}
+
+			h1 {
+				font-family: var(--font-display);
+				font-weight: 600;
+				font-size: var(--step-4);
+				line-height: 1.02;
+				letter-spacing: -0.022em;
+				text-wrap: balance;
+				margin: 0 0 1.25rem;
+				max-width: 18ch;
+			}
+
+			.standfirst {
+				font-size: var(--step-1);
+				line-height: 1.5;
+				color: var(--text-dim);
+				max-width: 52ch;
+				margin: 0;
+				text-wrap: pretty;
+			}
+
+			.meta {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.5rem 2rem;
+				margin-top: 2.5rem;
+				font-family: var(--font-mono);
+				font-size: 0.74rem;
+				color: var(--text-faint);
+			}
+
+			.meta span::before {
+				content: '→ ';
+				color: var(--rule-firm);
+			}
+
+			/* ---------- prose ---------- */
+
+			main {
+				min-width: 0;
+			}
+
+			section {
+				margin-bottom: 5rem;
+				scroll-margin-top: 2rem;
+			}
+
+			h2 {
+				font-family: var(--font-display);
+				font-weight: 600;
+				font-size: var(--step-3);
+				line-height: 1.1;
+				letter-spacing: -0.018em;
+				text-wrap: balance;
+				margin: 0 0 0.6rem;
+				max-width: 24ch;
+			}
+
+			h2 .num {
+				display: block;
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				font-weight: 400;
+				letter-spacing: 0.15em;
+				color: var(--accent);
+				margin-bottom: 0.9rem;
+			}
+
+			h3 {
+				font-family: var(--font-body);
+				font-weight: 650;
+				font-size: var(--step-1);
+				line-height: 1.28;
+				letter-spacing: -0.011em;
+				text-wrap: balance;
+				margin: 3rem 0 0.75rem;
+				max-width: 40ch;
+			}
+
+			h4 {
+				font-family: var(--font-mono);
+				font-weight: 500;
+				font-size: 0.74rem;
+				letter-spacing: 0.11em;
+				text-transform: uppercase;
+				color: var(--text-faint);
+				margin: 2.25rem 0 0.7rem;
+			}
+
+			p,
+			ul,
+			ol {
+				max-width: var(--measure);
+			}
+
+			p {
+				margin: 0 0 1.15rem;
+				text-wrap: pretty;
+			}
+
+			.lede {
+				font-size: var(--step-1);
+				line-height: 1.5;
+				color: var(--text-dim);
+				margin-bottom: 2rem;
+				max-width: 54ch;
+			}
+
+			ul,
+			ol {
+				padding-left: 1.3rem;
+				margin: 0 0 1.3rem;
+			}
+			li {
+				margin-bottom: 0.5rem;
+			}
+			li::marker {
+				color: var(--text-faint);
+			}
+
+			strong {
+				font-weight: 650;
+			}
+
+			a {
+				color: var(--accent);
+				text-underline-offset: 2px;
+				text-decoration-thickness: 1px;
+			}
+			a:focus-visible {
+				outline: 2px solid var(--accent);
+				outline-offset: 2px;
+				border-radius: 2px;
+			}
+
+			code {
+				font-family: var(--font-mono);
+				font-size: 0.855em;
+				background: var(--bg-sunk);
+				border: 1px solid var(--rule);
+				border-radius: 3px;
+				padding: 0.08em 0.34em;
+				word-break: break-word;
+			}
+
+			/* ---------- code blocks ---------- */
+
+			.code {
+				margin: 1.5rem 0 1.75rem;
+				border: 1px solid var(--rule);
+				border-radius: 6px;
+				background: var(--bg-sunk);
+				overflow: hidden;
+			}
+
+			.code-head {
+				display: flex;
+				justify-content: space-between;
+				align-items: baseline;
+				gap: 1rem;
+				padding: 0.55rem 0.9rem;
+				border-bottom: 1px solid var(--rule);
+				background: var(--bg-elev);
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				letter-spacing: 0.04em;
+				color: var(--text-dim);
+			}
+
+			.code-head .tag {
+				color: var(--text-faint);
+				text-transform: uppercase;
+				letter-spacing: 0.12em;
+				flex-shrink: 0;
+			}
+
+			.code pre {
+				margin: 0;
+				padding: 0.9rem;
+				overflow-x: auto;
+				font-family: var(--font-mono);
+				font-size: 0.8rem;
+				line-height: 1.62;
+				tab-size: 2;
+			}
+
+			.code pre code {
+				background: none;
+				border: 0;
+				padding: 0;
+				font-size: inherit;
+			}
+
+			.c-del {
+				color: var(--del);
+			}
+			.c-add {
+				color: var(--add);
+			}
+			.c-cmt {
+				color: var(--text-faint);
+				font-style: italic;
+			}
+
+			/* ---------- tables ---------- */
+
+			.table-wrap {
+				overflow-x: auto;
+				margin: 1.5rem 0 2rem;
+				border: 1px solid var(--rule);
+				border-radius: 6px;
+			}
+
+			table {
+				border-collapse: collapse;
+				width: 100%;
+				font-size: 0.875rem;
+				font-variant-numeric: tabular-nums;
+			}
+
+			th {
+				text-align: left;
+				font-family: var(--font-mono);
+				font-weight: 500;
+				font-size: 0.68rem;
+				letter-spacing: 0.11em;
+				text-transform: uppercase;
+				color: var(--text-faint);
+				padding: 0.7rem 0.9rem;
+				border-bottom: 1px solid var(--rule-firm);
+				background: var(--bg-elev);
+				white-space: nowrap;
+			}
+
+			td {
+				padding: 0.7rem 0.9rem;
+				border-bottom: 1px solid var(--rule);
+				vertical-align: top;
+				line-height: 1.5;
+			}
+
+			tr:last-child td {
+				border-bottom: 0;
+			}
+
+			td.mono,
+			th.mono {
+				font-family: var(--font-mono);
+				font-size: 0.78rem;
+				white-space: nowrap;
+			}
+
+			/* ---------- callouts ---------- */
+
+			.note {
+				margin: 1.75rem 0;
+				padding: 1.1rem 1.25rem;
+				background: var(--accent-soft);
+				border-left: 2px solid var(--accent);
+				border-radius: 0 4px 4px 0;
+				max-width: var(--measure);
+			}
+
+			.note p:last-child {
+				margin-bottom: 0;
+			}
+
+			.note .note-label {
+				display: block;
+				font-family: var(--font-mono);
+				font-size: 0.68rem;
+				letter-spacing: 0.12em;
+				text-transform: uppercase;
+				color: var(--accent);
+				margin-bottom: 0.5rem;
+			}
+
+			/* ---------- ceiling cards ---------- */
+
+			.ceilings {
+				display: grid;
+				gap: 1px;
+				background: var(--rule);
+				border: 1px solid var(--rule);
+				border-radius: 6px;
+				overflow: hidden;
+				margin: 2rem 0 2.5rem;
+			}
+
+			@media (min-width: 46rem) {
+				.ceilings {
+					grid-template-columns: repeat(3, 1fr);
+				}
+			}
+
+			.ceiling {
+				background: var(--bg-elev);
+				padding: 1.35rem 1.25rem;
+			}
+
+			.ceiling .value {
+				font-family: var(--font-mono);
+				font-size: var(--step-2);
+				font-weight: 500;
+				letter-spacing: -0.02em;
+				color: var(--accent);
+				display: block;
+				line-height: 1.1;
+			}
+
+			.ceiling .where {
+				font-family: var(--font-mono);
+				font-size: 0.68rem;
+				color: var(--text-faint);
+				margin: 0.55rem 0 0.75rem;
+				display: block;
+				word-break: break-all;
+			}
+
+			.ceiling p {
+				font-size: 0.86rem;
+				margin: 0;
+				color: var(--text-dim);
+				line-height: 1.5;
+			}
+
+			/* ---------- phase steps ---------- */
+
+			.phases {
+				counter-reset: phase;
+				list-style: none;
+				padding: 0;
+				margin: 2rem 0 0;
+				max-width: 100%;
+			}
+
+			.phase {
+				counter-increment: phase;
+				display: grid;
+				grid-template-columns: 1fr;
+				gap: 0.4rem;
+				padding: 1.6rem 0;
+				border-top: 1px solid var(--rule);
+				max-width: var(--measure);
+			}
+
+			.phase:last-child {
+				border-bottom: 1px solid var(--rule);
+			}
+
+			.phase-head {
+				display: flex;
+				align-items: baseline;
+				gap: 0.8rem;
+			}
+
+			.phase-head::before {
+				content: counter(phase, decimal-leading-zero);
+				font-family: var(--font-mono);
+				font-size: 0.72rem;
+				color: var(--accent);
+				flex-shrink: 0;
+			}
+
+			.phase-head h3 {
+				margin: 0;
+				font-size: var(--step-0);
+				font-weight: 650;
+			}
+
+			.phase-body {
+				padding-left: 2.1rem;
+			}
+			.phase-body p {
+				margin-bottom: 0.6rem;
+				font-size: 0.93rem;
+			}
+			.phase-body p:last-child {
+				margin-bottom: 0;
+			}
+
+			.tagrow {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.4rem;
+				margin-top: 0.7rem;
+			}
+
+			.tag-chip {
+				font-family: var(--font-mono);
+				font-size: 0.66rem;
+				letter-spacing: 0.06em;
+				padding: 0.18rem 0.45rem;
+				border: 1px solid var(--rule-firm);
+				border-radius: 3px;
+				color: var(--text-dim);
+				white-space: nowrap;
+			}
+
+			.tag-chip.hot {
+				border-color: var(--accent);
+				color: var(--accent);
+			}
+
+			/* ---------- footer ---------- */
+
+			footer {
+				border-top: 1px solid var(--rule);
+				padding-top: 2rem;
+				margin-top: 2rem;
+				font-size: 0.86rem;
+				color: var(--text-dim);
+				max-width: var(--measure);
+			}
+
+			footer h4 {
+				margin-top: 0;
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				* {
+					animation: none !important;
+					transition: none !important;
+					scroll-behavior: auto !important;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="shell">
+			<nav class="rail" aria-label="Contents">
+				<p class="rail-label">Contents</p>
+				<ol>
+					<li><a href="#ceilings">The three ceilings</a></li>
+					<li><a href="#diff">Fixing the diff</a></li>
+					<li><a href="#render">Fixing the render loop</a></li>
+					<li><a href="#twogb">Removing the 2&nbsp;GB cap</a></li>
+					<li><a href="#borrowed">What we borrowed</a></li>
+					<li><a href="#order">Order of work</a></li>
+				</ol>
+			</nav>
+
+			<main>
+				<header class="masthead">
+					<p class="eyebrow">Pandia · Architecture Plan</p>
+					<h1>Removing Pandia's Ceilings</h1>
+					<p class="standfirst">
+						Three hard limits sit between Pandia and "open anything." None of them are rendering
+						limits. This is what each one actually is, and how it comes down.
+					</p>
+					<div class="meta">
+						<span>Written 17 Aug 2026</span>
+						<span>Against v1.0.5</span>
+						<span>Diff algorithm: benchmarked, decided</span>
+						<span>Rendering &amp; mmap: proposed</span>
+					</div>
+				</header>
+
+				<section id="ceilings">
+					<h2><span class="num">Part 01</span>The three ceilings</h2>
+
+					<p class="lede">
+						Pandia advertises that it opens files of any size. It doesn't, and the reasons are all
+						different from each other.
+					</p>
+
+					<div class="ceilings">
+						<div class="ceiling">
+							<span class="value">2 GB</span>
+							<span class="where">document.rs:32 — MAX_DOC_BYTES</span>
+							<p>
+								Any file above this is refused outright. Caused by reading the whole file into a
+								heap <code>String</code>.
+							</p>
+						</div>
+						<div class="ceiling">
+							<span class="value">3 MB</span>
+							<span class="where">InlineDiffView.svelte:32 — INLINE_MAX</span>
+							<p>
+								Inline diff refuses to run. Caused by materialising both documents in JavaScript
+								before drawing.
+							</p>
+						</div>
+						<div class="ceiling">
+							<span class="value">4M cells</span>
+							<span class="where">linediff.ts:17 — LCS_CELL_CAP</span>
+							<p>
+								Above this the diff silently emits a fake result: every left line deleted, every
+								right line added. Measured to fire on a 154&nbsp;KB file.
+							</p>
+						</div>
+					</div>
+
+					<h3>The fake diff is the urgent one</h3>
+
+					<p>
+						The other two ceilings refuse to do the work and say so. This one does the work wrong
+						and says nothing.
+					</p>
+
+					<div class="code">
+						<div class="code-head">
+							<span>src/lib/views/compare/logic/linediff.ts</span
+							><span class="tag">Lines 26–31</span>
+						</div>
+						<pre><code>if (A * B &gt; LCS_CELL_CAP) {
+  return [
+    ...a.map((text) =&gt; ({ type: 'del', text })),   <span class="c-cmt">// every left line</span>
+    ...b.map((text) =&gt; ({ type: 'add', text })),   <span class="c-cmt">// every right line</span>
+  ];
+}</code></pre>
+					</div>
+
+					<p>
+						<code>fullRows()</code> trims the common head and tail before the table is built, so the
+						cap is evaluated against the changed middle rather than the whole file. That detail
+						turns out to be the entire story, and not in the way you would guess.
+					</p>
+
+					<h4>The trigger is edit spread, not file size</h4>
+
+					<p>
+						Prefix and suffix trimming can only remove the head before the <em>first</em> change and
+						the tail after the <em>last</em> one. Everything between them survives. So two edits at
+						opposite ends of a document defeat trimming exactly as thoroughly as a thousand edits
+						do.
+					</p>
+
+					<p>
+						Measured across the benchmark fixtures, on one identical 500-element array — a
+						<strong>154&nbsp;KB file</strong>:
+					</p>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Edit pattern</th>
+									<th class="mono">Post-trim cells</th>
+									<th>Result</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>One value changed</td>
+									<td class="mono">1</td>
+									<td>Fine</td>
+								</tr>
+								<tr>
+									<td>200-line block inserted</td>
+									<td class="mono">0</td>
+									<td>Fine</td>
+								</tr>
+								<tr>
+									<td>12 edits scattered through the file</td>
+									<td class="mono">54,066,609</td>
+									<td><strong>Fake diff</strong></td>
+								</tr>
+								<tr>
+									<td>30% of lines changed</td>
+									<td class="mono">62,015,625</td>
+									<td><strong>Fake diff</strong></td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						A single deep edit is free, because trimming strips everything around it. Twelve
+						scattered edits in a 154&nbsp;KB file produce a fabricated diff. File size barely
+						matters.
+					</p>
+
+					<h4>What the user is actually shown</h4>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Fixture</th>
+									<th class="mono">Size</th>
+									<th class="mono">Lines truly changed</th>
+									<th class="mono">Lines reported</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>array-500-scattered</td>
+									<td class="mono">154 KB</td>
+									<td class="mono">24</td>
+									<td class="mono">14,706</td>
+								</tr>
+								<tr>
+									<td>config-20k-scattered</td>
+									<td class="mono">427 KB</td>
+									<td class="mono">24</td>
+									<td class="mono">35,330</td>
+								</tr>
+								<tr>
+									<td>array-50k-scattered</td>
+									<td class="mono">~100 MB</td>
+									<td class="mono">24</td>
+									<td class="mono">1,466,726</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						Eight of the thirty-two benchmark fixtures produce a fabricated diff. None of them warn.
+					</p>
+
+					<div class="note">
+						<span class="note-label">Root cause</span>
+						<p>
+							The algorithm is a dense Longest Common Subsequence table: <code>O(A×B)</code> time
+							<em>and</em> <code>O(A×B)</code> memory. At the cap that's 2,001 separate
+							<code>Uint32Array</code>s totalling about 16&nbsp;MB. The cap exists because the
+							algorithm has no other way to stay bounded — and note that the fake path is also the
+							<em>fastest</em> path, at 0.9&nbsp;ms, because giving up costs nothing. Any benchmark
+							measuring only time would rank this behaviour as the winner.
+						</p>
+					</div>
+
+					<h3>Why virtualization doesn't lift the 3 MB ceiling</h3>
+
+					<p>
+						Virtualization governs what gets <em>drawn</em>. It says nothing about what gets
+						<em>loaded</em>. The inline diff loads everything before it draws anything:
+					</p>
+
+					<div class="code">
+						<div class="code-head">
+							<span>src/lib/views/compare/components/InlineDiffView.svelte</span
+							><span class="tag">Lines 97–101</span>
+						</div>
+						<pre><code>docGetValue(l, [])              <span class="c-cmt">// 1 — whole JSON value crosses IPC into JS</span>
+stringifyWithOffsets(lv).text   <span class="c-cmt">// 2 — whole document as one string</span>
+leftText.split('\n')            <span class="c-cmt">// 3 — an array holding every line</span></code></pre>
+					</div>
+
+					<p>
+						Three full copies of both documents in the JavaScript heap before the first row is
+						painted. <code>INLINE_MAX</code> exists to stop that from killing the process.
+					</p>
+
+					<p>
+						There is a fourth cost that isn't obvious. In V8, <code>split()</code> produces sliced
+						strings that keep a pointer to the parent they came from. Every one of those line
+						strings pins the entire document text in memory. Pierre hit exactly this and named it —
+						detaching parsed strings took their Linux kernel diff from
+						<strong>2.4&nbsp;GB to 1.15&nbsp;GB</strong>, with parse time down about 80%.
+					</p>
+				</section>
+
+				<section id="diff">
+					<h2><span class="num">Part 02</span>Fixing the diff</h2>
+
+					<p class="lede">
+						Move the line diff into Rust. Every ceiling in Part 01 except the 2 GB one dissolves as
+						a side effect.
+					</p>
+
+					<p>
+						Rust already holds the parsed document. <code>src-tauri/src/doc/diff.rs</code> already
+						exists and already does a structural JSON diff. What it doesn't do is line diffing —
+						that's why the work ended up duplicated in JavaScript against a text rendering of the
+						same data.
+					</p>
+
+					<h3>What the benchmark measured</h3>
+
+					<p>
+						Five candidates against 32 fixtures across four JSON shapes, each combination run in a
+						child process so a crash records as a result rather than killing the run. Peak heap
+						comes from a tracking global allocator, not sampling. Harness and fixture generator live
+						in <code>src-tauri/benches/json_linediff/</code>; fixtures regenerate byte-identical.
+					</p>
+
+					<h4>Time, on fixtures where the current code does real work</h4>
+
+					<p>
+						These are the honest comparisons. Fixtures where the cap fired are excluded, because a
+						fabricated diff isn't the same job.
+					</p>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Fixture</th>
+									<th class="mono">linediff (JS)</th>
+									<th class="mono">imara-histogram</th>
+									<th class="mono">Speedup</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>config-2k-scattered</td>
+									<td class="mono">14.3 ms</td>
+									<td class="mono">0.1 ms</td>
+									<td class="mono">143×</td>
+								</tr>
+								<tr>
+									<td>config-2k-heavy</td>
+									<td class="mono">16.2 ms</td>
+									<td class="mono">0.2 ms</td>
+									<td class="mono">81×</td>
+								</tr>
+								<tr>
+									<td>array-50k-block</td>
+									<td class="mono">110 ms</td>
+									<td class="mono">35.0 ms</td>
+									<td class="mono">3.1×</td>
+								</tr>
+								<tr>
+									<td>array-50k-single</td>
+									<td class="mono">110 ms</td>
+									<td class="mono">43.0 ms</td>
+									<td class="mono">2.6×</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<h4>Peak heap — the number that forced the cap in the first place</h4>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Fixture</th>
+									<th class="mono">linediff (JS)</th>
+									<th class="mono">imara-histogram</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>array-500-single</td>
+									<td class="mono">9.7 MB</td>
+									<td class="mono">0.5 MB</td>
+								</tr>
+								<tr>
+									<td>array-2k-heavy</td>
+									<td class="mono">27.3 MB</td>
+									<td class="mono">2.2 MB</td>
+								</tr>
+								<tr>
+									<td>array-50k-scattered</td>
+									<td class="mono">328.6 MB</td>
+									<td class="mono">47 MB</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						On that last row the JavaScript implementation spent 328&nbsp;MB to produce a fabricated
+						result. <code>INLINE_MAX</code> exists to contain exactly this.
+					</p>
+
+					<h4>The candidate that settles the argument</h4>
+
+					<p>
+						<code>similar</code> with <code>Algorithm::Lcs</code> is our current algorithm, written
+						in Rust. It peaked at <strong>3.3–3.9&nbsp;GB</strong> on 32,000-line fixtures and
+						hard-crashed on all four 10k and 50k scattered and heavy arrays — allocation abort, not
+						a timeout.
+					</p>
+
+					<p>Rust does not rescue the dense table. The problem was never the language.</p>
+
+					<div class="note">
+						<span class="note-label">Result</span>
+						<p>
+							156 ok · 0 degraded · 0 fake · 4 crashed, all four <code>similar-lcs</code>. No Rust
+							candidate reproduced the fabricated-diff failure mode on any fixture.
+						</p>
+					</div>
+
+					<h3>Histogram or Myers</h3>
+
+					<p>
+						Histogram is a heuristic and does not guarantee a minimal diff. That looked like a real
+						tradeoff until it was measured: across every fixture, histogram's worst over-report was
+						<strong>+64 lines out of 410,488</strong> — 0.016% — while running 2.7× faster than
+						Myers on that same input.
+					</p>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Fixture</th>
+									<th class="mono">histogram</th>
+									<th class="mono">myers</th>
+									<th class="mono">similar-myers</th>
+									<th class="mono">similar-patience</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>array-50k-heavy</td>
+									<td class="mono">108 ms</td>
+									<td class="mono">291 ms</td>
+									<td class="mono">1,386 ms</td>
+									<td class="mono">16,504 ms</td>
+								</tr>
+								<tr>
+									<td>array-50k-scattered</td>
+									<td class="mono">43 ms</td>
+									<td class="mono">49 ms</td>
+									<td class="mono">170 ms</td>
+									<td class="mono">183 ms</td>
+								</tr>
+								<tr>
+									<td>array-10k-heavy</td>
+									<td class="mono">19.2 ms</td>
+									<td class="mono">58.9 ms</td>
+									<td class="mono">234 ms</td>
+									<td class="mono">794 ms</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						Take histogram. Keep <code>imara-myers</code> reachable behind a flag if a
+						guaranteed-minimal diff is ever wanted; nothing in the data justifies paying for it by
+						default.
+					</p>
+
+					<ol class="phases">
+						<li class="phase">
+							<div class="phase-head"><h3>Adopt imara-diff, histogram</h3></div>
+							<div class="phase-body">
+								<p>
+									Decided by the benchmark above, not by reputation. It is <code>O(N·D)</code> in
+									the number of differences rather than <code>O(N²)</code> in document size, which
+									is the whole ballgame for JSON, where edits are usually small relative to file
+									size.
+								</p>
+								<p>
+									It diffs an 800,000-line pair — 640 billion cells by the old measure, 160,000×
+									past the JavaScript cap — in 43&nbsp;ms using 47&nbsp;MB, with correct counts. The
+									4M cell cap has no equivalent and simply goes away.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip hot">deletes LCS_CELL_CAP</span>
+									<span class="tag-chip">Cargo.toml</span>
+									<span class="tag-chip">doc/diff.rs</span>
+								</div>
+							</div>
+						</li>
+
+						<li class="phase">
+							<div class="phase-head"><h3>Return hunks, not rows</h3></div>
+							<div class="phase-body">
+								<p>
+									The current IPC hands JavaScript a complete <code>UnifiedRow[]</code> covering the
+									whole document. Replace it with a command that returns hunk descriptors only —
+									line ranges and change kinds, no text.
+								</p>
+								<p>
+									A 20,000-line document with four small edits becomes four hunk records instead of
+									20,000 row objects. The frontend then asks for line text by range, for the range
+									it's about to paint.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip hot">deletes INLINE_MAX</span>
+									<span class="tag-chip">new IPC command</span>
+									<span class="tag-chip">compare/state</span>
+								</div>
+							</div>
+						</li>
+
+						<li class="phase">
+							<div class="phase-head"><h3>Add word-level intra-line diff</h3></div>
+							<div class="phase-body">
+								<p>
+									This is the feature JSON needs most and currently lacks entirely. Today, changing
+									one value in a long line renders as a whole-line delete plus a whole-line add, and
+									the reader has to spot the difference by eye.
+								</p>
+								<p>
+									Run it only on paired delete/add rows, and only on rows inside the visible window.
+									It is far too expensive to run across a whole document and completely cheap across
+									forty lines.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip hot">new capability</span>
+									<span class="tag-chip">visible-window only</span>
+								</div>
+							</div>
+						</li>
+
+						<li class="phase">
+							<div class="phase-head"><h3>Delete linediff.ts</h3></div>
+							<div class="phase-body">
+								<p>
+									Once hunks come from Rust, <code>diffMiddle</code>, <code>fullRows</code> and the
+									DP table have no callers. <code>emitContext</code> and
+									<code>changeAnchors</code> are presentation logic and stay — they operate on
+									hunks, which are now small.
+								</p>
+								<p>
+									<code>linediff.test.ts</code> should be ported to Rust rather than dropped. Its
+									cases are good and they'll catch algorithm swaps.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip">−189 lines JS</span>
+									<span class="tag-chip">port tests to Rust</span>
+								</div>
+							</div>
+						</li>
+					</ol>
+
+					<h3>Two shapes a better line algorithm does not fix</h3>
+
+					<p>
+						The benchmark was built expecting minified and reformatted JSON to be slow or to blow
+						up. Neither happened, and what it found instead read, at the time, as a hole in the
+						plan. One thing to hold onto: these numbers were measured on raw file text, because raw
+						file text was what the app diffed. That premise is the part that did not survive
+						implementation.
+					</p>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Shape</th>
+									<th class="mono">Fastest candidate</th>
+									<th>What the diff says</th>
+									<th>Is that useful?</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>Minified, 20 MB on one line</td>
+									<td class="mono">2.6 ms</td>
+									<td>1 hunk, 2 changed lines</td>
+									<td>No — the whole file is one delete plus one add</td>
+								</tr>
+								<tr>
+									<td>Pretty ↔ minified, same data</td>
+									<td class="mono">0.3 ms</td>
+									<td>100% of lines changed</td>
+									<td>No — and yet it is literally correct</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						Every candidate handles both in milliseconds. Nothing hangs, nothing allocates, and the
+						quality verdict comes back clean — because at the line level these answers
+						<em>are</em> the truth. A 20&nbsp;MB document that is one line genuinely has one changed
+						line. A reformatted file genuinely has every line changed.
+					</p>
+
+					<p>
+						The model is wrong, not the algorithm. Line diffing cannot say anything useful about a
+						document whose line structure carries no meaning.
+					</p>
+
+					<div class="note">
+						<span class="note-label">Superseded</span>
+						<p>
+							This section originally prescribed detecting both shapes at diff time and routing them
+							to the structural diff in <code>src-tauri/src/doc/diff.rs</code>. That prescription is
+							obsolete, and the reason is worth being honest about: the implementation revealed the
+							premise was wrong. The shipped <code>doc_diff_lines</code> never diffs raw file text.
+							Both documents render through <code>Document::canonical_lines</code> — the
+							byte-identical Rust port of the JS renderer, built so hunk coordinates match what
+							CodeView paints — and the diff runs over that canonical pretty text. Pretty-printing
+							first dissolves both shapes as a side effect: a minified document diffs as its
+							expanded rendering, and a minified/pretty pair of the same data canonicalises to
+							identical text and yields zero hunks. The numbers above stay in the record — they are
+							still true of raw-text diffing, and they are why the fixture set included these shapes
+							— but no such text reaches the diff anymore. The <code>diff_lines_*</code> tests in
+							<code>src-tauri/src/commands.rs</code> hold the invariant.
+						</p>
+					</div>
+
+					<p>
+						Canonicalisation moved the cost rather than deleting it. A lazy document — 10&nbsp;MB
+						and up — holds no parsed value to render, so <code>canonical_lines</code> parses the
+						entire root into a <code>serde_json::Value</code> and pretty-prints it: one full value
+						tree plus one full canonical string per side, cached per document version. An 11&nbsp;MB
+						minified/pretty pair opens, canonicalises and diffs to zero hunks in about 70&nbsp;ms in
+						a release build — 1.5&nbsp;s in debug, which is what the test suite pays. Above the
+						200&nbsp;MB root-value limit, <code>canonical_lines</code> refuses with
+						<code>TooLarge</code>, so the inline diff reports an error there instead of quietly
+						falling back to raw text.
+					</p>
+				</section>
+
+				<section id="render">
+					<h2><span class="num">Part 03</span>Fixing the render loop</h2>
+
+					<p class="lede">
+						Three separate places do work proportional to document size on every recompute, when
+						they only need to do work proportional to the viewport.
+					</p>
+
+					<h3>Tokenizing every row, always</h3>
+
+					<div class="code">
+						<div class="code-head">
+							<span>src/lib/views/compare/components/InlineDiffView.svelte</span
+							><span class="tag">Lines 60–62</span>
+						</div>
+						<pre><code>const tokenized = $derived.by((): (Token[] | null)[] =&gt;
+  <span class="c-del">rows.map((r) =&gt; (r.type === 'gap' ? null : tokenizeJsonLine(r.text)))</span>
+);</code></pre>
+					</div>
+
+					<p>
+						A 100,000-row diff tokenizes 100,000 lines every time this recomputes. Roughly forty of
+						them are on screen. The fix is one line — map over <code>visibleRows</code> instead of
+						<code>rows</code>, and index the result against <code>startIndex</code>.
+					</p>
+
+					<p>
+						This is Pierre's second failure mode verbatim:
+						<em>"work cheap in isolation becomes expensive when repeated thousands of times."</em>
+						Their answer was to defer highlighting to a worker pool and let plain text paint first.
+						Ours is simpler because our tokenizer is cheap — we just have to stop calling it 100,000
+						times.
+					</p>
+
+					<h3>Scanning every row for the widest line</h3>
+
+					<p>
+						<code>maxTextLen</code> at lines 52–58 walks the full row list to find the longest line,
+						so the horizontal scroll region can be sized. Track it as a running maximum while hunks
+						are built instead. Same answer, no full scan.
+					</p>
+
+					<h3>Rebuilding the world on gap expansion</h3>
+
+					<div class="code">
+						<div class="code-head">
+							<span>src/lib/views/compare/components/InlineDiffView.svelte</span
+							><span class="tag">Lines 124–131 — expandGap</span>
+						</div>
+						<pre><code>const next = rows.slice();              <span class="c-cmt">// full array copy</span>
+next.splice(rowIndex, 1, ...r.lines);   <span class="c-cmt">// splice with spread</span>
+rows = next;
+anchors = changeAnchors(next);          <span class="c-cmt">// full rescan</span></code></pre>
+					</div>
+
+					<p>
+						Two full passes over the document on every click of a context gap. Worse, there's no
+						scroll anchoring — content above the viewport grows and everything the reader was
+						looking at jumps.
+					</p>
+
+					<p>
+						Pierre's approach, which we should copy directly: record the first fully visible line
+						plus its offset within the viewport, commit the DOM change, measure what actually
+						changed height, and correct <code>scrollTop</code> so the anchor line stays put. The
+						browser's native scroll anchoring can't do this for us because the mounted DOM changes
+						constantly under virtualization.
+					</p>
+
+					<h3>The row model, and whether it needs a SumTree</h3>
+
+					<p>
+						Zed's answer to large-document structure is the SumTree: a B+ tree where every node
+						carries a summary of its subtree, letting you seek by any dimension — byte offset, line
+						number, display row — in <code>O(log n)</code>. They use it in more than twenty places,
+						and the rope beneath their text editor is <code>SumTree&lt;Chunk&gt;</code> with
+						128-character chunks.
+					</p>
+
+					<p>Our equivalents are flat and linear:</p>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Location</th>
+									<th class="mono">Structure</th>
+									<th>Cost per change</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td class="mono">tree-rows.svelte.ts:48</td>
+									<td class="mono">Row[]</td>
+									<td><code>this.rows.slice()</code> — full array copy on mutation</td>
+								</tr>
+								<tr>
+									<td class="mono">virtualizer.ts:5</td>
+									<td class="mono">Float64Array</td>
+									<td><code>buildOffsets</code> — full prefix sum rebuild</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						Both are <code>O(n)</code> per expand or collapse. A SumTree makes both
+						<code>O(log n)</code>.
+					</p>
+
+					<div class="note">
+						<span class="note-label">Measure before building this</span>
+						<p>
+							Pandia already pages the tree — see <code>tree/logic/paging.ts</code>. If paging keeps
+							the resident row count bounded in the low thousands, an <code>O(n)</code> copy of a
+							few thousand elements is genuinely free and a SumTree would be a large change bought
+							for nothing. Instrument an expand on a multi-million-node array first. Build this only
+							if the number says so.
+						</p>
+					</div>
+
+					<h3>What we should not build yet</h3>
+
+					<p>
+						Pierre's <em>Inverse Sticky</em> technique — pinning rendered content to the viewport
+						with negative sticky offsets of <code>(contentHeight - viewportHeight) * -1</code> —
+						solves blank space appearing during aggressive scrolling on very long documents. It's
+						clever and it preserves native scrolling, but it's a fix for a symptom we haven't
+						observed. They also note Safari still breaks it under heavy scroll. Park it until
+						someone reports blanking.
+					</p>
+				</section>
+
+				<section id="twogb">
+					<h2><span class="num">Part 04</span>Removing the 2 GB cap</h2>
+
+					<p class="lede">
+						The cap isn't arbitrary and it isn't a rendering constraint. It's the point where
+						reading the file into RAM stops being reasonable.
+					</p>
+
+					<h3>What actually happens on open</h3>
+
+					<div class="code">
+						<div class="code-head">
+							<span>src-tauri/src/doc/document.rs</span><span class="tag">Line 251</span>
+						</div>
+						<pre><code>let text = std::fs::read_to_string(p)?;   <span class="c-cmt">// entire file → heap String</span></code></pre>
+					</div>
+
+					<p>
+						Then, for anything at or above the 10&nbsp;MB lazy threshold,
+						<code>LazyDoc::new</code> runs <code>FastStr::new(text)</code> — which copies it again.
+						The original <code>String</code> drops afterwards, but the peak is roughly
+						<strong>twice the file size</strong>. A 2&nbsp;GB file peaks near 4&nbsp;GB. That is why
+						the cap sits at 2 and not 4.
+					</p>
+
+					<p>
+						There's a second, quieter ceiling underneath it. <code>LazyDoc</code>'s array index
+						stores spans as <code>(u32, u32)</code>:
+					</p>
+
+					<div class="code">
+						<div class="code-head">
+							<span>src-tauri/src/doc/lazy.rs</span><span class="tag">Lines 20–23</span>
+						</div>
+						<pre><code>pub struct LazyDoc {
+    source: FastStr,
+    root_kind: NodeKind,
+    root_index: Option&lt;Vec&lt;(u32, u32)&gt;&gt;,   <span class="c-cmt">// u32 caps addressing at 4 GiB</span>
+}</code></pre>
+					</div>
+
+					<p>So even with the memory problem solved, offsets can't address past 4&nbsp;GiB.</p>
+
+					<h3>The four changes</h3>
+
+					<ol class="phases">
+						<li class="phase">
+							<div class="phase-head"><h3>Memory-map instead of reading</h3></div>
+							<div class="phase-body">
+								<p>
+									Add <code>memmap2</code> and replace <code>read_to_string</code> with a mapping.
+									The OS pages in only what's touched, so resident memory becomes proportional to
+									what the user actually navigates rather than to file size. Both copies disappear
+									at once.
+								</p>
+								<p>
+									This is standard practice for tools in this class — ripgrep and Zed both do it.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip hot">removes the 2× peak</span
+									><span class="tag-chip">memmap2</span>
+								</div>
+							</div>
+						</li>
+
+						<li class="phase">
+							<div class="phase-head"><h3>Decide how UTF-8 gets validated</h3></div>
+							<div class="phase-body">
+								<p>
+									A mapping hands back <code>&amp;[u8]</code>; sonic-rs wants <code>&amp;str</code>.
+									<code>std::str::from_utf8</code> is one linear SIMD pass, but on a 20&nbsp;GB file
+									it's still a multi-second stall before anything appears.
+								</p>
+								<p>
+									Recommendation: validate up front, on a background thread, reported through the
+									existing <code>CancelFlag</code> in <code>doc/jobs.rs</code>, with a progress
+									state in the UI. Validating lazily per span is faster to first paint but spreads
+									UTF-8 errors across the whole session instead of surfacing them at open, which is
+									worse behaviour for a file the user is about to edit.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip">doc/jobs.rs</span
+									><span class="tag-chip">needs a UI state</span>
+								</div>
+							</div>
+						</li>
+
+						<li class="phase">
+							<div class="phase-head"><h3>Resolve the self-referential borrow</h3></div>
+							<div class="phase-body">
+								<p>
+									<code>LazyDoc</code> would need to own the <code>Mmap</code> and hand out
+									<code>&amp;str</code> borrowed from it, which Rust won't allow directly.
+								</p>
+								<p>
+									The clean route avoids the crates entirely: validate once in <code>new()</code>,
+									store the <code>Mmap</code>, and expose the text through an accessor tied to
+									<code>&amp;self</code> using <code>from_utf8_unchecked</code>. The unchecked call
+									is sound precisely because construction already proved it. <code>yoke</code> or
+									<code>owning_ref</code> would also work and are safe, at the cost of a dependency
+									and noisier types.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip">doc/lazy.rs</span
+									><span class="tag-chip">one unsafe block</span>
+								</div>
+							</div>
+						</li>
+
+						<li class="phase">
+							<div class="phase-head"><h3>Widen the index to u64</h3></div>
+							<div class="phase-body">
+								<p>
+									<code>Vec&lt;(u32, u32)&gt;</code> becomes <code>Vec&lt;(u64, u64)&gt;</code>.
+									Index memory doubles from 8 to 16 bytes per root element — a 20M-element array
+									goes from 160&nbsp;MB to 320&nbsp;MB of index.
+								</p>
+								<p>
+									That is a real cost and worth revisiting later with a segmented index that keeps
+									u32 offsets relative to a chunk base. Not worth it in the first pass.
+								</p>
+								<div class="tagrow">
+									<span class="tag-chip hot">removes the 4 GiB address cap</span
+									><span class="tag-chip">2× index memory</span>
+								</div>
+							</div>
+						</li>
+					</ol>
+
+					<div class="note">
+						<span class="note-label">The tradeoff we are accepting</span>
+						<p>
+							A memory-mapped file can change underneath us. If another process rewrites the file
+							while Pandia has it open, the bytes we're reading change with no warning, and in the
+							worst case that's undefined behaviour rather than a clean error. Every editor that
+							mmaps accepts this. We should accept it too, but deliberately, and it belongs in the
+							release notes rather than discovered by a user.
+						</p>
+					</div>
+
+					<h3>What stays capped, on purpose</h3>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Limit</th>
+									<th class="mono">Value</th>
+									<th>Keep it?</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>Whole-document edit</td>
+									<td class="mono">EDIT_SIZE_LIMIT — 200 MB</td>
+									<td>
+										Keep. Editing needs the parsed value in memory; that is a genuine requirement,
+										not an artefact.
+									</td>
+								</tr>
+								<tr>
+									<td>Root-level getValue</td>
+									<td class="mono">GET_VALUE_ROOT_LIMIT — 200 MB</td>
+									<td>Keep. Handing 200 MB across IPC into JavaScript is never the right move.</td>
+								</tr>
+								<tr>
+									<td>Lazy threshold</td>
+									<td class="mono">LAZY_THRESHOLD_BYTES — 10 MB</td>
+									<td>
+										Keep, and re-measure. It predates mmap and may want to drop once opening is
+										cheap.
+									</td>
+								</tr>
+								<tr>
+									<td>Code view</td>
+									<td class="mono">SIZE_CAP — 50 MB</td>
+									<td>
+										Revisit. This is a CodeMirror constraint, not ours, and needs its own
+										investigation.
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</section>
+
+				<section id="borrowed">
+					<h2><span class="num">Part 05</span>What we borrowed, and from where</h2>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Idea</th>
+									<th>Source</th>
+									<th>Where it lands in Pandia</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>Tokenize the visible window, not the document</td>
+									<td>Pierre — deferred highlighting via worker pool</td>
+									<td><code>InlineDiffView.svelte:60</code></td>
+								</tr>
+								<tr>
+									<td>Detach strings so slices stop pinning their parent</td>
+									<td>Pierre — 2.4 GB → 1.15 GB on the Linux diff</td>
+									<td>Solved for free by moving the diff to Rust</td>
+								</tr>
+								<tr>
+									<td>Custom scroll anchoring across DOM commits</td>
+									<td>Pierre — CodeView anchoring</td>
+									<td><code>expandGap</code>, and any future hunk expansion</td>
+								</tr>
+								<tr>
+									<td>Checkpoint index plus binary search for line ranges</td>
+									<td>Pierre — replacing linear scans from the start</td>
+									<td>
+										Already present as <code>indexAtOffset</code> in <code>virtualizer.ts</code>
+									</td>
+								</tr>
+								<tr>
+									<td>Summary tree for <code>O(log n)</code> seeking by any dimension</td>
+									<td>Zed — SumTree, 20+ uses, rope of 128-char chunks</td>
+									<td>Candidate for the row model — measure first</td>
+								</tr>
+								<tr>
+									<td>Render the real old file; don't invent deleted-line rows</td>
+									<td>Zed — split diffs reuse syntax tree and line numbers unchanged</td>
+									<td>Rethinks our <code>UnifiedRow</code> with nullable line numbers</td>
+								</tr>
+								<tr>
+									<td>Align two panes with inserted spacers, not merged rows</td>
+									<td>Zed — the block map</td>
+									<td>Split compare view, after the diff moves to Rust</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<h3>The one that reframes our split view</h3>
+
+					<p>
+						Our compare view builds a merged row list where each row carries
+						<code>leftNo: number | null</code> and <code>rightNo: number | null</code>. A deleted
+						line is a synthetic object with no right-hand number; an added line is one with no
+						left-hand number.
+					</p>
+
+					<p>
+						Zed deliberately rejected that shape. They render the actual old version of the file on
+						the left and highlight the deleted parts, which means line numbers and the syntax tree
+						are reused with no modification and no edge cases to patch. Vertical alignment comes
+						from their block map inserting spacers to pad whichever side is shorter.
+					</p>
+
+					<p>
+						It's worth taking seriously, but only after Part 02. The diff has to be cheap and
+						hunk-shaped before the rendering model is worth rearranging around it.
+					</p>
+				</section>
+
+				<section id="order">
+					<h2><span class="num">Part 06</span>Order of work</h2>
+
+					<p class="lede">
+						Sequenced so each step makes the next one smaller. The first item is a bug fix;
+						everything after it is capability.
+					</p>
+
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>Step</th>
+									<th>What</th>
+									<th>Removes</th>
+									<th class="mono">Size</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td class="mono">0</td>
+									<td>Benchmark harness, 32 fixtures, 5 candidates</td>
+									<td>Guesswork about which algorithm to adopt</td>
+									<td class="mono">done</td>
+								</tr>
+								<tr>
+									<td class="mono">1</td>
+									<td>Visible-window tokenizing</td>
+									<td>The worst per-frame cost</td>
+									<td class="mono">~20 min</td>
+								</tr>
+								<tr>
+									<td class="mono">2</td>
+									<td>imara-diff histogram in Rust, hunks over IPC</td>
+									<td>LCS_CELL_CAP, INLINE_MAX, the fake diff</td>
+									<td class="mono">2–3 days</td>
+								</tr>
+								<tr>
+									<td class="mono">3</td>
+									<td>
+										Route minified and reformatted pairs to the structural diff — superseded;
+										canonicalisation in step 2 dissolved both shapes (Part 02)
+									</td>
+									<td>Fast, correct, useless answers on both shapes</td>
+									<td class="mono">resolved</td>
+								</tr>
+								<tr>
+									<td class="mono">4</td>
+									<td>Word-level intra-line diff</td>
+									<td>Nothing — adds the missing feature</td>
+									<td class="mono">1 day</td>
+								</tr>
+								<tr>
+									<td class="mono">5</td>
+									<td>Scroll anchoring on gap expansion</td>
+									<td>Content jumping under the cursor</td>
+									<td class="mono">half a day</td>
+								</tr>
+								<tr>
+									<td class="mono">6</td>
+									<td>mmap, u64 offsets, background validation</td>
+									<td>MAX_DOC_BYTES and the 4 GiB address cap</td>
+									<td class="mono">3–5 days</td>
+								</tr>
+								<tr>
+									<td class="mono">7</td>
+									<td>Measure the row model, then decide on a SumTree</td>
+									<td>Possibly nothing — that's the point of measuring</td>
+									<td class="mono">1 day to measure</td>
+								</tr>
+								<tr>
+									<td class="mono">8</td>
+									<td>Split view on Zed's model</td>
+									<td>Synthetic deleted-line rows</td>
+									<td class="mono">unscoped</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<p>
+						Step 1 is worth doing on its own regardless of what happens to the rest. Step 2 is the
+						real unlock and everything downstream assumes it. Step 3 never became work: step 2
+						shipped diffing canonical renderings rather than raw text, so there is no minified or
+						reformatted pair left to route — the row stays because the reasoning behind it was sound
+						against the old premise. Step 6 is independent of steps 2–5 and can run in parallel if
+						two people are working.
+					</p>
+
+					<div class="note">
+						<span class="note-label">Estimates</span>
+						<p>
+							These are rough and assume familiarity with both sides of the IPC boundary. Step 6 is
+							the one most likely to grow — the self-referential borrow and the validation-progress
+							UI are both places where the tidy version takes longer than the first working version.
+						</p>
+					</div>
+				</section>
+
+				<footer>
+					<h4>Sources</h4>
+					<ul>
+						<li>
+							<a href="https://pierre.computer/writing/on-rendering-diffs">On Rendering Diffs</a> —
+							Pierre. Virtualization, string detaching, worker-pool highlighting, scroll anchoring.
+						</li>
+						<li>
+							<a href="https://zed.dev/blog/zed-decoded-rope-sumtree"
+								>Zed Decoded: Rope &amp; SumTree</a
+							>
+							— the SumTree, its Summary and Dimension traits, and the 128-character chunk rope.
+						</li>
+						<li>
+							<a href="https://zed.dev/blog/split-diffs">Split Diffs are Here</a> — Zed. Reusing the
+							old file rather than synthesising deleted rows; the block map and spacer alignment.
+						</li>
+						<li>
+							<a href="https://deepwiki.com/zed-industries/zed/6.3-diff-system-and-staging"
+								>Diff System and Staging</a
+							>
+							— Zed DeepWiki. BufferDiff, diff-hunk storage, coordinate systems.
+						</li>
+					</ul>
+
+					<h4>Reproducing the benchmark</h4>
+					<ul>
+						<li>
+							<code>src-tauri/benches/json_linediff/</code> — fixture generator, candidates,
+							child-process runner, tracking allocator
+						</li>
+						<li>
+							<code>bench/js/bench-diff.ts</code> — the JavaScript baseline;
+							<code>npm run bench:js</code>
+						</li>
+						<li><code>bench/merge-results.mjs</code> — joins both result files into one table</li>
+						<li>
+							<code>bench/README.md</code> — what each fixture shape models and how to read the
+							quality column
+						</li>
+						<li>
+							Fixtures and results are gitignored. Regenerate with
+							<code>cargo bench --bench json_linediff</code>; output is byte-identical across runs.
+						</li>
+					</ul>
+
+					<h4>Code referenced</h4>
+					<ul>
+						<li><code>src/lib/views/compare/logic/linediff.ts</code> — the LCS and its cap</li>
+						<li>
+							<code>src/lib/views/compare/components/InlineDiffView.svelte</code> — loading,
+							tokenizing, gap expansion
+						</li>
+						<li><code>src-tauri/src/doc/document.rs</code> — every size limit</li>
+						<li><code>src-tauri/src/doc/lazy.rs</code> — the lazy document and its u32 index</li>
+						<li><code>src-tauri/src/doc/diff.rs</code> — the existing structural diff</li>
+						<li>
+							<code>src/lib/views/tree/logic/virtualizer.ts</code> — offsets and the visible window
+						</li>
+					</ul>
+				</footer>
+			</main>
+		</div>
+	</body>
+</html>

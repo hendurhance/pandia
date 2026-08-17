@@ -1,4 +1,5 @@
 import { cancelJob, docSearch, docReplace } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
 import type { DocHandle, Path, SearchHit } from '$lib/ipc/types';
 
@@ -145,7 +146,7 @@ export class FindController {
 			if (hits.length > 0) await this.jumpToHit(0);
 		} catch (e) {
 			if (seq !== this.seq) return;
-			this.error = String(e);
+			this.error = describeError(e);
 			this.hits = [];
 			this.hitsQuery = null;
 		} finally {
@@ -220,7 +221,7 @@ export class FindController {
 			this.replaceStatus = res.count === 0 ? 'no matches' : `replaced ${res.count}`;
 			if (this.open && q) void this.runSearch(q); // refresh the hit count
 		} catch (e) {
-			this.error = String(e).replace(/^.*?Error:\s*/i, '');
+			this.error = describeError(e);
 			this.replaceStatus = null;
 		}
 	};

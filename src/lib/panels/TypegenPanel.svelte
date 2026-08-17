@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { docGenerateTypes } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle, TypegenLang } from '$lib/ipc/types';
 	import { typegenPrefs, TYPEGEN_LANGS } from './state/typegen-prefs.svelte';
 	import { stem } from '$lib/util/path';
@@ -55,7 +56,7 @@
 		} catch (e) {
 			if (mySeq !== seq) return;
 			output = '';
-			error = String(e);
+			error = describeError(e);
 		} finally {
 			if (mySeq === seq) busy = false;
 		}
@@ -70,7 +71,7 @@
 
 	async function onCopy() {
 		if (!output) return;
-		await copyFlag.copy(output);
+		if (!(await copyFlag.copy(output))) error = 'clipboard unavailable';
 	}
 
 	const lineCount = $derived(output ? output.split('\n').length : 0);

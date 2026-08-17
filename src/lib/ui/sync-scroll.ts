@@ -25,6 +25,8 @@ export function createSyncScrollPair(opts: SyncScrollOpts = {}): SyncScrollPair 
 	let suppressedSide: SyncSide | null = null;
 	let suppressCount = 0;
 	let suppressTimer: ReturnType<typeof setTimeout> | null = null;
+	let pendingSource: SyncSide | null = null;
+	let rafId: number | null = null;
 
 	function onPaneScroll(source: SyncSide) {
 		if (!enabled || !leftScroller || !rightScroller) return;
@@ -34,6 +36,19 @@ export function createSyncScrollPair(opts: SyncScrollOpts = {}): SyncScrollPair 
 			if (suppressCount === 0) suppressedSide = null;
 			return;
 		}
+
+		pendingSource = source;
+		if (rafId != null) return;
+		rafId = requestAnimationFrame(() => {
+			rafId = null;
+			const src = pendingSource;
+			pendingSource = null;
+			if (src) applySync(src);
+		});
+	}
+
+	function applySync(source: SyncSide) {
+		if (!enabled || !leftScroller || !rightScroller) return;
 
 		const from = source === 'left' ? leftScroller : rightScroller;
 		const to = source === 'left' ? rightScroller : leftScroller;
@@ -83,6 +98,11 @@ export function createSyncScrollPair(opts: SyncScrollOpts = {}): SyncScrollPair 
 			clearTimeout(suppressTimer);
 			suppressTimer = null;
 		}
+		if (rafId != null) {
+			cancelAnimationFrame(rafId);
+			rafId = null;
+		}
+		pendingSource = null;
 		suppressedSide = null;
 		suppressCount = 0;
 	}

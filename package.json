@@ -15,6 +15,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench:js": "node --expose-gc --experimental-strip-types --disable-warning=ExperimentalWarning bench/js/bench-diff.ts",
     "tauri": "tauri",
     "prepare": "husky"
   },

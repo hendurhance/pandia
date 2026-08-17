@@ -7,6 +7,7 @@
 	interface Tab {
 		id: string;
 		label: string;
+		sourceName: string | null;
 	}
 
 	let {
@@ -112,7 +113,7 @@
 				role="tab"
 				tabindex="0"
 				aria-selected={tab.id === activeTabId}
-				title={tab.label}
+				title={tab.sourceName ?? tab.label}
 			>
 				<span
 					class="tab-dot"

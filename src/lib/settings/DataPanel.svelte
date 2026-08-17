@@ -7,6 +7,7 @@
 	import { sidebarPrefs } from '$lib/shell/state/sidebar-prefs.svelte';
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
 	import { exportSettings, importSettings, PERSISTED_FILES } from '$lib/util/persist';
+	import { describeError } from '$lib/ipc/error-copy';
 
 	// Window between two clicks of a destructive button before the second
 	// click reverts to "needs confirmation" again.
@@ -52,7 +53,7 @@
 			await writeFile(picked, new TextEncoder().encode(text));
 			flash('settings exported');
 		} catch (e) {
-			flash(String(e), 'err');
+			flash(describeError(e), 'err');
 		} finally {
 			bundleBusy = false;
 		}
@@ -85,7 +86,7 @@
 			]);
 			flash('settings imported');
 		} catch (e) {
-			flash(String(e), 'err');
+			flash(describeError(e), 'err');
 		} finally {
 			bundleBusy = false;
 		}

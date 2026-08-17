@@ -10,6 +10,7 @@ use crate::doc::document::{
 };
 use crate::doc::export::{ExportFormat, ExportPreview};
 use crate::doc::grid_filter::GridFilter;
+use crate::doc::linediff::{compute_line_diff, line_slice, LineDiffResult, LINE_FETCH_MAX};
 use crate::doc::ops::Op;
 use crate::doc::repair::{repair as repair_string, RepairResult};
 use crate::doc::schema::sniff_columns;
@@ -35,6 +36,8 @@ where
         Err(join_err) => Err(WireError {
             kind: ErrorKind::Io,
             message: join_err.to_string(),
+            actual: None,
+            limit: None,
         }),
     }
 }
@@ -136,6 +139,58 @@ fn diff_arcs(
     let l_val = l_doc.get_value(&Path::root())?;
     let r_val = r_doc.get_value(&Path::root())?;
     compute_diff(&l_val, &r_val, cancel)
+}
+
+#[cfg(test)]
+fn doc_diff_lines_inner(
+    store: &DocStore,
+    left: DocHandle,
+    right: DocHandle,
+) -> DocResult<LineDiffResult> {
+    let l_arc = store.get(left).ok_or(DocError::NotFound(left))?;
+    let r_arc = store.get(right).ok_or(DocError::NotFound(right))?;
+    diff_lines_arcs(l_arc, r_arc, &crate::doc::jobs::CancelFlag::never())
+}
+
+fn diff_lines_arcs(
+    l_arc: SharedDoc,
+    r_arc: SharedDoc,
+    cancel: &crate::doc::jobs::CancelFlag,
+) -> DocResult<LineDiffResult> {
+    if Arc::ptr_eq(&l_arc, &r_arc) {
+        let doc = l_arc.read();
+        let (_, starts) = doc.canonical_lines()?;
+        let lines = starts.len() as u32;
+        return Ok(LineDiffResult {
+            hunks: Vec::new(),
+            left_lines: lines,
+            right_lines: lines,
+        });
+    }
+    let l_doc = l_arc.read();
+    let r_doc = r_arc.read();
+    let (l_text, _) = l_doc.canonical_lines()?;
+    let (r_text, _) = r_doc.canonical_lines()?;
+    compute_line_diff(&l_text, &r_text, cancel)
+}
+
+fn doc_get_lines_inner(
+    store: &DocStore,
+    handle: DocHandle,
+    start: u32,
+    end: u32,
+) -> DocResult<Vec<String>> {
+    let lines = end.saturating_sub(start);
+    if lines > LINE_FETCH_MAX {
+        return Err(DocError::RangeTooLarge {
+            lines,
+            limit: LINE_FETCH_MAX,
+        });
+    }
+    let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
+    let doc = arc.read();
+    let (text, starts) = doc.canonical_lines()?;
+    Ok(line_slice(&text, &starts, start..end))
 }
 
 fn doc_get_rows_inner(
@@ -384,6 +439,41 @@ pub async fn doc_diff(
         jobs.unregister(&id);
     }
     result
+}
+
+#[tauri::command]
+pub async fn doc_diff_lines(
+    state: tauri::State<'_, Arc<DocStore>>,
+    jobs: tauri::State<'_, std::sync::Arc<crate::doc::jobs::JobRegistry>>,
+    left: DocHandle,
+    right: DocHandle,
+    job_id: Option<String>,
+) -> Result<LineDiffResult, WireError> {
+    let l_arc = state.get(left).ok_or(DocError::NotFound(left))?;
+    let r_arc = state.get(right).ok_or(DocError::NotFound(right))?;
+    let (cancel, owned_id) = match job_id {
+        Some(id) => {
+            let flag = jobs.register(id.clone());
+            (flag, Some(id))
+        }
+        None => (crate::doc::jobs::CancelFlag::never(), None),
+    };
+    let result = run_blocking(move || diff_lines_arcs(l_arc, r_arc, &cancel)).await;
+    if let Some(id) = owned_id {
+        jobs.unregister(&id);
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn doc_get_lines(
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+    start: u32,
+    end: u32,
+) -> Result<Vec<String>, WireError> {
+    let store = state.inner().clone();
+    run_blocking(move || doc_get_lines_inner(&store, handle, start, end)).await
 }
 
 #[derive(Serialize)]
@@ -947,6 +1037,284 @@ mod tests {
         .unwrap();
         let err = doc_diff_inner(&store, opened.handle, DocHandle::new()).unwrap_err();
         assert!(matches!(err, DocError::NotFound(_)));
+    }
+
+    #[test]
+    fn diff_lines_reports_hunks_over_canonical_text() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1, "b": 2}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1, "b": 99, "c": 3}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert_eq!(d.left_lines, 4);
+        assert_eq!(d.right_lines, 5);
+        assert_eq!(d.hunks.len(), 1);
+        assert_eq!(d.hunks[0].left_start, 2);
+        assert_eq!(d.hunks[0].left_len, 1);
+        assert_eq!(d.hunks[0].right_start, 2);
+        assert_eq!(d.hunks[0].right_len, 2);
+    }
+
+    #[test]
+    fn diff_lines_same_handle_returns_counts_without_hunks() {
+        let store = DocStore::new();
+        let opened = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, opened.handle, opened.handle).unwrap();
+        assert!(d.hunks.is_empty());
+        assert_eq!(d.left_lines, 3);
+        assert_eq!(d.right_lines, 3);
+    }
+
+    #[test]
+    fn diff_lines_unknown_handle_errors() {
+        let store = DocStore::new();
+        let opened = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let err = doc_diff_lines_inner(&store, opened.handle, DocHandle::new()).unwrap_err();
+        assert!(matches!(err, DocError::NotFound(_)));
+    }
+
+    #[test]
+    fn diff_lines_minified_vs_pretty_same_data_produces_zero_hunks() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a":1,"b":[1,2,3],"c":{"d":"x"}}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2,\n    3\n  ],\n  \"c\": {\n    \"d\": \"x\"\n  }\n}".into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert!(d.hunks.is_empty());
+        assert_eq!(d.left_lines, d.right_lines);
+        assert!(d.left_lines > 1);
+    }
+
+    #[test]
+    fn diff_lines_minified_pair_reports_one_hunk_in_canonical_coordinates() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a":1,"b":2,"c":3}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a":1,"b":99,"c":3}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert_eq!(d.left_lines, 5);
+        assert_eq!(d.right_lines, 5);
+        assert_eq!(
+            d.hunks,
+            vec![crate::doc::linediff::LineHunk {
+                left_start: 2,
+                left_len: 1,
+                right_start: 2,
+                right_len: 1,
+            }]
+        );
+    }
+
+    #[test]
+    fn diff_lines_formatting_difference_adds_nothing_to_a_value_change() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a":1,"b":2,"c":3}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: "{\n  \"a\": 1,\n  \"b\": 99,\n  \"c\": 3\n}".into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert_eq!(
+            d.hunks,
+            vec![crate::doc::linediff::LineHunk {
+                left_start: 2,
+                left_len: 1,
+                right_start: 2,
+                right_len: 1,
+            }]
+        );
+    }
+
+    #[test]
+    fn diff_lines_lazy_documents_diff_over_canonical_text() {
+        const N: usize = 10_500;
+        let item = "x".repeat(1000);
+        let mut minified = String::with_capacity(11 << 20);
+        minified.push('[');
+        for i in 0..N {
+            if i > 0 {
+                minified.push(',');
+            }
+            minified.push_str(&format!("\"{item}{i}\""));
+        }
+        minified.push(']');
+        let mut pretty = String::with_capacity(12 << 20);
+        pretty.push_str("[\n");
+        for i in 0..N {
+            let sep = if i + 1 < N { "," } else { "" };
+            pretty.push_str(&format!("  \"{item}{i}\"{sep}\n"));
+        }
+        pretty.push(']');
+
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: minified,
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: pretty,
+                name: None,
+            },
+        )
+        .unwrap();
+        assert!(left.summary.lazy);
+        assert!(right.summary.lazy);
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert!(d.hunks.is_empty());
+        assert_eq!(d.left_lines, (N + 2) as u32);
+        assert_eq!(d.right_lines, (N + 2) as u32);
+    }
+
+    #[test]
+    fn diff_lines_beyond_root_value_limit_errors_rather_than_diffing_raw_text() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 2}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        store.get(left.handle).unwrap().write().source_size = 210 * 1024 * 1024;
+        let err = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap_err();
+        assert!(matches!(err, DocError::TooLarge { .. }));
+    }
+
+    #[test]
+    fn get_lines_pages_canonical_text_with_js_number_formatting() {
+        let store = DocStore::new();
+        let opened = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"id": 123456789012345678}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let lines = doc_get_lines_inner(&store, opened.handle, 0, 10).unwrap();
+        assert_eq!(lines, vec!["{", "  \"id\": 123456789012345680", "}"]);
+        let middle = doc_get_lines_inner(&store, opened.handle, 1, 2).unwrap();
+        assert_eq!(middle, vec!["  \"id\": 123456789012345680"]);
+    }
+
+    #[test]
+    fn get_lines_rejects_oversized_range() {
+        let store = DocStore::new();
+        let opened = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let err = doc_get_lines_inner(&store, opened.handle, 0, LINE_FETCH_MAX + 1).unwrap_err();
+        assert!(matches!(err, DocError::RangeTooLarge { .. }));
+    }
+
+    #[test]
+    fn get_lines_reflects_edits() {
+        let store = DocStore::new();
+        let opened = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let before = doc_get_lines_inner(&store, opened.handle, 0, 10).unwrap();
+        assert_eq!(before[1], "  \"a\": 1");
+        doc_apply_op_inner(
+            &store,
+            opened.handle,
+            Op::SetValue {
+                path: Path(vec![PathSegment::Key("a".into())]),
+                value: serde_json::json!(2),
+            },
+        )
+        .unwrap();
+        let after = doc_get_lines_inner(&store, opened.handle, 0, 10).unwrap();
+        assert_eq!(after[1], "  \"a\": 2");
     }
 
     #[test]

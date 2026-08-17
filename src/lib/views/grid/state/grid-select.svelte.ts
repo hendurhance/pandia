@@ -1,4 +1,5 @@
 import { docGetRowsAt } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle, NodeKind, Path } from '$lib/ipc/types';
 import { UNLOADED, MISSING, inspectorText, valueKind } from '../logic/grid-cell';
 import { CopyFlag } from '$lib/util/clipboard.svelte';
@@ -82,7 +83,7 @@ export class GridSelectionController {
 			const json = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
 			if (!(await this.rowsCopy.copy(json))) this.deps.onError('clipboard unavailable');
 		} catch (e) {
-			this.deps.onError(String(e));
+			this.deps.onError(describeError(e));
 		}
 	};
 
@@ -93,7 +94,7 @@ export class GridSelectionController {
 			const json = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
 			this.deps.onExtract(json, idx.length);
 		} catch (e) {
-			this.deps.onError(String(e));
+			this.deps.onError(describeError(e));
 		}
 	};
 
@@ -105,7 +106,9 @@ export class GridSelectionController {
 	copyInspector = async () => {
 		const v = this.selectedValue;
 		if (v === UNLOADED || v === MISSING || v === undefined) return;
-		await this.inspectorCopy.copy(inspectorText(v));
+		if (!(await this.inspectorCopy.copy(inspectorText(v)))) {
+			this.deps.onError('clipboard unavailable');
+		}
 	};
 
 	openSelectedInTree = () => {

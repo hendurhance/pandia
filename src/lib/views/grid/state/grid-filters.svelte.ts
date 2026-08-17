@@ -1,4 +1,5 @@
 import { docColumnValues, type ColumnValues } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/types';
 import {
 	type ColOp,
@@ -222,7 +223,7 @@ export class GridFilterController {
 			next.set(key, cv);
 			this.valuesByCol = next;
 		} catch (e) {
-			this.deps.onError(String(e));
+			this.deps.onError(describeError(e));
 		} finally {
 			this.valuesLoading = null;
 		}

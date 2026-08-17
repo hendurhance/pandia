@@ -33,7 +33,7 @@
 				<button
 					class="list-row rec-restore"
 					onclick={() => onRestore(rec)}
-					title="restore this document"
+					title={rec.originalPath ?? rec.displayName ?? 'untitled'}
 				>
 					<span class="rec-name">{recoveryLabel(rec)}</span>
 					<span class="dim text-xs">{fmtBytes(rec.content.length)}</span>
