@@ -180,7 +180,7 @@
 		checkForUpdates,
 		openWebsite: () => void openInBrowser('https://www.pandia.app').catch(() => {}),
 		reportIssue: () =>
-			void openInBrowser('https://github.com/hendurhance/pandia/issues/new').catch(() => {}),
+			void openInBrowser('https://github.com/hendurhance/pandia/issues/new/choose').catch(() => {}),
 		isDev: SANDBOX_ENABLED,
 	};
 
