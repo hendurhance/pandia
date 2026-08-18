@@ -89,6 +89,7 @@
 				fetchedVersion++;
 			})
 			.catch((e) => {
+				if (blocks !== (side === 'left' ? leftBlocks : rightBlocks)) return;
 				error = describeError(e);
 			})
 			.finally(() => {
@@ -230,6 +231,8 @@
 						<span class="text">
 							{#if toks}
 								{#each toks as t, k (k)}<span class="tok-{t.kind}">{t.text}</span>{/each}
+							{:else}
+								<span class="tok-pending" aria-label="loading line">····</span>
 							{/if}
 						</span>
 					</div>
@@ -344,6 +347,11 @@
 	.tok-punct {
 		color: var(--syntax-punct);
 	}
+	.tok-pending {
+		color: var(--text-ghost);
+		letter-spacing: 0.15em;
+	}
+
 	.tok-text {
 		color: inherit;
 	}
