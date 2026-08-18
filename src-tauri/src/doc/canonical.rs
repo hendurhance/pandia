@@ -88,14 +88,16 @@ fn array_index(key: &str) -> Option<u32> {
 }
 
 fn write_number(n: &serde_json::Number, out: &mut String) {
-    match n.as_f64() {
-        Some(x) => write_f64_ecma(x, out),
-        None => out.push_str(if n.to_string().starts_with('-') {
-            "-Infinity"
-        } else {
-            "Infinity"
-        }),
+    let token = n.to_string();
+    if let Some(x) = n.as_f64() {
+        let start = out.len();
+        write_f64_ecma(x, out);
+        if out[start..] == token {
+            return;
+        }
+        out.truncate(start);
     }
+    out.push_str(&token);
 }
 
 fn write_f64_ecma(x: f64, out: &mut String) {
@@ -169,6 +171,30 @@ mod tests {
             let v: Value = serde_json::from_str(&c.input)
                 .unwrap_or_else(|e| panic!("case {} input parse: {e}", c.name));
             assert_eq!(canonical_pretty(&v), c.expected, "case {}", c.name);
+        }
+    }
+
+    #[test]
+    fn integer_negative_zero_sign_is_lost_at_parse_time_so_rust_emits_zero_where_js_keeps_the_token(
+    ) {
+        let int: Value = serde_json::from_str("-0").expect("parses");
+        assert_eq!(canonical_pretty(&int), "0");
+        let float: Value = serde_json::from_str("-0.0").expect("parses");
+        assert_eq!(canonical_pretty(&float), "-0.0");
+    }
+
+    #[test]
+    fn same_value_with_a_different_token_renders_differently() {
+        for (a, b) in [
+            ("1.5", "1.50"),
+            ("1075283027435454464", "1075283027435454465"),
+            ("1234567890123456789", "1234567890123456790"),
+            ("10.0", "10.00"),
+            ("1e999", "1e1000"),
+        ] {
+            let va: Value = serde_json::from_str(a).expect("parses");
+            let vb: Value = serde_json::from_str(b).expect("parses");
+            assert_ne!(canonical_pretty(&va), canonical_pretty(&vb), "{a} vs {b}");
         }
     }
 }

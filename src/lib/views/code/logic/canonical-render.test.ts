@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { parseLossless } from '$lib/util/lossless';
 import { stringifyWithOffsets } from './highlights';
 
 interface Case {
 	name: string;
 	input: string;
 	expected: string;
+	jsExpected?: string;
 }
 
 const cases: Case[] = JSON.parse(
@@ -25,7 +27,7 @@ describe('canonical rendering matches the shared goldens', () => {
 
 	for (const c of cases) {
 		it(c.name, () => {
-			expect(stringifyWithOffsets(JSON.parse(c.input)).text).toBe(c.expected);
+			expect(stringifyWithOffsets(parseLossless(c.input)).text).toBe(c.jsExpected ?? c.expected);
 		});
 	}
 });

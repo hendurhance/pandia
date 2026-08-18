@@ -1190,6 +1190,135 @@ mod tests {
     }
 
     #[test]
+    fn diff_lines_reports_a_change_when_only_the_number_token_differs() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1.5}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"a": 1.50}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert_eq!(
+            d.hunks,
+            vec![crate::doc::linediff::LineHunk {
+                left_start: 1,
+                left_len: 1,
+                right_start: 1,
+                right_len: 1,
+            }]
+        );
+    }
+
+    #[test]
+    fn diff_lines_distinguishes_adjacent_snowflake_ids() {
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"id": 1075283027435454464}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: r#"{"id": 1075283027435454465}"#.into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert_eq!(d.hunks.len(), 1);
+        let h = d.hunks[0];
+        let l = doc_get_lines_inner(&store, left.handle, h.left_start, h.left_start + h.left_len)
+            .unwrap();
+        let r = doc_get_lines_inner(
+            &store,
+            right.handle,
+            h.right_start,
+            h.right_start + h.right_len,
+        )
+        .unwrap();
+        assert_eq!(l, vec!["  \"id\": 1075283027435454464"]);
+        assert_eq!(r, vec!["  \"id\": 1075283027435454465"]);
+    }
+
+    #[test]
+    fn diff_lines_number_tokens_keep_line_counts_and_hunk_coordinates_valid() {
+        let tokens = [
+            "1.0",
+            "1.50",
+            "1E5",
+            "1e20",
+            "1e21",
+            "1e-6",
+            "1e999",
+            "9007199254740993",
+            "123456789012345678",
+            "123456789012345678901234567890",
+            "1075283027435454464",
+            "-0.0",
+            "5e-324",
+            "1.7976931348623157e308",
+        ];
+        let left_text = format!("[{}]", tokens.join(","));
+        let mut changed = tokens;
+        changed[1] = "1.5";
+        changed[10] = "1075283027435454465";
+        let right_text = format!("[{}]", changed.join(","));
+        let store = DocStore::new();
+        let left = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: left_text,
+                name: None,
+            },
+        )
+        .unwrap();
+        let right = doc_open_inner(
+            &store,
+            OpenSource::Text {
+                text: right_text,
+                name: None,
+            },
+        )
+        .unwrap();
+        let d = doc_diff_lines_inner(&store, left.handle, right.handle).unwrap();
+        assert_eq!(d.left_lines, tokens.len() as u32 + 2);
+        assert_eq!(d.right_lines, tokens.len() as u32 + 2);
+        assert_eq!(d.hunks.len(), 2);
+        for (h, (l_line, r_line)) in d.hunks.iter().zip([
+            ("  1.50,", "  1.5,"),
+            ("  1075283027435454464,", "  1075283027435454465,"),
+        ]) {
+            let l =
+                doc_get_lines_inner(&store, left.handle, h.left_start, h.left_start + h.left_len)
+                    .unwrap();
+            let r = doc_get_lines_inner(
+                &store,
+                right.handle,
+                h.right_start,
+                h.right_start + h.right_len,
+            )
+            .unwrap();
+            assert_eq!(l, vec![l_line]);
+            assert_eq!(r, vec![r_line]);
+        }
+    }
+
+    #[test]
     fn diff_lines_lazy_documents_diff_over_canonical_text() {
         const N: usize = 10_500;
         let item = "x".repeat(1000);
@@ -1260,7 +1389,7 @@ mod tests {
     }
 
     #[test]
-    fn get_lines_pages_canonical_text_with_js_number_formatting() {
+    fn get_lines_pages_canonical_text_with_source_number_tokens() {
         let store = DocStore::new();
         let opened = doc_open_inner(
             &store,
@@ -1271,9 +1400,9 @@ mod tests {
         )
         .unwrap();
         let lines = doc_get_lines_inner(&store, opened.handle, 0, 10).unwrap();
-        assert_eq!(lines, vec!["{", "  \"id\": 123456789012345680", "}"]);
+        assert_eq!(lines, vec!["{", "  \"id\": 123456789012345678", "}"]);
         let middle = doc_get_lines_inner(&store, opened.handle, 1, 2).unwrap();
-        assert_eq!(middle, vec!["  \"id\": 123456789012345680"]);
+        assert_eq!(middle, vec!["  \"id\": 123456789012345678"]);
     }
 
     #[test]
