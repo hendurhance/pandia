@@ -8,6 +8,39 @@ export interface Release {
 
 export const releases: Release[] = [
 	{
+		version: '1.0.6',
+		date: 'TBD',
+		tag: 'Stable',
+		tagKind: 'stable',
+		groups: [
+			{
+				label: 'Fixes',
+				items: [
+					'Compare showed differences that were not real. A file with a dozen small edits spread through it — 154 KB was enough to trigger it — reported every line on both sides as changed. Nothing warned you; the comparison simply looked like a full rewrite. Comparing is now exact at any size Pandia can open.',
+					'Compare refused any file over 3 MB. That limit is gone. Both documents are now compared in Rust and only the lines on screen are fetched, so an 800,000-line comparison takes about 40 milliseconds.',
+					'Editing a number could silently change it. Clicking into a value and clicking away without typing anything was enough: a 100-digit integer came back as `1.2345678901234568e+99`, and `1e309` came back as `null`. Every digit you type is now stored exactly as written, and undo restores the original text.',
+					'Editing a long string could shorten it. Values over 1,000 characters are shown abbreviated in the tree, and if the full value could not be fetched the editor opened on the abbreviation — saving then wrote that over your data. The editor now refuses to open rather than risk it.',
+					'The theme setting did nothing. The Dark, Light and Auto buttons only filtered which theme cards were listed below them; clicking one looked like a choice but changed nothing, before or after a relaunch. They now switch the theme immediately, and Auto follows your system appearance.',
+					'Compare jumped back to the top while you were scrolling. Scrolling quickly or dragging the scrollbar pulled the view back to the first difference every time new rows arrived.',
+					'The tree view could not scroll sideways. Deeply nested documents and very long values ran off the right edge with no way to reach them.',
+					'Long file names were unreadable in Compare. Two files differing only at the end — `orders.a.json` and `orders.b.json` — displayed identically. Names now keep both ends, so the part that tells them apart survives.',
+					'Grid cells could sit on "loading" forever. A failed fetch reported nothing and the cells never resolved.',
+				],
+			},
+			{
+				label: 'Improvements',
+				items: [
+					'A default view. Choose Tree, Code, Grid or Graph in Settings → Layout and every file opens in it. Contributed by [@mcbyte-it](https://github.com/mcbyte-it).',
+					'Error messages say what to do about it. `document too large: 2147483649 bytes (limit 2147483648 bytes)` now reads *This document is 2.00 GiB — the limit for this action is 2.00 GiB. Use a smaller file.* Every error keeps the technical detail a developer needs and drops the raw byte counts.',
+					'YAML, CSV, XML and cURL files convert however they arrive. Dropping one in, opening it from the file picker or reopening it from recent files now offers the same conversion that pasting always did.',
+					'Files with comments tell you before you lose them. Opening a `.jsonc` says the comments were removed in order to read it, and saving asks once more — with Save As offered so the original file survives untouched.',
+					'Auto-repair runs wherever a document fails to parse, not only on paste. The setting is renamed to match what it does.',
+					'Copy buttons say when the clipboard is unavailable instead of doing nothing.',
+				],
+			},
+		],
+	},
+	{
 		version: '1.0.5',
 		date: 'July 29, 2026',
 		tag: 'Stable',
