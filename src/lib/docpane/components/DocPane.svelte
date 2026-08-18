@@ -27,6 +27,7 @@
 	import PromptDialog from '$lib/ui/PromptDialog.svelte';
 	import { pathToString, basename, stem, truncatePathMiddle } from '$lib/util/path';
 	import { computeInvalidMarks } from '../logic/invalid-marks';
+	import { resolveDefaultView } from '../logic/default-view';
 	import { kindAtSelection, validityFromView } from '../logic/status-derivation';
 	import {
 		expandAllDisabled as canExpandAllDisabled,
@@ -224,6 +225,10 @@
 		flushPendingEdits: async () => {
 			if (viewMode === 'code' && codeDirty && codeApi) return codeApi.flush();
 			return true;
+		},
+		applyDefaultView: async (summary) => {
+			await sidebarPrefs.init();
+			viewMode = resolveDefaultView(sidebarPrefs.defaultView, summary);
 		},
 		flash,
 		cancelBackupTimer: () => {
@@ -518,8 +523,6 @@
 		const p = pendingOpen;
 		if (!p) return;
 		void (async () => {
-			await sidebarPrefs.init();
-			viewMode = sidebarPrefs.defaultView;
 			await session.loadFromSource(p);
 			onOpened();
 		})();

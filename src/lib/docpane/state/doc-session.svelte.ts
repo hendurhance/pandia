@@ -51,6 +51,8 @@ export interface DocSessionDeps {
 
 	flushPendingEdits: () => Promise<boolean>;
 
+	applyDefaultView: (summary: OpenResult['summary'] | null) => Promise<void>;
+
 	flash: (msg: string) => void;
 
 	cancelBackupTimer: () => void;
@@ -101,6 +103,7 @@ export class DocSessionController {
 			const proceed = await this.deps.confirmLargeFile(source.path);
 			if (!proceed) return false;
 		}
+		await this.deps.applyDefaultView(null);
 		const name = source.kind === 'file' ? source.path : (source.name ?? '(inline)');
 		await this.load(() => docOpen(source), name);
 		if (this.deps.getError() !== null) {
@@ -128,7 +131,10 @@ export class DocSessionController {
 		if (source.kind === 'file' && this.deps.getError() === null) {
 			addRecent(source.path, undefined, this.summary?.sourceSize);
 		}
-		if (this.deps.getError() === null) return true;
+		if (this.deps.getError() === null) {
+			await this.deps.applyDefaultView(this.summary);
+			return true;
+		}
 
 		const text = await readSourceText(source);
 		if (text != null) {
