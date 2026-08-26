@@ -19,6 +19,7 @@ pub enum TypegenLang {
     Php,
     Java,
     Zod,
+    Dart,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -163,6 +164,7 @@ pub fn generate_from_shape(shape: &TypeShape, lang: TypegenLang, type_name: &str
         TypegenLang::Php => render_php(shape, &name),
         TypegenLang::Java => render_java(shape, &name),
         TypegenLang::Zod => render_zod(shape, &name),
+        TypegenLang::Dart => render_dart(shape, &name),
         TypegenLang::JsonSchema => {
             "{ \"$schema\": \"http://json-schema.org/draft-07/schema#\" }".to_string()
         }
@@ -801,6 +803,288 @@ fn zod_primitive(p: PrimitiveKind) -> &'static str {
     }
 }
 
+const DART_RESERVED: &[&str] = &[
+    "assert", "break", "case", "catch", "class", "const", "continue", "default", "do", "else",
+    "enum", "extends", "false", "final", "finally", "for", "if", "in", "is", "new", "null",
+    "rethrow", "return", "super", "switch", "this", "throw", "true", "try", "var", "void", "while",
+    "with",
+];
+
+const DART_MEMBERS: &[&str] = &[
+    "toJson",
+    "fromJson",
+    "hashCode",
+    "runtimeType",
+    "toString",
+    "noSuchMethod",
+];
+
+fn render_dart(shape: &TypeShape, name: &str) -> String {
+    let mut classes: Vec<String> = Vec::new();
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let root = dart_type(shape, name, &mut classes, &mut seen);
+    let mut out = String::new();
+    for c in classes {
+        out.push_str(&c);
+        out.push_str("\n\n");
+    }
+
+    if !matches!(shape, TypeShape::Object(_)) {
+        let _ = writeln!(out, "typedef {} = {root};", dart_class_name(name));
+    }
+    out.trim_end().to_string()
+}
+
+fn dart_type(
+    shape: &TypeShape,
+    name: &str,
+    classes: &mut Vec<String>,
+    seen: &mut std::collections::BTreeSet<String>,
+) -> String {
+    match shape {
+        TypeShape::Primitive(p) => dart_primitive(*p).to_string(),
+        TypeShape::Array(inner) => {
+            let item_name = format!("{name}Item");
+            format!("List<{}>", dart_type(inner, &item_name, classes, seen))
+        }
+        TypeShape::Object(props) => {
+            let class_name = dart_class_name(name);
+            if !seen.contains(&class_name) {
+                seen.insert(class_name.clone());
+                let body = dart_class(&class_name, props, classes, seen);
+                classes.push(body);
+            }
+            class_name
+        }
+        TypeShape::Unknown => "dynamic".to_string(),
+    }
+}
+
+fn dart_class(
+    class_name: &str,
+    props: &BTreeMap<String, ObjectProp>,
+    classes: &mut Vec<String>,
+    seen: &mut std::collections::BTreeSet<String>,
+) -> String {
+    let mut taken: Vec<String> = vec![class_name.to_string()];
+    let mut fields: Vec<(String, String, String, String, bool)> = Vec::new();
+    for (key, prop) in props {
+        let field = dart_field_name(key, &taken);
+        taken.push(field.clone());
+        let hint = to_pascal_case(&sanitize_ident(key, true));
+        let ty = dart_type(&prop.shape, &hint, classes, seen);
+        let ty = if prop.optional { format!("{ty}?") } else { ty };
+        let src = format!("json[{}]", dart_string_lit(key));
+        let from = dart_from_json(&prop.shape, &hint, &src, prop.optional);
+        let to = dart_to_json(&prop.shape, &field, prop.optional);
+        fields.push((field, ty, from, to, prop.optional));
+    }
+
+    let mut body = format!("class {class_name} {{\n");
+
+    if fields.is_empty() {
+        let _ = writeln!(body, "  const {class_name}();\n");
+        let _ = writeln!(
+            body,
+            "  factory {class_name}.fromJson(Map<String, dynamic> json) => const {class_name}();\n"
+        );
+        let _ = writeln!(
+            body,
+            "  Map<String, dynamic> toJson() => <String, dynamic>{{}};"
+        );
+        body.push('}');
+        return body;
+    }
+
+    let _ = writeln!(body, "  const {class_name}({{");
+    for (field, _, _, _, optional) in fields.iter().filter(|f| !f.4) {
+        let _ = writeln!(body, "    required this.{field},");
+        let _ = optional;
+    }
+    for (field, _, _, _, _) in fields.iter().filter(|f| f.4) {
+        let _ = writeln!(body, "    this.{field},");
+    }
+    let _ = writeln!(body, "  }});\n");
+
+    let _ = writeln!(
+        body,
+        "  factory {class_name}.fromJson(Map<String, dynamic> json) => {class_name}("
+    );
+    for (field, _, from, _, _) in &fields {
+        let _ = writeln!(body, "        {field}: {from},");
+    }
+    let _ = writeln!(body, "      );\n");
+
+    for (field, ty, _, _, _) in &fields {
+        let _ = writeln!(body, "  final {ty} {field};");
+    }
+    body.push('\n');
+
+    let _ = writeln!(body, "  Map<String, dynamic> toJson() => {{");
+    for ((key, _), (_, _, _, to, _)) in props.iter().zip(fields.iter()) {
+        let _ = writeln!(body, "        {}: {to},", dart_string_lit(key));
+    }
+    let _ = writeln!(body, "      }};");
+    body.push('}');
+    body
+}
+
+fn dart_primitive(p: PrimitiveKind) -> &'static str {
+    match p {
+        PrimitiveKind::Null | PrimitiveKind::Any => "dynamic",
+        PrimitiveKind::Bool => "bool",
+        PrimitiveKind::Integer => "int",
+        PrimitiveKind::Float => "double",
+        PrimitiveKind::String => "String",
+    }
+}
+
+fn dart_from_json(shape: &TypeShape, name: &str, src: &str, optional: bool) -> String {
+    let q = if optional { "?" } else { "" };
+    match shape {
+        TypeShape::Primitive(PrimitiveKind::Null | PrimitiveKind::Any) | TypeShape::Unknown => {
+            src.to_string()
+        }
+        TypeShape::Primitive(PrimitiveKind::Float) => {
+            if optional {
+                format!("({src} as num?)?.toDouble()")
+            } else {
+                format!("({src} as num).toDouble()")
+            }
+        }
+        TypeShape::Primitive(p) => format!("{src} as {}{q}", dart_primitive(*p)),
+        TypeShape::Array(inner) => {
+            let item_name = format!("{name}Item");
+            let body = match inner.as_ref() {
+                TypeShape::Primitive(PrimitiveKind::Null | PrimitiveKind::Any)
+                | TypeShape::Unknown => return format!("{src} as List<dynamic>{q}"),
+                TypeShape::Primitive(PrimitiveKind::Float)
+                | TypeShape::Object(_)
+                | TypeShape::Array(_) => {
+                    let elem = dart_from_json(inner, &item_name, "e", false);
+                    format!("({src} as List<dynamic>).map((e) => {elem}).toList()")
+                }
+                TypeShape::Primitive(p) => {
+                    format!("List<{}>.from({src} as List<dynamic>)", dart_primitive(*p))
+                }
+            };
+            dart_guard_null(src, body, optional)
+        }
+        TypeShape::Object(_) => {
+            let cls = dart_class_name(name);
+            let body = format!("{cls}.fromJson({src} as Map<String, dynamic>)");
+            dart_guard_null(src, body, optional)
+        }
+    }
+}
+
+fn dart_guard_null(src: &str, body: String, optional: bool) -> String {
+    if optional {
+        format!("{src} == null ? null : {body}")
+    } else {
+        body
+    }
+}
+
+fn dart_to_json(shape: &TypeShape, field: &str, optional: bool) -> String {
+    let q = if optional { "?" } else { "" };
+    match shape {
+        TypeShape::Object(_) => format!("{field}{q}.toJson()"),
+        TypeShape::Array(inner) => {
+            let elem = dart_to_json(inner, "e", false);
+            if elem == "e" {
+                field.to_string()
+            } else {
+                format!("{field}{q}.map((e) => {elem}).toList()")
+            }
+        }
+        _ => field.to_string(),
+    }
+}
+
+fn dart_class_name(name: &str) -> String {
+    let cleaned = to_pascal_case(&sanitize_ident(name, true));
+    let cleaned = cleaned.trim_start_matches('_').to_string();
+    let base = if cleaned.is_empty() {
+        "Root".to_string()
+    } else {
+        cleaned
+    };
+    if DART_RESERVED.contains(&base.as_str()) || base == "Function" {
+        format!("{base}_")
+    } else {
+        base
+    }
+}
+
+fn dart_field_name(key: &str, taken: &[String]) -> String {
+    let leading_underscores = key.len() - key.trim_start_matches('_').len();
+    let mut out = String::with_capacity(key.len());
+    let mut upper = false;
+    for c in key.trim_start_matches('_').chars() {
+        if c.is_ascii_alphanumeric() {
+            if upper {
+                out.extend(c.to_uppercase());
+                upper = false;
+            } else {
+                out.push(c);
+            }
+        } else if !out.is_empty() {
+            upper = true;
+        }
+    }
+    let mut base: String = {
+        let mut chars = out.chars();
+        match chars.next() {
+            Some(c) => c.to_lowercase().chain(chars).collect(),
+            None => String::new(),
+        }
+    };
+    for _ in 0..leading_underscores {
+        base.push('_');
+    }
+    if base.is_empty() {
+        base = "field".to_string();
+    }
+    if base.chars().next().map(|c| c.is_ascii_digit()) == Some(true) {
+        base.insert(0, 'x');
+    }
+    if DART_RESERVED.contains(&base.as_str()) || DART_MEMBERS.contains(&base.as_str()) {
+        base.push('_');
+    }
+    if !taken.iter().any(|t| t == &base) {
+        return base;
+    }
+    let underscored = format!("{base}_");
+    if !taken.iter().any(|t| t == &underscored) {
+        return underscored;
+    }
+    for n in 0.. {
+        let candidate = format!("{base}_{n}");
+        if !taken.iter().any(|t| t == &candidate) {
+            return candidate;
+        }
+    }
+    unreachable!("the candidate space is unbounded")
+}
+
+fn dart_string_lit(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\'' => out.push_str("\\'"),
+            '$' => out.push_str("\\$"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            _ => out.push(c),
+        }
+    }
+    out.push('\'');
+    out
+}
+
 fn render_json_schema(value: &Value, name: &str) -> String {
     let mut schema = json_schema_of(value);
     if let Value::Object(map) = &mut schema {
@@ -1054,6 +1338,142 @@ mod tests {
         let s = gen(&json!({}), TypegenLang::Python);
         assert!(s.contains("class Root:"));
         assert!(s.contains("pass"));
+    }
+
+    #[test]
+    fn dart_model_class_shape() {
+        let s = gen(&json!({"id": 1, "name": "x"}), TypegenLang::Dart);
+        assert!(s.contains("class Root {"), "{s}");
+        assert!(s.contains("const Root({"));
+        assert!(s.contains("required this.id,"));
+        assert!(s.contains("factory Root.fromJson(Map<String, dynamic> json) => Root("));
+        assert!(s.contains("id: json['id'] as int,"));
+        assert!(s.contains("name: json['name'] as String,"));
+        assert!(s.contains("final int id;"));
+        assert!(s.contains("Map<String, dynamic> toJson() => {"));
+        assert!(s.contains("'id': id,"));
+    }
+
+    #[test]
+    fn dart_float_goes_through_num_never_as_double() {
+        let s = gen(&json!({"score": 4.5}), TypegenLang::Dart);
+        assert!(s.contains("(json['score'] as num).toDouble()"), "{s}");
+        assert!(!s.contains("as double"), "{s}");
+        let merged = gen(&json!([{"r": 3}, {"r": 3.5}]), TypegenLang::Dart);
+        assert!(merged.contains("(json['r'] as num).toDouble()"), "{merged}");
+        assert!(merged.contains("final double r;"), "{merged}");
+    }
+
+    #[test]
+    fn dart_optional_is_nullable_and_not_required() {
+        let s = gen(&json!([{"a": 1, "b": "x"}, {"a": 2}]), TypegenLang::Dart);
+        assert!(
+            s.contains("this.b,"),
+            "optional param must not be required: {s}"
+        );
+        assert!(s.contains("required this.a,"));
+        assert!(s.contains("final String? b;"), "{s}");
+        assert!(s.contains("b: json['b'] as String?,"), "{s}");
+    }
+
+    #[test]
+    fn dart_nullable_object_and_list_get_a_null_guard() {
+        let s = gen(&json!([{"p": {"x": 1}, "t": ["a"]}, {}]), TypegenLang::Dart);
+        assert!(
+            s.contains(
+                "p: json['p'] == null ? null : P.fromJson(json['p'] as Map<String, dynamic>),"
+            ),
+            "{s}"
+        );
+        assert!(
+            s.contains(
+                "t: json['t'] == null ? null : List<String>.from(json['t'] as List<dynamic>),"
+            ),
+            "{s}"
+        );
+        assert!(s.contains("'p': p?.toJson(),"), "{s}");
+    }
+
+    #[test]
+    fn dart_collections_use_the_decided_idioms() {
+        let s = gen(
+            &json!({"tags": ["a"], "scores": [1.5], "rows": [{"n": 1}], "grid": [[1]]}),
+            TypegenLang::Dart,
+        );
+        assert!(
+            s.contains("List<String>.from(json['tags'] as List<dynamic>)"),
+            "{s}"
+        );
+        assert!(
+            s.contains(
+                "(json['scores'] as List<dynamic>).map((e) => (e as num).toDouble()).toList()"
+            ),
+            "{s}"
+        );
+        assert!(
+            s.contains("(json['rows'] as List<dynamic>).map((e) => RowsItem.fromJson(e as Map<String, dynamic>)).toList()"),
+            "{s}"
+        );
+        assert!(
+            s.contains("'rows': rows.map((e) => e.toJson()).toList(),"),
+            "{s}"
+        );
+        assert!(s.contains("final List<List<int>> grid;"), "{s}");
+        assert!(s.contains("class RowsItem {"), "{s}");
+    }
+
+    #[test]
+    fn dart_untyped_shapes_pass_through_as_dynamic() {
+        let s = gen(&json!([{"v": 1}, {"v": "x"}]), TypegenLang::Dart);
+        assert!(s.contains("final dynamic v;"), "{s}");
+        assert!(s.contains("v: json['v'],"), "no cast for dynamic: {s}");
+        let empty = gen(&json!({"xs": []}), TypegenLang::Dart);
+        assert!(empty.contains("final List<dynamic> xs;"), "{empty}");
+    }
+
+    #[test]
+    fn dart_escapes_reserved_words_and_illegal_keys() {
+        let s = gen(
+            &json!({"class": 1, "_id": "a", "2fa": true, "toJson": 1, "user-name": "n"}),
+            TypegenLang::Dart,
+        );
+        assert!(s.contains("final int class_;"), "reserved word: {s}");
+        assert!(
+            s.contains("class_: json['class'] as int,"),
+            "key kept verbatim: {s}"
+        );
+        assert!(s.contains("final String id_;"), "{s}");
+        assert!(!s.contains("final String _id;"), "{s}");
+        assert!(s.contains("final bool x2fa;"), "leading digit: {s}");
+        assert!(s.contains("final int toJson_;"), "member collision: {s}");
+        assert!(s.contains("final String userName;"), "camelCase: {s}");
+        assert!(s.contains("'user-name': userName,"), "{s}");
+    }
+
+    #[test]
+    fn dart_string_literals_escape_interpolation() {
+        let s = gen(&json!({"a$b": 1, "it's": 2}), TypegenLang::Dart);
+        assert!(s.contains("json['a\\$b']"), "dollar must be escaped: {s}");
+        assert!(s.contains("json['it\\'s']"), "quote must be escaped: {s}");
+    }
+
+    #[test]
+    fn dart_empty_object_and_non_object_root() {
+        let empty = gen(&json!({}), TypegenLang::Dart);
+        assert!(empty.contains("const Root();"), "{empty}");
+        assert!(
+            empty.contains("Map<String, dynamic> toJson() => <String, dynamic>{};"),
+            "{empty}"
+        );
+        let scalars = gen(&json!([1, 2]), TypegenLang::Dart);
+        assert!(scalars.contains("typedef Root = List<int>;"), "{scalars}");
+    }
+
+    #[test]
+    fn dart_array_of_objects_root_emits_item_class() {
+        let s = gen(&json!([{"id": 1}]), TypegenLang::Dart);
+        assert!(s.contains("class RootItem {"), "{s}");
+        assert!(s.contains("typedef Root = List<RootItem>;"), "{s}");
     }
 
     #[test]
