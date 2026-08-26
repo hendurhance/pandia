@@ -245,8 +245,14 @@ fn build_menu(
         .separator()
         .item(&next_tab)
         .item(&prev_tab)
-        .item(&close_tab)
-        .build()?;
+        .item(&close_tab);
+
+    #[cfg(not(target_os = "macos"))]
+    let file_menu = file_menu
+        .separator()
+        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?);
+
+    let file_menu = file_menu.build()?;
 
     let undo = MenuItemBuilder::with_id("undo", "Undo")
         .accelerator("CmdOrCtrl+Z")
@@ -359,8 +365,6 @@ fn build_menu(
         .separator()
         .item(&about)
         .item(&check_for_updates)
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?)
         .build()?;
 
     #[cfg(target_os = "macos")]
