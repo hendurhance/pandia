@@ -1,5 +1,5 @@
-import { docBackup } from '$lib/ipc/doc';
-import type { DocHandle } from '$lib/ipc/types';
+import { ipc } from '$lib/ipc/client';
+import type { DocHandle } from '$lib/ipc/bindings';
 
 export interface BackupFlushDeps {
 	handle: () => DocHandle | null;
@@ -22,7 +22,7 @@ export function createBackupFlusher(deps: BackupFlushDeps) {
 			const ok = await deps.flushCodeBuffer().catch(() => false);
 			if (!ok) return;
 		}
-		void docBackup(h, deps.sourceName()).catch(() => {});
+		void ipc.docBackup(h, deps.sourceName()).catch(() => {});
 	}
 
 	return { flush };

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { docHistory } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, HistoryView } from '$lib/ipc/types';
+	import type { DocHandle, HistoryView } from '$lib/ipc/bindings';
 
 	interface Context {
 		handle: DocHandle;
@@ -30,7 +30,8 @@
 		const key = `${ctx.handle}@${ctx.version}`;
 		if (key === loadedKey) return;
 		loadedKey = key;
-		void docHistory(ctx.handle)
+		void ipc
+			.docHistory(ctx.handle)
 			.then((v) => {
 				if (loadedKey === key) {
 					view = v;

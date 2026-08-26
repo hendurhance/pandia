@@ -8,7 +8,7 @@ use super::types::{DocError, DocResult, Path, PathSegment};
 
 const CANCEL_CHECK_MASK: u32 = 0x0FFF;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum DiffKind {
     Added,
@@ -17,16 +17,13 @@ pub enum DiffKind {
     Moved,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffEntry {
     pub path: Path,
     pub kind: DiffKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub left_preview: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub right_preview: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub from_index: Option<u32>,
 }
 

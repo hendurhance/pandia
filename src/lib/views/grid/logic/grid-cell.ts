@@ -1,19 +1,9 @@
-import type { NodeKind } from '$lib/ipc/types';
-import { isLosslessNumber } from '$lib/util/lossless';
+import type { NodeKind } from '$lib/ipc/bindings';
+import { isLosslessNumber, kindOf } from '$lib/ipc/wire';
 
 export const UNLOADED = Symbol('unloaded');
 
 export const MISSING = Symbol('missing');
-
-export function valueKind(v: unknown): NodeKind {
-	if (v === null) return 'null';
-	if (typeof v === 'boolean') return 'bool';
-	if (typeof v === 'number') return 'number';
-	if (isLosslessNumber(v)) return 'number';
-	if (typeof v === 'string') return 'string';
-	if (Array.isArray(v)) return 'array';
-	return 'object';
-}
 
 export function cellText(v: unknown): string {
 	if (v === null) return '—';
@@ -36,7 +26,7 @@ export function isAlignRight(kind: NodeKind): boolean {
 export function cellClass(v: unknown): string {
 	if (v === UNLOADED) return 'cell unloaded';
 	if (v === MISSING) return 'cell missing';
-	const k = valueKind(v);
+	const k = kindOf(v);
 	const align = isAlignRight(k) ? ' right' : '';
 	return `cell ${k}${align}`;
 }

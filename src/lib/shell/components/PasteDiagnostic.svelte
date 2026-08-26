@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Diagnosis } from '$lib/ipc/types';
+	import type { Diagnosis } from '$lib/ipc/bindings';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { X } from '@lucide/svelte';
 

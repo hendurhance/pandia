@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DocHandle } from '$lib/ipc/types';
+	import type { DocHandle } from '$lib/ipc/bindings';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 	import { dismissable } from '$lib/ui/dismissable';
 

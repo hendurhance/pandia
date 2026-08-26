@@ -1,6 +1,6 @@
 import type { Command } from '$lib/palette/state/command-store.svelte';
 import type { ContentRow } from '$lib/views/tree/logic/model';
-import type { TypegenLang } from '$lib/ipc/types';
+import type { TypegenLang } from '$lib/ipc/bindings';
 import type { DocPaneActions } from './doc-actions';
 
 const TYPEGEN_TARGETS: Array<[TypegenLang, string]> = [

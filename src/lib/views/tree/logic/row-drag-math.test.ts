@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gapAt, siblingSlots } from './row-drag-math';
 import type { ContentRow, PlaceholderRow, CloseRow, Row } from './model';
-import type { NodeKind, Path } from '$lib/ipc/types';
+import type { NodeKind, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, depth: number, key: ContentRow['key'] = 'k'): ContentRow {
 	return {

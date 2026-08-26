@@ -1,15 +1,25 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { parseLossless, isLosslessNumber } from './lossless';
+import {
+	decodeLossless,
+	encodeLossless,
+	asLosslessText,
+	isLosslessNumber,
+	LosslessNumber,
+} from './wire';
 
-describe('parseLossless', () => {
+const t = asLosslessText;
+
+describe('decodeLossless', () => {
 	it('keeps an integer beyond 2^53 lossless', () => {
-		const v = parseLossless('{"id":123456789012345678}') as Record<string, unknown>;
+		const v = decodeLossless(t('{"id":123456789012345678}')) as Record<string, unknown>;
 		expect(isLosslessNumber(v.id)).toBe(true);
 		expect(String(v.id)).toBe('123456789012345678');
 	});
 
 	it('leaves safe numbers as native', () => {
-		const v = parseLossless('{"n":42,"f":1.5,"neg":-7}') as Record<string, number>;
+		const v = decodeLossless(t('{"n":42,"f":1.5,"neg":-7}')) as Record<string, number>;
 		expect(v.n).toBe(42);
 		expect(v.f).toBe(1.5);
 		expect(v.neg).toBe(-7);
@@ -17,20 +27,61 @@ describe('parseLossless', () => {
 	});
 
 	it('uses the native parser when no long digit run is present', () => {
-		expect(parseLossless('[1,2,3]')).toEqual([1, 2, 3]);
-		expect(parseLossless('{"a":"hi"}')).toEqual({ a: 'hi' });
+		expect(decodeLossless(t('[1,2,3]'))).toEqual([1, 2, 3]);
+		expect(decodeLossless(t('{"a":"hi"}'))).toEqual({ a: 'hi' });
 	});
 
 	it('only the unsafe integer is lossless; siblings stay native', () => {
-		const v = parseLossless('{"big":123456789012345678,"small":5}') as Record<string, unknown>;
+		const v = decodeLossless(t('{"big":123456789012345678,"small":5}')) as Record<string, unknown>;
 		expect(isLosslessNumber(v.big)).toBe(true);
 		expect(v.small).toBe(5);
 	});
 });
 
-describe('parseLossless precision (numbers.json categories)', () => {
+describe('encodeLossless', () => {
+	it('writes a LosslessNumber back as its exact token', () => {
+		expect(encodeLossless(new LosslessNumber('123456789012345678'))).toBe('123456789012345678');
+		expect(encodeLossless({ id: new LosslessNumber('1.50') })).toBe('{"id":1.50}');
+	});
+
+	it('encodes plain values as standard JSON', () => {
+		expect(encodeLossless('')).toBe('""');
+		expect(encodeLossless(0)).toBe('0');
+		expect(encodeLossless(false)).toBe('false');
+		expect(encodeLossless(null)).toBe('null');
+		expect(encodeLossless(['a', 1])).toBe('["a",1]');
+	});
+
+	it('round-trips decode → encode without perturbing tokens', () => {
+		const src = t('{"big":12345678901234567890,"x":1.5,"s":"q"}');
+		expect(encodeLossless(decodeLossless(src))).toBe(src);
+	});
+});
+
+describe('decodeLossless against the Rust canonical fixture', () => {
+	// Every number token the Rust renderer is tested with must survive
+	// decode → encode byte-identically, fast path included. (String-escape and
+	// key-order cases are the renderer's concern, not the decoder's.)
+	const JSON_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
+	const fixture = (
+		JSON.parse(
+			readFileSync(join(__dirname, '../../../src-tauri/src/doc/canonical_cases.json'), 'utf8'),
+		) as { name: string; input: string }[]
+	).filter((c) => JSON_NUMBER.test(c.input));
+
+	it('covers a healthy share of the fixture', () => {
+		expect(fixture.length).toBeGreaterThanOrEqual(15);
+	});
+
+	it.each(fixture)('$name: token survives the round trip', ({ input }) => {
+		const wrapped = t(`{"v":${input}}`);
+		expect(encodeLossless(decodeLossless(wrapped))).toBe(wrapped);
+	});
+});
+
+describe('decodeLossless precision (numbers.json categories)', () => {
 	function exact(json: string, key: string, token: string) {
-		const v = parseLossless(json) as Record<string, unknown>;
+		const v = decodeLossless(t(json)) as Record<string, unknown>;
 		expect(isLosslessNumber(v[key]), `${key} should be lossless`).toBe(true);
 		expect(String(v[key])).toBe(token);
 	}
@@ -71,7 +122,7 @@ describe('parseLossless precision (numbers.json categories)', () => {
 	});
 
 	it('-0, -0.0 and 0 stay distinct', () => {
-		const v = parseLossless('{"a":-0,"b":-0.0,"c":0}') as Record<string, unknown>;
+		const v = decodeLossless(t('{"a":-0,"b":-0.0,"c":0}')) as Record<string, unknown>;
 		expect(String(v.a)).toBe('-0');
 		expect(String(v.b)).toBe('-0.0');
 		expect(v.c).toBe(0);
@@ -79,8 +130,10 @@ describe('parseLossless precision (numbers.json categories)', () => {
 	});
 
 	it('tokens whose text round-trips stay native numbers', () => {
-		const v = parseLossless(
-			'{"artifact":0.30000000000000004,"denormal":5e-324,"exp":2.5e-7,"max":9007199254740991,"pow":9007199254740992}',
+		const v = decodeLossless(
+			t(
+				'{"artifact":0.30000000000000004,"denormal":5e-324,"exp":2.5e-7,"max":9007199254740991,"pow":9007199254740992}',
+			),
 		) as Record<string, unknown>;
 		expect(v.artifact).toBe(0.30000000000000004);
 		expect(v.denormal).toBe(5e-324);
@@ -91,7 +144,7 @@ describe('parseLossless precision (numbers.json categories)', () => {
 	});
 
 	it('a lossless token does not perturb adjacent native values', () => {
-		const v = parseLossless('{"big":12345678901234567890,"x":1.5,"y":42}') as Record<
+		const v = decodeLossless(t('{"big":12345678901234567890,"x":1.5,"y":42}')) as Record<
 			string,
 			unknown
 		>;

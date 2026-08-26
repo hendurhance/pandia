@@ -37,6 +37,9 @@ serde-transcode = "1.1"
 blake3 = "1"
 imara-diff = "0.2.0"
 ryu = "1"
+specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json", "uuid"] }
+specta-typescript = "0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [[bin]]
 name = "Pandia"

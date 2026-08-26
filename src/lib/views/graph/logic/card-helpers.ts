@@ -1,4 +1,4 @@
-import type { NodeKind, NodeView, Path } from '$lib/ipc/types';
+import type { NodeKind, NodeView, Path } from '$lib/ipc/bindings';
 import { hexColorOf, isContainerKind, rowKeyLabel, type CardRow, type GraphCard } from './layout';
 
 export const NHUES = 4;

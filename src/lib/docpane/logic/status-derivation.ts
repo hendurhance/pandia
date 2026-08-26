@@ -1,4 +1,4 @@
-import type { NodeKind, Path } from '../../ipc/types';
+import type { NodeKind, Path } from '$lib/ipc/bindings';
 import type { Row } from '../../views/tree/logic/model';
 import type { ValidityStatus } from '../../shell/logic/status';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { docGetSlice } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, NodeView, Path } from '$lib/ipc/types';
+	import type { DocHandle, NodeView, Path } from '$lib/ipc/bindings';
 	import { pathToString } from '$lib/util/path';
 	import { fixedWindow } from '$lib/views/tree/logic/virtualizer';
 	import Icon from '$lib/ui/Icon.svelte';
@@ -64,7 +64,7 @@
 
 	async function fetchRange(path: Path, depth: number, start: number): Promise<ONode[]> {
 		if (!context) return [];
-		const views = await docGetSlice(context.handle, path, start, start + PER_LEVEL);
+		const views = await ipc.docGetSlice(context.handle, path, start, start + PER_LEVEL);
 		return views.map((v) => nodeFromView(v, path, depth));
 	}
 

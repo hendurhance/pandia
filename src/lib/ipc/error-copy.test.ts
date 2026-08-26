@@ -33,9 +33,15 @@ describe('describeError — backend kinds', () => {
 		);
 	});
 
-	it('parse keeps the position detail and drops the technical prefixes', () => {
-		const e = new IpcError('parse', 'parse error: invalid JSON: expected value at line 3 column 7');
+	it('parse uses the structured detail, never re-parsing message prose', () => {
+		const e = new IpcError('parse', 'parse error: expected value at line 3 column 7', {
+			detail: 'expected value at line 3 column 7',
+		});
 		expect(describeError(e)).toBe("This isn't valid JSON: expected value at line 3 column 7.");
+	});
+
+	it('parse without detail still leads with plain language', () => {
+		expect(describeError(new IpcError('parse', 'parse error: x'))).toBe("This isn't valid JSON.");
 	});
 
 	it('notFound tells the user what to do, not which handle is stale', () => {
@@ -45,25 +51,47 @@ describe('describeError — backend kinds', () => {
 		expect(msg).not.toContain('3f8a1c2e');
 	});
 
-	it('invalidPath names the missing location', () => {
-		const e = new IpcError('invalidPath', 'invalid path: $.events[15].timestamp');
+	it('invalidPath renders the structured path, not the message prose', () => {
+		const e = new IpcError('invalidPath', 'invalid path: $.events[15].timestamp', {
+			path: ['events', 15, 'timestamp'],
+		});
 		expect(describeError(e)).toBe(
 			'$.events[15].timestamp no longer exists in this document — it may have been changed or removed by an earlier edit.',
 		);
 	});
 
+	it('invalidPath without a path still reads sanely', () => {
+		expect(describeError(new IpcError('invalidPath', 'invalid path'))).toBe(
+			'That location no longer exists in this document — it may have been changed or removed by an earlier edit.',
+		);
+	});
+
 	it('edit, schema, export, io lead with plain language and keep the detail', () => {
-		expect(describeError(new IpcError('edit', 'edit error: key "foo" already exists'))).toBe(
-			'This edit can\'t be applied: key "foo" already exists.',
-		);
-		expect(describeError(new IpcError('schema', 'schema error: not an object'))).toBe(
-			"This schema can't be used: not an object.",
-		);
-		expect(describeError(new IpcError('export', 'export error: unsupported value'))).toBe(
-			'Export failed: unsupported value.',
-		);
 		expect(
-			describeError(new IpcError('io', 'io error: No such file or directory (os error 2)')),
+			describeError(
+				new IpcError('edit', 'edit error: key "foo" already exists', {
+					detail: 'key "foo" already exists',
+				}),
+			),
+		).toBe('This edit can\'t be applied: key "foo" already exists.');
+		expect(
+			describeError(
+				new IpcError('schema', 'schema error: not an object', { detail: 'not an object' }),
+			),
+		).toBe("This schema can't be used: not an object.");
+		expect(
+			describeError(
+				new IpcError('export', 'export error: unsupported value', {
+					detail: 'unsupported value',
+				}),
+			),
+		).toBe('Export failed: unsupported value.');
+		expect(
+			describeError(
+				new IpcError('io', 'io error: No such file or directory (os error 2)', {
+					detail: 'No such file or directory (os error 2)',
+				}),
+			),
 		).toBe("Couldn't read or write the file: No such file or directory (os error 2).");
 	});
 

@@ -9,14 +9,14 @@ const SNIPPET_BEFORE: usize = 24;
 const SNIPPET_AFTER: usize = 36;
 const PREVIEW_CHAR_CAP: usize = 60;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum MatchField {
     Key,
     Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     pub path: Path,
@@ -25,22 +25,18 @@ pub struct SearchHit {
     pub snippet: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchOptions {
     pub query: String,
     #[serde(default)]
     pub case_sensitive: bool,
     #[serde(default)]
-    pub max_results: u32,
+    pub max_results: Option<u32>,
 }
 
 pub(crate) fn prepare(opts: &SearchOptions) -> Option<(String, usize)> {
-    let cap = if opts.max_results == 0 {
-        DEFAULT_MAX_RESULTS as usize
-    } else {
-        opts.max_results as usize
-    };
+    let cap = opts.max_results.unwrap_or(DEFAULT_MAX_RESULTS) as usize;
     let needle = if opts.case_sensitive {
         opts.query.clone()
     } else {
@@ -231,7 +227,7 @@ mod tests {
         SearchOptions {
             query: q.to_string(),
             case_sensitive: false,
-            max_results: 0,
+            max_results: None,
         }
     }
 
@@ -276,7 +272,7 @@ mod tests {
             &SearchOptions {
                 query: "ada".to_string(),
                 case_sensitive: true,
-                max_results: 0,
+                max_results: None,
             },
             &CancelFlag::never(),
         );
@@ -320,7 +316,7 @@ mod tests {
             &SearchOptions {
                 query: "hello".to_string(),
                 case_sensitive: false,
-                max_results: 10,
+                max_results: Some(10),
             },
             &CancelFlag::never(),
         );

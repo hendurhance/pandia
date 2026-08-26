@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { collectExpandedDescendants } from './tree-walk';
 import type { CloseRow, ContentRow, PlaceholderRow, Row } from './model';
-import type { NodeKind, Path } from '$lib/ipc/types';
+import type { NodeKind, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, depth: number, expanded: boolean): ContentRow {
 	return {

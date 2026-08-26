@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 use std::io::{self, Write};
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExportFormat {
     Json,
@@ -14,7 +14,7 @@ pub enum ExportFormat {
     Xml,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportPreview {
     pub text: String,

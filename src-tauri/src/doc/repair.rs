@@ -30,7 +30,7 @@ fn common_replacements() -> &'static [(Regex, &'static str)] {
     &SET
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepairResult {
     pub success: bool,

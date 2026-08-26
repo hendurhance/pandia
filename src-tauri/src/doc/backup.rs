@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 
 static RECOVERY_OFFERED: AtomicBool = AtomicBool::new(false);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupRecord {
     pub doc_id: String,

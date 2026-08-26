@@ -1,4 +1,4 @@
-import type { LineDiffResult, LineHunk } from '$lib/ipc/types';
+import type { LineDiffResult, LineHunk } from '$lib/ipc/bindings';
 
 export interface DiffRow {
 	type: 'context' | 'add' | 'del';
@@ -77,6 +77,7 @@ export function unifiedRows(diff: LineDiffResult, ctx = 3): UnifiedRow[] {
 	let r = 0;
 	for (let i = 0; i < hunks.length; i++) {
 		const h = hunks[i];
+		if (!h) continue;
 		emitContext(out, l, r, h.leftStart - l, i === 0, false, ctx);
 		for (let k = 0; k < h.leftLen; k++) {
 			out.push({ type: 'del', leftNo: h.leftStart + k + 1, rightNo: null });

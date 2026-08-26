@@ -9,7 +9,7 @@ use crate::doc::document::{
     Summary, EDIT_SIZE_LIMIT,
 };
 use crate::doc::export::{ExportFormat, ExportPreview};
-use crate::doc::grid_filter::GridFilter;
+use crate::doc::grid_filter::{self, FilterOp};
 use crate::doc::linediff::{compute_line_diff, line_slice, LineDiffResult, LINE_FETCH_MAX};
 use crate::doc::ops::Op;
 use crate::doc::repair::{repair as repair_string, RepairResult};
@@ -21,6 +21,7 @@ use crate::doc::typegen::TypegenLang;
 use crate::doc::types::{
     ColumnSchema, DocError, DocHandle, DocResult, ErrorKind, NodeView, Path, WireError,
 };
+use crate::doc::wire::LosslessText;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -36,20 +37,22 @@ where
         Err(join_err) => Err(WireError {
             kind: ErrorKind::Io,
             message: join_err.to_string(),
+            detail: None,
+            path: None,
             actual: None,
             limit: None,
         }),
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum OpenSource {
     File { path: String },
     Text { text: String, name: Option<String> },
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenResult {
     pub handle: DocHandle,
@@ -90,13 +93,6 @@ fn doc_get_value_inner(
     let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
     let doc = arc.read();
     doc.get_value(path)
-}
-
-fn doc_value_json_inner(store: &DocStore, handle: DocHandle, path: &Path) -> DocResult<String> {
-    let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
-    let doc = arc.read();
-    let value = doc.get_value(path)?;
-    serde_json::to_string_pretty(&value).map_err(|e| DocError::Export(e.to_string()))
 }
 
 fn doc_child_count_inner(
@@ -350,6 +346,7 @@ fn doc_generate_types_inner(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_open(
     state: tauri::State<'_, Arc<DocStore>>,
     source: OpenSource,
@@ -359,6 +356,7 @@ pub async fn doc_open(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_close(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -367,6 +365,7 @@ pub async fn doc_close(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_get_slice(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -378,26 +377,22 @@ pub async fn doc_get_slice(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_get_value(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
     path: Path,
-) -> Result<serde_json::Value, WireError> {
+) -> Result<LosslessText, WireError> {
     let store = state.inner().clone();
-    run_blocking(move || doc_get_value_inner(&store, handle, &path)).await
+    run_blocking(move || {
+        let value = doc_get_value_inner(&store, handle, &path)?;
+        Ok(LosslessText::from_value_pretty(&value))
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn doc_value_json(
-    state: tauri::State<'_, Arc<DocStore>>,
-    handle: DocHandle,
-    path: Path,
-) -> Result<String, WireError> {
-    let store = state.inner().clone();
-    run_blocking(move || doc_value_json_inner(&store, handle, &path)).await
-}
-
-#[tauri::command]
+#[specta::specta]
 pub async fn doc_summary(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -406,6 +401,7 @@ pub async fn doc_summary(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_child_count(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -415,6 +411,7 @@ pub async fn doc_child_count(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_diff(
     state: tauri::State<'_, Arc<DocStore>>,
     jobs: tauri::State<'_, std::sync::Arc<crate::doc::jobs::JobRegistry>>,
@@ -442,6 +439,7 @@ pub async fn doc_diff(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_diff_lines(
     state: tauri::State<'_, Arc<DocStore>>,
     jobs: tauri::State<'_, std::sync::Arc<crate::doc::jobs::JobRegistry>>,
@@ -466,6 +464,7 @@ pub async fn doc_diff_lines(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_get_lines(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -476,14 +475,57 @@ pub async fn doc_get_lines(
     run_blocking(move || doc_get_lines_inner(&store, handle, start, end)).await
 }
 
-#[derive(Serialize)]
+#[tauri::command]
+#[specta::specta]
+pub async fn doc_canonical_text(
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+) -> Result<LosslessText, WireError> {
+    let store = state.inner().clone();
+    run_blocking(move || {
+        let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
+        let doc = arc.read();
+        let (text, _) = doc.canonical_lines()?;
+        Ok(LosslessText::from_raw((*text).clone()))
+    })
+    .await
+}
+
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalRange {
+    pub start: u64,
+    pub end: u64,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn doc_canonical_offsets(
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+    paths: Vec<Path>,
+) -> Result<Vec<Option<CanonicalRange>>, WireError> {
+    let store = state.inner().clone();
+    run_blocking(move || {
+        let arc = store.get(handle).ok_or(DocError::NotFound(handle))?;
+        let doc = arc.read();
+        let offsets = doc.canonical_offsets(&paths)?;
+        Ok(offsets
+            .into_iter()
+            .map(|o| o.map(|(start, end)| CanonicalRange { start, end }))
+            .collect())
+    })
+    .await
+}
+
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RowJson {
     index: u32,
-    value: String,
+    value: LosslessText,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FilteredRowsJson {
     total: u32,
@@ -493,30 +535,29 @@ pub struct FilteredRowsJson {
 fn row_to_json(row: SortedRow) -> RowJson {
     RowJson {
         index: row.index,
-        value: serde_json::to_string(&row.value).unwrap_or_else(|_| "null".into()),
+        value: LosslessText::from_value(&row.value),
     }
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_get_rows(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
     path: Path,
     start: u32,
     end: u32,
-) -> Result<Vec<String>, WireError> {
+) -> Result<Vec<LosslessText>, WireError> {
     let store = state.inner().clone();
     run_blocking(move || {
         let values = doc_get_rows_inner(&store, handle, &path, start, end)?;
-        Ok(values
-            .iter()
-            .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "null".into()))
-            .collect::<Vec<_>>())
+        Ok(values.iter().map(LosslessText::from_value).collect())
     })
     .await
 }
 
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn doc_get_rows_sorted(
     state: tauri::State<'_, Arc<DocStore>>,
@@ -536,7 +577,46 @@ pub async fn doc_get_rows_sorted(
     .await
 }
 
+#[derive(Debug, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GridFilter {
+    pub key: String,
+    pub op: FilterOp,
+    #[serde(default)]
+    pub value: Option<LosslessText>,
+}
+
+impl GridFilter {
+    fn into_engine(self) -> DocResult<grid_filter::GridFilter> {
+        Ok(grid_filter::GridFilter {
+            key: self.key,
+            op: self.op,
+            value: self.value.map(|v| v.parse()).transpose()?,
+        })
+    }
+}
+
+fn filters_into_engine(
+    groups: Vec<Vec<GridFilter>>,
+) -> DocResult<Vec<Vec<grid_filter::GridFilter>>> {
+    groups
+        .into_iter()
+        .map(|g| g.into_iter().map(GridFilter::into_engine).collect())
+        .collect()
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GridQuery {
+    pub groups: Vec<Vec<GridFilter>>,
+    pub quick: Option<String>,
+    pub quick_keys: Vec<String>,
+    pub sort_key: Option<String>,
+    pub descending: bool,
+}
+
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn doc_get_rows_filtered(
     state: tauri::State<'_, Arc<DocStore>>,
@@ -545,14 +625,11 @@ pub async fn doc_get_rows_filtered(
     path: Path,
     start: u32,
     end: u32,
-    groups: Vec<Vec<GridFilter>>,
-    quick: Option<String>,
-    quick_keys: Vec<String>,
-    sort_key: Option<String>,
-    descending: bool,
+    query: GridQuery,
     job_id: Option<String>,
 ) -> Result<FilteredRowsJson, WireError> {
     let arc = state.get(handle).ok_or(DocError::NotFound(handle))?;
+    let groups = filters_into_engine(query.groups).map_err(WireError::from)?;
     let (cancel, owned_id) = match job_id {
         Some(id) => {
             let flag = jobs.register(id.clone());
@@ -562,12 +639,12 @@ pub async fn doc_get_rows_filtered(
     };
     let result = run_blocking(move || {
         let doc = arc.read();
-        let sort = sort_key.as_deref().map(|k| (k, descending));
+        let sort = query.sort_key.as_deref().map(|k| (k, query.descending));
         let fr = doc.get_rows_filtered(
             &path,
             &groups,
-            quick.as_deref(),
-            &quick_keys,
+            query.quick.as_deref(),
+            &query.quick_keys,
             sort,
             start..end,
             &cancel,
@@ -585,21 +662,25 @@ pub async fn doc_get_rows_filtered(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_get_rows_at(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
     path: Path,
     indices: Vec<u32>,
-) -> Result<String, WireError> {
+) -> Result<LosslessText, WireError> {
     let store = state.inner().clone();
     run_blocking(move || {
         let values = doc_get_rows_at_inner(&store, handle, &path, indices)?;
-        serde_json::to_string_pretty(&values).map_err(|e| DocError::Export(e.to_string()))
+        Ok(LosslessText::from_value_pretty(&serde_json::Value::Array(
+            values,
+        )))
     })
     .await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_column_values(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -611,6 +692,7 @@ pub async fn doc_column_values(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_column_schema(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -620,6 +702,7 @@ pub async fn doc_column_schema(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_apply_op(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -629,6 +712,7 @@ pub async fn doc_apply_op(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_set_root_text(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -643,8 +727,8 @@ pub async fn doc_set_root_text(
     }
     let store = state.inner().clone();
     run_blocking(move || {
-        let value: serde_json::Value = serde_json::from_str(&text)
-            .map_err(|e| DocError::Parse(format!("invalid JSON: {e}")))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| DocError::Parse(e.to_string()))?;
         doc_apply_op_inner(
             &store,
             handle,
@@ -658,6 +742,7 @@ pub async fn doc_set_root_text(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_undo(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -666,6 +751,7 @@ pub async fn doc_undo(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_redo(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -674,6 +760,7 @@ pub async fn doc_redo(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_search(
     state: tauri::State<'_, Arc<DocStore>>,
     jobs: tauri::State<'_, std::sync::Arc<crate::doc::jobs::JobRegistry>>,
@@ -701,6 +788,7 @@ pub async fn doc_search(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cancel_job(
     jobs: tauri::State<'_, std::sync::Arc<crate::doc::jobs::JobRegistry>>,
     job_id: String,
@@ -709,21 +797,25 @@ pub async fn cancel_job(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_repair_text(text: String) -> Result<RepairResult, WireError> {
     run_blocking(move || Ok(repair_string(&text))).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_detect_and_convert(text: String) -> Result<DetectResult, WireError> {
     run_blocking(move || Ok(detect_and_convert(&text))).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_diagnose(text: String) -> Result<Diagnosis, WireError> {
     run_blocking(move || Ok(diagnose(&text))).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_history(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -732,6 +824,7 @@ pub async fn doc_history(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_save(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -742,6 +835,7 @@ pub async fn doc_save(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_set_file_path(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -751,6 +845,7 @@ pub async fn doc_set_file_path(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_backup(
     app: tauri::AppHandle,
     state: tauri::State<'_, Arc<DocStore>>,
@@ -784,16 +879,19 @@ pub async fn doc_backup(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_backup_clear(app: tauri::AppHandle, doc_id: String) -> Result<(), WireError> {
     backup::clear(&app, &doc_id).map_err(WireError::from)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_backup_scan(app: tauri::AppHandle) -> Result<Vec<BackupRecord>, WireError> {
     backup::scan_once(&app).map_err(WireError::from)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_export(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -804,6 +902,7 @@ pub async fn doc_export(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_export_preview(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -815,6 +914,7 @@ pub async fn doc_export_preview(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_export_to_file(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -826,6 +926,7 @@ pub async fn doc_export_to_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_replace(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -839,6 +940,7 @@ pub async fn doc_replace(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_validate_schema(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -849,6 +951,7 @@ pub async fn doc_validate_schema(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn doc_generate_types(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -960,7 +1063,7 @@ mod tests {
     }
 
     #[test]
-    fn value_json_preserves_big_integers_as_literals() {
+    fn get_value_preserves_big_integers_as_literals() {
         let store = DocStore::new();
         let opened = doc_open_inner(
             &store,
@@ -973,9 +1076,10 @@ mod tests {
         .unwrap();
 
         let path = Path(vec![PathSegment::Key("id".into())]);
-        let json = doc_value_json_inner(&store, opened.handle, &path).unwrap();
-        assert_eq!(json, "123456789012345678");
-        assert!(!json.contains("123456789012345680")); // not rounded through f64
+        let value = doc_get_value_inner(&store, opened.handle, &path).unwrap();
+        let text = LosslessText::from_value_pretty(&value);
+        assert_eq!(text.as_str(), "123456789012345678");
+        assert!(!text.as_str().contains("123456789012345680")); // not rounded through f64
     }
 
     #[test]
@@ -983,7 +1087,7 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str("123456789012345678").unwrap();
         let rj = row_to_json(SortedRow { index: 7, value });
         assert_eq!(rj.index, 7);
-        assert_eq!(rj.value, "123456789012345678"); // raw JSON text, not an f64
+        assert_eq!(rj.value.as_str(), "123456789012345678"); // raw JSON text, not an f64
     }
 
     #[test]

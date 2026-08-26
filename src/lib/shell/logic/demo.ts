@@ -1,14 +1,14 @@
-import type { OpenSource } from '$lib/ipc/types';
+import type { OpenSource } from '$lib/ipc/bindings';
 
 export function buildDemoSource(): OpenSource {
 	const text = JSON.stringify(
 		{
 			app: 'pandia',
-			version: '1.0.0-alpha',
+			version: '1.5.0',
 			features: ['tree', 'code', 'grid', 'graph'],
 			config: {
-				theme: 'terminal-noir',
-				accent: '#D6571F',
+				theme: 'dark-default',
+				accent: '#1B1B1D',
 				mono: 'IBM Plex Mono',
 			},
 			events: Array.from({ length: 25 }, (_, i) => ({

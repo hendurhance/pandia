@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import type { Path } from '$lib/ipc/types';
+	import type { Path } from '$lib/ipc/bindings';
 	import type { ViewportState } from '../logic/viewport';
 
 	export interface GraphCanvasApi {

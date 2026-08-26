@@ -7,7 +7,7 @@ import {
 	type UnifiedRow,
 	type GapRow,
 } from './linediff';
-import type { LineDiffResult, LineHunk } from '$lib/ipc/types';
+import type { LineDiffResult, LineHunk } from '$lib/ipc/bindings';
 
 function hunk(leftStart: number, leftLen: number, rightStart: number, rightLen: number): LineHunk {
 	return { leftStart, leftLen, rightStart, rightLen };

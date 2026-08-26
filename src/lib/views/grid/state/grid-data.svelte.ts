@@ -1,14 +1,8 @@
-import {
-	cancelJob,
-	docGetRows,
-	docGetRowsSorted,
-	docGetRowsFiltered,
-	type GridFilter,
-	type SortedRow,
-	IpcError,
-} from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import type { DocHandle, GridFilter, Path, RowJson } from '$lib/ipc/bindings';
+import { decodeLossless } from '$lib/ipc/wire';
+import { IpcError } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
-import type { DocHandle, Path } from '$lib/ipc/types';
 import { rowWindow } from '../logic/grid-geometry';
 import { UNLOADED, MISSING, cellText } from '../logic/grid-cell';
 
@@ -124,42 +118,40 @@ export class GridDataController {
 		const gen = this.generation;
 		const work = (async () => {
 			try {
+				const decodeRow = (r: RowJson): GridRow => ({
+					index: r.index,
+					value: decodeLossless(r.value),
+				});
 				let rows: GridRow[];
 				let total: number | null = null;
 				if (q.filtering) {
-					const res = await docGetRowsFiltered(
+					const res = await ipc.docGetRowsFiltered(
 						handle,
 						path,
 						start,
 						start + CHUNK,
-						q.filterGroups,
-						q.quick.trim() || null,
-						q.quickKeys,
-						q.sortKey,
-						q.sortDesc,
-						jobId ?? undefined,
+						{
+							groups: q.filterGroups,
+							quick: q.quick.trim() || null,
+							quickKeys: q.quickKeys,
+							sortKey: q.sortKey,
+							descending: q.sortDesc,
+						},
+						jobId,
 					);
 					total = res.total;
-					rows = res.rows;
+					rows = res.rows.map(decodeRow);
 				} else if (q.sortKey) {
 					const end = Math.min(start + CHUNK, this.deps.rowCount());
-					rows = (await docGetRowsSorted(
-						handle,
-						path,
-						start,
-						end,
-						q.sortKey,
-						q.sortDesc,
-					)) as SortedRow[];
+					rows = (await ipc.docGetRowsSorted(handle, path, start, end, q.sortKey, q.sortDesc)).map(
+						decodeRow,
+					);
 				} else {
 					const end = Math.min(start + CHUNK, this.deps.rowCount());
-					const raw = await docGetRows(handle, path, start, end);
-					rows = raw.map((value, k) => ({ index: start + k, value }));
+					const raw = await ipc.docGetRows(handle, path, start, end);
+					rows = raw.map((value, k) => ({ index: start + k, value: decodeLossless(value) }));
 				}
-				// Drop stale responses: if the user retyped the filter or
-				// changed query while this was in flight, the in-flight Rust
-				// cancel flag might have missed (response already sent), so
-				// guard the write here too.
+
 				if (gen !== this.generation) return;
 				if (total !== null) this.filteredTotal = total;
 				const next = new Map(this.chunks);
@@ -210,7 +202,7 @@ export class GridDataController {
 	reset = () => {
 		this.generation += 1;
 		if (this.filterJobId) {
-			void cancelJob(this.filterJobId);
+			void ipc.cancelJob(this.filterJobId);
 			this.filterJobId = null;
 		}
 		this.chunks = new Map();

@@ -1,5 +1,5 @@
 import type { Command } from '$lib/palette/state/command-store.svelte';
-import type { OpenSource } from '$lib/ipc/types';
+import type { OpenSource } from '$lib/ipc/bindings';
 import type { SettingsTab } from '$lib/settings/tabs';
 import { buildDemoSource } from './demo';
 

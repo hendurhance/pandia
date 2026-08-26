@@ -72,8 +72,7 @@
 	{
 		"name": "int-negative-zero",
 		"input": "-0",
-		"expected": "0",
-		"jsExpected": "-0"
+		"expected": "0"
 	},
 	{
 		"name": "float-negative-zero",
@@ -112,13 +111,13 @@
 	},
 	{
 		"name": "string-unicode",
-		"input": "\"héllo wörld — ünïcøde ✓\"",
-		"expected": "\"héllo wörld — ünïcøde ✓\""
+		"input": "\"h\u00e9llo w\u00f6rld \u2014 \u00fcn\u00efc\u00f8de \u2713\"",
+		"expected": "\"h\u00e9llo w\u00f6rld \u2014 \u00fcn\u00efc\u00f8de \u2713\""
 	},
 	{
 		"name": "string-emoji",
-		"input": "\"emoji 😀 and pair \\ud83d\\ude00\"",
-		"expected": "\"emoji 😀 and pair 😀\""
+		"input": "\"emoji \ud83d\ude00 and pair \\ud83d\\ude00\"",
+		"expected": "\"emoji \ud83d\ude00 and pair \ud83d\ude00\""
 	},
 	{
 		"name": "string-escapes",
@@ -133,7 +132,7 @@
 	{
 		"name": "string-line-separators",
 		"input": "\"seps \\u2028 \\u2029\"",
-		"expected": "\"seps    \""
+		"expected": "\"seps \u2028 \u2029\""
 	},
 	{
 		"name": "string-escaped-solidus",
@@ -177,8 +176,8 @@
 	},
 	{
 		"name": "keys-needing-escapes",
-		"input": "{\"key\\nnl\": 1, \"ta\\tb\": 2, \"ключ\": 3}",
-		"expected": "{\n  \"key\\nnl\": 1,\n  \"ta\\tb\": 2,\n  \"ключ\": 3\n}"
+		"input": "{\"key\\nnl\": 1, \"ta\\tb\": 2, \"\u043a\u043b\u044e\u0447\": 3}",
+		"expected": "{\n  \"key\\nnl\": 1,\n  \"ta\\tb\": 2,\n  \"\u043a\u043b\u044e\u0447\": 3\n}"
 	},
 	{
 		"name": "deeply-nested",

@@ -1,4 +1,4 @@
-import { docChildCount, docGetSlice, docSummary } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import {
 	expandGapWindow,
@@ -14,7 +14,7 @@ import {
 	type VirtualGapRow,
 } from '../logic/model';
 import { collectExpandedDescendants } from '../logic/tree-walk';
-import type { DocHandle, OpenResult, Path } from '$lib/ipc/types';
+import type { DocHandle, OpenResult, Path } from '$lib/ipc/bindings';
 
 const CHUNK = 200;
 
@@ -35,7 +35,7 @@ export class TreeRowsController {
 		this.pathIndex.clear();
 		for (let i = 0; i < this.rows.length; i++) {
 			const r = this.rows[i];
-			if (r.variant === 'content') this.pathIndex.set(pathKey(r.path), i);
+			if (r?.variant === 'content') this.pathIndex.set(pathKey(r.path), i);
 		}
 	}
 
@@ -80,7 +80,7 @@ export class TreeRowsController {
 	private async fetchInitialChunk(path: Path, depth: number): Promise<ContentRow[]> {
 		const handle = this.deps.handle();
 		if (!handle) return [];
-		const views = await docGetSlice(handle, path, 0, CHUNK);
+		const views = await ipc.docGetSlice(handle, path, 0, CHUNK);
 		return views.map((v) => viewToRow(v, path, depth));
 	}
 
@@ -98,9 +98,6 @@ export class TreeRowsController {
 			return;
 		}
 
-		// Guard against a second expand of the same node arriving while the first is
-		// still awaiting its slice: without it both calls run insertChildrenWithClose
-		// and the entire subtree is inserted twice.
 		const key = pathKey(row.path);
 		if (this.expanding.has(key)) return;
 		this.expanding.add(key);
@@ -114,7 +111,7 @@ export class TreeRowsController {
 				const handle = this.deps.handle();
 				if (handle) {
 					try {
-						total = await docChildCount(handle, cur.path);
+						total = await ipc.docChildCount(handle, cur.path);
 					} catch {
 						total = null;
 					}
@@ -147,7 +144,7 @@ export class TreeRowsController {
 		}
 		const work = (async () => {
 			this.materializeRange(parentPath, chunkStart, chunkStart + CHUNK);
-			const views = await docGetSlice(handle, parentPath, chunkStart, chunkStart + CHUNK);
+			const views = await ipc.docGetSlice(handle, parentPath, chunkStart, chunkStart + CHUNK);
 			const newRows = views.map((v) => viewToRow(v, parentPath, parentDepth));
 			replacePlaceholders(this.rows, parentPath, chunkStart, newRows);
 			this.scheduleFlush();
@@ -167,7 +164,7 @@ export class TreeRowsController {
 		let changed = false;
 		for (let i = 0; i < this.rows.length; i++) {
 			const r = this.rows[i];
-			if (r.variant !== 'vgap') continue;
+			if (!r || r.variant !== 'vgap') continue;
 			if (pathKey(r.parentPath) !== parentKey) continue;
 			if (r.toIndex <= fromIdx || r.fromIndex >= toIdx) continue;
 			const inserted = expandGapWindow(this.rows, i, fromIdx, toIdx);
@@ -216,7 +213,7 @@ export class TreeRowsController {
 		const seen = new Set<string>();
 		for (let i = start; i < end && i < this.rows.length; i++) {
 			const r = this.rows[i];
-			if (r.variant !== 'placeholder') continue;
+			if (!r || r.variant !== 'placeholder') continue;
 			const chunkStart = Math.floor(r.index / CHUNK) * CHUNK;
 			const key = this.chunkKey(r.parentPath, chunkStart);
 			if (seen.has(key)) continue;
@@ -230,7 +227,7 @@ export class TreeRowsController {
 		const pIdx = this.contentRowIdx(parentPath);
 		if (pIdx < 0) return;
 		const parentRow = this.rows[pIdx];
-		if (parentRow.variant !== 'content') return;
+		if (!parentRow || parentRow.variant !== 'content') return;
 		const parentDepth = parentRow.depth;
 		const lastSeg = prefix[prefix.length - 1];
 
@@ -258,7 +255,7 @@ export class TreeRowsController {
 			if (idx < 0) return; // couldn't locate this level — give up
 			if (depth < target.length) {
 				const row = this.rows[idx];
-				if (row.variant === 'content' && !row.expanded && isExpandable(row)) {
+				if (row?.variant === 'content' && !row.expanded && isExpandable(row)) {
 					await this.toggleAt(idx);
 				}
 			}
@@ -277,7 +274,7 @@ export class TreeRowsController {
 		if (idx < 0) return; // not visible — fresh data lands when user expands
 
 		const row = this.rows[idx];
-		if (row.variant !== 'content') return;
+		if (!row || row.variant !== 'content') return;
 
 		const refreshed = await this.fetchUpdatedRow(row);
 		if (refreshed === null) return;
@@ -304,7 +301,7 @@ export class TreeRowsController {
 			const idx = this.contentRowIdx(path);
 			if (idx < 0) continue;
 			const r = this.rows[idx];
-			if (r.variant === 'content' && isExpandable(r) && !r.expanded) {
+			if (r?.variant === 'content' && isExpandable(r) && !r.expanded) {
 				await this.toggleAt(idx);
 			}
 		}
@@ -315,12 +312,12 @@ export class TreeRowsController {
 		if (!handle) return null;
 		try {
 			if (row.path.length === 0) {
-				const sum = await docSummary(handle);
+				const sum = await ipc.docSummary(handle);
 				return rootRow(sum.rootKind, sum.rootChildCount);
 			}
 			const parentPath = row.path.slice(0, -1);
 			const lastSeg = row.path[row.path.length - 1];
-			const parentSlice = await docGetSlice(handle, parentPath, 0, CHUNK);
+			const parentSlice = await ipc.docGetSlice(handle, parentPath, 0, CHUNK);
 			const newView = parentSlice.find(
 				(nv) => typeof nv.key === typeof lastSeg && nv.key === lastSeg,
 			);

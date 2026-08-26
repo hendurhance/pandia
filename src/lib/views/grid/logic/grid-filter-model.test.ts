@@ -5,10 +5,10 @@ import {
 	compileFilters,
 	compileGroups,
 	valLabel,
-	colValueLabel,
 	chipSummary,
 	type ColFilter,
 } from './grid-filter-model';
+import { LosslessNumber } from '$lib/ipc/wire';
 
 describe('sameVal', () => {
 	it('compares primitives and small structures structurally', () => {
@@ -34,34 +34,45 @@ describe('colActive', () => {
 describe('compileFilters', () => {
 	const compile = (key: string, c: ColFilter) => compileFilters(new Map([[key, c]]));
 
-	it('maps is/isNot value checklists to in/notIn', () => {
+	it('maps is/isNot value checklists to in/notIn as lossless JSON arrays', () => {
 		expect(compile('a', { op: 'is', values: [1, 2] })).toEqual([
-			{ key: 'a', op: 'in', value: [1, 2] },
+			{ key: 'a', op: 'in', value: '[1,2]' },
 		]);
 		expect(compile('a', { op: 'isNot', values: [1] })).toEqual([
-			{ key: 'a', op: 'notIn', value: [1] },
+			{ key: 'a', op: 'notIn', value: '[1]' },
+		]);
+		expect(compile('a', { op: 'is', values: [new LosslessNumber('123456789012345678')] })).toEqual([
+			{ key: 'a', op: 'in', value: '[123456789012345678]' },
 		]);
 	});
 
-	it('maps is/isNot text to eq/ne and trims', () => {
-		expect(compile('a', { op: 'is', text: ' hi ' })).toEqual([{ key: 'a', op: 'eq', value: 'hi' }]);
-		expect(compile('a', { op: 'isNot', text: 'x' })).toEqual([{ key: 'a', op: 'ne', value: 'x' }]);
+	it('maps is/isNot text to eq/ne and trims, quoting as JSON', () => {
+		expect(compile('a', { op: 'is', text: ' hi ' })).toEqual([
+			{ key: 'a', op: 'eq', value: '"hi"' },
+		]);
+		expect(compile('a', { op: 'isNot', text: 'x' })).toEqual([
+			{ key: 'a', op: 'ne', value: '"x"' },
+		]);
 	});
 
 	it('maps contains / startsWith', () => {
 		expect(compile('a', { op: 'contains', text: 'x' })).toEqual([
-			{ key: 'a', op: 'contains', value: 'x' },
+			{ key: 'a', op: 'contains', value: '"x"' },
 		]);
 		expect(compile('a', { op: 'startsWith', text: 'x' })).toEqual([
-			{ key: 'a', op: 'startsWith', value: 'x' },
+			{ key: 'a', op: 'startsWith', value: '"x"' },
 		]);
 	});
 
-	it('maps numeric range to gte/lte (coerced to numbers) and presence to isEmpty/isNotEmpty', () => {
+	it('maps numeric range to gte/lte as exact tokens and presence to isEmpty/isNotEmpty', () => {
 		expect(compile('a', { min: '5', max: '10' })).toEqual([
-			{ key: 'a', op: 'gte', value: 5 },
-			{ key: 'a', op: 'lte', value: 10 },
+			{ key: 'a', op: 'gte', value: '5' },
+			{ key: 'a', op: 'lte', value: '10' },
 		]);
+		expect(compile('a', { min: '1075283027435454464' })).toEqual([
+			{ key: 'a', op: 'gte', value: '1075283027435454464' },
+		]);
+		expect(compile('a', { min: 'abc' })).toEqual([{ key: 'a', op: 'gte', value: 'null' }]);
 		expect(compile('a', { presence: 'empty' })).toEqual([{ key: 'a', op: 'isEmpty' }]);
 		expect(compile('a', { presence: 'notEmpty' })).toEqual([{ key: 'a', op: 'isNotEmpty' }]);
 	});
@@ -77,15 +88,15 @@ describe('compileGroups', () => {
 	it('compiles each group to an AND-list and ORs them (DNF)', () => {
 		const groups = [grp('role', { op: 'is', text: 'admin' }), grp('signup', { max: '2023' })];
 		expect(compileGroups(groups)).toEqual([
-			[{ key: 'role', op: 'eq', value: 'admin' }],
-			[{ key: 'signup', op: 'lte', value: 2023 }],
+			[{ key: 'role', op: 'eq', value: '"admin"' }],
+			[{ key: 'signup', op: 'lte', value: '2023' }],
 		]);
 	});
 
 	it('drops empty groups, so an all-empty list yields no structured filter', () => {
 		expect(compileGroups([new Map(), new Map()])).toEqual([]);
 		expect(compileGroups([grp('a', { op: 'is', text: 'x' }), new Map()])).toEqual([
-			[{ key: 'a', op: 'eq', value: 'x' }],
+			[{ key: 'a', op: 'eq', value: '"x"' }],
 		]);
 	});
 });
@@ -102,17 +113,10 @@ describe('valLabel', () => {
 	});
 });
 
-describe('colValueLabel', () => {
-	it('prefers the backend lossless label so big integers read correctly', () => {
-		// `value` is the f64-rounded number that crossed IPC; `label` is the literal.
-		expect(colValueLabel({ value: 123456789012345680, label: '123456789012345678' })).toBe(
-			'123456789012345678',
-		);
-	});
-	it('falls back to valLabel when there is no numeric label', () => {
-		expect(colValueLabel({ value: 'hi' })).toBe('hi');
-		expect(colValueLabel({ value: null, label: null })).toBe('(empty)');
-		expect(colValueLabel({ value: 42 })).toBe('42');
+describe('valLabel on lossless numbers', () => {
+	it('shows the exact token for a big integer, not {…}', () => {
+		expect(valLabel(new LosslessNumber('123456789012345678'))).toBe('123456789012345678');
+		expect(valLabel(new LosslessNumber('1.50'))).toBe('1.50');
 	});
 });
 

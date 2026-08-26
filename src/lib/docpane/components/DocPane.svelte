@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-	import { docColumnSchema } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import type {
 		ColumnSchema,
@@ -10,7 +10,7 @@
 		OpenSource,
 		Path,
 		TypegenLang,
-	} from '$lib/ipc/types';
+	} from '$lib/ipc/bindings';
 	import type { MenuAction } from '$lib/views/tree/logic/model';
 	import TreeView from '$lib/views/tree/components/TreeView.svelte';
 	import Breadcrumb from '$lib/views/tree/components/Breadcrumb.svelte';
@@ -510,7 +510,8 @@
 		if (!rootIsNonEmptyArray && viewMode !== 'grid') return;
 		gridLoadingFor = v;
 		const h = session.handle;
-		void docColumnSchema(h, [])
+		void ipc
+			.docColumnSchema(h, [])
 			.then((s) => {
 				if (session.handle === h && session.summary?.version === v) gridSchema = s;
 			})

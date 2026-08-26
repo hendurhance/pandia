@@ -1,6 +1,7 @@
-import { docGetValue, IpcError } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import { IpcError } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
-import type { DocHandle, Path } from '$lib/ipc/types';
+import type { DocHandle, Path } from '$lib/ipc/bindings';
 import { parsePath, pathToString } from '$lib/util/path';
 import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { PromptController } from '$lib/ui/prompt.svelte';
@@ -31,7 +32,7 @@ export class DocNavController {
 
 	selectRow = (index: number) => {
 		const row = this.deps.tree.rows[index];
-		if (row.variant !== 'content') return;
+		if (!row || row.variant !== 'content') return;
 		this.selectedPath = row.path;
 		this.deps.setError(null);
 	};
@@ -71,7 +72,7 @@ export class DocNavController {
 		}
 		if (parsed.path.length > 0) {
 			try {
-				await docGetValue(handle, parsed.path); // throws InvalidPath if absent
+				await ipc.docGetValue(handle, parsed.path); // throws InvalidPath if absent
 			} catch (e) {
 				this.deps.setError(
 					e instanceof IpcError && e.kind === 'invalidPath'

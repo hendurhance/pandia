@@ -23,7 +23,12 @@
 	function splitKeys(binding: string): string[] {
 		const keys: string[] = [];
 		let i = 0;
-		while (i < binding.length && MODIFIERS.has(binding[i])) keys.push(binding[i++]);
+		while (i < binding.length) {
+			const ch = binding[i];
+			if (!ch || !MODIFIERS.has(ch)) break;
+			keys.push(ch);
+			i++;
+		}
 		if (i < binding.length) keys.push(binding.slice(i));
 		return keys;
 	}

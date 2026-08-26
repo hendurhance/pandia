@@ -26,5 +26,5 @@ const URL_RE = /^"(https?:\/\/[^\s"]+)"$/;
 
 export function detectUrl(preview: string): string | null {
 	const m = URL_RE.exec(preview);
-	return m ? m[1] : null;
+	return m ? (m[1] ?? null) : null;
 }

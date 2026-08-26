@@ -26,7 +26,7 @@
 		restoreScrollTop,
 		visibleWindow,
 	} from '../logic/virtualizer';
-	import type { DiffKind, Path } from '$lib/ipc/types';
+	import type { DiffKind, Path } from '$lib/ipc/bindings';
 	import InlineCellEditor from './InlineCellEditor.svelte';
 	import { fmtKbd } from '$lib/util/platform';
 
@@ -102,12 +102,13 @@
 
 	function heightAt(i: number): number {
 		const r = rows[i];
+		if (!r) return DEFAULT_ROW_H;
 		if (r.variant === 'vgap') return vgapCount(r) * DEFAULT_ROW_H;
 		return tallHeights.get(rowKey(r)) ?? DEFAULT_ROW_H;
 	}
 
 	const hasVGaps = $derived.by(() => {
-		for (let i = 0; i < rows.length; i++) if (rows[i].variant === 'vgap') return true;
+		for (let i = 0; i < rows.length; i++) if (rows[i]?.variant === 'vgap') return true;
 		return false;
 	});
 
@@ -159,9 +160,10 @@
 		const GAP_OVERSCAN_ROWS = 32;
 		for (let i = startIndex; i < endIndex && i < rows.length; i++) {
 			const r = rows[i];
-			if (r.variant !== 'vgap') continue;
+			if (!r || r.variant !== 'vgap') continue;
 			const gapTop = offsets[i];
 			const gapBottom = offsets[i + 1];
+			if (gapTop === undefined || gapBottom === undefined) continue;
 			if (gapBottom <= top || gapTop >= bottom) continue; // not intersecting
 			const overlapTop = Math.max(0, top - gapTop);
 			const overlapBottom = Math.min(gapBottom - gapTop, bottom - gapTop);
@@ -226,7 +228,9 @@
 				if (!Number.isInteger(ri) || ri < 0 || ri >= rows.length) continue;
 				const h = el.offsetHeight;
 				if (h <= 0) continue;
-				const key = rowKey(rows[ri]);
+				const row = rows[ri];
+				if (!row) continue;
+				const key = rowKey(row);
 				if (h > DEFAULT_ROW_H + 1) {
 					if (tallHeights.get(key) !== h) {
 						tallHeights.set(key, h);
@@ -247,10 +251,12 @@
 		untrack(() => {
 			const a = anchor;
 			if (!a || rows.length === 0) return;
-			let idx = a.index < rows.length && rowKey(rows[a.index]) === a.key ? a.index : -1;
+			const anchorRow = rows[a.index];
+			let idx = anchorRow && rowKey(anchorRow) === a.key ? a.index : -1;
 			if (idx < 0) {
 				for (let i = 0; i < rows.length; i++) {
-					if (rowKey(rows[i]) === a.key) {
+					const r = rows[i];
+					if (r && rowKey(r) === a.key) {
 						idx = i;
 						break;
 					}
@@ -268,7 +274,8 @@
 		const top = scrollTop;
 		untrack(() => {
 			const a = captureScrollAnchor(offs, rows.length, top);
-			anchor = a ? { key: rowKey(rows[a.index]), index: a.index, delta: a.delta } : null;
+			const anchorRow = a ? rows[a.index] : undefined;
+			anchor = a && anchorRow ? { key: rowKey(anchorRow), index: a.index, delta: a.delta } : null;
 		});
 	});
 

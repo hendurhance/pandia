@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 #[serde(transparent)]
 pub struct DocHandle(pub uuid::Uuid);
 
@@ -23,14 +23,14 @@ impl fmt::Display for DocHandle {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 #[serde(untagged)]
 pub enum PathSegment {
     Key(String),
     Index(u32),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 #[serde(transparent)]
 pub struct Path(pub Vec<PathSegment>);
 
@@ -72,7 +72,7 @@ fn json_quote(s: &str) -> String {
     serde_json::to_string(s).expect("string serialization is infallible")
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeKind {
     Object,
@@ -83,7 +83,7 @@ pub enum NodeKind {
     Null,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeView {
     pub key: PathSegment,
@@ -103,18 +103,17 @@ pub(crate) fn quote_preview(s: &str) -> String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnSchema {
     pub grid_suitable: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<GridUnsuitableReason>,
     pub row_count: u32,
     pub sampled: u32,
     pub columns: Vec<Column>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum GridUnsuitableReason {
     NotArray,
@@ -123,7 +122,7 @@ pub enum GridUnsuitableReason {
     TooDivergent,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Column {
     pub key: String,
@@ -168,18 +167,18 @@ pub enum DocError {
 
 pub type DocResult<T> = Result<T, DocError>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WireError {
     pub kind: ErrorKind,
     pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub path: Option<Path>,
     pub actual: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ErrorKind {
     NotFound,
@@ -196,27 +195,31 @@ pub enum ErrorKind {
 
 impl From<DocError> for WireError {
     fn from(e: DocError) -> Self {
-        let (kind, actual, limit) = match &e {
-            DocError::NotFound(_) => (ErrorKind::NotFound, None, None),
-            DocError::InvalidPath(_) => (ErrorKind::InvalidPath, None, None),
+        let (kind, detail, path, actual, limit) = match &e {
+            DocError::NotFound(_) => (ErrorKind::NotFound, None, None, None, None),
+            DocError::InvalidPath(p) => (ErrorKind::InvalidPath, None, Some(p.clone()), None, None),
             DocError::TooLarge { actual, limit } => {
-                (ErrorKind::TooLarge, Some(*actual), Some(*limit))
+                (ErrorKind::TooLarge, None, None, Some(*actual), Some(*limit))
             }
             DocError::RangeTooLarge { lines, limit } => (
                 ErrorKind::RangeTooLarge,
+                None,
+                None,
                 Some(u64::from(*lines)),
                 Some(u64::from(*limit)),
             ),
-            DocError::Parse(_) => (ErrorKind::Parse, None, None),
-            DocError::Edit(_) => (ErrorKind::Edit, None, None),
-            DocError::Schema(_) => (ErrorKind::Schema, None, None),
-            DocError::Export(_) => (ErrorKind::Export, None, None),
-            DocError::Io(_) => (ErrorKind::Io, None, None),
-            DocError::Cancelled => (ErrorKind::Cancelled, None, None),
+            DocError::Parse(s) => (ErrorKind::Parse, Some(s.clone()), None, None, None),
+            DocError::Edit(s) => (ErrorKind::Edit, Some(s.clone()), None, None, None),
+            DocError::Schema(s) => (ErrorKind::Schema, Some(s.clone()), None, None, None),
+            DocError::Export(s) => (ErrorKind::Export, Some(s.clone()), None, None, None),
+            DocError::Io(err) => (ErrorKind::Io, Some(err.to_string()), None, None, None),
+            DocError::Cancelled => (ErrorKind::Cancelled, None, None, None, None),
         };
         WireError {
             kind,
             message: e.to_string(),
+            detail,
+            path,
             actual,
             limit,
         }
@@ -353,12 +356,35 @@ mod tests {
     }
 
     #[test]
-    fn wire_error_without_sizes_omits_the_fields() {
+    fn wire_error_without_sizes_serializes_them_as_null() {
         let wire = WireError::from(DocError::Parse("expected value".into()));
         let json = serde_json::to_string(&wire).unwrap();
-        assert!(!json.contains("actual"));
-        assert!(!json.contains("limit"));
-        assert_eq!(roundtrip(&wire).message, wire.message);
+        assert!(json.contains("\"actual\":null"));
+        assert!(json.contains("\"limit\":null"));
+        assert!(json.contains("\"message\":\"parse error: expected value\""));
+    }
+
+    #[test]
+    fn wire_error_carries_unprefixed_detail() {
+        let wire = WireError::from(DocError::Parse("expected value at line 3".into()));
+        assert_eq!(wire.detail.as_deref(), Some("expected value at line 3"));
+        assert_eq!(wire.message, "parse error: expected value at line 3");
+
+        let edit = WireError::from(DocError::Edit("key exists".into()));
+        assert_eq!(edit.detail.as_deref(), Some("key exists"));
+    }
+
+    #[test]
+    fn wire_error_invalid_path_carries_structured_path() {
+        let p = Path(vec![
+            PathSegment::Key("events".into()),
+            PathSegment::Index(3),
+        ]);
+        let wire = WireError::from(DocError::InvalidPath(p.clone()));
+        assert_eq!(wire.path, Some(p));
+        assert!(wire.detail.is_none());
+        let json = serde_json::to_string(&wire).unwrap();
+        assert!(json.contains("\"path\":[\"events\",3]"));
     }
 
     #[test]

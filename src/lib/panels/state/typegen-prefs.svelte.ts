@@ -1,4 +1,4 @@
-import type { TypegenLang } from '$lib/ipc/types';
+import type { TypegenLang } from '$lib/ipc/bindings';
 import { loadPersisted, savePersisted, TYPEGEN_FILE } from '$lib/util/persist';
 import { PersistedStore } from '$lib/util/persisted-store.svelte';
 import { oneOf } from '$lib/util/guards';

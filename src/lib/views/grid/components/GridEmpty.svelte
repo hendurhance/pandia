@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColumnSchema, NodeKind } from '$lib/ipc/types';
+	import type { ColumnSchema, NodeKind } from '$lib/ipc/bindings';
 
 	interface Props {
 		schema: ColumnSchema;

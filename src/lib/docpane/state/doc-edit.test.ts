@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { valueCommitOp, DocEditController } from './doc-edit.svelte';
-import { docGetValue } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import { asLosslessText } from '$lib/ipc/wire';
 import type { ContentRow, Row } from '$lib/views/tree/logic/model';
-import type { Op } from '$lib/ipc/types';
+import type { Op } from '$lib/ipc/bindings';
 
-vi.mock('$lib/ipc/doc', () => ({ docGetValue: vi.fn() }));
+vi.mock('$lib/ipc/client', () => ({ ipc: { docGetValue: vi.fn() } }));
 
 const PI = '3.14159265358979323846264338327950288419716939937510582097494';
 
@@ -34,9 +35,9 @@ describe('valueCommitOp', () => {
 		});
 	});
 
-	it('string edits keep the plain setValue op', () => {
+	it('string edits travel as JSON-quoted text', () => {
 		expect(valueCommitOp('string', ['a'], '"x"', 'hello')).toEqual({
-			op: { kind: 'setValue', path: ['a'], value: 'hello' },
+			op: { kind: 'setValueText', path: ['a'], text: '"hello"' },
 		});
 	});
 });
@@ -76,11 +77,11 @@ describe('DocEditController truncated-string open', () => {
 	}
 
 	beforeEach(() => {
-		vi.mocked(docGetValue).mockReset();
+		vi.mocked(ipc.docGetValue).mockReset();
 	});
 
 	it('a failed full-value fetch refuses to open and never commits a shorter value', async () => {
-		vi.mocked(docGetValue).mockRejectedValue(new Error('ipc down'));
+		vi.mocked(ipc.docGetValue).mockRejectedValue(new Error('ipc down'));
 		const { ctrl, applied, errors } = setup(TRUNCATED_PREVIEW);
 
 		await ctrl.startValue(0);
@@ -92,27 +93,28 @@ describe('DocEditController truncated-string open', () => {
 	});
 
 	it('a successful fetch seeds the editor with the full value, not the preview', async () => {
-		vi.mocked(docGetValue).mockResolvedValue(FULL);
+		// The wire carries the value as its exact JSON text; the controller decodes.
+		vi.mocked(ipc.docGetValue).mockResolvedValue(asLosslessText(JSON.stringify(FULL)));
 		const { ctrl, applied } = setup(TRUNCATED_PREVIEW);
 
 		await ctrl.startValue(0);
 		expect(ctrl.state?.buffer).toBe(FULL);
 
 		await ctrl.commit();
-		expect(applied).toEqual([{ kind: 'setValue', path: ['a'], value: FULL }]);
+		expect(applied).toEqual([{ kind: 'setValueText', path: ['a'], text: JSON.stringify(FULL) }]);
 	});
 
 	it('no handle means no editor for a truncated preview', async () => {
 		const { ctrl } = setup(TRUNCATED_PREVIEW, null);
 		await ctrl.startValue(0);
 		expect(ctrl.state).toBeNull();
-		expect(vi.mocked(docGetValue)).not.toHaveBeenCalled();
+		expect(vi.mocked(ipc.docGetValue)).not.toHaveBeenCalled();
 	});
 
 	it('a short string opens straight from the preview without fetching', async () => {
 		const { ctrl } = setup('"hello"');
 		await ctrl.startValue(0);
 		expect(ctrl.state?.buffer).toBe('hello');
-		expect(vi.mocked(docGetValue)).not.toHaveBeenCalled();
+		expect(vi.mocked(ipc.docGetValue)).not.toHaveBeenCalled();
 	});
 });

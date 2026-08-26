@@ -17,6 +17,7 @@ export function tokenizeJsonLine(line: string): Token[] {
 
 	while (i < n) {
 		const c = line[i];
+		if (c === undefined) break;
 		if (c === '"') {
 			flushText(i);
 			let j = i + 1;
@@ -41,7 +42,7 @@ export function tokenizeJsonLine(line: string): Token[] {
 		}
 		if (
 			(c >= '0' && c <= '9') ||
-			(c === '-' && i + 1 < n && line[i + 1] >= '0' && line[i + 1] <= '9')
+			(c === '-' && i + 1 < n && (line[i + 1] ?? '') >= '0' && (line[i + 1] ?? '') <= '9')
 		) {
 			const m = line.slice(i).match(/^-?\d+(\.\d+)?([eE][+-]?\d+)?/);
 			if (m) {

@@ -17,7 +17,7 @@ export function buildOffsets(
 	if (fastPath) {
 		for (let i = 0; i < rowCount; i++) b[i + 1] = (i + 1) * defaultH;
 	} else {
-		for (let i = 0; i < rowCount; i++) b[i + 1] = b[i] + heightAt(i);
+		for (let i = 0; i < rowCount; i++) b[i + 1] = (b[i] ?? 0) + heightAt(i);
 	}
 	return { view: b.subarray(0, rowCount + 1), buf: b };
 }
@@ -27,7 +27,7 @@ export function indexAtOffset(offsets: ArrayLike<number>, rowCount: number, y: n
 	let hi = rowCount;
 	while (lo < hi) {
 		const mid = (lo + hi) >> 1;
-		if (offsets[mid + 1] <= y) lo = mid + 1;
+		if ((offsets[mid + 1] ?? Infinity) <= y) lo = mid + 1;
 		else hi = mid;
 	}
 	return lo;
@@ -43,7 +43,7 @@ export function visibleWindow(
 	const start = Math.max(0, indexAtOffset(offsets, rowCount, scrollTop) - overscan);
 	const limit = scrollTop + viewportHeight;
 	let i = start;
-	while (i < rowCount && offsets[i] < limit) i++;
+	while (i < rowCount && (offsets[i] ?? Infinity) < limit) i++;
 	return { start, end: Math.min(rowCount, i + overscan) };
 }
 
@@ -59,13 +59,13 @@ export function captureScrollAnchor(
 ): ScrollAnchor | null {
 	if (rowCount <= 0) return null;
 	let i = indexAtOffset(offsets, rowCount, scrollTop);
-	if (i < rowCount - 1 && offsets[i] < scrollTop) i += 1;
+	if (i < rowCount - 1 && (offsets[i] ?? Infinity) < scrollTop) i += 1;
 	if (i > rowCount - 1) i = rowCount - 1;
-	return { index: i, delta: offsets[i] - scrollTop };
+	return { index: i, delta: (offsets[i] ?? 0) - scrollTop };
 }
 
 export function restoreScrollTop(offsets: ArrayLike<number>, index: number, delta: number): number {
-	return Math.max(0, offsets[index] - delta);
+	return Math.max(0, (offsets[index] ?? 0) - delta);
 }
 
 export function fixedWindow(

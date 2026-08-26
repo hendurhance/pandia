@@ -132,11 +132,12 @@ class AppearancePrefs extends PersistedStore {
 	}
 
 	async setTheme(id: string): Promise<void> {
-		if (!(id in THEMES)) return;
+		const theme = THEMES[id];
+		if (!theme) return;
 		if (!this.autoMode && this.themeId === id) return;
 		this.autoMode = false;
 		this.themeId = id;
-		applyTheme(THEMES[id]);
+		applyTheme(theme);
 		await this.persist();
 	}
 

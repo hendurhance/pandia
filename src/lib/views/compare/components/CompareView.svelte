@@ -3,9 +3,9 @@
 	import InlineDiffView from './InlineDiffView.svelte';
 	import CompareTree from './CompareTree.svelte';
 	import { highlightsForSide } from '$lib/views/code/logic/highlights';
-	import { docDiff } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DiffEntry, DiffKind, DocHandle, Path } from '$lib/ipc/types';
+	import type { DiffEntry, DiffKind, DocHandle, Path } from '$lib/ipc/bindings';
 	import { pathToString, truncatePathMiddle } from '$lib/util/path';
 	import { pathKey } from '$lib/views/tree/logic/model';
 	import { createSyncScrollPair } from '$lib/ui/sync-scroll';
@@ -80,7 +80,8 @@
 		entries = [];
 		activeIndex = -1;
 		activeHunk = 0;
-		void docDiff(l, r)
+		void ipc
+			.docDiff(l, r, null)
 			.then((es) => {
 				if (leftHandle === l && rightHandle === r) {
 					entries = es;
@@ -113,12 +114,12 @@
 	}
 
 	function leftPathOf(e: DiffEntry): Path {
-		if (e.kind !== 'moved' || e.fromIndex === undefined) return e.path;
+		if (e.kind !== 'moved' || e.fromIndex == null) return e.path;
 		return [...e.path.slice(0, -1), e.fromIndex];
 	}
 
 	function entryPathDisplay(e: DiffEntry): string {
-		if (e.kind !== 'moved' || e.fromIndex === undefined) return pathToString(e.path);
+		if (e.kind !== 'moved' || e.fromIndex == null) return pathToString(e.path);
 		const parent = e.path.slice(0, -1);
 		const parentStr = parent.length === 0 ? '$' : pathToString(parent);
 		const toIdx = e.path[e.path.length - 1];
@@ -167,7 +168,7 @@
 		return m;
 	});
 	const activePath = $derived<Path | null>(
-		activeIndex >= 0 && activeIndex < entries.length ? entries[activeIndex].path : null,
+		activeIndex >= 0 && activeIndex < entries.length ? (entries[activeIndex]?.path ?? null) : null,
 	);
 
 	let chPx = $state(0);
@@ -275,6 +276,7 @@
 			</div>
 			<InlineDiffView {leftHandle} {rightHandle} {activeHunk} onMeta={onInlineMeta} />
 		{:else if mode === 'tree'}
+			{@const activeEntry = activeIndex >= 0 ? entries[activeIndex] : undefined}
 			<div class="split">
 				<div class="pane">
 					<div class="pane-head rule-b" bind:clientWidth={headW}>
@@ -285,7 +287,7 @@
 					<CompareTree
 						handle={leftHandle}
 						diff={leftDiff}
-						activePath={activeIndex >= 0 ? leftPathOf(entries[activeIndex]) : null}
+						activePath={activeEntry ? leftPathOf(activeEntry) : null}
 						onScrollerReady={(el) => sync.bind('left', el)}
 					/>
 				</div>

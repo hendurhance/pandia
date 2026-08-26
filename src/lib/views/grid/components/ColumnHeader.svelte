@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Column } from '$lib/ipc/types';
+	import type { Column } from '$lib/ipc/bindings';
 	import { resizable } from '$lib/ui/resizable';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ArrowDown, ArrowUp, CircleSlash, Filter, Shuffle } from '@lucide/svelte';
@@ -59,7 +59,7 @@
 	role="button"
 	tabindex="0"
 	style="left: {left}px; width: {width}px;"
-	title={`${col.key} · ${col.dominantKind}${col.kinds.length > 1 ? ' (mixed)' : ''} · ${(col.presence * 100).toFixed(0)}% — click to sort · drag to reorder · drag edge to resize`}
+	title={`${col.key} · ${col.dominantKind}${col.kinds.length > 1 ? ' (mixed)' : ''} · ${((col.presence ?? 0) * 100).toFixed(0)}% — click to sort · drag to reorder · drag edge to resize`}
 	onclick={onClick}
 	onpointerdown={onPointerDown}
 	onpointermove={onPointerMove}

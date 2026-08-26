@@ -1,5 +1,6 @@
 import { IpcError } from './error';
 import { fmtBytes } from '$lib/util/format';
+import { pathToString } from '$lib/util/path';
 
 const FALLBACK = 'Something went wrong.';
 
@@ -7,15 +8,7 @@ function sentence(s: string): string {
 	return /[.!?]$/.test(s) ? s : `${s}.`;
 }
 
-function detailOf(message: string, ...prefixes: string[]): string {
-	let out = message.trim();
-	for (const p of prefixes) {
-		if (out.toLowerCase().startsWith(p)) out = out.slice(p.length).trim();
-	}
-	return out;
-}
-
-function withDetail(lead: string, detail: string): string {
+function withDetail(lead: string, detail: string | undefined): string {
 	return detail ? sentence(`${lead}: ${detail}`) : sentence(lead);
 }
 
@@ -31,9 +24,8 @@ function describeIpc(e: IpcError): string {
 		case 'notFound':
 			return 'This document is no longer open. Reopen the file and try again.';
 		case 'invalidPath': {
-			const path = detailOf(e.message, 'invalid path:');
-			const where = path
-				? `${path} no longer exists in this document`
+			const where = e.path
+				? `${pathToString(e.path)} no longer exists in this document`
 				: 'That location no longer exists in this document';
 			return `${where} — it may have been changed or removed by an earlier edit.`;
 		}
@@ -46,18 +38,15 @@ function describeIpc(e: IpcError): string {
 				? `Pandia requested ${e.actual} lines at once (the limit is ${e.limit}). This is a bug in Pandia, not a problem with your document.`
 				: 'Pandia requested too many lines at once. This is a bug in Pandia, not a problem with your document.';
 		case 'parse':
-			return withDetail(
-				"This isn't valid JSON",
-				detailOf(e.message, 'parse error:', 'invalid json:'),
-			);
+			return withDetail("This isn't valid JSON", e.detail);
 		case 'edit':
-			return withDetail("This edit can't be applied", detailOf(e.message, 'edit error:'));
+			return withDetail("This edit can't be applied", e.detail);
 		case 'schema':
-			return withDetail("This schema can't be used", detailOf(e.message, 'schema error:'));
+			return withDetail("This schema can't be used", e.detail);
 		case 'export':
-			return withDetail('Export failed', detailOf(e.message, 'export error:'));
+			return withDetail('Export failed', e.detail);
 		case 'io':
-			return withDetail("Couldn't read or write the file", detailOf(e.message, 'io error:'));
+			return withDetail("Couldn't read or write the file", e.detail);
 		case 'cancelled':
 			return 'Cancelled.';
 		default:

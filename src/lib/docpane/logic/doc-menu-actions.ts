@@ -1,4 +1,4 @@
-import type { ApplyResult, Op } from '$lib/ipc/types';
+import type { ApplyResult, Op } from '$lib/ipc/bindings';
 import type { ContentRow, MenuAction } from '$lib/views/tree/logic/model';
 import type { createNodeActions } from '$lib/views/tree/logic/node-actions';
 import type { DocEditController } from '../state/doc-edit.svelte';
@@ -60,16 +60,16 @@ export function createDocMenuActions(deps: DocMenuDeps) {
 				await nodeActions.remove(row);
 				break;
 			case 'convert-string':
-				await apply({ kind: 'setValue', path: row.path, value: '' });
+				await apply({ kind: 'setValueText', path: row.path, text: '""' });
 				break;
 			case 'convert-number':
-				await apply({ kind: 'setValue', path: row.path, value: 0 });
+				await apply({ kind: 'setValueText', path: row.path, text: '0' });
 				break;
 			case 'convert-boolean':
-				await apply({ kind: 'setValue', path: row.path, value: false });
+				await apply({ kind: 'setValueText', path: row.path, text: 'false' });
 				break;
 			case 'convert-null':
-				await apply({ kind: 'setValue', path: row.path, value: null });
+				await apply({ kind: 'setValueText', path: row.path, text: 'null' });
 				break;
 			default:
 				assertNever(action);

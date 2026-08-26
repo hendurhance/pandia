@@ -108,9 +108,10 @@ function pointInCircle(x: number, y: number, cx: number, cy: number, r: number):
 export function hitTest(layout: LayoutResult, wx: number, wy: number): HitTarget {
 	for (let i = layout.cards.length - 1; i >= 0; i--) {
 		const card = layout.cards[i];
+		if (!card) continue;
 		for (let r = 0; r < card.rows.length; r++) {
 			const row = card.rows[r];
-			if (!row.expandable) continue;
+			if (!row || !row.expandable) continue;
 			const portX = card.x + card.w;
 			const portY = card.y + HEADER_H + (r + 0.5) * ROW_H;
 			if (pointInCircle(wx, wy, portX, portY, PORT_R + 2)) {

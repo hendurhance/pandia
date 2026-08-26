@@ -1,7 +1,8 @@
-import { docGetValue } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
 import type { ContentRow, Row } from '$lib/views/tree/logic/model';
-import type { ApplyResult, DocHandle, Op, Path } from '$lib/ipc/types';
+import type { ApplyResult, DocHandle, Op, Path } from '$lib/ipc/bindings';
 
 export interface EditState {
 	rowIndex: number;
@@ -24,7 +25,8 @@ export function valueCommitOp(
 	preview: string,
 	buffer: string,
 ): { op: Op } | { error: string } | null {
-	if (kind === 'string') return { op: { kind: 'setValue', path, value: buffer } };
+	if (kind === 'string')
+		return { op: { kind: 'setValueText', path, text: JSON.stringify(buffer) } };
 	if (buffer === preview) return null;
 	try {
 		JSON.parse(buffer);
@@ -62,7 +64,7 @@ export class DocEditController {
 				if (!handle) return;
 				let full: unknown;
 				try {
-					full = await docGetValue(handle, row.path);
+					full = decodeLossless(await ipc.docGetValue(handle, row.path));
 				} catch (e) {
 					this.deps.setError(describeError(e));
 					return;

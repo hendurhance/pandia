@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { docDiffLines, docGetLines } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle } from '$lib/ipc/types';
+	import type { DocHandle } from '$lib/ipc/bindings';
 	import {
 		unifiedRows,
 		gapRows,
@@ -78,7 +78,8 @@
 		const key = `${side}:${block}`;
 		if (blocks.has(block) || pendingBlocks.has(key)) return;
 		pendingBlocks.add(key);
-		void docGetLines(handle, block * BLOCK, (block + 1) * BLOCK)
+		void ipc
+			.docGetLines(handle, block * BLOCK, (block + 1) * BLOCK)
 			.then((lines) => {
 				const current = side === 'left' ? leftBlocks : rightBlocks;
 				if (blocks !== current) return;
@@ -135,7 +136,8 @@
 		rightBlocks = new Map();
 		pendingBlocks = new Set();
 		maxTextLen = 0;
-		void docDiffLines(l, r)
+		void ipc
+			.docDiffLines(l, r, null)
 			.then((d) => {
 				if (cancelled) return;
 				const computed = unifiedRows(d);
@@ -163,7 +165,7 @@
 
 	function expandGap(rowIndex: number) {
 		const r = rows[rowIndex];
-		if (r.type !== 'gap') return;
+		if (!r || r.type !== 'gap') return;
 		const expanded = gapRows(r);
 		const next = rows.slice(0, rowIndex).concat(expanded, rows.slice(rowIndex + 1));
 		rows = next;
@@ -181,8 +183,10 @@
 		const idx = activeHunk;
 		if (!scroller || idx < 0 || idx >= anchors.length) return;
 		if (idx === lastScrolledHunk) return;
+		const anchor = anchors[idx];
+		if (anchor === undefined) return;
 		lastScrolledHunk = idx;
-		const targetY = anchors[idx] * ROW_H;
+		const targetY = anchor * ROW_H;
 		const center = Math.max(0, viewportHeight / 2 - ROW_H / 2);
 		scroller.scrollTo({ top: Math.max(0, targetY - center), behavior: 'smooth' });
 	});

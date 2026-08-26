@@ -931,7 +931,7 @@ mod tests {
         let opts = SearchOptions {
             query: "world".into(),
             case_sensitive: false,
-            max_results: 0,
+            max_results: None,
         };
         let lazy_hits = doc(json).search(&opts, &CancelFlag::never());
         let v: Value = serde_json::from_str(json).unwrap();
@@ -960,7 +960,7 @@ mod tests {
         let opts = SearchOptions {
             query: "hello".into(),
             case_sensitive: false,
-            max_results: 10,
+            max_results: Some(10),
         };
         assert_eq!(doc(&body).search(&opts, &CancelFlag::never()).len(), 10);
     }

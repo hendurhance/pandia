@@ -14,7 +14,7 @@ import {
 	type ViewportState,
 } from './viewport';
 import { HEADER_H, ROW_H, type LayoutResult, type PositionedCard } from './layout';
-import type { NodeKind } from '$lib/ipc/types';
+import type { NodeKind } from '$lib/ipc/bindings';
 
 const idScale = (): ViewportState => ({ tx: 0, ty: 0, scale: 1 });
 

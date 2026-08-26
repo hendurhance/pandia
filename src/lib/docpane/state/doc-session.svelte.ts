@@ -1,18 +1,6 @@
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
-import {
-	docOpen,
-	docClose,
-	docSummary,
-	docApplyOp,
-	docSetRootText,
-	docUndo,
-	docRedo,
-	docSave,
-	docBackupClear,
-	docDiagnose,
-	IpcError,
-	type IpcErrorKind,
-} from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import { IpcError, type IpcErrorKind } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
 import type {
 	ApplyResult,
@@ -22,7 +10,7 @@ import type {
 	OpenResult,
 	OpenSource,
 	Path,
-} from '$lib/ipc/types';
+} from '$lib/ipc/bindings';
 import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
 import { basename } from '$lib/util/path';
 import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
@@ -105,12 +93,12 @@ export class DocSessionController {
 		}
 		await this.deps.applyDefaultView(null);
 		const name = source.kind === 'file' ? source.path : (source.name ?? '(inline)');
-		await this.load(() => docOpen(source), name);
+		await this.load(() => ipc.docOpen(source), name);
 		if (this.deps.getError() !== null) {
 			await runFormatDetect(source, {
 				error: () => this.deps.getError(),
 				errorKind: () => this.lastErrorKind,
-				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
+				reopen: (text, n) => this.load(() => ipc.docOpen({ kind: 'text', text, name: n }), n),
 			});
 		}
 		if (this.deps.getError() !== null) {
@@ -118,7 +106,7 @@ export class DocSessionController {
 				enabled: () => behaviorPrefs.autoRepairOnOpen,
 				error: () => this.deps.getError(),
 				errorKind: () => this.lastErrorKind,
-				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
+				reopen: (text, n) => this.load(() => ipc.docOpen({ kind: 'text', text, name: n }), n),
 				handle: () => this.handle,
 				setSummary: (s) => {
 					this.summary = s;
@@ -139,7 +127,7 @@ export class DocSessionController {
 		const text = await readSourceText(source);
 		if (text != null) {
 			try {
-				this.diagnosis = await docDiagnose(text);
+				this.diagnosis = await ipc.docDiagnose(text);
 			} catch {
 				this.diagnosis = null;
 			}
@@ -156,7 +144,7 @@ export class DocSessionController {
 		if (this.handle) {
 			this.clearBackup();
 			try {
-				await docClose(this.handle);
+				await ipc.docClose(this.handle);
 			} catch {
 				// best-effort close on reset; the doc is being dropped either way
 			}
@@ -176,21 +164,21 @@ export class DocSessionController {
 	};
 
 	dispose = () => {
-		if (this.handle != null) void docClose(this.handle);
+		if (this.handle != null) void ipc.docClose(this.handle);
 		void this.deps.compare.release();
 	};
 
 	refreshSummary = async () => {
 		if (!this.handle) return;
 		try {
-			this.summary = await docSummary(this.handle);
+			this.summary = await ipc.docSummary(this.handle);
 		} catch {}
 	};
 
 	applyOp = async (op: Op): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
-			const result = await docApplyOp(this.handle, op);
+			const result = await ipc.docApplyOp(this.handle, op);
 			await this.refreshSummary();
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
 			if (this.deps.find.open && this.deps.find.query.trim()) {
@@ -206,7 +194,7 @@ export class DocSessionController {
 	commitText = async (text: string): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
-			const result = await docSetRootText(this.handle, text);
+			const result = await ipc.docSetRootText(this.handle, text);
 			await this.refreshSummary();
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
 			if (this.deps.find.open && this.deps.find.query.trim()) {
@@ -222,7 +210,7 @@ export class DocSessionController {
 	undo = async (): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
-			const result = await docUndo(this.handle);
+			const result = await ipc.docUndo(this.handle);
 			if (result === null) return null;
 			await this.refreshSummary();
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
@@ -236,7 +224,7 @@ export class DocSessionController {
 	redo = async (): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
-			const result = await docRedo(this.handle);
+			const result = await ipc.docRedo(this.handle);
 			if (result === null) return null;
 			await this.refreshSummary();
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
@@ -269,7 +257,7 @@ export class DocSessionController {
 			if (choice === 'saveAs') return this.saveAs(opts);
 		}
 		try {
-			const res = await docSave(this.handle);
+			const res = await ipc.docSave(this.handle, null);
 			this.clearBackup();
 			await this.refreshSummary();
 			if (!opts.silent) this.deps.flash(`saved ${basename(res.path)}`);
@@ -295,7 +283,7 @@ export class DocSessionController {
 		}
 		if (typeof picked !== 'string') return false; // cancelled
 		try {
-			const res = await docSave(this.handle, picked);
+			const res = await ipc.docSave(this.handle, picked);
 			this.clearBackup();
 			this.sourceName = picked;
 			await this.refreshSummary();
@@ -314,6 +302,6 @@ export class DocSessionController {
 
 	clearBackup = () => {
 		this.deps.cancelBackupTimer();
-		if (this.handle) void docBackupClear(this.handle).catch(() => {});
+		if (this.handle) void ipc.docBackupClear(this.handle).catch(() => {});
 	};
 }

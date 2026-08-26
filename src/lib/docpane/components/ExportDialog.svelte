@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { save as saveDialog } from '@tauri-apps/plugin-dialog';
-	import { docExport, docExportPreview, docExportToFile } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, ExportFormat } from '$lib/ipc/types';
+	import type { DocHandle, ExportFormat } from '$lib/ipc/bindings';
 	import { stem } from '$lib/util/path';
 	import { CopyFlag } from '$lib/util/clipboard.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
@@ -56,7 +56,7 @@
 		error = null;
 		actionError = null;
 		try {
-			const p = await docExportPreview(handle, format, PREVIEW_CAP);
+			const p = await ipc.docExportPreview(handle, format, PREVIEW_CAP);
 			if (mySeq !== seq) return;
 			previewText = p.text;
 			previewTruncated = p.truncated;
@@ -88,7 +88,7 @@
 		}
 		if (typeof picked !== 'string') return;
 		try {
-			await docExportToFile(handle, format, picked);
+			await ipc.docExportToFile(handle, format, picked);
 			onClose();
 		} catch (e) {
 			actionError = describeError(e);
@@ -100,7 +100,7 @@
 		actionError = null;
 		copying = true;
 		try {
-			const full = await docExport(handle, format);
+			const full = await ipc.docExport(handle, format);
 			if (!(await copyFlag.copy(full))) actionError = 'clipboard unavailable';
 		} catch (e) {
 			actionError = describeError(e);

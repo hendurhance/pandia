@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { containerPreview, hueOf, NHUES, scalarText, toRow } from './card-helpers';
-import type { NodeView } from '$lib/ipc/types';
+import type { NodeView } from '$lib/ipc/bindings';
 
 describe('containerPreview', () => {
 	it('formats arrays with item counts', () => {

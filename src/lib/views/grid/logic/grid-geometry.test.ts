@@ -9,7 +9,7 @@ import {
 	PX_PER_CH,
 	type ColumnLayout,
 } from './grid-geometry';
-import type { Column } from '$lib/ipc/types';
+import type { Column } from '$lib/ipc/bindings';
 
 function col(over: Partial<Column>): Column {
 	return {
@@ -78,13 +78,11 @@ describe('autoFitWidthPx', () => {
 
 describe('computeColumnLayout', () => {
 	it('builds prefix-sum offsets and total from ideal widths', () => {
-		const cols = [
-			col({ key: 'a', dominantKind: 'number' }),
-			col({ key: 'b', dominantKind: 'bool' }),
-		];
-		const layout = computeColumnLayout(cols, new Map());
-		const wA = idealCh(cols[0]) * PX_PER_CH;
-		const wB = idealCh(cols[1]) * PX_PER_CH;
+		const colA = col({ key: 'a', dominantKind: 'number' });
+		const colB = col({ key: 'b', dominantKind: 'bool' });
+		const layout = computeColumnLayout([colA, colB], new Map());
+		const wA = idealCh(colA) * PX_PER_CH;
+		const wB = idealCh(colB) * PX_PER_CH;
 		expect(layout.widths).toEqual([wA, wB]);
 		expect(layout.offsets).toEqual([0, wA]);
 		expect(layout.total).toBe(wA + wB);

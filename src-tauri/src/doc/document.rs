@@ -25,22 +25,21 @@ use super::typegen::{
     generate as generate_types, generate_from_shape as typegen_from_shape, TypegenLang,
 };
 use super::types::{DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
+use super::wire::LosslessText;
 
 const LAZY_THRESHOLD_BYTES: u64 = 10 * 1024 * 1024;
 const GET_VALUE_ROOT_LIMIT: u64 = 200 * 1024 * 1024;
 pub const EDIT_SIZE_LIMIT: u64 = 200 * 1024 * 1024;
 pub const MAX_DOC_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyResult {
     pub version: u64,
-    #[serde(skip_serializing)]
-    pub inverse: Op,
     pub affected_paths: Vec<Path>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryView {
     pub undo: Vec<OpDescription>,
@@ -100,15 +99,14 @@ struct FilterCache {
     perm: Vec<u32>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnValue {
-    pub value: Value,
+    pub value: LosslessText,
     pub count: u32,
-    pub label: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnValues {
     pub values: Vec<ColumnValue>,
@@ -129,7 +127,7 @@ pub struct FilteredRows {
     pub rows: Vec<SortedRow>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceResult {
     pub count: u32,
@@ -142,7 +140,7 @@ enum DocumentImpl {
     Lazy(LazyDoc),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Summary {
     pub root_kind: NodeKind,
@@ -157,7 +155,7 @@ pub struct Summary {
     pub comments_stripped: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {
     pub path: String,
@@ -781,22 +779,15 @@ impl Document {
                 capped = true;
             }
         }
-        let mut values: Vec<ColumnValue> = map
-            .into_values()
-            .map(|(value, count)| {
-                let label = value.is_number().then(|| value.to_string());
-                ColumnValue {
-                    value,
-                    count,
-                    label,
-                }
+        let mut values: Vec<(Value, u32)> = map.into_values().collect();
+        values.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| cmp_cell(Some(&a.0), Some(&b.0))));
+        let values = values
+            .into_iter()
+            .map(|(value, count)| ColumnValue {
+                value: LosslessText::from_value(&value),
+                count,
             })
             .collect();
-        values.sort_by(|a, b| {
-            b.count
-                .cmp(&a.count)
-                .then_with(|| cmp_cell(Some(&a.value), Some(&b.value)))
-        });
         Ok(ColumnValues { values, capped })
     }
 
@@ -854,24 +845,42 @@ impl Document {
         Ok((text, line_starts))
     }
 
+    pub fn canonical_offsets(&self, paths: &[Path]) -> DocResult<Vec<Option<(u64, u64)>>> {
+        if self.source_size > GET_VALUE_ROOT_LIMIT {
+            return Err(DocError::TooLarge {
+                actual: self.source_size,
+                limit: GET_VALUE_ROOT_LIMIT,
+            });
+        }
+        match &self.inner {
+            DocumentImpl::Eager(v) => Ok(super::canonical::canonical_offsets(v, paths)),
+            DocumentImpl::Lazy(d) => Ok(super::canonical::canonical_offsets(
+                &d.get_value(&Path::root())?,
+                paths,
+            )),
+        }
+    }
+
     pub fn apply(&mut self, op: &Op) -> DocResult<ApplyResult> {
-        let result = self.apply_unchecked(op)?;
-        self.history.record(op.clone(), result.inverse.clone());
+        let (result, inverse) = self.apply_unchecked(op)?;
+        self.history.record(op.clone(), inverse);
         Ok(result)
     }
 
-    fn apply_unchecked(&mut self, op: &Op) -> DocResult<ApplyResult> {
+    fn apply_unchecked(&mut self, op: &Op) -> DocResult<(ApplyResult, Op)> {
         let root = self.ensure_eager()?;
         let OpOutcome {
             inverse,
             affected_paths,
         } = op.apply(root)?;
         self.version += 1;
-        Ok(ApplyResult {
-            version: self.version,
+        Ok((
+            ApplyResult {
+                version: self.version,
+                affected_paths,
+            },
             inverse,
-            affected_paths,
-        })
+        ))
     }
 
     pub fn undo(&mut self) -> DocResult<Option<ApplyResult>> {
@@ -879,7 +888,7 @@ impl Document {
             return Ok(None);
         };
         match self.apply_unchecked(&inverse) {
-            Ok(result) => {
+            Ok((result, _)) => {
                 self.history.push_redo((forward, inverse));
                 Ok(Some(result))
             }
@@ -895,7 +904,7 @@ impl Document {
             return Ok(None);
         };
         match self.apply_unchecked(&forward) {
-            Ok(result) => {
+            Ok((result, _)) => {
                 self.history.push_undo((forward, inverse));
                 Ok(Some(result))
             }
@@ -1675,14 +1684,13 @@ mod tests {
             d.get_value(&Path::root()).unwrap(),
             serde_json::json!({"a": 99})
         );
-        assert_eq!(
-            result.inverse,
-            super::super::ops::Op::SetValue {
-                path: Path(vec![PathSegment::Key("a".into())]),
-                value: serde_json::json!(1),
-            }
-        );
         assert_eq!(result.affected_paths.len(), 1);
+
+        d.undo().unwrap().expect("undo available");
+        assert_eq!(
+            d.get_value(&Path::root()).unwrap(),
+            serde_json::json!({"a": 1})
+        );
     }
 
     #[test]
@@ -1693,12 +1701,12 @@ mod tests {
             path: Path(vec![PathSegment::Key("events".into())]),
             index: 1,
         };
-        let r = d.apply(&op).unwrap();
+        d.apply(&op).unwrap();
         assert_eq!(
             d.get_value(&Path::root()).unwrap(),
             serde_json::json!({"events": [10, 30]})
         );
-        d.apply(&r.inverse).unwrap();
+        d.undo().unwrap().expect("undo available");
         assert_eq!(d.get_value(&Path::root()).unwrap(), initial);
         assert_eq!(d.version, 2);
     }
@@ -2104,7 +2112,7 @@ mod tests {
         let cv = d.column_values(&Path::root(), "lang", 100).unwrap();
         assert!(!cv.capped);
         assert_eq!(cv.values.len(), 3);
-        assert_eq!(cv.values[0].value, serde_json::json!("Sindhi"));
+        assert_eq!(cv.values[0].value.as_str(), "\"Sindhi\"");
         assert_eq!(cv.values[0].count, 2);
     }
 
@@ -2136,7 +2144,7 @@ mod tests {
     }
 
     #[test]
-    fn column_values_labels_numbers_with_lossless_literal() {
+    fn column_values_keep_lossless_number_tokens() {
         let d = doc(r#"[
                 {"id": 123456789012345678},
                 {"id": 123456789012345678},
@@ -2147,16 +2155,11 @@ mod tests {
         let big = cv
             .values
             .iter()
-            .find(|v| v.label.as_deref() == Some("123456789012345678"))
-            .expect("big-int label present and exact");
+            .find(|v| v.value.as_str() == "123456789012345678")
+            .expect("big-int token present and exact");
         assert_eq!(big.count, 2);
 
-        let s = cv
-            .values
-            .iter()
-            .find(|v| v.value == serde_json::json!("x"))
-            .unwrap();
-        assert_eq!(s.label, None);
+        assert!(cv.values.iter().any(|v| v.value.as_str() == "\"x\""));
     }
 
     #[test]

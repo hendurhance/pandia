@@ -1,4 +1,4 @@
-import type { NodeKind } from '$lib/ipc/types';
+import type { NodeKind } from '$lib/ipc/bindings';
 import type { DefaultView } from '$lib/shell/state/sidebar-prefs.svelte';
 import { isContainerKind } from '$lib/views/graph/logic/layout';
 

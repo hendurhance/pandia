@@ -20,6 +20,7 @@ pub mod search;
 pub mod store;
 pub mod typegen;
 pub mod types;
+pub mod wire;
 
 #[cfg(test)]
 mod baseline;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Path, PathSegment } from '$lib/ipc/types';
+	import type { Path, PathSegment } from '$lib/ipc/bindings';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronRight, FoldVertical, Search, UnfoldVertical } from '@lucide/svelte';
 	import { fmtKbd } from '$lib/util/platform';

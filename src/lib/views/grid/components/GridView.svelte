@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/types';
+	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
 	import {
 		computeColumnLayout,
 		columnWindow,
@@ -359,8 +359,8 @@
 					{#if i >= colWindow.start && i < colWindow.end}
 						<ColumnHeader
 							{col}
-							left={columnLayout.offsets[i]}
-							width={columnLayout.widths[i]}
+							left={columnLayout.offsets[i] ?? 0}
+							width={columnLayout.widths[i] ?? 0}
 							active={filter.sortKey === col.key}
 							sortDesc={filter.sortDesc}
 							hasFilter={filter.colFilters.has(col.key)}
@@ -373,7 +373,7 @@
 							onOpenFilter={(e) => filter.openFilter(e, col.key)}
 							onResizeStart={() => {
 								suppressSort = true;
-								resizeStartW = columnLayout.widths[i];
+								resizeStartW = columnLayout.widths[i] ?? 0;
 							}}
 							onResizeMove={(dx) => resizeColumn(col.key, dx)}
 							onResizeEnd={(moved) => {

@@ -23,3 +23,6 @@ examples/
 
 # Editor configs
 .vscode/tasks.json
+
+# Generated IPC bindings (tauri-specta owns formatting)
+src/lib/ipc/bindings.ts

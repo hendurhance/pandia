@@ -6,7 +6,10 @@ export function gapForX(
 	const n = Math.min(offsets.length, widths.length);
 	let g = 0;
 	for (let i = 0; i < n; i++) {
-		if (contentX > offsets[i] + widths[i] / 2) g = i + 1;
+		const off = offsets[i];
+		const w = widths[i];
+		if (off === undefined || w === undefined) break;
+		if (contentX > off + w / 2) g = i + 1;
 		else break;
 	}
 	return g;

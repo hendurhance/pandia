@@ -9,7 +9,7 @@
 	import { writeFile } from '@tauri-apps/plugin-fs';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 	import { untrack } from 'svelte';
-	import type { DocHandle, NodeKind, Path } from '$lib/ipc/types';
+	import type { DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
 	import { describeError } from '$lib/ipc/error-copy';
 	import { layoutGraph, isContainerKind, type CardRow, type GraphCard } from '../logic/layout';
 	import { buildCard, collapseTree, expandRow as expandRowFetch } from '../logic/card-builder';

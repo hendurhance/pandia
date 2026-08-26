@@ -39,9 +39,6 @@ export default ts.config(
 	},
 	{
 		rules: {
-			// Unused imports/vars are an error so the build bundler's noise
-			// (false-positive SSR warnings) can't hide a real one. Prefix with
-			// `_` to keep an intentional unused binding.
 			'@typescript-eslint/no-unused-vars': [
 				'error',
 				{

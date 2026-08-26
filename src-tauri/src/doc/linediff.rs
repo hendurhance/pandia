@@ -8,7 +8,7 @@ pub const LINE_FETCH_MAX: u32 = 5_000;
 
 const CANCEL_CHECK_MASK: u32 = 0x0FFF;
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LineHunk {
     pub left_start: u32,
@@ -17,7 +17,7 @@ pub struct LineHunk {
     pub right_len: u32,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LineDiffResult {
     pub hunks: Vec<LineHunk>,
