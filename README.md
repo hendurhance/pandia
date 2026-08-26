@@ -23,6 +23,9 @@
   <a href="https://github.com/hendurhance/pandia/releases">
     <img src="https://img.shields.io/github/downloads/hendurhance/pandia/total?style=flat-square" alt="Downloads" />
   </a>
+  <a href="https://github.com/sponsors/hendurhance">
+    <img src="https://img.shields.io/badge/sponsor-D6571F?style=flat-square&logo=githubsponsors&logoColor=white" alt="Sponsor" />
+  </a>
 </p>
 
 <p align="center">
@@ -31,7 +34,8 @@
   <a href="#features">Features</a> ·
   <a href="https://www.pandia.app/docs">Docs</a> ·
   <a href="#building-from-source">Build</a> ·
-  <a href="https://github.com/hendurhance/pandia/issues/new/choose">Report issue</a>
+  <a href="https://github.com/hendurhance/pandia/issues/new/choose">Report issue</a> ·
+  <a href="#support">Support</a>
 </p>
 
 ---
@@ -91,8 +95,8 @@ Download the latest version for your platform from [releases](https://github.com
 
 | Chip | Download |
 |---|---|
-| Apple Silicon (M1 / M2 / M3 / M4 / M5 and newer) | [`Pandia_1.0.5_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.5_aarch64.dmg) |
-| Intel | [`Pandia_1.0.5_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.5_x64.dmg) |
+| Apple Silicon (M1 / M2 / M3 / M4 / M5 / M6 and newer) | [`Pandia_1.0.6_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_aarch64.dmg) |
+| Intel | [`Pandia_1.0.6_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_x64.dmg) |
 
 The macOS bundle is signed and notarised.
 
@@ -100,15 +104,15 @@ The macOS bundle is signed and notarised.
 
 | Type | Download |
 |---|---|
-| Installer | [`Pandia_1.0.5_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.5_x64-setup.exe) |
-| MSI | [`Pandia_1.0.5_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.5_x64_en-US.msi) |
+| Installer | [`Pandia_1.0.6_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_x64-setup.exe) |
+| MSI | [`Pandia_1.0.6_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_x64_en-US.msi) |
 
 ### Linux
 
 | Format | Download |
 |---|---|
-| AppImage | [`Pandia_1.0.5_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.5_amd64.AppImage) |
-| Debian / Ubuntu | [`Pandia_1.0.5_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.5_amd64.deb) |
+| AppImage | [`Pandia_1.0.6_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_amd64.AppImage) |
+| Debian / Ubuntu | [`Pandia_1.0.6_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_amd64.deb) |
 
 Linux bundles are GPG-signed; the public key is published with each release.
 
@@ -292,6 +296,18 @@ Want to read the code? Start here:
 Not currently scoped. Open an issue if you have a request.
 
 See [open issues](https://github.com/hendurhance/pandia/issues) for what's being worked on now.
+
+## Support
+
+Pandia is free, Apache-2.0 licensed, and has no paid tier — that will not change. If it saves
+you an afternoon, you can help keep it maintained:
+
+- **[GitHub Sponsors](https://github.com/sponsors/hendurhance)** — recurring or one-off.
+- **[Buy me a coffee](https://buymeacoffee.com/hendurhance)** — one-off, no account needed.
+
+Not in a position to sponsor? Starring the repo, filing a
+[good bug report](https://github.com/hendurhance/pandia/issues/new/choose), or passing it to
+someone who wrangles JSON all day helps just as much.
 
 ## Contributing
 
