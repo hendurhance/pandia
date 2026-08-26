@@ -24,6 +24,7 @@ impl LosslessText {
         Self(text)
     }
 
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         &self.0
     }

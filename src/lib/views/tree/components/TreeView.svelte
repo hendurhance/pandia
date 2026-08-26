@@ -18,14 +18,8 @@
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from '@lucide/svelte';
-	import {
-		buildOffsets,
-		captureScrollAnchor,
-		DEFAULT_ROW_H,
-		OVERSCAN,
-		restoreScrollTop,
-		visibleWindow,
-	} from '../logic/virtualizer';
+	import { DEFAULT_ROW_H, OVERSCAN } from '$lib/views/shared/scroll-math';
+	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 	import type { DiffKind, Path } from '$lib/ipc/bindings';
 	import InlineCellEditor from './InlineCellEditor.svelte';
 	import { fmtKbd } from '$lib/util/platform';
@@ -92,11 +86,6 @@
 
 	const cutKey = $derived(cutPath ? pathKey(cutPath) : null);
 
-	let scroller: HTMLDivElement | undefined = $state();
-	let scrollTop = $state(0);
-	let viewportHeight = $state(0);
-	let viewportWidth = $state(0);
-
 	const tallHeights = new Map<string, number>();
 	let heightsVersion = $state(0);
 
@@ -107,24 +96,27 @@
 		return tallHeights.get(rowKey(r)) ?? DEFAULT_ROW_H;
 	}
 
-	const hasVGaps = $derived.by(() => {
-		for (let i = 0; i < rows.length; i++) if (rows[i]?.variant === 'vgap') return true;
-		return false;
+	const s = new WindowedScroller({
+		rowCount: () => rows.length,
+		rowHeight: DEFAULT_ROW_H,
+		overscan: OVERSCAN,
+		heightAt,
+		heightsVersion: () => heightsVersion,
+		keyAt: (i) => {
+			const r = rows[i];
+			return r ? rowKey(r) : '';
+		},
+		onWidthChange: () => {
+			if (tallHeights.size > 0) {
+				tallHeights.clear();
+				heightsVersion += 1;
+			}
+		},
 	});
-
-	const bufBox: { current: Float64Array<ArrayBufferLike> } = { current: new Float64Array(0) };
-	const offsets = $derived.by(() => {
-		void heightsVersion;
-		const fastPath = tallHeights.size === 0 && !hasVGaps;
-		const result = buildOffsets(rows.length, heightAt, bufBox.current, fastPath);
-		bufBox.current = result.buf;
-		return result.view;
-	});
-	const totalHeight = $derived(offsets[rows.length] ?? 0);
-
-	const window = $derived(visibleWindow(offsets, rows.length, scrollTop, viewportHeight, OVERSCAN));
-	const startIndex = $derived(window.start);
-	const endIndex = $derived(window.end);
+	const offsets = $derived(s.offsets);
+	const totalHeight = $derived(s.totalHeight);
+	const startIndex = $derived(s.window.start);
+	const endIndex = $derived(s.window.end);
 	const visibleRows = $derived(rows.slice(startIndex, endIndex));
 
 	$effect(() => {
@@ -155,8 +147,8 @@
 
 	$effect(() => {
 		if (!onMaterializeGap) return;
-		const top = scrollTop;
-		const bottom = scrollTop + viewportHeight;
+		const top = s.scrollTop;
+		const bottom = s.scrollTop + s.viewportHeight;
 		const GAP_OVERSCAN_ROWS = 32;
 		for (let i = startIndex; i < endIndex && i < rows.length; i++) {
 			const r = rows[i];
@@ -174,47 +166,17 @@
 	});
 
 	$effect(() => {
-		if (!scroller) return;
-		onScrollerReady?.(scroller);
-		const sync = () => {
-			if (!scroller) return;
-			viewportHeight = scroller.clientHeight;
-			const w = scroller.clientWidth;
-			if (w !== viewportWidth) {
-				const prev = viewportWidth;
-				viewportWidth = w;
-				if (prev > 0 && Math.abs(w - prev) >= 4 && tallHeights.size > 0) {
-					tallHeights.clear();
-					heightsVersion += 1;
-				}
-			}
-		};
-		sync();
-
-		let rafId = 0;
-		const ro = new ResizeObserver(() => {
-			if (rafId) return;
-			rafId = requestAnimationFrame(() => {
-				rafId = 0;
-				sync();
-			});
-		});
-		ro.observe(scroller);
-		return () => {
-			if (rafId) cancelAnimationFrame(rafId);
-			ro.disconnect();
-		};
+		if (s.el) onScrollerReady?.(s.el);
 	});
 
 	$effect(() => {
 		void rows;
-		void scrollTop;
-		void viewportHeight;
+		void s.scrollTop;
+		void s.viewportHeight;
 		void editing;
+		const scroller = s.el;
 		if (!scroller) return;
 		untrack(() => {
-			if (!scroller) return;
-
 			if (!editing) {
 				if (tallHeights.size > 0) {
 					tallHeights.clear();
@@ -244,68 +206,18 @@
 		});
 	});
 
-	let anchor: { key: string; index: number; delta: number } | null = null;
 	$effect(() => {
-		const offs = offsets;
-		if (!scroller) return;
-		untrack(() => {
-			const a = anchor;
-			if (!a || rows.length === 0) return;
-			const anchorRow = rows[a.index];
-			let idx = anchorRow && rowKey(anchorRow) === a.key ? a.index : -1;
-			if (idx < 0) {
-				for (let i = 0; i < rows.length; i++) {
-					const r = rows[i];
-					if (r && rowKey(r) === a.key) {
-						idx = i;
-						break;
-					}
-				}
-			}
-			if (idx < 0) return;
-			const top = restoreScrollTop(offs, idx, a.delta);
-			if (Math.abs(top - scrollTop) < 1 || !scroller) return;
-			scroller.scrollTop = top;
-			scrollTop = top;
-		});
-	});
-	$effect(() => {
-		const offs = offsets;
-		const top = scrollTop;
-		untrack(() => {
-			const a = captureScrollAnchor(offs, rows.length, top);
-			const anchorRow = a ? rows[a.index] : undefined;
-			anchor = a && anchorRow ? { key: rowKey(anchorRow), index: a.index, delta: a.delta } : null;
-		});
-	});
-
-	let prevLen = $state(0);
-	$effect(() => {
-		if (prevLen === 0 && rows.length > 0 && scroller) {
-			scroller.scrollTop = 0;
-			scrollTop = 0;
-		}
 		if (rows.length === 0 && tallHeights.size > 0) {
 			tallHeights.clear();
 			heightsVersion += 1;
 		}
-		prevLen = rows.length;
 	});
 
 	$effect(() => {
 		const req = scrollRequest;
-		const el = scroller;
-		if (!req || !el) return;
-		untrack(() => {
-			const top = offsets[req.idx] ?? 0;
-			const offset = Math.max(0, viewportHeight * 0.25);
-			el.scrollTo({ top: Math.max(0, top - offset), behavior: 'smooth' });
-		});
+		if (!req) return;
+		untrack(() => s.scrollToIndex(req.idx));
 	});
-
-	function onScroll(e: Event) {
-		scrollTop = (e.currentTarget as HTMLDivElement).scrollTop;
-	}
 
 	function onUrlClick(e: MouseEvent, url: string) {
 		e.preventDefault();
@@ -362,20 +274,20 @@
 	let dropTarget = $state<{ gap: number; y: number; depth: number } | null>(null);
 
 	function onGripDown(e: PointerEvent, i: number) {
-		if (readOnly || !onReorder || !scroller) return;
+		if (readOnly || !onReorder || !s.el) return;
 		e.stopPropagation();
 		e.preventDefault();
-		scroller.setPointerCapture(e.pointerId);
+		s.el.setPointerCapture(e.pointerId);
 		drag = { index: i, pointerId: e.pointerId, startY: e.clientY, lastY: e.clientY, moved: false };
 	}
 
 	function onDragMove(e: PointerEvent) {
-		if (!drag || e.pointerId !== drag.pointerId || !scroller) return;
+		if (!drag || e.pointerId !== drag.pointerId || !s.el) return;
 		drag.lastY = e.clientY;
 		if (!drag.moved && Math.abs(e.clientY - drag.startY) < DRAG_THRESHOLD) return;
 		drag.moved = true;
-		const rect = scroller.getBoundingClientRect();
-		dropTarget = gapAt(rows, offsets, drag.index, e.clientY - rect.top + scroller.scrollTop);
+		const rect = s.el.getBoundingClientRect();
+		dropTarget = gapAt(rows, offsets, drag.index, e.clientY - rect.top + s.el.scrollTop);
 		startAutoScroll();
 	}
 
@@ -399,16 +311,16 @@
 	}
 
 	const autoScroller = createAutoScroller({
-		scroller: () => scroller,
+		scroller: () => s.el,
 		axis: 'vertical',
 		pointer: () => drag?.lastY ?? 0,
-		active: () => !!drag?.moved && !!scroller,
+		active: () => !!drag?.moved && !!s.el,
 		edgeZone: ROW_DRAG_EDGE_ZONE,
 		maxStep: ROW_DRAG_MAX_STEP,
 		onTick: () => {
-			if (!drag || !scroller) return;
-			const rect = scroller.getBoundingClientRect();
-			dropTarget = gapAt(rows, offsets, drag.index, drag.lastY - rect.top + scroller.scrollTop);
+			if (!drag || !s.el) return;
+			const rect = s.el.getBoundingClientRect();
+			dropTarget = gapAt(rows, offsets, drag.index, drag.lastY - rect.top + s.el.scrollTop);
 		},
 	});
 	const startAutoScroll = () => autoScroller.start();
@@ -419,8 +331,7 @@
 <div
 	class="scroller"
 	class:dragging={!!drag}
-	bind:this={scroller}
-	onscroll={onScroll}
+	use:s.attach
 	onpointermove={onDragMove}
 	onpointerup={onDragUp}
 	onpointercancel={onDragCancel}

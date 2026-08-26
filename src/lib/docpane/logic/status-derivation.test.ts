@@ -12,7 +12,6 @@ function content(path: Path, kind: NodeKind): ContentRow {
 		kind,
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: false,
 	};
 }

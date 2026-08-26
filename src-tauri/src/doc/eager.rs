@@ -62,7 +62,6 @@ pub(crate) fn node_view_eager(key: PathSegment, value: &Value) -> NodeView {
         kind,
         preview: preview_eager(value),
         child_count,
-        size_hint: size_hint_eager(value),
     }
 }
 
@@ -170,13 +169,95 @@ pub(crate) fn preview_eager(v: &Value) -> String {
     }
 }
 
-pub(crate) fn size_hint_eager(v: &Value) -> u32 {
-    match v {
-        Value::Null => 4,
-        Value::Bool(true) => 4,
-        Value::Bool(false) => 5,
-        Value::Number(n) => n.to_string().len().min(u32::MAX as usize) as u32,
-        Value::String(s) => (s.len() + 2).min(u32::MAX as usize) as u32,
-        Value::Array(_) | Value::Object(_) => 0,
+impl super::backend::DocumentBackend for Value {
+    fn root_kind_and_count(&self) -> (NodeKind, Option<u32>) {
+        kind_and_child_count_eager(self)
+    }
+
+    fn slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
+        slice_eager(self, path, range)
+    }
+
+    fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)> {
+        Ok(kind_and_child_count_eager(resolve_eager(self, path)?))
+    }
+
+    fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>> {
+        Ok(kind_and_child_count_eager(resolve_eager(self, path)?).1)
+    }
+
+    fn get_value(&self, path: &Path) -> DocResult<Value> {
+        Ok(resolve_eager(self, path)?.clone())
+    }
+
+    fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
+        match resolve_eager(self, path) {
+            Ok(Value::Array(arr)) => Ok(arr.iter().map(|el| cell(el, key).cloned()).collect()),
+            _ => Ok(Vec::new()),
+        }
+    }
+
+    fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
+        match resolve_eager(self, path) {
+            Ok(Value::Array(arr)) => Ok(arr
+                .iter()
+                .map(|el| eager_cell_text_lower(el, key))
+                .collect()),
+            _ => Ok(Vec::new()),
+        }
+    }
+
+    fn search(
+        &self,
+        opts: &super::search::SearchOptions,
+        cancel: &super::jobs::CancelFlag,
+    ) -> Vec<super::search::SearchHit> {
+        super::search::search_in_value(self, opts, cancel)
+    }
+
+    fn generate_types(
+        &self,
+        lang: super::typegen::TypegenLang,
+        type_name: &str,
+    ) -> DocResult<String> {
+        Ok(super::typegen::generate(self, lang, type_name))
+    }
+
+    fn hash_into(&self, hasher: &mut blake3::Hasher) -> Result<(), ()> {
+        serde_json::to_writer(hasher, self).map_err(|_| ())
+    }
+
+    fn serialize_pretty(&self) -> DocResult<String> {
+        serde_json::to_string_pretty(self).map_err(|e| DocError::Export(e.to_string()))
+    }
+
+    fn serialize_ndjson(&self) -> Option<String> {
+        match self {
+            Value::Array(items) => {
+                let mut out = String::new();
+                for v in items {
+                    out.push_str(&serde_json::to_string(v).ok()?);
+                    out.push('\n');
+                }
+                Some(out)
+            }
+            _ => None,
+        }
+    }
+
+    fn write_json(
+        &self,
+        pretty: bool,
+        w: &mut dyn std::io::Write,
+    ) -> Result<(), super::export::ExportError> {
+        super::export::write_json_value(self, pretty, w)
+    }
+
+    fn preview_json(&self, pretty: bool, max_bytes: usize) -> DocResult<(String, bool)> {
+        Ok(super::export::preview_json_value(self, pretty, max_bytes))
+    }
+
+    fn borrowed_root(&self) -> Option<&Value> {
+        Some(self)
     }
 }

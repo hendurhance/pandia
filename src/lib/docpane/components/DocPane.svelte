@@ -19,38 +19,26 @@
 	import GridEmpty from '$lib/views/grid/components/GridEmpty.svelte';
 	import GraphView, { type GraphViewApi } from '$lib/views/graph/components/GraphView.svelte';
 	import CompareView from '$lib/views/compare/components/CompareView.svelte';
-	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
-	import { CompareController } from '$lib/views/compare/state/compare.svelte';
+	import type { PaneCommandBus } from '$lib/shell/state/pane-bus';
 	import RowMenu from '$lib/views/tree/components/RowMenu.svelte';
 	import FindBar from '$lib/find/components/FindBar.svelte';
 	import ExportDialog from '$lib/docpane/components/ExportDialog.svelte';
 	import PromptDialog from '$lib/ui/PromptDialog.svelte';
 	import { pathToString, basename, stem, truncatePathMiddle } from '$lib/util/path';
 	import { computeInvalidMarks } from '../logic/invalid-marks';
-	import { resolveDefaultView } from '../logic/default-view';
 	import { kindAtSelection, validityFromView } from '../logic/status-derivation';
 	import {
 		expandAllDisabled as canExpandAllDisabled,
 		expandAllTitle as makeExpandAllTitle,
 	} from '../logic/expand-limits';
 	import { expandAll, collapseAll } from '../logic/bulk-tree-ops';
-	import { createAutoSaver } from '../logic/auto-save';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { Check, X } from '@lucide/svelte';
 	import { fmtBytes } from '$lib/util/format';
 	import { fmtKbd } from '$lib/util/platform';
-	import { FindController } from '$lib/find/state/find.svelte';
-	import { PromptController } from '$lib/ui/prompt.svelte';
 	import { createDocPaneCommands } from '../logic/doc-pane-commands';
-	import { makeNonceGate } from '../logic/nonce-gate';
-	import { createBackupFlusher, BACKUP_IDLE_MS } from '../logic/backup-flush';
-	import { createNodeActions, type CutMark } from '$lib/views/tree/logic/node-actions';
-	import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
-	import { DocEditController } from '../state/doc-edit.svelte';
-	import { DocSessionController } from '../state/doc-session.svelte';
-	import { DocNavController } from '../state/doc-nav.svelte';
-	import { createDocMenuActions } from '../logic/doc-menu-actions';
 	import { handleDocMenuEvent } from '../logic/doc-menu-events';
+	import { DocumentSession } from '../state/document-session.svelte';
 	import type { DocPaneActions } from '../logic/doc-actions';
 	import { schemaStore } from '$lib/panels/state/schema-store.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
@@ -58,9 +46,6 @@
 	import EmptyState from '$lib/shell/components/EmptyState.svelte';
 	import { sidebarPrefs } from '$lib/shell/state/sidebar-prefs.svelte';
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
-	import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
-
-	type ViewMode = 'tree' | 'code' | 'grid' | 'graph' | 'compare';
 
 	interface Props {
 		tabId: string;
@@ -81,10 +66,7 @@
 				save: (opts?: { silent?: boolean }) => Promise<boolean>;
 			} | null,
 		) => void;
-		navRequest?: { path: Path; nonce: number; tabId: string } | null;
-
-		historyRequest?: { delta: number; nonce: number; tabId: string } | null;
-		compareRequest?: { target: CompareTarget; nonce: number; tabId: string } | null;
+		paneBus?: PaneCommandBus | null;
 		isHandleAlive?: (h: DocHandle) => boolean;
 
 		confirmLargeFile?: (path: string) => Promise<boolean>;
@@ -101,9 +83,7 @@
 		onOpened = () => {},
 		onOpenInNewTab = () => {},
 		onContextChange = () => {},
-		navRequest = null,
-		historyRequest = null,
-		compareRequest = null,
+		paneBus = null,
 		isHandleAlive = () => true,
 		confirmLargeFile,
 		confirmCommentLoss,
@@ -114,9 +94,6 @@
 		return truncatePathMiddle(basename(name), 24);
 	}
 
-	let busy = $state(false);
-	let error: string | null = $state(null);
-	let viewMode: ViewMode = $state('tree');
 	let dismissedNoteFor = $state<string | null>(null);
 
 	let codeApi: CodeViewApi | null = $state(null);
@@ -124,61 +101,18 @@
 	let codeValid = $state<{ valid: boolean; message: string | null } | null>(null);
 
 	$effect(() => {
-		if (viewMode !== 'code') {
+		if (doc.viewMode !== 'code') {
 			codeDirty = false;
 			codeValid = null;
 		}
 	});
 
-	async function switchView(mode: ViewMode) {
-		if (viewMode === 'code' && mode !== 'code' && codeDirty && codeApi) {
-			if (!(await codeApi.flush())) return;
-		}
-		viewMode = mode;
-	}
-
 	let menuState: { x: number; y: number; rowIndex: number } | null = $state(null);
-
-	const prompt = new PromptController();
-
-	const tree: TreeRowsController = new TreeRowsController({
-		handle: () => session.handle,
-		summary: () => session.summary,
-		setError: (e) => {
-			error = e;
-		},
-	});
-
-	const edit: DocEditController = new DocEditController({
-		rows: () => tree.rows,
-		handle: () => session.handle,
-		apply: (op) => session.applyOp(op),
-		setError: (e) => {
-			error = e;
-		},
-	});
 
 	let graphApi = $state<GraphViewApi | null>(null);
 
-	const find: FindController = new FindController({
-		handle: () => session.handle,
-		canOpen: () => !!session.summary,
-		isCodeView: () => viewMode === 'code',
-		isGraphView: () => viewMode === 'graph',
-		switchToTree: () => {
-			if (viewMode !== 'tree') viewMode = 'tree';
-		},
-		codeApi: () => codeApi,
-		openGraphSearch: () => graphApi?.openSearch(),
-		navigateToHit: (path) => nav.navigateTo(path),
-		afterReplace: async (affectedPaths) => {
-			await session.refreshSummary();
-			await tree.refetchAfterOp(affectedPaths);
-		},
-	});
-
 	$effect(() => {
-		void viewMode;
+		void doc.viewMode;
 		void codeApi;
 		untrack(() => find.syncActiveView());
 	});
@@ -192,161 +126,41 @@
 	let gridLoadingFor: number | null = $state(null);
 	let gridSelected: { path: Path; kind: NodeKind | null } | null = $state(null);
 
-	const compare: CompareController = new CompareController({
-		mainHandle: () => session.handle,
+	const doc = new DocumentSession({
+		isActive: () => isActive,
+		onOpenInNewTab: (source) => onOpenInNewTab(source),
 		isHandleAlive: (h) => isHandleAlive(h),
-		setViewMode: (mode) => {
-			viewMode = mode;
-		},
-		setBusy: (b) => {
-			busy = b;
-		},
-		setError: (e) => {
-			error = e;
-		},
-	});
-
-	const session: DocSessionController = new DocSessionController({
-		tree,
-		find,
-		compare,
-		setBusy: (b) => {
-			busy = b;
-		},
-		setError: (e) => {
-			error = e;
-		},
-		getError: () => error,
-		setSelectedPath: (p) => nav.select(p),
+		confirmLargeFile: (p) => (confirmLargeFile ? confirmLargeFile(p) : Promise.resolve(true)),
+		confirmCommentLoss: (n) =>
+			confirmCommentLoss ? confirmCommentLoss(n) : Promise.resolve('save' as const),
+		code: { api: () => codeApi, dirty: () => codeDirty },
+		graphApi: () => graphApi,
 		clearViewState: () => {
 			gridSchema = null;
 			gridLoadingFor = null;
 		},
-		flushPendingEdits: async () => {
-			if (viewMode === 'code' && codeDirty && codeApi) return codeApi.flush();
-			return true;
-		},
-		applyDefaultView: async (summary) => {
-			await sidebarPrefs.init();
-			viewMode = resolveDefaultView(sidebarPrefs.defaultView, summary);
-		},
-		flash,
-		cancelBackupTimer: () => {
-			if (backupTimer) clearTimeout(backupTimer);
-		},
-		confirmLargeFile: (p: string) =>
-			confirmLargeFile ? confirmLargeFile(p) : Promise.resolve(true),
-		confirmCommentLoss: (n: string) =>
-			confirmCommentLoss ? confirmCommentLoss(n) : Promise.resolve('save' as const),
 	});
+	const { session, tree, edit, find, compare, nav, nodeActions, menuAction, prompt } = doc;
 
 	const recoveryNoteDismissed = $derived(
 		session.handle != null && dismissedNoteFor === String(session.handle),
 	);
 
-	const nav: DocNavController = new DocNavController({
-		tree,
-		handle: () => session.handle,
-		prompt,
-		switchToTree: () => {
-			if (viewMode !== 'tree') viewMode = 'tree';
-		},
-		setError: (e) => {
-			error = e;
-		},
-	});
-
 	onDestroy(() => {
-		session.dispose();
+		doc.dispose();
 	});
-
-	const compareGate = makeNonceGate();
-	const navGate = makeNonceGate();
-	const historyGate = makeNonceGate();
 
 	$effect(() => {
-		if (!session.handle) return;
-		if (compareGate(compareRequest, tabId, isActive)) {
-			void compare.start(compareRequest!.target);
-		}
+		if (!paneBus) return;
+		return paneBus.subscribe(tabId, (cmd) => {
+			if (!session.handle) return;
+			if (cmd.kind === 'navigate') void nav.navigateTo(cmd.path);
+			else if (cmd.kind === 'history') void session.runHistory(cmd.delta);
+			else void compare.start(cmd.target);
+		});
 	});
-	$effect(() => {
-		if (!session.handle) return;
-		if (navGate(navRequest, tabId, isActive)) {
-			void nav.navigateTo(navRequest!.path);
-		}
-	});
-	$effect(() => {
-		if (!session.handle) return;
-		if (historyGate(historyRequest, tabId, isActive)) {
-			void session.runHistory(historyRequest!.delta);
-		}
-	});
-
-	let saveFlash: string | null = $state(null);
-
-	const SAVE_FLASH_MS = 1500;
-	function flash(msg: string) {
-		saveFlash = msg;
-		setTimeout(() => (saveFlash = null), SAVE_FLASH_MS);
-	}
 
 	let exportOpen = $state(false);
-
-	const isDirty = $derived((session.summary?.dirty ?? false) || codeDirty);
-
-	const backup = createBackupFlusher({
-		handle: () => session.handle,
-		sourceName: () => session.sourceName,
-		isDirty: () => isDirty,
-		codeDirty: () => codeDirty,
-		flushCodeBuffer: () => codeApi?.flush() ?? Promise.resolve(true),
-	});
-
-	let backupTimer: ReturnType<typeof setTimeout> | null = null;
-	$effect(() => {
-		const h = session.handle;
-		const v = session.summary?.version ?? 0;
-		void v;
-		void codeDirty;
-		if (!h || !isDirty) return;
-		if (backupTimer) clearTimeout(backupTimer);
-		backupTimer = setTimeout(() => void backup.flush(), BACKUP_IDLE_MS);
-		return () => {
-			if (backupTimer) clearTimeout(backupTimer);
-		};
-	});
-
-	let prevActive = false;
-	$effect(() => {
-		const nowActive = isActive;
-		if (prevActive && !nowActive && isDirty) void backup.flush();
-		prevActive = nowActive;
-	});
-
-	$effect(() => {
-		function onBlur() {
-			if (isDirty) void backup.flush();
-		}
-		window.addEventListener('blur', onBlur);
-		return () => window.removeEventListener('blur', onBlur);
-	});
-
-	const autoSaver = createAutoSaver({
-		isDirty: () => isDirty,
-		isFileBacked: () => session.summary?.fileBacked ?? false,
-		autoSaveOnIdle: () => behaviorPrefs.autoSaveOnIdle,
-		autoSaveIdleMs: () => behaviorPrefs.autoSaveIdleMs,
-		save: (opts) => session.save(opts),
-	});
-	$effect(() => {
-		void session.summary?.version;
-		void codeDirty;
-		void isDirty;
-		void behaviorPrefs.autoSaveOnIdle;
-		void behaviorPrefs.autoSaveIdleMs;
-		return autoSaver.schedule();
-	});
 
 	$effect(() => {
 		if (nav.selectedPath !== null && nav.selectedIndex === -1) {
@@ -363,36 +177,9 @@
 		}),
 	);
 
-	let cutMark = $state<CutMark | null>(null);
-
-	const nodeActions = createNodeActions({
-		handle: () => session.handle,
-		rows: () => tree.rows,
-		selectedIndex: () => nav.selectedIndex,
-		setSelectedPath: nav.select,
-		siblingCount: tree.siblingCount,
-		prompt,
-		apply: (op) => session.applyOp(op),
-		setError: (e) => {
-			error = e;
-		},
-		flash,
-		onOpenInNewTab: (source) => onOpenInNewTab(source),
-		getCutMark: () => cutMark,
-		setCutMark: (m) => {
-			cutMark = m;
-		},
-	});
-
-	const menuAction = createDocMenuActions({
-		edit,
-		nodeActions,
-		apply: (op) => session.applyOp(op),
-	});
-
 	const actions: DocPaneActions = {
 		hasDoc: () => !!session.summary,
-		isCodeView: () => viewMode === 'code',
+		isCodeView: () => doc.viewMode === 'code',
 		expandAllDisabled: () => expandAllDisabled,
 		inCompare: () => compare.active,
 		find,
@@ -403,14 +190,14 @@
 		openExport: () => {
 			if (session.summary) exportOpen = true;
 		},
-		switchView,
+		switchView: doc.switchView,
 		undo: () => {
-			if (viewMode === 'code' && codeApi) codeApi.undo();
+			if (doc.viewMode === 'code' && codeApi) codeApi.undo();
 			else if (edit.active) edit.cancel();
 			else void session.undo();
 		},
 		redo: () => {
-			if (viewMode === 'code' && codeApi) codeApi.redo();
+			if (doc.viewMode === 'code' && codeApi) codeApi.redo();
 			else void session.redo();
 		},
 		close: session.reset,
@@ -465,9 +252,9 @@
 	const status = $derived.by<DocStatus | null>(() => {
 		const s = session.summary;
 		if (s === null) return null;
-		const inGrid = viewMode === 'grid';
+		const inGrid = doc.viewMode === 'grid';
 		const activePath =
-			viewMode === 'tree' ? nav.selectedPath : inGrid ? (gridSelected?.path ?? null) : null;
+			doc.viewMode === 'tree' ? nav.selectedPath : inGrid ? (gridSelected?.path ?? null) : null;
 		return {
 			pathDisplay: activePath !== null ? pathToString(activePath) : null,
 			kindDisplay: inGrid
@@ -476,12 +263,12 @@
 			sizeDisplay: fmtBytes(s.sourceSize),
 			lazy: s.lazy,
 			validity: validityFromView({
-				viewMode,
+				viewMode: doc.viewMode,
 				codeValid,
 				schemaResult: schemaStore.get(tabId).result,
 			}),
 			editing: edit.active,
-			dirty: isDirty,
+			dirty: doc.isDirty,
 		};
 	});
 
@@ -498,8 +285,10 @@
 		};
 	});
 
-	const expandAllDisabled = $derived(canExpandAllDisabled({ summary: session.summary, busy }));
-	const expandAllTitle = $derived(makeExpandAllTitle({ summary: session.summary, busy }));
+	const expandAllDisabled = $derived(
+		canExpandAllDisabled({ summary: session.summary, busy: doc.busy }),
+	);
+	const expandAllTitle = $derived(makeExpandAllTitle({ summary: session.summary, busy: doc.busy }));
 
 	$effect(() => {
 		if (!session.handle || !session.summary) return;
@@ -507,7 +296,7 @@
 		if (gridLoadingFor === v) return;
 		const rootIsNonEmptyArray =
 			session.summary.rootKind === 'array' && (session.summary.rootChildCount ?? 0) > 0;
-		if (!rootIsNonEmptyArray && viewMode !== 'grid') return;
+		if (!rootIsNonEmptyArray && doc.viewMode !== 'grid') return;
 		gridLoadingFor = v;
 		const h = session.handle;
 		void ipc
@@ -516,7 +305,7 @@
 				if (session.handle === h && session.summary?.version === v) gridSchema = s;
 			})
 			.catch((e) => {
-				if (session.handle === h) error = describeError(e);
+				if (session.handle === h) doc.error = describeError(e);
 			});
 	});
 
@@ -558,7 +347,7 @@
 
 	async function onExpandAll() {
 		if (expandAllDisabled) return;
-		await expandAll({ tree, setBusy: (b) => (busy = b) });
+		await expandAll({ tree, setBusy: (b) => (doc.busy = b) });
 	}
 
 	async function onCollapseAll() {
@@ -572,36 +361,36 @@
 			<div class="view-modes">
 				<button
 					class="vm"
-					class:active={viewMode === 'tree'}
-					onclick={() => void switchView('tree')}
+					class:active={doc.viewMode === 'tree'}
+					onclick={() => void doc.switchView('tree')}
 					title={`tree view (${fmtKbd('⌘1')})`}>Tree</button
 				>
 				<button
 					class="vm"
-					class:active={viewMode === 'code'}
-					onclick={() => void switchView('code')}
+					class:active={doc.viewMode === 'code'}
+					onclick={() => void doc.switchView('code')}
 					title={`code view (${fmtKbd('⌘2')})`}>Code</button
 				>
 				<button
 					class="vm"
-					class:active={viewMode === 'grid'}
-					class:available={gridSchema?.gridSuitable && viewMode !== 'grid'}
-					onclick={() => void switchView('grid')}
+					class:active={doc.viewMode === 'grid'}
+					class:available={gridSchema?.gridSuitable && doc.viewMode !== 'grid'}
+					onclick={() => void doc.switchView('grid')}
 					title={gridSchema?.gridSuitable
 						? `grid view (${fmtKbd('⌘3')}) · this document looks like a grid`
 						: `grid view (${fmtKbd('⌘3')})`}
-					>Grid{#if gridSchema?.gridSuitable && viewMode !== 'grid'}<span
+					>Grid{#if gridSchema?.gridSuitable && doc.viewMode !== 'grid'}<span
 							class="vm-dot"
 							aria-hidden="true"
 						></span>{/if}</button
 				>
 				<button
 					class="vm"
-					class:active={viewMode === 'graph'}
-					onclick={() => void switchView('graph')}
+					class:active={doc.viewMode === 'graph'}
+					onclick={() => void doc.switchView('graph')}
 					title={`graph view (${fmtKbd('⌘4')})`}>Graph</button
 				>
-				{#if viewMode === 'compare'}
+				{#if doc.viewMode === 'compare'}
 					<button class="vm active" onclick={compare.exit} title="exit compare">Compare</button>
 				{/if}
 			</div>
@@ -609,20 +398,20 @@
 		</div>
 	{/if}
 
-	{#if error && !session.diagnosis}
+	{#if doc.error && !session.diagnosis}
 		<div class="banner banner-err">
-			<span class="err-text">{error}</span>
-			<button class="err-dismiss" onclick={() => (error = null)} aria-label="dismiss error"
+			<span class="err-text">{doc.error}</span>
+			<button class="err-dismiss" onclick={() => (doc.error = null)} aria-label="dismiss error"
 				><Icon icon={X} size="sm" /></button
 			>
 		</div>
 	{/if}
 
-	{#if saveFlash && !error}
-		<div class="banner banner-saved"><Icon icon={Check} size="sm" /> {saveFlash}</div>
+	{#if doc.saveFlash && !doc.error}
+		<div class="banner banner-saved"><Icon icon={Check} size="sm" /> {doc.saveFlash}</div>
 	{/if}
 
-	{#if session.summary?.recoveryNote && !error && !recoveryNoteDismissed}
+	{#if session.summary?.recoveryNote && !doc.error && !recoveryNoteDismissed}
 		<div class="banner banner-info">
 			<span class="info-head">loaded with 1 cleanup</span>
 			<span class="info-list"><span class="info-item">{session.summary.recoveryNote}</span></span>
@@ -634,7 +423,7 @@
 		</div>
 	{/if}
 
-	{#if session.repairInfo && !error}
+	{#if session.repairInfo && !doc.error}
 		<div class="banner banner-info">
 			<span class="info-head"
 				>repaired
@@ -661,13 +450,13 @@
 
 	{#if !session.summary}
 		<EmptyState
-			{busy}
+			busy={doc.busy}
 			onOpenSource={session.loadFromSource}
 			diagnosis={session.diagnosis}
 			onFixDiagnosis={(t) => void session.applyDiagnosisFix(t)}
 			onDismissDiagnosis={() => (session.diagnosis = null)}
 		/>
-	{:else if viewMode === 'tree'}
+	{:else if doc.viewMode === 'tree'}
 		<Breadcrumb
 			path={nav.selectedPath}
 			onSegment={nav.onSegment}
@@ -694,7 +483,7 @@
 				onEditCommit={edit.commit}
 				onEditCancel={edit.cancel}
 				{invalidMarks}
-				cutPath={cutMark?.path ?? null}
+				cutPath={doc.cutMark?.path ?? null}
 			/>
 			<FindBar
 				open={find.open}
@@ -714,7 +503,7 @@
 				replaceStatus={find.replaceStatus}
 			/>
 		</div>
-	{:else if viewMode === 'compare' && session.handle && compare.handle && session.summary && compare.summary}
+	{:else if doc.viewMode === 'compare' && session.handle && compare.handle && session.summary && compare.summary}
 		<CompareView
 			leftHandle={session.handle}
 			rightHandle={compare.handle}
@@ -725,7 +514,7 @@
 			staleSource={compare.staleSource}
 			onExit={() => void compare.exit()}
 		/>
-	{:else if viewMode === 'code'}
+	{:else if doc.viewMode === 'code'}
 		<div class="code-pane">
 			<CodeView
 				handle={session.handle}
@@ -752,7 +541,7 @@
 				replaceStatus={find.replaceStatus}
 			/>
 		</div>
-	{:else if viewMode === 'graph' && session.handle}
+	{:else if doc.viewMode === 'graph' && session.handle}
 		<GraphView
 			handle={session.handle}
 			rootKind={session.summary.rootKind}
@@ -770,7 +559,7 @@
 				onOpenInTree={(p) => void nav.navigateTo(p)}
 				onCellSelect={(c) => (gridSelected = c)}
 				docKey={session.summary?.sourcePath ?? null}
-				onError={(e) => (error = e)}
+				onError={(e) => (doc.error = e)}
 				onExtract={(text, count) => {
 					const name = stem(session.sourceName ?? 'rows').slice(0, 24);
 					onOpenInNewTab({

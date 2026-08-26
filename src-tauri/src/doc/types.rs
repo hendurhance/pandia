@@ -90,7 +90,6 @@ pub struct NodeView {
     pub kind: NodeKind,
     pub preview: String,
     pub child_count: Option<u32>,
-    pub size_hint: u32,
 }
 
 pub(crate) fn quote_preview(s: &str) -> String {
@@ -317,7 +316,6 @@ mod tests {
             kind: NodeKind::Array,
             preview: "[109472 items]".into(),
             child_count: Some(109_472),
-            size_hint: 12_345,
         };
         assert_eq!(roundtrip(&view), view);
 
@@ -326,7 +324,6 @@ mod tests {
             kind: NodeKind::String,
             preview: "\"hello\"".into(),
             child_count: None,
-            size_hint: 7,
         };
         assert_eq!(roundtrip(&leaf), leaf);
     }
@@ -394,12 +391,9 @@ mod tests {
             kind: NodeKind::Array,
             preview: "[2 items]".into(),
             child_count: Some(2),
-            size_hint: 0,
         };
         let json = serde_json::to_string(&view).unwrap();
         assert!(json.contains("\"childCount\":2"));
-        assert!(json.contains("\"sizeHint\":0"));
         assert!(!json.contains("child_count"));
-        assert!(!json.contains("size_hint"));
     }
 }

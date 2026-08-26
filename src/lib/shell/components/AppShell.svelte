@@ -35,6 +35,7 @@
 	import { ipc } from '$lib/ipc/client';
 	import type { BackupRecord, Path } from '$lib/ipc/bindings';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
+	import { PaneCommandBus } from '$lib/shell/state/pane-bus';
 	import { ConfirmController } from '$lib/ui/confirm.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -115,15 +116,12 @@
 		return true;
 	}
 
-	let navRequest: { path: Path; nonce: number; tabId: string } | null = $state(null);
-	let historyRequest: { delta: number; nonce: number; tabId: string } | null = $state(null);
-	let compareRequest: { target: CompareTarget; nonce: number; tabId: string } | null = $state(null);
-	let actionNonce = 0;
+	const paneBus = new PaneCommandBus();
 	function requestNavigate(path: Path) {
-		navRequest = { path, nonce: ++actionNonce, tabId: tabStore.activeId };
+		paneBus.dispatch(tabStore.activeId, { kind: 'navigate', path });
 	}
 	function requestHistoryStep(delta: number) {
-		historyRequest = { delta, nonce: ++actionNonce, tabId: tabStore.activeId };
+		paneBus.dispatch(tabStore.activeId, { kind: 'history', delta });
 	}
 
 	let comparePickerOpen = $state(false);
@@ -133,7 +131,7 @@
 		comparePickerOpen = !comparePickerOpen;
 	}
 	function requestCompare(target: CompareTarget) {
-		compareRequest = { target, nonce: ++actionNonce, tabId: tabStore.activeId };
+		paneBus.dispatch(tabStore.activeId, { kind: 'compare', target });
 		comparePickerOpen = false;
 	}
 
@@ -568,9 +566,7 @@
 						isHandleAlive={(h) => Object.values(tabStore.contexts).some((c) => c?.handle === h)}
 						confirmLargeFile={maybeConfirmLargeFile}
 						{confirmCommentLoss}
-						{navRequest}
-						{historyRequest}
-						{compareRequest}
+						{paneBus}
 					/>
 				</div>
 			{/each}

@@ -27,7 +27,6 @@ function content(path: Path, depth: number, opts: Partial<ContentRow> = {}): Con
 		kind: 'object',
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: false,
 		...opts,
 	};
@@ -115,7 +114,6 @@ describe('rootRow / viewToRow', () => {
 			kind: 'number',
 			preview: '42',
 			childCount: null,
-			sizeHint: 2,
 		};
 		expect(viewToRow(view, ['a'], 0)).toMatchObject({
 			path: ['a', 'x'],

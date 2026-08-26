@@ -55,7 +55,6 @@ describe('DocEditController truncated-string open', () => {
 			kind: 'string',
 			preview,
 			childCount: null,
-			sizeHint: 0,
 			expanded: false,
 		};
 	}

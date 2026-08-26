@@ -88,15 +88,3 @@ export function columnWindow(
 		end: Math.min(widths.length, end + overscan),
 	};
 }
-
-export function rowWindow(
-	scrollTop: number,
-	viewportHeight: number,
-	rowHeight: number,
-	rowCount: number,
-	overscan: number,
-): VisibleRange {
-	const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-	const end = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan);
-	return { start, end };
-}

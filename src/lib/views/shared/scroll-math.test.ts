@@ -6,7 +6,7 @@ import {
 	indexAtOffset,
 	restoreScrollTop,
 	visibleWindow,
-} from './virtualizer';
+} from './scroll-math';
 
 describe('buildOffsets', () => {
 	it('uniform-height fast path: zero rows', () => {

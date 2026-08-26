@@ -32,15 +32,7 @@ export const commands = {
 	docDiff: (left: DocHandle, right: DocHandle, jobId: string | null) => __TAURI_INVOKE<DiffEntry[]>("doc_diff", { left, right, jobId }),
 	docDiffLines: (left: DocHandle, right: DocHandle, jobId: string | null) => __TAURI_INVOKE<LineDiffResult>("doc_diff_lines", { left, right, jobId }),
 	docGetLines: (handle: DocHandle, start: number, end: number) => __TAURI_INVOKE<string[]>("doc_get_lines", { handle, start, end }),
-	/**
-	 *  The whole canonical pretty text (code view's document). Served from the
-	 *  version-keyed canonical cache.
-	 */
 	docCanonicalText: (handle: DocHandle) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_canonical_text", { handle }),
-	/**
-	 *  UTF-16 ranges of the requested paths in the canonical pretty text, aligned
-	 *  with the request order; `null` for paths absent from the document.
-	 */
 	docCanonicalOffsets: (handle: DocHandle, paths: Path[]) => __TAURI_INVOKE<(CanonicalRange | null)[]>("doc_canonical_offsets", { handle, paths }),
 	docSearch: (handle: DocHandle, opts: SearchOptions, jobId: string | null) => __TAURI_INVOKE<SearchHit[]>("doc_search", { handle, opts, jobId }),
 	cancelJob: (jobId: string) => __TAURI_INVOKE<boolean>("cancel_job", { jobId }),
@@ -179,7 +171,6 @@ export type GridFilter = {
 	value?: string & { readonly __brand: "LosslessText" } | null,
 };
 
-
 export type GridQuery = {
 	groups: GridFilter[][],
 	quick: string | null,
@@ -218,7 +209,6 @@ export type NodeView = {
 	kind: NodeKind,
 	preview: string,
 	childCount: number | null,
-	sizeHint: number,
 };
 
 export type Op = { kind: "setValueText"; path: Path; text: string } | { kind: "renameKey"; path: Path; from: string; to: string } | { kind: "deleteKey"; path: Path; key: string } | { kind: "deleteItem"; path: Path; index: number } | { kind: "moveItem"; path: Path; from: number; to: number } | { kind: "reorderKeys"; path: Path; order: string[] } | { kind: "sortKeys"; path: Path; descending: boolean } | { kind: "duplicateItem"; path: Path; index: number } | { kind: "duplicateKey"; path: Path; from: string; to: string; position: number | null } | { kind: "insertItemText"; path: Path; index: number; text: string } | { kind: "insertKeyText"; path: Path; key: string; text: string; position: number | null };

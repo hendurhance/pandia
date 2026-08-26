@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle } from '$lib/ipc/bindings';
@@ -11,7 +10,8 @@
 		type DiffRow,
 		type UnifiedRow,
 	} from '../logic/linediff';
-	import { fixedWindow } from '$lib/views/tree/logic/virtualizer';
+	import { PagedSource } from '$lib/views/shared/paged-source.svelte';
+	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 	import { tokenizeJsonLine, type Token } from '../logic/json-tokens';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronsUpDown } from '@lucide/svelte';
@@ -37,35 +37,57 @@
 	let anchors: number[] = $state.raw([]);
 	let loading = $state(false);
 	let error: string | null = $state(null);
-	let scroller: HTMLDivElement | undefined = $state();
 
 	const ROW_H = 22;
-	const OVERSCAN = 8;
-	let scrollTop = $state(0);
-	let viewportHeight = $state(0);
 	let lastScrolledHunk = -1;
 
-	const win = $derived(fixedWindow(scrollTop, viewportHeight, rows.length, ROW_H, OVERSCAN));
-	const startIndex = $derived(win.start);
-	const endIndex = $derived(win.end);
-	const visibleRows = $derived(rows.slice(startIndex, endIndex));
-	const totalHeight = $derived(rows.length * ROW_H);
+	function rowIdentity(r: UnifiedRow): string {
+		return r.type === 'gap'
+			? `gap:${r.leftStart}:${r.rightStart}:${r.count}`
+			: `${r.type}:${r.leftNo}:${r.rightNo}`;
+	}
 
-	const BLOCK = 500;
-	let leftBlocks = new Map<number, string[]>();
-	let rightBlocks = new Map<number, string[]>();
-	let pendingBlocks = new Set<string>();
-	let fetchedVersion = $state(0);
+	const s = new WindowedScroller({
+		rowCount: () => rows.length,
+		rowHeight: ROW_H,
+		overscan: 8,
+		keyAt: (i) => {
+			const r = rows[i];
+			return r ? rowIdentity(r) : '';
+		},
+	});
+	const startIndex = $derived(s.window.start);
+	const endIndex = $derived(s.window.end);
+	const visibleRows = $derived(rows.slice(startIndex, endIndex));
+	const totalHeight = $derived(s.totalHeight);
+
 	let maxTextLen = $state(0);
 
+	function makeSource(handle: () => DocHandle): PagedSource<string> {
+		return new PagedSource<string>({
+			pageSize: 500,
+			fetch: async (start, end) => {
+				const lines = await ipc.docGetLines(handle(), start, end);
+				for (const line of lines) {
+					if (line.length > maxTextLen) maxTextLen = line.length;
+				}
+				return { items: lines };
+			},
+			onError: (e) => {
+				error = describeError(e);
+			},
+		});
+	}
+	const leftSource = makeSource(() => leftHandle);
+	const rightSource = makeSource(() => rightHandle);
+
 	function textFor(row: DiffRow): string | null {
-		const blocks = row.type === 'add' ? rightBlocks : leftBlocks;
-		const line = (row.type === 'add' ? row.rightNo! : row.leftNo!) - 1;
-		return blocks.get(Math.floor(line / BLOCK))?.[line % BLOCK] ?? null;
+		const source = row.type === 'add' ? rightSource : leftSource;
+		const no = row.type === 'add' ? row.rightNo : row.leftNo;
+		return no == null ? null : (source.get(no - 1) ?? null);
 	}
 
 	const tokenized = $derived.by((): (Token[] | null)[] => {
-		void fetchedVersion;
 		return visibleRows.map((r) => {
 			if (r.type === 'gap') return null;
 			const text = textFor(r);
@@ -73,57 +95,17 @@
 		});
 	});
 
-	function fetchBlock(handle: DocHandle, side: 'left' | 'right', block: number) {
-		const blocks = side === 'left' ? leftBlocks : rightBlocks;
-		const key = `${side}:${block}`;
-		if (blocks.has(block) || pendingBlocks.has(key)) return;
-		pendingBlocks.add(key);
-		void ipc
-			.docGetLines(handle, block * BLOCK, (block + 1) * BLOCK)
-			.then((lines) => {
-				const current = side === 'left' ? leftBlocks : rightBlocks;
-				if (blocks !== current) return;
-				blocks.set(block, lines);
-				for (const line of lines) {
-					if (line.length > maxTextLen) maxTextLen = line.length;
-				}
-				fetchedVersion++;
-			})
-			.catch((e) => {
-				if (blocks !== (side === 'left' ? leftBlocks : rightBlocks)) return;
-				error = describeError(e);
-			})
-			.finally(() => {
-				pendingBlocks.delete(key);
-			});
-	}
-
 	$effect(() => {
-		const l = leftHandle;
-		const r = rightHandle;
 		for (const row of visibleRows) {
 			if (row.type === 'gap') continue;
 			if (row.type === 'add') {
-				fetchBlock(r, 'right', Math.floor((row.rightNo! - 1) / BLOCK));
+				const line = (row.rightNo ?? 1) - 1;
+				rightSource.ensureVisible(line, line + 1);
 			} else {
-				fetchBlock(l, 'left', Math.floor((row.leftNo! - 1) / BLOCK));
+				const line = (row.leftNo ?? 1) - 1;
+				leftSource.ensureVisible(line, line + 1);
 			}
 		}
-	});
-
-	function onScroll(e: Event) {
-		scrollTop = (e.currentTarget as HTMLDivElement).scrollTop;
-	}
-
-	$effect(() => {
-		if (!scroller) return;
-		const sync = () => {
-			if (scroller) viewportHeight = scroller.clientHeight;
-		};
-		sync();
-		const ro = new ResizeObserver(sync);
-		ro.observe(scroller);
-		return () => ro.disconnect();
 	});
 
 	$effect(() => {
@@ -132,9 +114,8 @@
 		let cancelled = false;
 		loading = true;
 		error = null;
-		leftBlocks = new Map();
-		rightBlocks = new Map();
-		pendingBlocks = new Set();
+		leftSource.reset();
+		rightSource.reset();
 		maxTextLen = 0;
 		void ipc
 			.docDiffLines(l, r, null)
@@ -170,25 +151,16 @@
 		const next = rows.slice(0, rowIndex).concat(expanded, rows.slice(rowIndex + 1));
 		rows = next;
 		anchors = changeAnchors(next);
-		if (rowIndex >= Math.ceil(scrollTop / ROW_H)) return;
-		const top = scrollTop + (expanded.length - 1) * ROW_H;
-		void tick().then(() => {
-			if (!scroller) return;
-			scroller.scrollTop = top;
-			scrollTop = top;
-		});
 	}
 
 	$effect(() => {
 		const idx = activeHunk;
-		if (!scroller || idx < 0 || idx >= anchors.length) return;
+		if (!s.el || idx < 0 || idx >= anchors.length) return;
 		if (idx === lastScrolledHunk) return;
 		const anchor = anchors[idx];
 		if (anchor === undefined) return;
 		lastScrolledHunk = idx;
-		const targetY = anchor * ROW_H;
-		const center = Math.max(0, viewportHeight / 2 - ROW_H / 2);
-		scroller.scrollTo({ top: Math.max(0, targetY - center), behavior: 'smooth' });
+		s.scrollToIndex(anchor, { align: 'center' });
 	});
 </script>
 
@@ -199,7 +171,7 @@
 {:else if rows.length === 0}
 	<div class="empty-state"><div class="dim text-sm">No differences</div></div>
 {:else}
-	<div class="inline-scroller" bind:this={scroller} onscroll={onScroll}>
+	<div class="inline-scroller" use:s.attach>
 		<div
 			class="spacer"
 			style="height: {totalHeight}px; width: max(100%, calc({maxTextLen + 14}ch));"
@@ -210,7 +182,7 @@
 					<button
 						class="row gap"
 						data-row={i}
-						style="top: {i * ROW_H}px; height: {ROW_H}px;"
+						style="top: {s.offsetAt(i)}px; height: {ROW_H}px;"
 						onclick={() => expandGap(i)}
 						title="Click to expand"
 					>
@@ -225,7 +197,7 @@
 						class="row"
 						data-kind={row.type}
 						data-row={i}
-						style="top: {i * ROW_H}px; height: {ROW_H}px;"
+						style="top: {s.offsetAt(i)}px; height: {ROW_H}px;"
 					>
 						<span class="ln">{row.leftNo ?? ''}</span>
 						<span class="ln">{row.rightNo ?? ''}</span>

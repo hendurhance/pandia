@@ -698,13 +698,104 @@ fn preview_lazy(lv: &LazyValue<'_>) -> String {
 fn node_view(key: PathSegment, lv: &LazyValue<'_>) -> NodeView {
     let kind = json_type_to_node_kind(lv.get_type());
     let child_count = maybe_count(lv, kind);
-    let span = lv.as_raw_str().len();
     NodeView {
         key,
         kind,
         preview: preview(lv, kind, child_count),
         child_count,
-        size_hint: span.min(u32::MAX as usize) as u32,
+    }
+}
+
+impl super::backend::DocumentBackend for LazyDoc {
+    fn root_kind_and_count(&self) -> (NodeKind, Option<u32>) {
+        (self.root_kind(), self.root_child_count())
+    }
+
+    fn slice(&self, path: &Path, range: std::ops::Range<u32>) -> DocResult<Vec<NodeView>> {
+        LazyDoc::slice(self, path, range)
+    }
+
+    fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)> {
+        LazyDoc::kind_at(self, path)
+    }
+
+    fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>> {
+        self.child_count_uncapped(path)
+    }
+
+    fn get_value(&self, path: &Path) -> DocResult<Value> {
+        LazyDoc::get_value(self, path)
+    }
+
+    fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
+        self.array_field_cells(path, key)
+    }
+
+    fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
+        self.array_field_text_lower(path, key)
+    }
+
+    fn search(
+        &self,
+        opts: &super::search::SearchOptions,
+        cancel: &super::jobs::CancelFlag,
+    ) -> Vec<super::search::SearchHit> {
+        LazyDoc::search(self, opts, cancel)
+    }
+
+    fn generate_types(
+        &self,
+        lang: super::typegen::TypegenLang,
+        type_name: &str,
+    ) -> DocResult<String> {
+        match lang {
+            super::typegen::TypegenLang::JsonSchema => {
+                let v = LazyDoc::get_value(self, &Path::root())?;
+                Ok(super::typegen::generate(&v, lang, type_name))
+            }
+            _ => Ok(super::typegen::generate_from_shape(
+                &self.infer_shape(),
+                lang,
+                type_name,
+            )),
+        }
+    }
+
+    fn hash_into(&self, hasher: &mut blake3::Hasher) -> Result<(), ()> {
+        hasher.update(self.source().as_bytes());
+        Ok(())
+    }
+
+    fn serialize_pretty(&self) -> DocResult<String> {
+        Ok(self.source().to_string())
+    }
+
+    fn serialize_ndjson(&self) -> Option<String> {
+        let spans = self.root_element_spans()?;
+        let src = self.source();
+        let mut out = String::with_capacity(src.len() + spans.len());
+        for &(a, b) in spans {
+            out.push_str(&src[a as usize..b as usize]);
+            out.push('\n');
+        }
+        Some(out)
+    }
+
+    fn write_json(
+        &self,
+        pretty: bool,
+        w: &mut dyn std::io::Write,
+    ) -> Result<(), super::export::ExportError> {
+        super::export::write_json_source(self.source(), pretty, w)
+    }
+
+    fn preview_json(&self, pretty: bool, max_bytes: usize) -> DocResult<(String, bool)> {
+        super::export::preview_json_source(self.source(), pretty, max_bytes)
+            .map_err(|e| DocError::Export(e.to_string()))
+    }
+
+    fn borrowed_root(&self) -> Option<&Value> {
+        None
     }
 }
 

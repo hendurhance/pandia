@@ -13,7 +13,6 @@ function content(path: Path, kind: NodeKind = 'object'): ContentRow {
 		kind,
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: true,
 	};
 }

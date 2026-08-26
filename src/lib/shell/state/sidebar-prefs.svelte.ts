@@ -1,8 +1,6 @@
-import { loadPersisted, savePersisted, SETTINGS_FILE } from '$lib/util/persist';
-import { PersistedStore } from '$lib/util/persisted-store.svelte';
-import { isObject, oneOf } from '$lib/util/guards';
-
-const STORE_KEY = 'sidebar';
+import { SETTINGS_FILE } from '$lib/util/persist';
+import { isObject } from '$lib/util/guards';
+import { boolField, definePrefs, enumField, field, intField } from '$lib/util/prefs.svelte';
 
 export const SIDEBAR_TABS = ['outline', 'schema', 'types', 'history'] as const;
 export type SidebarTabId = (typeof SIDEBAR_TABS)[number];
@@ -18,137 +16,58 @@ const DEFAULT_WIDTH = 240;
 type PanelFlags = Record<SidebarTabId, boolean>;
 const ALL_ENABLED: PanelFlags = { outline: true, schema: true, types: true, history: true };
 
-interface Persisted {
-	collapsed: boolean;
-	width: number;
-	activeTab: SidebarTabId;
-	side: SidebarSide;
-	panels: PanelFlags;
-	defaultView: DefaultView;
-}
+const store = definePrefs({
+	file: SETTINGS_FILE,
+	key: 'sidebar',
+	schema: {
+		collapsed: boolField(false),
+		width: intField(DEFAULT_WIDTH, MIN_WIDTH, MAX_WIDTH),
+		activeTab: enumField<SidebarTabId>('outline', SIDEBAR_TABS),
+		side: enumField<SidebarSide>('left', ['left', 'right']),
+		panels: field<PanelFlags>({ ...ALL_ENABLED }, (raw) => {
+			if (!isObject(raw)) return undefined;
+			return {
+				outline: raw.outline !== false,
+				schema: raw.schema !== false,
+				types: raw.types !== false,
+				history: raw.history !== false,
+			};
+		}),
+		defaultView: enumField<DefaultView>('tree', DEFAULT_VIEWS),
+	},
 
-function sanitize(raw: unknown): Persisted {
-	const defaults: Persisted = {
-		collapsed: false,
-		width: DEFAULT_WIDTH,
-		activeTab: 'outline',
-		side: 'left',
-		panels: { ...ALL_ENABLED },
-		defaultView: 'tree',
-	};
-	if (!isObject(raw)) return defaults;
-	const p = raw;
-	const rawPanels = isObject(p.panels) ? p.panels : {};
-	const panels: PanelFlags = {
-		outline: rawPanels.outline !== false,
-		schema: rawPanels.schema !== false,
-		types: rawPanels.types !== false,
-		history: rawPanels.history !== false,
-	};
-	if (!SIDEBAR_TABS.some((t) => panels[t])) Object.assign(panels, ALL_ENABLED);
+	normalize: (v) => {
+		const panels = SIDEBAR_TABS.some((t) => v.panels[t]) ? v.panels : { ...ALL_ENABLED };
+		const activeTab = panels[v.activeTab]
+			? v.activeTab
+			: (SIDEBAR_TABS.find((t) => panels[t]) ?? 'outline');
+		return { ...v, panels, activeTab };
+	},
+});
 
-	let activeTab: SidebarTabId = oneOf(p.activeTab, SIDEBAR_TABS) ? p.activeTab : 'outline';
-	if (!panels[activeTab]) activeTab = SIDEBAR_TABS.find((t) => panels[t]) ?? 'outline';
+const methods = {
+	toggleCollapsed: () => void store.set('collapsed', !store.collapsed),
+	setCollapsed: (v: boolean) => void store.set('collapsed', v),
+	setWidth: (w: number) => void store.set('width', w),
+	setWidthLive: (w: number): boolean => store.stage({ width: w }),
+	commitWidth: () => void store.persistNow(),
+	setActiveTab: (t: SidebarTabId) =>
+		void store.update({
+			activeTab: t,
+			panels: { ...store.panels, [t]: true },
+			collapsed: false,
+		}),
+	setSide: (s: SidebarSide) => void store.set('side', s),
+	setDefaultView: (v: DefaultView) => void store.set('defaultView', v),
+	setPanelEnabled: (t: SidebarTabId, on: boolean) => {
+		if (store.panels[t] === on) return;
+		if (!on && SIDEBAR_TABS.filter((x) => store.panels[x]).length <= 1) return;
+		void store.update({ panels: { ...store.panels, [t]: on } });
+	},
+};
 
-	return {
-		collapsed: typeof p.collapsed === 'boolean' ? p.collapsed : false,
-		width:
-			typeof p.width === 'number'
-				? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, p.width))
-				: DEFAULT_WIDTH,
-		activeTab,
-		side: p.side === 'right' ? 'right' : 'left',
-		panels,
-		defaultView: oneOf(p.defaultView, DEFAULT_VIEWS) ? p.defaultView : 'tree',
-	};
-}
-
-class SidebarPrefs extends PersistedStore {
-	collapsed: boolean = $state(false);
-	width: number = $state(DEFAULT_WIDTH);
-	activeTab: SidebarTabId = $state('outline');
-	side: SidebarSide = $state('left');
-	panels: PanelFlags = $state({ ...ALL_ENABLED });
-	defaultView: DefaultView = $state('tree');
-
-	enabledTabs: SidebarTabId[] = $derived(SIDEBAR_TABS.filter((t) => this.panels[t]));
-
-	protected async load(): Promise<void> {
-		const p = sanitize(await loadPersisted<Persisted>(SETTINGS_FILE, STORE_KEY));
-		this.collapsed = p.collapsed;
-		this.width = p.width;
-		this.activeTab = p.activeTab;
-		this.side = p.side;
-		this.panels = p.panels;
-		this.defaultView = p.defaultView;
-	}
-
-	private persist(): void {
-		void savePersisted(SETTINGS_FILE, STORE_KEY, {
-			collapsed: this.collapsed,
-			width: this.width,
-			activeTab: this.activeTab,
-			side: this.side,
-			panels: this.panels,
-			defaultView: this.defaultView,
-		} satisfies Persisted);
-	}
-
-	toggleCollapsed(): void {
-		this.collapsed = !this.collapsed;
-		this.persist();
-	}
-
-	setCollapsed(v: boolean): void {
-		if (this.collapsed === v) return;
-		this.collapsed = v;
-		this.persist();
-	}
-
-	setWidth(w: number): void {
-		if (this.setWidthLive(w)) this.persist();
-	}
-
-	setWidthLive(w: number): boolean {
-		const clamped = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(w)));
-		if (this.width === clamped) return false;
-		this.width = clamped;
-		return true;
-	}
-
-	commitWidth(): void {
-		this.persist();
-	}
-
-	setActiveTab(t: SidebarTabId): void {
-		if (!this.panels[t]) this.panels = { ...this.panels, [t]: true };
-		this.activeTab = t;
-		if (this.collapsed) this.collapsed = false;
-		this.persist();
-	}
-
-	setSide(s: SidebarSide): void {
-		if (this.side === s) return;
-		this.side = s;
-		this.persist();
-	}
-
-	setDefaultView(v: DefaultView): void {
-		if (this.defaultView === v) return;
-		this.defaultView = v;
-		this.persist();
-	}
-
-	setPanelEnabled(t: SidebarTabId, on: boolean): void {
-		if (this.panels[t] === on) return;
-		if (!on && SIDEBAR_TABS.filter((x) => this.panels[x]).length <= 1) return;
-		this.panels = { ...this.panels, [t]: on };
-		if (!on && this.activeTab === t) {
-			const next = SIDEBAR_TABS.find((x) => this.panels[x]);
-			if (next) this.activeTab = next;
-		}
-		this.persist();
-	}
-}
-
-export const sidebarPrefs = new SidebarPrefs();
+export const sidebarPrefs: typeof store & typeof methods & { enabledTabs: SidebarTabId[] } =
+	Object.defineProperty(Object.assign(store, methods), 'enabledTabs', {
+		get: () => SIDEBAR_TABS.filter((t) => store.panels[t]),
+		enumerable: true,
+	}) as typeof store & typeof methods & { enabledTabs: SidebarTabId[] };

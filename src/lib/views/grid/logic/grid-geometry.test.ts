@@ -5,7 +5,6 @@ import {
 	autoFitWidthPx,
 	computeColumnLayout,
 	columnWindow,
-	rowWindow,
 	PX_PER_CH,
 	type ColumnLayout,
 } from './grid-geometry';
@@ -112,19 +111,5 @@ describe('columnWindow', () => {
 			start: 0,
 			end: 0,
 		});
-	});
-});
-
-describe('rowWindow', () => {
-	it('returns the rows intersecting the viewport (no overscan)', () => {
-		expect(rowWindow(0, 100, 24, 1000, 0)).toEqual({ start: 0, end: 5 });
-	});
-
-	it('pads by overscan and clamps start at 0', () => {
-		expect(rowWindow(240, 100, 24, 1000, 8)).toEqual({ start: 2, end: 23 });
-	});
-
-	it('clamps end to rowCount', () => {
-		expect(rowWindow(0, 1000, 24, 3, 0)).toEqual({ start: 0, end: 3 });
 	});
 });

@@ -7,11 +7,9 @@ use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::eager::{
-    cell, cmp_cell, eager_cell_text_lower, kind_and_child_count_eager, replace_in_value,
-    resolve_eager, slice_eager,
-};
-use super::export::{self, export as export_value, ExportFormat};
+use super::backend::DocumentBackend;
+use super::eager::{cmp_cell, replace_in_value};
+use super::export::{export as export_value, ExportFormat};
 use super::format::{self, InputFormat};
 use super::grid_filter::{row_passes, GridFilter};
 use super::history::History;
@@ -20,10 +18,8 @@ use super::ops::{Op, OpDescription, OpOutcome};
 use super::schema_validate::{
     validate as schema_validate_value, SchemaCompileError, SchemaValidationResult,
 };
-use super::search::{search_in_value, SearchHit, SearchOptions};
-use super::typegen::{
-    generate as generate_types, generate_from_shape as typegen_from_shape, TypegenLang,
-};
+use super::search::{SearchHit, SearchOptions};
+use super::typegen::TypegenLang;
 use super::types::{DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
 use super::wire::LosslessText;
 
@@ -222,17 +218,31 @@ impl Document {
         Ok(doc)
     }
 
+    fn backend(&self) -> &dyn DocumentBackend {
+        match &self.inner {
+            DocumentImpl::Eager(v) => v,
+            DocumentImpl::Lazy(d) => d,
+        }
+    }
+
+    fn is_lazy(&self) -> bool {
+        matches!(self.inner, DocumentImpl::Lazy(_))
+    }
+
+    fn with_root<R>(&self, f: impl FnOnce(&Value) -> R) -> DocResult<R> {
+        match self.backend().borrowed_root() {
+            Some(v) => Ok(f(v)),
+            None => {
+                let v = self.backend().get_value(&Path::root())?;
+                Ok(f(&v))
+            }
+        }
+    }
+
     fn compute_content_hash(&self) -> blake3::Hash {
         let mut hasher = blake3::Hasher::new();
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                if serde_json::to_writer(&mut hasher, v).is_err() {
-                    return blake3::Hash::from_bytes([0u8; 32]);
-                }
-            }
-            DocumentImpl::Lazy(d) => {
-                hasher.update(d.source().as_bytes());
-            }
+        if self.backend().hash_into(&mut hasher).is_err() {
+            return blake3::Hash::from_bytes([0u8; 32]);
         }
         hasher.finalize()
     }
@@ -271,16 +281,13 @@ impl Document {
     }
 
     pub fn summary(&self) -> Summary {
-        let (root_kind, root_child_count) = match &self.inner {
-            DocumentImpl::Eager(v) => kind_and_child_count_eager(v),
-            DocumentImpl::Lazy(d) => (d.root_kind(), d.root_child_count()),
-        };
+        let (root_kind, root_child_count) = self.backend().root_kind_and_count();
         Summary {
             root_kind,
             root_child_count,
             source_path: self.source_path.clone(),
             source_size: self.source_size,
-            lazy: matches!(self.inner, DocumentImpl::Lazy(_)),
+            lazy: self.is_lazy(),
             version: self.version,
             dirty: self.is_dirty(),
             file_backed: self.file_path.is_some(),
@@ -296,14 +303,8 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        let result = match &self.inner {
-            DocumentImpl::Eager(v) => export_value(v, format),
-            DocumentImpl::Lazy(d) => {
-                let v = d.get_value(&Path::root())?;
-                export_value(&v, format)
-            }
-        };
-        result.map_err(|e| DocError::Export(e.to_string()))
+        self.with_root(|v| export_value(v, format))?
+            .map_err(|e| DocError::Export(e.to_string()))
     }
 
     pub fn export_to_file(&self, format: ExportFormat, path: &str) -> DocResult<()> {
@@ -312,11 +313,9 @@ impl Document {
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
                 let pretty = matches!(format, ExportFormat::Json);
-                let r = match &self.inner {
-                    DocumentImpl::Eager(v) => export::write_json_value(v, pretty, &mut w),
-                    DocumentImpl::Lazy(d) => export::write_json_source(d.source(), pretty, &mut w),
-                };
-                r.map_err(|e| DocError::Export(e.to_string()))?;
+                self.backend()
+                    .write_json(pretty, &mut w)
+                    .map_err(|e| DocError::Export(e.to_string()))?;
             }
             _ => {
                 let full = self.export(format)?;
@@ -336,13 +335,7 @@ impl Document {
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
                 let pretty = matches!(format, ExportFormat::Json);
-                let (mut text, mut truncated) = match &self.inner {
-                    DocumentImpl::Eager(v) => export::preview_json_value(v, pretty, max_bytes),
-                    DocumentImpl::Lazy(d) => {
-                        export::preview_json_source(d.source(), pretty, max_bytes)
-                            .map_err(|e| DocError::Export(e.to_string()))?
-                    }
-                };
+                let (mut text, mut truncated) = self.backend().preview_json(pretty, max_bytes)?;
                 if text.chars().count() > max_chars {
                     text = text.chars().take(max_chars).collect();
                     truncated = true;
@@ -361,12 +354,7 @@ impl Document {
     }
 
     pub fn serialize(&self) -> DocResult<String> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                serde_json::to_string_pretty(v).map_err(|e| DocError::Export(e.to_string()))
-            }
-            DocumentImpl::Lazy(d) => Ok(d.source().to_string()),
-        }
+        self.backend().serialize_pretty()
     }
 
     pub fn set_file_path(&mut self, path: String) {
@@ -375,27 +363,7 @@ impl Document {
     }
 
     fn serialize_ndjson(&self) -> Option<String> {
-        match &self.inner {
-            DocumentImpl::Eager(Value::Array(items)) => {
-                let mut out = String::new();
-                for v in items {
-                    out.push_str(&serde_json::to_string(v).ok()?);
-                    out.push('\n');
-                }
-                Some(out)
-            }
-            DocumentImpl::Lazy(d) => {
-                let spans = d.root_element_spans()?;
-                let src = d.source();
-                let mut out = String::with_capacity(src.len() + spans.len());
-                for &(a, b) in spans {
-                    out.push_str(&src[a as usize..b as usize]);
-                    out.push('\n');
-                }
-                Some(out)
-            }
-            _ => None,
-        }
+        self.backend().serialize_ndjson()
     }
 
     pub fn save(&mut self, path: Option<String>) -> DocResult<SaveResult> {
@@ -424,10 +392,7 @@ impl Document {
     }
 
     pub fn get_slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => slice_eager(v, path, range),
-            DocumentImpl::Lazy(d) => d.slice(path, range),
-        }
+        self.backend().slice(path, range)
     }
 
     pub fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)> {
@@ -435,26 +400,14 @@ impl Document {
             let s = self.summary();
             return Ok((s.root_kind, s.root_child_count));
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                let target = resolve_eager(v, path)?;
-                Ok(kind_and_child_count_eager(target))
-            }
-            DocumentImpl::Lazy(d) => d.kind_at(path),
-        }
+        self.backend().kind_at(path)
     }
 
     pub fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>> {
         if path.is_root() {
             return Ok(self.summary().root_child_count);
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                let (_, count) = kind_and_child_count_eager(resolve_eager(v, path)?);
-                Ok(count)
-            }
-            DocumentImpl::Lazy(d) => d.child_count_uncapped(path),
-        }
+        self.backend().child_count_at(path)
     }
 
     pub fn get_rows(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<Value>> {
@@ -546,26 +499,11 @@ impl Document {
     }
 
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => match resolve_eager(v, path) {
-                Ok(Value::Array(arr)) => Ok(arr.iter().map(|el| cell(el, key).cloned()).collect()),
-                _ => Ok(Vec::new()),
-            },
-            DocumentImpl::Lazy(d) => d.array_field_cells(path, key),
-        }
+        self.backend().column_cells(path, key)
     }
 
     fn compute_column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => match resolve_eager(v, path) {
-                Ok(Value::Array(arr)) => Ok(arr
-                    .iter()
-                    .map(|el| eager_cell_text_lower(el, key))
-                    .collect()),
-                _ => Ok(Vec::new()),
-            },
-            DocumentImpl::Lazy(d) => d.array_field_text_lower(path, key),
-        }
+        self.backend().column_text_lower(path, key)
     }
 
     fn quick_text_column(&self, path: &Path, key: &str) -> DocResult<Arc<Vec<Option<String>>>> {
@@ -808,10 +746,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => Ok(resolve_eager(v, path)?.clone()),
-            DocumentImpl::Lazy(d) => d.get_value(path),
-        }
+        self.backend().get_value(path)
     }
 
     pub fn canonical_lines(&self) -> DocResult<(Arc<String>, Arc<Vec<u32>>)> {
@@ -829,12 +764,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        let text = match &self.inner {
-            DocumentImpl::Eager(v) => super::canonical::canonical_pretty(v),
-            DocumentImpl::Lazy(d) => {
-                super::canonical::canonical_pretty(&d.get_value(&Path::root())?)
-            }
-        };
+        let text = self.with_root(super::canonical::canonical_pretty)?;
         let text = Arc::new(text);
         let line_starts = Arc::new(super::linediff::line_starts(&text));
         *self.canon_cache.lock() = Some(CanonCache {
@@ -852,13 +782,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => Ok(super::canonical::canonical_offsets(v, paths)),
-            DocumentImpl::Lazy(d) => Ok(super::canonical::canonical_offsets(
-                &d.get_value(&Path::root())?,
-                paths,
-            )),
-        }
+        self.with_root(|v| super::canonical::canonical_offsets(v, paths))
     }
 
     pub fn apply(&mut self, op: &Op) -> DocResult<ApplyResult> {
@@ -933,10 +857,7 @@ impl Document {
         opts: &SearchOptions,
         cancel: &crate::doc::jobs::CancelFlag,
     ) -> DocResult<Vec<SearchHit>> {
-        Ok(match &self.inner {
-            DocumentImpl::Eager(v) => search_in_value(v, opts, cancel),
-            DocumentImpl::Lazy(d) => d.search(opts, cancel),
-        })
+        Ok(self.backend().search(opts, cancel))
     }
 
     pub fn replace_all(
@@ -975,16 +896,7 @@ impl Document {
     }
 
     pub fn generate_types(&self, lang: TypegenLang, type_name: &str) -> DocResult<String> {
-        Ok(match &self.inner {
-            DocumentImpl::Eager(v) => generate_types(v, lang, type_name),
-            DocumentImpl::Lazy(d) => match lang {
-                TypegenLang::JsonSchema => {
-                    let v = d.get_value(&Path::root())?;
-                    generate_types(&v, lang, type_name)
-                }
-                _ => typegen_from_shape(&d.infer_shape(), lang, type_name),
-            },
-        })
+        self.backend().generate_types(lang, type_name)
     }
 
     pub fn validate_schema(&self, schema_text: &str) -> DocResult<SchemaValidationResult> {
@@ -994,13 +906,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        let result = match &self.inner {
-            DocumentImpl::Eager(v) => schema_validate_value(v, schema_text),
-            DocumentImpl::Lazy(d) => {
-                let v = d.get_value(&Path::root())?;
-                schema_validate_value(&v, schema_text)
-            }
-        };
+        let result = self.with_root(|v| schema_validate_value(v, schema_text))?;
         result.map_err(|e| match e {
             SchemaCompileError::Parse(s) => DocError::Schema(format!("not valid JSON: {s}")),
             SchemaCompileError::Compile(s) => DocError::Schema(format!("compile error: {s}")),

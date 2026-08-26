@@ -175,45 +175,22 @@ export class DocSessionController {
 		} catch {}
 	};
 
-	applyOp = async (op: Op): Promise<ApplyResult | null> => {
-		if (!this.handle) return null;
-		try {
-			const result = await ipc.docApplyOp(this.handle, op);
-			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(result.affectedPaths);
-			if (this.deps.find.open && this.deps.find.query.trim()) {
-				void this.deps.find.runSearch(this.deps.find.query);
-			}
-			return result;
-		} catch (e) {
-			this.deps.setError(describeError(e));
-			return null;
+	private afterMutation = async (result: ApplyResult) => {
+		await this.refreshSummary();
+		await this.deps.tree.refetchAfterOp(result.affectedPaths);
+		if (this.deps.find.open && this.deps.find.query.trim()) {
+			void this.deps.find.runSearch(this.deps.find.query);
 		}
 	};
 
-	commitText = async (text: string): Promise<ApplyResult | null> => {
+	private mutate = async (
+		run: (handle: DocHandle) => Promise<ApplyResult | null>,
+	): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
-			const result = await ipc.docSetRootText(this.handle, text);
-			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(result.affectedPaths);
-			if (this.deps.find.open && this.deps.find.query.trim()) {
-				void this.deps.find.runSearch(this.deps.find.query);
-			}
-			return result;
-		} catch (e) {
-			this.deps.setError(describeError(e));
-			return null;
-		}
-	};
-
-	undo = async (): Promise<ApplyResult | null> => {
-		if (!this.handle) return null;
-		try {
-			const result = await ipc.docUndo(this.handle);
+			const result = await run(this.handle);
 			if (result === null) return null;
-			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(result.affectedPaths);
+			await this.afterMutation(result);
 			return result;
 		} catch (e) {
 			this.deps.setError(describeError(e));
@@ -221,19 +198,14 @@ export class DocSessionController {
 		}
 	};
 
-	redo = async (): Promise<ApplyResult | null> => {
-		if (!this.handle) return null;
-		try {
-			const result = await ipc.docRedo(this.handle);
-			if (result === null) return null;
-			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(result.affectedPaths);
-			return result;
-		} catch (e) {
-			this.deps.setError(describeError(e));
-			return null;
-		}
-	};
+	applyOp = (op: Op): Promise<ApplyResult | null> => this.mutate((h) => ipc.docApplyOp(h, op));
+
+	commitText = (text: string): Promise<ApplyResult | null> =>
+		this.mutate((h) => ipc.docSetRootText(h, text));
+
+	undo = (): Promise<ApplyResult | null> => this.mutate((h) => ipc.docUndo(h));
+
+	redo = (): Promise<ApplyResult | null> => this.mutate((h) => ipc.docRedo(h));
 
 	runHistory = async (delta: number) => {
 		const n = Math.abs(delta);

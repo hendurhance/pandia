@@ -8,7 +8,6 @@ export interface ContentRow {
 	kind: NodeKind;
 	preview: string;
 	childCount: number | null;
-	sizeHint: number;
 	expanded: boolean;
 }
 
@@ -68,7 +67,6 @@ export function rootRow(rootKind: NodeKind, rootChildCount: number | null): Cont
 		kind: rootKind,
 		preview: rootKind === 'array' ? '[…]' : '{…}',
 		childCount: rootChildCount,
-		sizeHint: 0,
 		expanded: false,
 	};
 }
@@ -82,7 +80,6 @@ export function viewToRow(view: NodeView, parentPath: Path, parentDepth: number)
 		kind: view.kind,
 		preview: view.preview,
 		childCount: view.childCount,
-		sizeHint: view.sizeHint,
 		expanded: false,
 	};
 }

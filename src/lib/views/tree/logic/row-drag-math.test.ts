@@ -12,7 +12,6 @@ function content(path: Path, depth: number, key: ContentRow['key'] = 'k'): Conte
 		kind: 'string' as NodeKind,
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: false,
 	};
 }

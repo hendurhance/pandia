@@ -1,10 +1,6 @@
 import type { TypegenLang } from '$lib/ipc/bindings';
-import { loadPersisted, savePersisted, TYPEGEN_FILE } from '$lib/util/persist';
-import { PersistedStore } from '$lib/util/persisted-store.svelte';
-import { oneOf } from '$lib/util/guards';
-
-const STORE_FILE = TYPEGEN_FILE;
-const STORE_KEY = 'activeLang';
+import { TYPEGEN_FILE } from '$lib/util/persist';
+import { definePrefs, enumField } from '$lib/util/prefs.svelte';
 
 export const TYPEGEN_LANGS: ReadonlyArray<{ id: TypegenLang; label: string }> = [
 	{ id: 'typescript', label: 'TypeScript' },
@@ -20,24 +16,14 @@ export const TYPEGEN_LANGS: ReadonlyArray<{ id: TypegenLang; label: string }> = 
 
 const VALID_LANGS: TypegenLang[] = TYPEGEN_LANGS.map((t) => t.id);
 
-const DEFAULT_LANG: TypegenLang = 'typescript';
+const store = definePrefs({
+	file: TYPEGEN_FILE,
+	key: 'typegen',
+	schema: {
+		activeLang: enumField<TypegenLang>('typescript', VALID_LANGS),
+	},
+});
 
-function coerce(raw: unknown): TypegenLang {
-	return oneOf(raw, VALID_LANGS) ? raw : DEFAULT_LANG;
-}
-
-class TypegenPrefs extends PersistedStore {
-	activeLang: TypegenLang = $state(DEFAULT_LANG);
-
-	protected async load(): Promise<void> {
-		this.activeLang = coerce(await loadPersisted<string>(STORE_FILE, STORE_KEY));
-	}
-
-	setLang(lang: TypegenLang): void {
-		if (this.activeLang === lang) return;
-		this.activeLang = lang;
-		void savePersisted(STORE_FILE, STORE_KEY, lang);
-	}
-}
-
-export const typegenPrefs = new TypegenPrefs();
+export const typegenPrefs = Object.assign(store, {
+	setLang: (lang: TypegenLang) => void store.set('activeLang', lang),
+});

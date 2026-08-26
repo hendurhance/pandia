@@ -33,7 +33,8 @@ export function hueOf(path: Path): number {
 export function toRow(parentPath: Path, v: NodeView): CardRow {
 	const childPath = [...parentPath, v.key];
 	const container = isContainerKind(v.kind);
-	const expandable = container && (v.childCount ?? 0) > 0;
+
+	const expandable = container && v.childCount !== 0;
 	const value = container ? containerPreview(v.kind, v.childCount) : scalarText(v);
 	return {
 		key: rowKeyLabel(v.key),
