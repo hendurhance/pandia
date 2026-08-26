@@ -4,6 +4,20 @@ import Nav from '../components/home/Nav.astro';
 import Footer from '../components/home/Footer.astro';
 import { REPO, RELEASES } from '../data/site';
 import { releases } from '../data/releases';
+
+function inline(md: string): string {
+  const esc = md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return esc
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(
+      /\[([^\]]+)\]\(([^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
+    );
+}
 ---
 <Layout
   title="Changelog"
@@ -42,7 +56,12 @@ import { releases } from '../data/releases';
                   <div class="cl-group">
                     <h2 class="cl-group-label">{g.label}</h2>
                     <ul class="cl-changes">
-                      {g.items.map((it) => <li>{it}</li>)}
+                      {g.items.map((it) => (
+                        <li>
+                          <strong class="cl-note-title" set:html={inline(it.title)} />
+                          {it.detail && <span class="cl-note-detail" set:html={inline(it.detail)} />}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 ))}
@@ -101,6 +120,20 @@ import { releases } from '../data/releases';
       padding: 12px 0 12px 22px; border-top: 1px solid var(--page-rule); position: relative;
     }
     .pandia-page.cl-page .cl-changes li:first-child { border-top: 0; }
+    .pandia-page.cl-page .cl-note-title {
+      display: block; color: var(--page-text); font-weight: 600; letter-spacing: -0.01em;
+    }
+    .pandia-page.cl-page .cl-note-detail {
+      display: block; margin-top: 5px; color: var(--page-dim); font-size: 14.5px; line-height: 1.55;
+    }
+    .pandia-page.cl-page .cl-changes code {
+      font-family: var(--mono); font-size: 0.86em; padding: 1px 5px;
+      background: var(--page-bg-3); border: 1px solid var(--page-rule);
+      color: var(--page-text); white-space: nowrap;
+    }
+    .pandia-page.cl-page .cl-changes a {
+      color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+    }
     .pandia-page.cl-page .cl-changes li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 1.5px; background: var(--accent); }
 
     .pandia-page.cl-page .cl-foot {
