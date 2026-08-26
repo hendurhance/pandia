@@ -1,11 +1,12 @@
-import { docGetSlice, docGetValue, docValueJson } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
 import { pathKey, type ContentRow, type Row } from './model';
 import { findIndexPaged } from './paging';
 import { reorderDestination } from '$lib/util/reorder';
 import { pathToString } from '$lib/util/path';
 import type { PromptController } from '$lib/ui/prompt.svelte';
-import type { ApplyResult, DocHandle, Op, OpenSource, Path } from '$lib/ipc/types';
+import type { ApplyResult, DocHandle, Op, OpenSource, Path } from '$lib/ipc/bindings';
 
 const CHUNK = 200;
 const OBJECT_REORDER_MAX = 2000;
@@ -41,7 +42,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 		const keys: string[] = [];
 		let start = 0;
 		while (true) {
-			const slice = await docGetSlice(handle, path, start, start + CHUNK);
+			const slice = await ipc.docGetSlice(handle, path, start, start + CHUNK);
 			for (const nv of slice) {
 				if (typeof nv.key === 'string') keys.push(nv.key);
 			}
@@ -56,7 +57,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 		const handle = deps.handle();
 		if (!handle) return null;
 		return findIndexPaged(
-			(start, end) => docGetSlice(handle, parentPath, start, end),
+			(start, end) => ipc.docGetSlice(handle, parentPath, start, end),
 			(nv) => nv.key === key,
 			CHUNK,
 			OBJECT_REORDER_MAX,
@@ -81,8 +82,8 @@ export function createNodeActions(deps: NodeActionDeps) {
 		try {
 			const text =
 				row.kind === 'string'
-					? String(await docGetValue(handle, row.path))
-					: await docValueJson(handle, row.path);
+					? String(decodeLossless(await ipc.docGetValue(handle, row.path)))
+					: await ipc.docGetValue(handle, row.path);
 			await navigator.clipboard.writeText(text);
 			return true;
 		} catch (e) {
@@ -222,7 +223,10 @@ export function createNodeActions(deps: NodeActionDeps) {
 			const target = idx + dir;
 			if (idx < 0 || target < 0 || target >= keys.length) return;
 			const order = keys.slice();
-			[order[idx], order[target]] = [order[target], order[idx]];
+			const keyA = order[idx];
+			const keyB = order[target];
+			if (keyA === undefined || keyB === undefined) return;
+			[order[idx], order[target]] = [keyB, keyA];
 			await deps.apply({ kind: 'reorderKeys', path: parentPath, order });
 		}),
 
@@ -251,6 +255,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			if (to === null) return;
 			const order = keys.slice();
 			const [k] = order.splice(from, 1);
+			if (k === undefined) return;
 			order.splice(to, 0, k);
 			await deps.apply({ kind: 'reorderKeys', path: parentPath, order });
 		}),
@@ -282,7 +287,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			const handle = deps.handle();
 			if (!handle) return;
 			try {
-				const text = await docValueJson(handle, row.path);
+				const text = await ipc.docGetValue(handle, row.path);
 				await navigator.clipboard.writeText(text);
 				deps.setCutMark({ path: row.path, text });
 				deps.flash('cut — paste to move');
@@ -344,7 +349,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 						path: sourceParent,
 						index: sourceKey,
 					});
-				} else {
+				} else if (sourceKey !== undefined) {
 					await deps.apply({
 						kind: 'deleteKey',
 						path: sourceParent,
@@ -359,7 +364,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			const handle = deps.handle();
 			if (!handle) return;
 			try {
-				const text = await docValueJson(handle, row.path);
+				const text = await ipc.docGetValue(handle, row.path);
 				deps.onOpenInNewTab({
 					kind: 'text',
 					text,

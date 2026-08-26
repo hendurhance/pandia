@@ -9,10 +9,62 @@ use tauri::{
     AppHandle, Emitter, Manager, RunEvent,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub(crate) struct RecentFile {
     pub path: String,
     pub name: String,
+}
+
+fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .commands(tauri_specta::collect_commands![
+            commands::doc_open,
+            commands::doc_close,
+            commands::doc_get_slice,
+            commands::doc_get_value,
+            commands::doc_get_rows,
+            commands::doc_get_rows_sorted,
+            commands::doc_get_rows_filtered,
+            commands::doc_column_values,
+            commands::doc_get_rows_at,
+            commands::doc_summary,
+            commands::doc_child_count,
+            commands::doc_column_schema,
+            commands::doc_apply_op,
+            commands::doc_set_root_text,
+            commands::doc_undo,
+            commands::doc_redo,
+            commands::doc_diff,
+            commands::doc_diff_lines,
+            commands::doc_get_lines,
+            commands::doc_canonical_text,
+            commands::doc_canonical_offsets,
+            commands::doc_search,
+            commands::cancel_job,
+            commands::doc_replace,
+            commands::doc_repair_text,
+            commands::doc_validate_schema,
+            commands::doc_generate_types,
+            commands::doc_detect_and_convert,
+            commands::doc_diagnose,
+            commands::doc_history,
+            commands::doc_save,
+            commands::doc_set_file_path,
+            commands::doc_backup,
+            commands::doc_backup_clear,
+            commands::doc_backup_scan,
+            commands::doc_export,
+            commands::doc_export_preview,
+            commands::doc_export_to_file,
+            refresh_recent_files,
+            drain_pending_files,
+        ])
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        .disable_serde_phases()
+        .dangerously_cast_bigints_to_number()
+        .constant("LINE_FETCH_MAX", doc::linediff::LINE_FETCH_MAX)
+        .constant("EDIT_SIZE_LIMIT", doc::document::EDIT_SIZE_LIMIT)
+        .constant("MAX_DOC_BYTES", doc::document::MAX_DOC_BYTES)
 }
 
 pub(crate) struct AppState {
@@ -72,47 +124,7 @@ pub fn run() {
         })
         .manage(std::sync::Arc::new(doc::store::DocStore::new()))
         .manage(std::sync::Arc::new(doc::jobs::JobRegistry::default()))
-        .invoke_handler(tauri::generate_handler![
-            commands::doc_open,
-            commands::doc_close,
-            commands::doc_get_slice,
-            commands::doc_get_value,
-            commands::doc_value_json,
-            commands::doc_get_rows,
-            commands::doc_get_rows_sorted,
-            commands::doc_get_rows_filtered,
-            commands::doc_column_values,
-            commands::doc_get_rows_at,
-            commands::doc_summary,
-            commands::doc_child_count,
-            commands::doc_column_schema,
-            commands::doc_apply_op,
-            commands::doc_set_root_text,
-            commands::doc_undo,
-            commands::doc_redo,
-            commands::doc_diff,
-            commands::doc_diff_lines,
-            commands::doc_get_lines,
-            commands::doc_search,
-            commands::cancel_job,
-            commands::doc_replace,
-            commands::doc_repair_text,
-            commands::doc_validate_schema,
-            commands::doc_generate_types,
-            commands::doc_detect_and_convert,
-            commands::doc_diagnose,
-            commands::doc_history,
-            commands::doc_save,
-            commands::doc_set_file_path,
-            commands::doc_backup,
-            commands::doc_backup_clear,
-            commands::doc_backup_scan,
-            commands::doc_export,
-            commands::doc_export_preview,
-            commands::doc_export_to_file,
-            refresh_recent_files,
-            drain_pending_files,
-        ])
+        .invoke_handler(specta_builder().invoke_handler())
         .setup(|app| {
             let menu = build_menu(app.handle(), &[])?;
             app.set_menu(menu)?;
@@ -233,8 +245,14 @@ fn build_menu(
         .separator()
         .item(&next_tab)
         .item(&prev_tab)
-        .item(&close_tab)
-        .build()?;
+        .item(&close_tab);
+
+    #[cfg(not(target_os = "macos"))]
+    let file_menu = file_menu
+        .separator()
+        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?);
+
+    let file_menu = file_menu.build()?;
 
     let undo = MenuItemBuilder::with_id("undo", "Undo")
         .accelerator("CmdOrCtrl+Z")
@@ -347,8 +365,6 @@ fn build_menu(
         .separator()
         .item(&about)
         .item(&check_for_updates)
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?)
         .build()?;
 
     #[cfg(target_os = "macos")]
@@ -390,12 +406,14 @@ fn build_menu(
 }
 
 #[tauri::command]
+#[specta::specta]
 fn drain_pending_files(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
     let mut pending = state.pending_files.lock().map_err(|e| e.to_string())?;
     Ok(std::mem::take(&mut *pending))
 }
 
 #[tauri::command]
+#[specta::specta]
 fn refresh_recent_files(app: AppHandle, items: Vec<RecentFile>) -> Result<(), String> {
     let app2 = app.clone();
     app.run_on_main_thread(move || {
@@ -410,5 +428,20 @@ fn handle_menu_event(app: &tauri::AppHandle, event: MenuEvent) {
     let menu_id = event.id().as_ref();
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("menu-event", menu_id);
+    }
+}
+
+#[cfg(test)]
+mod bindings_export {
+    #[test]
+    fn export_typescript_bindings() {
+        super::specta_builder()
+            .export(
+                specta_typescript::Typescript::default().header(
+                    "// Generated by tauri-specta (`cargo test` in src-tauri). Do not edit by hand.\n",
+                ),
+                "../src/lib/ipc/bindings.ts",
+            )
+            .expect("failed to export typescript bindings");
     }
 }

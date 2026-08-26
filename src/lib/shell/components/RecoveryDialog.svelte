@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { BackupRecord } from '$lib/ipc/types';
+	import type { BackupRecord } from '$lib/ipc/bindings';
 	import { basename } from '$lib/util/path';
 	import { fmtBytes } from '$lib/util/format';
 

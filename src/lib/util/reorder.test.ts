@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { reorderDestination } from './reorder';
 
 function dropBefore<T>(arr: T[], from: number, g: number): T[] {
+	const item = arr[from];
+	if (item === undefined) throw new Error(`no item at index ${from}`);
 	const rest = arr.filter((_, i) => i !== from);
 	const insertAt = from < g ? g - 1 : g;
-	rest.splice(insertAt, 0, arr[from]);
+	rest.splice(insertAt, 0, item);
 	return rest;
 }
 
@@ -32,6 +34,8 @@ describe('reorderDestination', () => {
 		const base = ['a', 'b', 'c', 'd', 'e'];
 		const n = base.length;
 		for (let from = 0; from < n; from++) {
+			const moved = base[from];
+			if (moved === undefined) throw new Error(`no item at index ${from}`);
 			for (let gap = 0; gap <= n; gap++) {
 				const dest = reorderDestination(from, gap);
 				const expected = dropBefore(base, from, gap);
@@ -39,7 +43,7 @@ describe('reorderDestination', () => {
 					expect(expected).toEqual(base);
 				} else {
 					const got = base.filter((_, i) => i !== from);
-					got.splice(dest, 0, base[from]);
+					got.splice(dest, 0, moved);
 					expect(got).toEqual(expected);
 				}
 			}

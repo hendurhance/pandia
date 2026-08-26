@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 
 pub(crate) const ARRAY_SAMPLE_CAP: usize = 50;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum TypegenLang {
     Typescript,

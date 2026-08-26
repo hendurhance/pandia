@@ -1,4 +1,5 @@
-import type { NodeKind, Path, PathSegment } from '$lib/ipc/types';
+import type { NodeKind, Path, PathSegment } from '$lib/ipc/bindings';
+import { pathKey, type PathKey } from '$lib/views/tree/logic/model';
 
 export interface CardRow {
 	key: string;
@@ -92,7 +93,7 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 	let acc = 0;
 	for (let d = 0; d < maxW.length; d++) {
 		colX[d] = acc;
-		acc += maxW[d] + H_GAP;
+		acc += (maxW[d] ?? 0) + H_GAP;
 	}
 
 	const cards: PositionedCard[] = [];
@@ -100,7 +101,7 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 	let nextY = 0;
 
 	function place(card: GraphCard, depth: number): PositionedCard {
-		const x = colX[depth];
+		const x = colX[depth] ?? 0;
 		const w = cardWidth(card);
 		const h = cardHeight(card);
 		const childCards = card.rows.flatMap((r) => r.children);
@@ -112,10 +113,17 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 			nextY += h + V_GAP;
 		} else {
 			for (const ch of childCards) placed.set(ch.id, place(ch, depth + 1));
-			const first = placed.get(childCards[0].id)!;
-			const last = placed.get(childCards[childCards.length - 1].id)!;
-			y = (first.y + last.y + last.h) / 2 - h / 2;
-			nextY = Math.max(nextY, y + h + V_GAP); // keep packing monotonic
+			const firstChild = childCards[0];
+			const lastChild = childCards[childCards.length - 1];
+			const first = firstChild ? placed.get(firstChild.id) : undefined;
+			const last = lastChild ? placed.get(lastChild.id) : undefined;
+			if (first && last) {
+				y = (first.y + last.y + last.h) / 2 - h / 2;
+				nextY = Math.max(nextY, y + h + V_GAP); // keep packing monotonic
+			} else {
+				y = nextY;
+				nextY += h + V_GAP;
+			}
 		}
 
 		const pc: PositionedCard = {
@@ -166,8 +174,9 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 	return { cards, edges, width, height };
 }
 
-export function pathId(path: Path): string {
-	return JSON.stringify(path);
+/** Graph card identity is the node's PathKey — one encoding, one implementation. */
+export function pathId(path: Path): PathKey {
+	return pathKey(path);
 }
 
 export function isContainerKind(kind: NodeKind): boolean {

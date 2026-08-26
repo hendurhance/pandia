@@ -4,7 +4,9 @@ use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+use super::wire::cmp_number_tokens;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum FilterOp {
     Contains,
@@ -105,14 +107,22 @@ fn contains_ci(haystack: &str, needle: &str) -> bool {
 }
 
 fn value_eq(cell: Option<&Value>, operand: Option<&Value>) -> bool {
-    match (cell, operand) {
-        (Some(Value::Number(a)), Some(Value::Number(b))) => a.as_f64() == b.as_f64(),
-        _ => {
-            if let (Some(a), Some(b)) = (cell.and_then(as_f64), operand_f64_v(operand)) {
-                return a == b;
-            }
-            scalar_str(cell) == scalar_str(operand)
+    if let (Some(a), Some(b)) = (
+        cell.and_then(numeric_token),
+        operand.and_then(numeric_token),
+    ) {
+        if let Some(ord) = cmp_number_tokens(&a, &b) {
+            return ord == Ordering::Equal;
         }
+    }
+    scalar_str(cell) == scalar_str(operand)
+}
+
+fn numeric_token(v: &Value) -> Option<Cow<'_, str>> {
+    match v {
+        Value::Number(n) => Some(Cow::Owned(n.to_string())),
+        Value::String(s) => Some(Cow::Borrowed(s.trim())),
+        _ => None,
     }
 }
 
@@ -126,22 +136,10 @@ fn scalar_str(v: Option<&Value>) -> Option<String> {
     }
 }
 
-fn as_f64(v: &Value) -> Option<f64> {
-    match v {
-        Value::Number(n) => n.as_f64(),
-        Value::String(s) => s.trim().parse().ok(),
-        _ => None,
-    }
-}
-
-fn operand_f64_v(operand: Option<&Value>) -> Option<f64> {
-    as_f64(operand?)
-}
-
 fn num_cmp(cell: Option<&Value>, f: &GridFilter) -> Option<Ordering> {
-    let c = as_f64(cell?)?;
-    let o = operand_f64_v(f.value.as_ref())?;
-    c.partial_cmp(&o)
+    let c = numeric_token(cell?)?;
+    let o = numeric_token(f.value.as_ref()?)?;
+    cmp_number_tokens(&c, &o)
 }
 
 #[cfg(test)]
@@ -249,6 +247,31 @@ mod tests {
         assert!(!row_passes(&[vec![editor.clone(), active]], &cell));
         assert!(row_passes(&[vec![editor.clone()], vec![pre2023]], &cell));
         assert!(!row_passes(&[vec![editor], vec![post2023]], &cell));
+    }
+
+    #[test]
+    fn number_equality_is_exact_not_f64() {
+        let a: Value = serde_json::from_str("1075283027435454464").unwrap();
+        let b: Value = serde_json::from_str("1075283027435454465").unwrap();
+        let flt = f(FilterOp::Eq, b.clone());
+        assert!(!matches(Some(&a), &flt));
+        assert!(matches(Some(&b), &flt));
+    }
+
+    #[test]
+    fn number_equality_across_representations() {
+        assert!(matches(Some(&json!(1)), &f(FilterOp::Eq, json!(1.0))));
+        let one_e0: Value = serde_json::from_str("1e0").unwrap();
+        assert!(matches(Some(&json!(1)), &f(FilterOp::Eq, one_e0)));
+    }
+
+    #[test]
+    fn big_integer_ordering_is_exact() {
+        let a: Value = serde_json::from_str("1075283027435454464").unwrap();
+        let b: Value = serde_json::from_str("1075283027435454465").unwrap();
+        let below_b = f(FilterOp::Lt, b.clone());
+        assert!(matches(Some(&a), &below_b));
+        assert!(!matches(Some(&b), &below_b));
     }
 
     #[test]

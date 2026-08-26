@@ -1,5 +1,5 @@
-import { docGetSlice } from '$lib/ipc/doc';
-import type { DocHandle, NodeKind, Path } from '$lib/ipc/types';
+import { ipc } from '$lib/ipc/client';
+import type { DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
 import { cardTitle, isContainerKind, pathId, type CardRow, type GraphCard } from './layout';
 import { hueOf, toRow } from './card-helpers';
 
@@ -8,7 +8,7 @@ export const RENDER_CHILD_CAP = 5000;
 export { NHUES, collapseTree, containerPreview, hueOf, scalarText, toRow } from './card-helpers';
 
 export async function buildCard(handle: DocHandle, path: Path, kind: NodeKind): Promise<GraphCard> {
-	const slice = await docGetSlice(handle, path, 0, RENDER_CHILD_CAP);
+	const slice = await ipc.docGetSlice(handle, path, 0, RENDER_CHILD_CAP);
 	return {
 		id: pathId(path),
 		path,
@@ -25,7 +25,7 @@ export async function expandRow(handle: DocHandle, row: CardRow): Promise<void> 
 		row.children = [await buildCard(handle, row.childPath, 'object')];
 		return;
 	}
-	const slice = await docGetSlice(handle, row.childPath, 0, RENDER_CHILD_CAP);
+	const slice = await ipc.docGetSlice(handle, row.childPath, 0, RENDER_CHILD_CAP);
 	const allContainers = slice.length > 0 && slice.every((v) => isContainerKind(v.kind));
 	if (allContainers) {
 		row.children = await Promise.all(

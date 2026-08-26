@@ -27,7 +27,7 @@ export function fuzzyMatch(query: string, label: string): MatchResult {
 		if (q[qi] === l[li]) {
 			let bonus = 1;
 			if (li === lastMatch + 1) bonus += 1.2; // contiguous run
-			if (li === 0 || WORD_BOUNDARY_RE.test(l[li - 1])) bonus += 2; // word boundary start
+			if (li === 0 || WORD_BOUNDARY_RE.test(l[li - 1] ?? '')) bonus += 2; // word boundary start
 			if (label[li] === query[qi]) bonus += 0.5; // case agrees with original
 
 			raw += bonus;

@@ -208,6 +208,7 @@ function paintCard(
 
 	for (let i = first; i < last; i++) {
 		const row = card.rows[i];
+		if (!row) continue;
 		const rowY = card.y + HEADER_H + i * ROW_H;
 
 		if (i < card.rows.length - 1) {

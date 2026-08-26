@@ -1,4 +1,4 @@
-import type { Path, PathSegment } from '$lib/ipc/types';
+import type { Path, PathSegment } from '$lib/ipc/bindings';
 
 export function pathToString(path: Path): string {
 	if (path.length === 0) return '$';
@@ -138,6 +138,7 @@ export function truncatePathMiddle(path: string, budget: number): string {
 	let front = true;
 	while (lo < hi) {
 		const seg = front ? segs[lo] : segs[hi - 1];
+		if (seg === undefined) break;
 		if (len + seg.length + sep.length > budget) break;
 		len += seg.length + sep.length;
 		if (front) lo++;

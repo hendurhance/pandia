@@ -1,3 +1,4 @@
+import { defineConfig } from 'eslint/config';
 import js from '@eslint/js';
 import ts from 'typescript-eslint';
 import svelte from 'eslint-plugin-svelte';
@@ -5,7 +6,7 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import svelteConfig from './svelte.config.js';
 
-export default ts.config(
+export default defineConfig(
 	{
 		ignores: [
 			'dist/',
@@ -13,6 +14,7 @@ export default ts.config(
 			'.svelte-kit/',
 			'src-tauri/',
 			'node_modules/',
+			'src/lib/ipc/bindings.ts',
 			'playwright-report/',
 			'website/',
 		],
@@ -39,9 +41,6 @@ export default ts.config(
 	},
 	{
 		rules: {
-			// Unused imports/vars are an error so the build bundler's noise
-			// (false-positive SSR warnings) can't hide a real one. Prefix with
-			// `_` to keep an intentional unused binding.
 			'@typescript-eslint/no-unused-vars': [
 				'error',
 				{

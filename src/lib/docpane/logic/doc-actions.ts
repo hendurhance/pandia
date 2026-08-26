@@ -1,6 +1,6 @@
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { ContentRow } from '$lib/views/tree/logic/model';
-import type { TypegenLang } from '$lib/ipc/types';
+import type { TypegenLang } from '$lib/ipc/bindings';
 
 export type SwitchableView = 'tree' | 'code' | 'grid' | 'graph';
 

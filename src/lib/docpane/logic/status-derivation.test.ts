@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { kindAtSelection, validityFromView } from './status-derivation';
 import type { ContentRow, Row } from '../../views/tree/logic/model';
-import type { NodeKind, Path } from '../../ipc/types';
+import type { NodeKind, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, kind: NodeKind): ContentRow {
 	return {
@@ -12,7 +12,6 @@ function content(path: Path, kind: NodeKind): ContentRow {
 		kind,
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: false,
 	};
 }

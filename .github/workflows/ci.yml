@@ -52,13 +52,12 @@ jobs:
           workspaces: './src-tauri -> target'
       - name: Format check (rustfmt)
         run: cargo fmt --check
-      # Advisory for now: catches deny-level (correctness) lints but tolerates the
-      # ~150 style warnings the Phase 5 typegen/repair rewrite removes. Tighten to
-      # `-- -D warnings` once that lands.
       - name: Lint (clippy)
         run: cargo clippy --all-targets
       - name: Tests
         run: cargo test
+      - name: IPC bindings drift
+        run: git diff --exit-code -- ../src/lib/ipc/bindings.ts
 
   website:
     runs-on: ubuntu-latest

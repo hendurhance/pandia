@@ -6,18 +6,18 @@ use super::repair;
 
 const EXCERPT_RADIUS: usize = 34;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnosis {
     pub title: String,
     pub detail: String,
-    pub excerpt: Option<Excerpt>,
-    pub fix: Option<Fix>,
+    pub excerpt: Option<DiagnosisExcerpt>,
+    pub fix: Option<DiagnosisFix>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct Excerpt {
+pub struct DiagnosisExcerpt {
     pub text: String,
     pub caret: u32,
     pub line: u32,
@@ -26,9 +26,9 @@ pub struct Excerpt {
     pub clipped_end: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct Fix {
+pub struct DiagnosisFix {
     pub label: String,
     pub text: String,
     pub warnings: Vec<String>,
@@ -84,7 +84,7 @@ fn convertible_format(text: &str) -> Option<Diagnosis> {
         title: format!("This looks like {name}, not JSON"),
         detail: "Pandia can convert it — the result opens as JSON.".into(),
         excerpt: None,
-        fix: Some(Fix {
+        fix: Some(DiagnosisFix {
             label: action.into(),
             text: d.json,
             warnings: Vec::new(),
@@ -92,12 +92,12 @@ fn convertible_format(text: &str) -> Option<Diagnosis> {
     })
 }
 
-fn repair_fix(text: &str) -> Option<Fix> {
+fn repair_fix(text: &str) -> Option<DiagnosisFix> {
     let r = repair::repair(text);
     if !r.success {
         return None;
     }
-    Some(Fix {
+    Some(DiagnosisFix {
         label: "Repair and load".into(),
         text: r.repaired_json,
         warnings: r.warnings,
@@ -260,7 +260,7 @@ fn offset_of(text: &str, line: usize, column: usize) -> usize {
     text.len()
 }
 
-fn build_excerpt(text: &str, offset: usize, line: u32, column: u32) -> Option<Excerpt> {
+fn build_excerpt(text: &str, offset: usize, line: u32, column: u32) -> Option<DiagnosisExcerpt> {
     if text.is_empty() {
         return None;
     }
@@ -277,7 +277,7 @@ fn build_excerpt(text: &str, offset: usize, line: u32, column: u32) -> Option<Ex
     let start = caret_in_line.saturating_sub(EXCERPT_RADIUS);
     let end = (caret_in_line + EXCERPT_RADIUS).min(chars.len());
 
-    Some(Excerpt {
+    Some(DiagnosisExcerpt {
         text: chars[start..end].iter().copied().map(visible).collect(),
         caret: (caret_in_line - start) as u32,
         line,

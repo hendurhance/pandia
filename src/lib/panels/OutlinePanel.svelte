@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { docGetSlice } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, NodeView, Path } from '$lib/ipc/types';
+	import type { DocHandle, NodeView, Path } from '$lib/ipc/bindings';
 	import { pathToString } from '$lib/util/path';
-	import { fixedWindow } from '$lib/views/tree/logic/virtualizer';
+	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
 
@@ -64,7 +64,7 @@
 
 	async function fetchRange(path: Path, depth: number, start: number): Promise<ONode[]> {
 		if (!context) return [];
-		const views = await docGetSlice(context.handle, path, start, start + PER_LEVEL);
+		const views = await ipc.docGetSlice(context.handle, path, start, start + PER_LEVEL);
 		return views.map((v) => nodeFromView(v, path, depth));
 	}
 
@@ -172,29 +172,19 @@
 	}
 
 	const ROW_H = 24;
-	const OVERSCAN = 6;
-	let scroller: HTMLDivElement | undefined = $state();
-	let scrollTop = $state(0);
-	let viewportHeight = $state(0);
-	const win = $derived(fixedWindow(scrollTop, viewportHeight, rows.length, ROW_H, OVERSCAN));
-	const startIndex = $derived(win.start);
-	const endIndex = $derived(win.end);
-	const visibleRows = $derived(rows.slice(startIndex, endIndex));
-	const totalHeight = $derived(rows.length * ROW_H);
-
-	function onScroll() {
-		if (scroller) scrollTop = scroller.scrollTop;
-	}
-
-	$effect(() => {
-		if (!scroller) return;
-		viewportHeight = scroller.clientHeight;
-		const ro = new ResizeObserver(() => {
-			if (scroller) viewportHeight = scroller.clientHeight;
-		});
-		ro.observe(scroller);
-		return () => ro.disconnect();
+	const s = new WindowedScroller({
+		rowCount: () => rows.length,
+		rowHeight: ROW_H,
+		overscan: 6,
+		keyAt: (i) => {
+			const r = rows[i];
+			return r ? rowKey(r) : '';
+		},
 	});
+	const startIndex = $derived(s.window.start);
+	const endIndex = $derived(s.window.end);
+	const visibleRows = $derived(rows.slice(startIndex, endIndex));
+	const totalHeight = $derived(s.totalHeight);
 </script>
 
 <div class="panel">
@@ -211,7 +201,7 @@
 			<span>document</span>
 			<span class="section-count">{roots.length}{rootsMore ? '+' : ''}</span>
 		</div>
-		<div class="scroller" bind:this={scroller} onscroll={onScroll}>
+		<div class="scroller" use:s.attach>
 			<div class="spacer" style="height: {totalHeight}px;">
 				{#each visibleRows as r, i (rowKey(r))}
 					{@const idx = startIndex + i}
@@ -219,7 +209,7 @@
 						{@const n = r.node}
 						<button
 							class="list-row row"
-							style="top: {idx * ROW_H}px; height: {ROW_H}px; padding-left: {0.4 +
+							style="top: {s.offsetAt(idx)}px; height: {ROW_H}px; padding-left: {0.4 +
 								n.depth * 0.7}rem;"
 							onclick={() => toggle(n)}
 							ondblclick={() => onNavigate?.(n.path)}
@@ -241,7 +231,7 @@
 					{:else}
 						<button
 							class="list-row row more"
-							style="top: {idx * ROW_H}px; height: {ROW_H}px; padding-left: {0.4 +
+							style="top: {s.offsetAt(idx)}px; height: {ROW_H}px; padding-left: {0.4 +
 								r.depth * 0.7}rem;"
 							onclick={() => loadMore(r.parent, r.loaded)}
 							title="Load the next {PER_LEVEL}"

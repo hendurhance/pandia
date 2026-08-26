@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { open as openDialog } from '@tauri-apps/plugin-dialog';
-	import type { Diagnosis, DetectKind, OpenSource } from '$lib/ipc/types';
-	import { docDetectAndConvert } from '$lib/ipc/doc';
+	import type { Diagnosis, DetectKind, OpenSource } from '$lib/ipc/bindings';
+	import { ipc } from '$lib/ipc/client';
 	import PasteDiagnostic from './PasteDiagnostic.svelte';
 	import { buildDemoSource } from '../logic/demo';
 	import { stem } from '$lib/util/path';
@@ -38,7 +38,7 @@
 	async function openFromText(text: string, baseName: string) {
 		let source: OpenSource = { kind: 'text', text, name: baseName };
 		try {
-			const r = await docDetectAndConvert(text);
+			const r = await ipc.docDetectAndConvert(text);
 			if (r.error == null) {
 				source = { kind: 'text', text: r.json, name: renameForDetect(baseName, r.kind) };
 			}

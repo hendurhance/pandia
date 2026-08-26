@@ -1,4 +1,4 @@
-import type { SchemaValidationResult } from '$lib/ipc/types';
+import type { SchemaValidationResult } from '$lib/ipc/bindings';
 
 interface TabSchema {
 	text: string;

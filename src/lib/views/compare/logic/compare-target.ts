@@ -1,4 +1,4 @@
-import type { DocHandle } from '$lib/ipc/types';
+import type { DocHandle } from '$lib/ipc/bindings';
 
 export type CompareTarget =
 	| { kind: 'file' }

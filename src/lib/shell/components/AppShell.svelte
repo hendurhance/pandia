@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { invoke } from '@tauri-apps/api/core';
 	import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 	import { open as openDialog, message, ask } from '@tauri-apps/plugin-dialog';
@@ -33,9 +32,10 @@
 	import TabBar from '$lib/shell/components/TabBar.svelte';
 	import { TabStore, MAX_TABS } from '$lib/shell/state/tab-store.svelte';
 	import { sidebarPrefs } from '../state/sidebar-prefs.svelte';
-	import { docBackupScan, docBackupClear } from '$lib/ipc/doc';
-	import type { BackupRecord, Path } from '$lib/ipc/types';
+	import { ipc } from '$lib/ipc/client';
+	import type { BackupRecord, Path } from '$lib/ipc/bindings';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
+	import { PaneCommandBus } from '$lib/shell/state/pane-bus';
 	import { ConfirmController } from '$lib/ui/confirm.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -110,21 +110,18 @@
 			const ok = await ctx.save();
 			if (!ok) return false;
 		} else if (choice === 'secondary' && ctx) {
-			void docBackupClear(ctx.handle).catch(() => {});
+			void ipc.docBackupClear(ctx.handle).catch(() => {});
 		}
 		tabStore.close(id);
 		return true;
 	}
 
-	let navRequest: { path: Path; nonce: number; tabId: string } | null = $state(null);
-	let historyRequest: { delta: number; nonce: number; tabId: string } | null = $state(null);
-	let compareRequest: { target: CompareTarget; nonce: number; tabId: string } | null = $state(null);
-	let actionNonce = 0;
+	const paneBus = new PaneCommandBus();
 	function requestNavigate(path: Path) {
-		navRequest = { path, nonce: ++actionNonce, tabId: tabStore.activeId };
+		paneBus.dispatch(tabStore.activeId, { kind: 'navigate', path });
 	}
 	function requestHistoryStep(delta: number) {
-		historyRequest = { delta, nonce: ++actionNonce, tabId: tabStore.activeId };
+		paneBus.dispatch(tabStore.activeId, { kind: 'history', delta });
 	}
 
 	let comparePickerOpen = $state(false);
@@ -134,7 +131,7 @@
 		comparePickerOpen = !comparePickerOpen;
 	}
 	function requestCompare(target: CompareTarget) {
-		compareRequest = { target, nonce: ++actionNonce, tabId: tabStore.activeId };
+		paneBus.dispatch(tabStore.activeId, { kind: 'compare', target });
 		comparePickerOpen = false;
 	}
 
@@ -195,7 +192,8 @@
 	let recovery: BackupRecord[] = $state([]);
 	$effect(() => {
 		let cancelled = false;
-		void docBackupScan()
+		void ipc
+			.docBackupScan()
 			.then((recs) => {
 				if (!cancelled) recovery = recs;
 			})
@@ -208,7 +206,7 @@
 	function restoreOne(rec: BackupRecord) {
 		const name = rec.displayName ?? 'recovered.json';
 		tabStore.openInTab({ kind: 'text', text: rec.content, name });
-		void docBackupClear(rec.docId).catch(() => {});
+		void ipc.docBackupClear(rec.docId).catch(() => {});
 		recovery = recovery.filter((r) => r.docId !== rec.docId);
 	}
 
@@ -217,7 +215,7 @@
 	}
 
 	function discardRecovery() {
-		for (const rec of recovery) void docBackupClear(rec.docId).catch(() => {});
+		for (const rec of recovery) void ipc.docBackupClear(rec.docId).catch(() => {});
 		recovery = [];
 	}
 
@@ -259,11 +257,12 @@
 					const dirtyTabs = tabStore.tabs.filter((t) => tabStore.statuses[t.id]?.dirty);
 					if (dirtyTabs.length > 0) {
 						const n = dirtyTabs.length;
+						const firstDirty = dirtyTabs[0];
 						const choice = await confirm.ask({
 							title: 'unsaved changes',
 							message:
-								n === 1
-									? `You have unsaved changes in ${basename(tabStore.contexts[dirtyTabs[0].id]?.sourceName ?? dirtyTabs[0].label)}.\nYour changes will be lost if you don't save them.`
+								n === 1 && firstDirty
+									? `You have unsaved changes in ${basename(tabStore.contexts[firstDirty.id]?.sourceName ?? firstDirty.label)}.\nYour changes will be lost if you don't save them.`
 									: `You have unsaved changes in ${n} documents.\nYour changes will be lost if you don't save them.`,
 							primaryLabel: n === 1 ? 'save' : 'save all',
 							secondaryLabel: "don't save",
@@ -286,7 +285,7 @@
 						} else {
 							for (const t of dirtyTabs) {
 								const ctx = tabStore.contexts[t.id];
-								if (ctx) void docBackupClear(ctx.handle).catch(() => {});
+								if (ctx) void ipc.docBackupClear(ctx.handle).catch(() => {});
 							}
 						}
 					}
@@ -396,7 +395,7 @@
 
 	$effect(() => {
 		const items = recentsStore.list.slice(0, 12).map((r) => ({ path: r.path, name: r.name }));
-		void invoke('refresh_recent_files', { items });
+		void ipc.refreshRecentFiles(items);
 	});
 
 	$effect(() => {
@@ -419,11 +418,14 @@
 			const anyPending = Object.values(tabStore.pendingOpens).some((p) => p != null);
 			if (anyContext || anyPending) return;
 			for (let i = 0; i < paths.length; i++) {
-				const ok = tabStore.openInTab({ kind: 'file', path: paths[i] }, { focus: i === 0 });
+				const path = paths[i];
+				if (!path) continue;
+				const ok = tabStore.openInTab({ kind: 'file', path }, { focus: i === 0 });
 				if (!ok) break;
 			}
 			if (activeIndex > 0 && activeIndex < tabStore.tabs.length) {
-				tabStore.activate(tabStore.tabs[activeIndex].id);
+				const active = tabStore.tabs[activeIndex];
+				if (active) tabStore.activate(active.id);
 			}
 		})();
 		return () => {
@@ -434,7 +436,7 @@
 	async function drainPendingFiles() {
 		let paths: string[] = [];
 		try {
-			paths = await invoke<string[]>('drain_pending_files');
+			paths = await ipc.drainPendingFiles();
 		} catch {
 			return;
 		}
@@ -564,9 +566,7 @@
 						isHandleAlive={(h) => Object.values(tabStore.contexts).some((c) => c?.handle === h)}
 						confirmLargeFile={maybeConfirmLargeFile}
 						{confirmCommentLoss}
-						{navRequest}
-						{historyRequest}
-						{compareRequest}
+						{paneBus}
 					/>
 				</div>
 			{/each}

@@ -1,7 +1,7 @@
 import { untrack } from 'svelte';
 import { schemaStore } from '$lib/panels/state/schema-store.svelte';
 import { statusEq, type DocStatus } from '$lib/shell/logic/status';
-import type { DocHandle, OpenSource } from '$lib/ipc/types';
+import type { DocHandle, OpenSource } from '$lib/ipc/bindings';
 
 export interface TabMeta {
 	id: string;
@@ -84,7 +84,8 @@ export class TabStore {
 		}
 		this.tabs = next;
 		if (id === this.activeId) {
-			this.activeId = next[Math.min(idx, next.length - 1)].id;
+			const nextActive = next[Math.min(idx, next.length - 1)];
+			if (nextActive) this.activeId = nextActive.id;
 		}
 	};
 
@@ -95,13 +96,15 @@ export class TabStore {
 	next = () => {
 		const idx = this.tabs.findIndex((t) => t.id === this.activeId);
 		if (idx < 0) return;
-		this.activeId = this.tabs[(idx + 1) % this.tabs.length].id;
+		const t = this.tabs[(idx + 1) % this.tabs.length];
+		if (t) this.activeId = t.id;
 	};
 
 	prev = () => {
 		const idx = this.tabs.findIndex((t) => t.id === this.activeId);
 		if (idx < 0) return;
-		this.activeId = this.tabs[(idx - 1 + this.tabs.length) % this.tabs.length].id;
+		const t = this.tabs[(idx - 1 + this.tabs.length) % this.tabs.length];
+		if (t) this.activeId = t.id;
 	};
 
 	reorder = (sourceId: string, targetId: string) => {
@@ -110,6 +113,7 @@ export class TabStore {
 		if (sourceIdx < 0 || targetIdx < 0) return;
 		const next = [...this.tabs];
 		const [moved] = next.splice(sourceIdx, 1);
+		if (!moved) return;
 		next.splice(targetIdx, 0, moved);
 		this.tabs = next;
 	};
@@ -118,7 +122,9 @@ export class TabStore {
 		untrack(() => {
 			const i = this.tabs.findIndex((t) => t.id === id);
 			if (i < 0) return;
-			if (this.tabs[i].label === label && this.tabs[i].sourceName === sourceName) return;
+			const t = this.tabs[i];
+			if (!t) return;
+			if (t.label === label && t.sourceName === sourceName) return;
 			this.tabs = this.tabs.map((t, idx) => (idx === i ? { ...t, label, sourceName } : t));
 		});
 	};

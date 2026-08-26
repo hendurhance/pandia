@@ -1,7 +1,7 @@
-import { cancelJob, docSearch, docReplace } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
-import type { DocHandle, Path, SearchHit } from '$lib/ipc/types';
+import type { DocHandle, Path, SearchHit } from '$lib/ipc/bindings';
 
 const FIND_DEBOUNCE_MS = 160;
 
@@ -132,13 +132,13 @@ export class FindController {
 		if (this.activeJobId !== null) {
 			const id = this.activeJobId;
 			this.activeJobId = null;
-			void cancelJob(id).catch(() => {});
+			void ipc.cancelJob(id).catch(() => {});
 		}
 		const seq = ++this.seq;
 		const jobId = crypto.randomUUID();
 		this.activeJobId = jobId;
 		try {
-			const hits = await docSearch(handle, { query: q, caseSensitive: false }, jobId);
+			const hits = await ipc.docSearch(handle, { query: q, caseSensitive: false }, jobId);
 			if (seq !== this.seq) return; // a newer query started — drop stale.
 			this.hits = hits;
 			this.hitsQuery = q.trim();
@@ -161,14 +161,16 @@ export class FindController {
 		this.seq++; // make any in-flight resolve a stale response
 		this.busy = false;
 		if (id) {
-			void cancelJob(id).catch(() => {});
+			void ipc.cancelJob(id).catch(() => {});
 		}
 	};
 
 	jumpToHit = async (i: number) => {
 		if (i < 0 || i >= this.hits.length) return;
+		const hit = this.hits[i];
+		if (!hit) return;
 		this.activeIdx = i;
-		await this.deps.navigateToHit(this.hits[i].path);
+		await this.deps.navigateToHit(hit.path);
 	};
 
 	next = () => {
@@ -214,7 +216,7 @@ export class FindController {
 		}
 		this.replaceStatus = 'replacing…';
 		try {
-			const res = await docReplace(handle, q, this.replaceValue, false);
+			const res = await ipc.docReplace(handle, q, this.replaceValue, false);
 			if (res.applied) {
 				await this.deps.afterReplace(res.applied.affectedPaths);
 			}

@@ -1,4 +1,4 @@
-import type { NodeKind } from '$lib/ipc/types';
+import type { NodeKind } from '$lib/ipc/bindings';
 
 export type ValidityStatus =
 	| { kind: 'buffer'; ok: boolean; detail?: string }

@@ -1,8 +1,13 @@
 <script lang="ts">
 	import Popover from '$lib/ui/Popover.svelte';
-	import type { NodeKind } from '$lib/ipc/types';
-	import type { ColumnValues } from '$lib/ipc/doc';
-	import { OP_LABEL, colValueLabel, type ColOp, type ColFilter } from '../logic/grid-filter-model';
+	import type { NodeKind } from '$lib/ipc/bindings';
+	import {
+		OP_LABEL,
+		valLabel,
+		type ColOp,
+		type ColFilter,
+		type DecodedColumnValues,
+	} from '../logic/grid-filter-model';
 
 	type ListMode = 'loading' | 'checklist' | 'text' | 'none';
 
@@ -13,7 +18,7 @@
 		opChoices: ColOp[];
 		listMode: ListMode;
 
-		distinctValues: ColumnValues['values'] | null;
+		distinctValues: DecodedColumnValues['values'] | null;
 
 		capped: boolean;
 
@@ -115,15 +120,15 @@
 				/>
 			{/if}
 			<div class="cf-list">
-				{#each view.distinctValues as cv (cv.label ?? JSON.stringify(cv.value))}
+				{#each view.distinctValues as cv (JSON.stringify(cv.value))}
 					<label class="cf-item">
 						<input
 							type="checkbox"
 							checked={actions.isChecked(cv.value)}
 							onchange={() => actions.toggleValue(cv.value)}
 						/>
-						<span class="cf-val" class:empty={colValueLabel(cv) === '(empty)'}
-							>{colValueLabel(cv)}</span
+						<span class="cf-val" class:empty={valLabel(cv.value) === '(empty)'}
+							>{valLabel(cv.value)}</span
 						>
 						<span class="cf-count">{cv.count.toLocaleString()}</span>
 					</label>

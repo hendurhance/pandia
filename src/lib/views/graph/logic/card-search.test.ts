@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { searchCards } from './card-search';
 import type { LayoutResult, PositionedCard } from './layout';
-import type { NodeKind } from '$lib/ipc/types';
+import type { NodeKind } from '$lib/ipc/bindings';
 
 function card(
 	id: string,

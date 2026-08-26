@@ -3,9 +3,11 @@ use serde_json::{Map, Value};
 
 use super::types::{DocError, DocResult, Path, PathSegment};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Op {
+    #[serde(skip)]
+    #[specta(skip)]
     SetValue {
         path: Path,
         value: Value,
@@ -22,6 +24,8 @@ pub enum Op {
         to: String,
     },
 
+    #[serde(skip)]
+    #[specta(skip)]
     InsertKey {
         path: Path,
         key: String,
@@ -34,6 +38,8 @@ pub enum Op {
         key: String,
     },
 
+    #[serde(skip)]
+    #[specta(skip)]
     InsertItem {
         path: Path,
         index: usize,
@@ -133,7 +139,7 @@ pub struct OpOutcome {
     pub affected_paths: Vec<Path>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OpDescription {
     pub label: String,
@@ -1192,11 +1198,11 @@ mod tests {
     fn op_serializes_camel_case_kind() {
         let cases = vec![
             (
-                Op::SetValue {
+                Op::SetValueText {
                     path: root(),
-                    value: json!(0),
+                    text: "0".into(),
                 },
-                "setValue",
+                "setValueText",
             ),
             (
                 Op::RenameKey {
@@ -1207,13 +1213,13 @@ mod tests {
                 "renameKey",
             ),
             (
-                Op::InsertKey {
+                Op::InsertKeyText {
                     path: root(),
                     key: "k".into(),
-                    value: json!(1),
+                    text: "1".into(),
                     position: None,
                 },
-                "insertKey",
+                "insertKeyText",
             ),
             (
                 Op::DeleteKey {
@@ -1223,12 +1229,12 @@ mod tests {
                 "deleteKey",
             ),
             (
-                Op::InsertItem {
+                Op::InsertItemText {
                     path: root(),
                     index: 0,
-                    value: json!(0),
+                    text: "0".into(),
                 },
-                "insertItem",
+                "insertItemText",
             ),
             (
                 Op::DeleteItem {
@@ -1262,15 +1268,25 @@ mod tests {
 
     #[test]
     fn op_round_trips_through_json() {
-        let op = Op::InsertKey {
+        let op = Op::InsertKeyText {
             path: p(vec![k("events"), i(2)]),
             key: "newKey".into(),
-            value: json!({"nested": [1, 2, 3]}),
+            text: r#"{"nested": [1, 2, 3]}"#.into(),
             position: Some(0),
         };
         let json = serde_json::to_string(&op).unwrap();
         let back: Op = serde_json::from_str(&json).unwrap();
         assert_eq!(op, back);
+    }
+
+    #[test]
+    fn value_variants_never_cross_the_wire() {
+        let op = Op::SetValue {
+            path: root(),
+            value: json!(1),
+        };
+        assert!(serde_json::to_string(&op).is_err());
+        assert!(serde_json::from_str::<Op>(r#"{"kind":"setValue","path":[],"value":1}"#).is_err());
     }
 
     #[test]

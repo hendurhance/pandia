@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { docGenerateTypes } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, TypegenLang } from '$lib/ipc/types';
+	import type { DocHandle, TypegenLang } from '$lib/ipc/bindings';
 	import { typegenPrefs, TYPEGEN_LANGS } from './state/typegen-prefs.svelte';
 	import { stem } from '$lib/util/path';
 	import { CopyFlag } from '$lib/util/clipboard.svelte';
@@ -50,7 +50,7 @@
 		error = null;
 		try {
 			const typeName = deriveTypeName(context.sourceName);
-			const text = await docGenerateTypes(context.handle, lang, typeName);
+			const text = await ipc.docGenerateTypes(context.handle, lang, typeName);
 			if (mySeq !== seq) return;
 			output = text;
 		} catch (e) {

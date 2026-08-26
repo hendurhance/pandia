@@ -7,11 +7,9 @@ use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::eager::{
-    cell, cmp_cell, eager_cell_text_lower, kind_and_child_count_eager, replace_in_value,
-    resolve_eager, slice_eager,
-};
-use super::export::{self, export as export_value, ExportFormat};
+use super::backend::DocumentBackend;
+use super::eager::{cmp_cell, replace_in_value};
+use super::export::{export as export_value, ExportFormat};
 use super::format::{self, InputFormat};
 use super::grid_filter::{row_passes, GridFilter};
 use super::history::History;
@@ -20,27 +18,24 @@ use super::ops::{Op, OpDescription, OpOutcome};
 use super::schema_validate::{
     validate as schema_validate_value, SchemaCompileError, SchemaValidationResult,
 };
-use super::search::{search_in_value, SearchHit, SearchOptions};
-use super::typegen::{
-    generate as generate_types, generate_from_shape as typegen_from_shape, TypegenLang,
-};
+use super::search::{SearchHit, SearchOptions};
+use super::typegen::TypegenLang;
 use super::types::{DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
+use super::wire::LosslessText;
 
 const LAZY_THRESHOLD_BYTES: u64 = 10 * 1024 * 1024;
 const GET_VALUE_ROOT_LIMIT: u64 = 200 * 1024 * 1024;
 pub const EDIT_SIZE_LIMIT: u64 = 200 * 1024 * 1024;
 pub const MAX_DOC_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyResult {
     pub version: u64,
-    #[serde(skip_serializing)]
-    pub inverse: Op,
     pub affected_paths: Vec<Path>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryView {
     pub undo: Vec<OpDescription>,
@@ -100,15 +95,14 @@ struct FilterCache {
     perm: Vec<u32>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnValue {
-    pub value: Value,
+    pub value: LosslessText,
     pub count: u32,
-    pub label: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnValues {
     pub values: Vec<ColumnValue>,
@@ -129,7 +123,7 @@ pub struct FilteredRows {
     pub rows: Vec<SortedRow>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceResult {
     pub count: u32,
@@ -142,7 +136,7 @@ enum DocumentImpl {
     Lazy(LazyDoc),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Summary {
     pub root_kind: NodeKind,
@@ -157,7 +151,7 @@ pub struct Summary {
     pub comments_stripped: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {
     pub path: String,
@@ -224,17 +218,31 @@ impl Document {
         Ok(doc)
     }
 
+    fn backend(&self) -> &dyn DocumentBackend {
+        match &self.inner {
+            DocumentImpl::Eager(v) => v,
+            DocumentImpl::Lazy(d) => d,
+        }
+    }
+
+    fn is_lazy(&self) -> bool {
+        matches!(self.inner, DocumentImpl::Lazy(_))
+    }
+
+    fn with_root<R>(&self, f: impl FnOnce(&Value) -> R) -> DocResult<R> {
+        match self.backend().borrowed_root() {
+            Some(v) => Ok(f(v)),
+            None => {
+                let v = self.backend().get_value(&Path::root())?;
+                Ok(f(&v))
+            }
+        }
+    }
+
     fn compute_content_hash(&self) -> blake3::Hash {
         let mut hasher = blake3::Hasher::new();
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                if serde_json::to_writer(&mut hasher, v).is_err() {
-                    return blake3::Hash::from_bytes([0u8; 32]);
-                }
-            }
-            DocumentImpl::Lazy(d) => {
-                hasher.update(d.source().as_bytes());
-            }
+        if self.backend().hash_into(&mut hasher).is_err() {
+            return blake3::Hash::from_bytes([0u8; 32]);
         }
         hasher.finalize()
     }
@@ -273,16 +281,13 @@ impl Document {
     }
 
     pub fn summary(&self) -> Summary {
-        let (root_kind, root_child_count) = match &self.inner {
-            DocumentImpl::Eager(v) => kind_and_child_count_eager(v),
-            DocumentImpl::Lazy(d) => (d.root_kind(), d.root_child_count()),
-        };
+        let (root_kind, root_child_count) = self.backend().root_kind_and_count();
         Summary {
             root_kind,
             root_child_count,
             source_path: self.source_path.clone(),
             source_size: self.source_size,
-            lazy: matches!(self.inner, DocumentImpl::Lazy(_)),
+            lazy: self.is_lazy(),
             version: self.version,
             dirty: self.is_dirty(),
             file_backed: self.file_path.is_some(),
@@ -298,14 +303,8 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        let result = match &self.inner {
-            DocumentImpl::Eager(v) => export_value(v, format),
-            DocumentImpl::Lazy(d) => {
-                let v = d.get_value(&Path::root())?;
-                export_value(&v, format)
-            }
-        };
-        result.map_err(|e| DocError::Export(e.to_string()))
+        self.with_root(|v| export_value(v, format))?
+            .map_err(|e| DocError::Export(e.to_string()))
     }
 
     pub fn export_to_file(&self, format: ExportFormat, path: &str) -> DocResult<()> {
@@ -314,11 +313,9 @@ impl Document {
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
                 let pretty = matches!(format, ExportFormat::Json);
-                let r = match &self.inner {
-                    DocumentImpl::Eager(v) => export::write_json_value(v, pretty, &mut w),
-                    DocumentImpl::Lazy(d) => export::write_json_source(d.source(), pretty, &mut w),
-                };
-                r.map_err(|e| DocError::Export(e.to_string()))?;
+                self.backend()
+                    .write_json(pretty, &mut w)
+                    .map_err(|e| DocError::Export(e.to_string()))?;
             }
             _ => {
                 let full = self.export(format)?;
@@ -338,13 +335,7 @@ impl Document {
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
                 let pretty = matches!(format, ExportFormat::Json);
-                let (mut text, mut truncated) = match &self.inner {
-                    DocumentImpl::Eager(v) => export::preview_json_value(v, pretty, max_bytes),
-                    DocumentImpl::Lazy(d) => {
-                        export::preview_json_source(d.source(), pretty, max_bytes)
-                            .map_err(|e| DocError::Export(e.to_string()))?
-                    }
-                };
+                let (mut text, mut truncated) = self.backend().preview_json(pretty, max_bytes)?;
                 if text.chars().count() > max_chars {
                     text = text.chars().take(max_chars).collect();
                     truncated = true;
@@ -363,12 +354,7 @@ impl Document {
     }
 
     pub fn serialize(&self) -> DocResult<String> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                serde_json::to_string_pretty(v).map_err(|e| DocError::Export(e.to_string()))
-            }
-            DocumentImpl::Lazy(d) => Ok(d.source().to_string()),
-        }
+        self.backend().serialize_pretty()
     }
 
     pub fn set_file_path(&mut self, path: String) {
@@ -377,27 +363,7 @@ impl Document {
     }
 
     fn serialize_ndjson(&self) -> Option<String> {
-        match &self.inner {
-            DocumentImpl::Eager(Value::Array(items)) => {
-                let mut out = String::new();
-                for v in items {
-                    out.push_str(&serde_json::to_string(v).ok()?);
-                    out.push('\n');
-                }
-                Some(out)
-            }
-            DocumentImpl::Lazy(d) => {
-                let spans = d.root_element_spans()?;
-                let src = d.source();
-                let mut out = String::with_capacity(src.len() + spans.len());
-                for &(a, b) in spans {
-                    out.push_str(&src[a as usize..b as usize]);
-                    out.push('\n');
-                }
-                Some(out)
-            }
-            _ => None,
-        }
+        self.backend().serialize_ndjson()
     }
 
     pub fn save(&mut self, path: Option<String>) -> DocResult<SaveResult> {
@@ -426,10 +392,7 @@ impl Document {
     }
 
     pub fn get_slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => slice_eager(v, path, range),
-            DocumentImpl::Lazy(d) => d.slice(path, range),
-        }
+        self.backend().slice(path, range)
     }
 
     pub fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)> {
@@ -437,26 +400,14 @@ impl Document {
             let s = self.summary();
             return Ok((s.root_kind, s.root_child_count));
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                let target = resolve_eager(v, path)?;
-                Ok(kind_and_child_count_eager(target))
-            }
-            DocumentImpl::Lazy(d) => d.kind_at(path),
-        }
+        self.backend().kind_at(path)
     }
 
     pub fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>> {
         if path.is_root() {
             return Ok(self.summary().root_child_count);
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => {
-                let (_, count) = kind_and_child_count_eager(resolve_eager(v, path)?);
-                Ok(count)
-            }
-            DocumentImpl::Lazy(d) => d.child_count_uncapped(path),
-        }
+        self.backend().child_count_at(path)
     }
 
     pub fn get_rows(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<Value>> {
@@ -548,26 +499,11 @@ impl Document {
     }
 
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => match resolve_eager(v, path) {
-                Ok(Value::Array(arr)) => Ok(arr.iter().map(|el| cell(el, key).cloned()).collect()),
-                _ => Ok(Vec::new()),
-            },
-            DocumentImpl::Lazy(d) => d.array_field_cells(path, key),
-        }
+        self.backend().column_cells(path, key)
     }
 
     fn compute_column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
-        match &self.inner {
-            DocumentImpl::Eager(v) => match resolve_eager(v, path) {
-                Ok(Value::Array(arr)) => Ok(arr
-                    .iter()
-                    .map(|el| eager_cell_text_lower(el, key))
-                    .collect()),
-                _ => Ok(Vec::new()),
-            },
-            DocumentImpl::Lazy(d) => d.array_field_text_lower(path, key),
-        }
+        self.backend().column_text_lower(path, key)
     }
 
     fn quick_text_column(&self, path: &Path, key: &str) -> DocResult<Arc<Vec<Option<String>>>> {
@@ -781,22 +717,15 @@ impl Document {
                 capped = true;
             }
         }
-        let mut values: Vec<ColumnValue> = map
-            .into_values()
-            .map(|(value, count)| {
-                let label = value.is_number().then(|| value.to_string());
-                ColumnValue {
-                    value,
-                    count,
-                    label,
-                }
+        let mut values: Vec<(Value, u32)> = map.into_values().collect();
+        values.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| cmp_cell(Some(&a.0), Some(&b.0))));
+        let values = values
+            .into_iter()
+            .map(|(value, count)| ColumnValue {
+                value: LosslessText::from_value(&value),
+                count,
             })
             .collect();
-        values.sort_by(|a, b| {
-            b.count
-                .cmp(&a.count)
-                .then_with(|| cmp_cell(Some(&a.value), Some(&b.value)))
-        });
         Ok(ColumnValues { values, capped })
     }
 
@@ -817,10 +746,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        match &self.inner {
-            DocumentImpl::Eager(v) => Ok(resolve_eager(v, path)?.clone()),
-            DocumentImpl::Lazy(d) => d.get_value(path),
-        }
+        self.backend().get_value(path)
     }
 
     pub fn canonical_lines(&self) -> DocResult<(Arc<String>, Arc<Vec<u32>>)> {
@@ -838,12 +764,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        let text = match &self.inner {
-            DocumentImpl::Eager(v) => super::canonical::canonical_pretty(v),
-            DocumentImpl::Lazy(d) => {
-                super::canonical::canonical_pretty(&d.get_value(&Path::root())?)
-            }
-        };
+        let text = self.with_root(super::canonical::canonical_pretty)?;
         let text = Arc::new(text);
         let line_starts = Arc::new(super::linediff::line_starts(&text));
         *self.canon_cache.lock() = Some(CanonCache {
@@ -854,24 +775,36 @@ impl Document {
         Ok((text, line_starts))
     }
 
+    pub fn canonical_offsets(&self, paths: &[Path]) -> DocResult<Vec<Option<(u64, u64)>>> {
+        if self.source_size > GET_VALUE_ROOT_LIMIT {
+            return Err(DocError::TooLarge {
+                actual: self.source_size,
+                limit: GET_VALUE_ROOT_LIMIT,
+            });
+        }
+        self.with_root(|v| super::canonical::canonical_offsets(v, paths))
+    }
+
     pub fn apply(&mut self, op: &Op) -> DocResult<ApplyResult> {
-        let result = self.apply_unchecked(op)?;
-        self.history.record(op.clone(), result.inverse.clone());
+        let (result, inverse) = self.apply_unchecked(op)?;
+        self.history.record(op.clone(), inverse);
         Ok(result)
     }
 
-    fn apply_unchecked(&mut self, op: &Op) -> DocResult<ApplyResult> {
+    fn apply_unchecked(&mut self, op: &Op) -> DocResult<(ApplyResult, Op)> {
         let root = self.ensure_eager()?;
         let OpOutcome {
             inverse,
             affected_paths,
         } = op.apply(root)?;
         self.version += 1;
-        Ok(ApplyResult {
-            version: self.version,
+        Ok((
+            ApplyResult {
+                version: self.version,
+                affected_paths,
+            },
             inverse,
-            affected_paths,
-        })
+        ))
     }
 
     pub fn undo(&mut self) -> DocResult<Option<ApplyResult>> {
@@ -879,7 +812,7 @@ impl Document {
             return Ok(None);
         };
         match self.apply_unchecked(&inverse) {
-            Ok(result) => {
+            Ok((result, _)) => {
                 self.history.push_redo((forward, inverse));
                 Ok(Some(result))
             }
@@ -895,7 +828,7 @@ impl Document {
             return Ok(None);
         };
         match self.apply_unchecked(&forward) {
-            Ok(result) => {
+            Ok((result, _)) => {
                 self.history.push_undo((forward, inverse));
                 Ok(Some(result))
             }
@@ -924,10 +857,7 @@ impl Document {
         opts: &SearchOptions,
         cancel: &crate::doc::jobs::CancelFlag,
     ) -> DocResult<Vec<SearchHit>> {
-        Ok(match &self.inner {
-            DocumentImpl::Eager(v) => search_in_value(v, opts, cancel),
-            DocumentImpl::Lazy(d) => d.search(opts, cancel),
-        })
+        Ok(self.backend().search(opts, cancel))
     }
 
     pub fn replace_all(
@@ -966,16 +896,7 @@ impl Document {
     }
 
     pub fn generate_types(&self, lang: TypegenLang, type_name: &str) -> DocResult<String> {
-        Ok(match &self.inner {
-            DocumentImpl::Eager(v) => generate_types(v, lang, type_name),
-            DocumentImpl::Lazy(d) => match lang {
-                TypegenLang::JsonSchema => {
-                    let v = d.get_value(&Path::root())?;
-                    generate_types(&v, lang, type_name)
-                }
-                _ => typegen_from_shape(&d.infer_shape(), lang, type_name),
-            },
-        })
+        self.backend().generate_types(lang, type_name)
     }
 
     pub fn validate_schema(&self, schema_text: &str) -> DocResult<SchemaValidationResult> {
@@ -985,13 +906,7 @@ impl Document {
                 limit: GET_VALUE_ROOT_LIMIT,
             });
         }
-        let result = match &self.inner {
-            DocumentImpl::Eager(v) => schema_validate_value(v, schema_text),
-            DocumentImpl::Lazy(d) => {
-                let v = d.get_value(&Path::root())?;
-                schema_validate_value(&v, schema_text)
-            }
-        };
+        let result = self.with_root(|v| schema_validate_value(v, schema_text))?;
         result.map_err(|e| match e {
             SchemaCompileError::Parse(s) => DocError::Schema(format!("not valid JSON: {s}")),
             SchemaCompileError::Compile(s) => DocError::Schema(format!("compile error: {s}")),
@@ -1675,14 +1590,13 @@ mod tests {
             d.get_value(&Path::root()).unwrap(),
             serde_json::json!({"a": 99})
         );
-        assert_eq!(
-            result.inverse,
-            super::super::ops::Op::SetValue {
-                path: Path(vec![PathSegment::Key("a".into())]),
-                value: serde_json::json!(1),
-            }
-        );
         assert_eq!(result.affected_paths.len(), 1);
+
+        d.undo().unwrap().expect("undo available");
+        assert_eq!(
+            d.get_value(&Path::root()).unwrap(),
+            serde_json::json!({"a": 1})
+        );
     }
 
     #[test]
@@ -1693,12 +1607,12 @@ mod tests {
             path: Path(vec![PathSegment::Key("events".into())]),
             index: 1,
         };
-        let r = d.apply(&op).unwrap();
+        d.apply(&op).unwrap();
         assert_eq!(
             d.get_value(&Path::root()).unwrap(),
             serde_json::json!({"events": [10, 30]})
         );
-        d.apply(&r.inverse).unwrap();
+        d.undo().unwrap().expect("undo available");
         assert_eq!(d.get_value(&Path::root()).unwrap(), initial);
         assert_eq!(d.version, 2);
     }
@@ -2104,7 +2018,7 @@ mod tests {
         let cv = d.column_values(&Path::root(), "lang", 100).unwrap();
         assert!(!cv.capped);
         assert_eq!(cv.values.len(), 3);
-        assert_eq!(cv.values[0].value, serde_json::json!("Sindhi"));
+        assert_eq!(cv.values[0].value.as_str(), "\"Sindhi\"");
         assert_eq!(cv.values[0].count, 2);
     }
 
@@ -2136,7 +2050,7 @@ mod tests {
     }
 
     #[test]
-    fn column_values_labels_numbers_with_lossless_literal() {
+    fn column_values_keep_lossless_number_tokens() {
         let d = doc(r#"[
                 {"id": 123456789012345678},
                 {"id": 123456789012345678},
@@ -2147,16 +2061,11 @@ mod tests {
         let big = cv
             .values
             .iter()
-            .find(|v| v.label.as_deref() == Some("123456789012345678"))
-            .expect("big-int label present and exact");
+            .find(|v| v.value.as_str() == "123456789012345678")
+            .expect("big-int token present and exact");
         assert_eq!(big.count, 2);
 
-        let s = cv
-            .values
-            .iter()
-            .find(|v| v.value == serde_json::json!("x"))
-            .unwrap();
-        assert_eq!(s.label, None);
+        assert!(cv.values.iter().any(|v| v.value.as_str() == "\"x\""));
     }
 
     #[test]

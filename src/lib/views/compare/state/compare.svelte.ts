@@ -1,7 +1,7 @@
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { docOpen, docClose, docSummary } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
-import type { DocHandle, OpenResult } from '$lib/ipc/types';
+import type { DocHandle, OpenResult } from '$lib/ipc/bindings';
 import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
 
@@ -40,7 +40,7 @@ export class CompareController {
 		this.deps.setError(null);
 		try {
 			await this.release();
-			const summary = await docSummary(target.handle);
+			const summary = await ipc.docSummary(target.handle);
 			this.handle = target.handle;
 			this.summary = summary;
 			this.sourceName = target.sourceName ?? 'tab';
@@ -64,7 +64,7 @@ export class CompareController {
 		this.deps.setError(null);
 		try {
 			await this.release();
-			const res = await docOpen({ kind: 'file', path: picked });
+			const res = await ipc.docOpen({ kind: 'file', path: picked });
 			this.handle = res.handle;
 			this.summary = res.summary;
 			this.sourceName = picked;
@@ -86,7 +86,7 @@ export class CompareController {
 	release = async () => {
 		if (this.handle && !this.borrowed) {
 			try {
-				await docClose(this.handle);
+				await ipc.docClose(this.handle);
 			} catch {}
 		}
 	};

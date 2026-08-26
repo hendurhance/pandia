@@ -25,6 +25,10 @@ const DEFAULT_DENSITY: Density = 'normal';
 export const FONT_SIZE_MIN = 11;
 export const FONT_SIZE_MAX = 18;
 
+function clampFontSize(px: number): number {
+	return Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(px * 10) / 10));
+}
+
 interface Persisted {
 	themeId: string;
 	autoMode: boolean; // follow the OS dark/light preference (using themeId's family)
@@ -52,7 +56,7 @@ function sanitize(raw: unknown): Persisted {
 			typeof r.fontFamily === 'string' && r.fontFamily.trim() ? r.fontFamily.trim() : DEFAULT_MONO,
 		fontSizeBase:
 			typeof r.fontSizeBase === 'number' && Number.isFinite(r.fontSizeBase)
-				? Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, r.fontSizeBase))
+				? clampFontSize(r.fontSizeBase)
 				: DEFAULT_FONT_SIZE,
 		density: oneOf(r.density, VALID_DENSITY) ? r.density : DEFAULT_DENSITY,
 	};
@@ -132,11 +136,12 @@ class AppearancePrefs extends PersistedStore {
 	}
 
 	async setTheme(id: string): Promise<void> {
-		if (!(id in THEMES)) return;
+		const theme = THEMES[id];
+		if (!theme) return;
 		if (!this.autoMode && this.themeId === id) return;
 		this.autoMode = false;
 		this.themeId = id;
-		applyTheme(THEMES[id]);
+		applyTheme(theme);
 		await this.persist();
 	}
 
@@ -158,7 +163,7 @@ class AppearancePrefs extends PersistedStore {
 	}
 
 	async setFontSize(px: number): Promise<void> {
-		const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(px * 10) / 10));
+		const clamped = clampFontSize(px);
 		if (clamped === this.fontSizeBase) return;
 		this.fontSizeBase = clamped;
 		applyFontSizeBase(clamped);

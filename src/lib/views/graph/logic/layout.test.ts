@@ -90,8 +90,8 @@ describe('layoutGraph', () => {
 		expect(out.cards).toHaveLength(1);
 		expect(out.edges).toHaveLength(0);
 		expect(out.cards[0]).toMatchObject({ x: 0, y: 0 });
-		expect(out.width).toBe(out.cards[0].w);
-		expect(out.height).toBe(out.cards[0].h);
+		expect(out.width).toBe(out.cards[0]?.w);
+		expect(out.height).toBe(out.cards[0]?.h);
 	});
 
 	it('positions children to the right of the parent and emits one edge per link', () => {
@@ -101,7 +101,7 @@ describe('layoutGraph', () => {
 
 		expect(out.cards).toHaveLength(2);
 		expect(out.edges).toHaveLength(1);
-		expect(out.edges[0].id).toBe('[]->["a"]');
+		expect(out.edges[0]?.id).toBe('[]->["a"]');
 
 		const rootCard = out.cards.find((c) => c.id === '[]')!;
 		const childCard = out.cards.find((c) => c.id === '["a"]')!;
@@ -121,8 +121,8 @@ describe('layoutGraph', () => {
 		const out = layoutGraph(root);
 
 		const xs = ['[]', '["a"]', '["a","b"]'].map((id) => out.cards.find((c) => c.id === id)!.x);
-		expect(xs[0]).toBeLessThan(xs[1]);
-		expect(xs[1]).toBeLessThan(xs[2]);
+		expect(xs[0]).toBeLessThan(xs[1] ?? NaN);
+		expect(xs[1]).toBeLessThan(xs[2] ?? NaN);
 		expect(out.edges).toHaveLength(2);
 	});
 });

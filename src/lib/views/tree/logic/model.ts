@@ -1,4 +1,4 @@
-import type { NodeKind, NodeView, Path, PathSegment } from '$lib/ipc/types';
+import type { NodeKind, NodeView, Path, PathSegment } from '$lib/ipc/bindings';
 
 export interface ContentRow {
 	variant: 'content';
@@ -8,7 +8,6 @@ export interface ContentRow {
 	kind: NodeKind;
 	preview: string;
 	childCount: number | null;
-	sizeHint: number;
 	expanded: boolean;
 }
 
@@ -68,7 +67,6 @@ export function rootRow(rootKind: NodeKind, rootChildCount: number | null): Cont
 		kind: rootKind,
 		preview: rootKind === 'array' ? '[…]' : '{…}',
 		childCount: rootChildCount,
-		sizeHint: 0,
 		expanded: false,
 	};
 }
@@ -82,7 +80,6 @@ export function viewToRow(view: NodeView, parentPath: Path, parentDepth: number)
 		kind: view.kind,
 		preview: view.preview,
 		childCount: view.childCount,
-		sizeHint: view.sizeHint,
 		expanded: false,
 	};
 }
@@ -112,7 +109,7 @@ export function insertChildrenWithClose(
 	totalCount: number | null,
 ): Row[] {
 	const parent = rows[parentIndex];
-	if (parent.variant !== 'content') return rows;
+	if (!parent || parent.variant !== 'content') return rows;
 
 	const additions: Row[] = [...children];
 
@@ -146,7 +143,7 @@ export function expandGapWindow(
 	toIdx: number,
 ): number {
 	const gap = rows[gapIndex];
-	if (gap.variant !== 'vgap') return 0;
+	if (!gap || gap.variant !== 'vgap') return 0;
 	const from = Math.max(fromIdx, gap.fromIndex);
 	const to = Math.min(toIdx, gap.toIndex);
 	if (to <= from) return 0;
@@ -178,11 +175,12 @@ export function expandGapWindow(
 
 export function removeSubtree(rows: Row[], parentIndex: number): Row[] {
 	const parent = rows[parentIndex];
-	if (parent.variant !== 'content') return rows;
+	if (!parent || parent.variant !== 'content') return rows;
 	const parentDepth = parent.depth;
 	let end = parentIndex + 1;
 	while (end < rows.length) {
 		const r = rows[end];
+		if (!r) break;
 		if (r.variant === 'close' && r.depth === parentDepth) {
 			end++;
 			break;
@@ -206,6 +204,7 @@ export function replacePlaceholders(
 	let begin = -1;
 	for (let i = 0; i < rows.length; i++) {
 		const r = rows[i];
+		if (!r) continue;
 		if (
 			r.variant === 'placeholder' &&
 			pathKey(r.parentPath) === parentKey &&
@@ -221,6 +220,7 @@ export function replacePlaceholders(
 	while (runLen < newRows.length && begin + runLen < rows.length) {
 		const r = rows[begin + runLen];
 		if (
+			!r ||
 			r.variant !== 'placeholder' ||
 			pathKey(r.parentPath) !== parentKey ||
 			r.index !== startIdx + runLen
@@ -235,16 +235,21 @@ export function replacePlaceholders(
 	return runLen;
 }
 
-export function pathKey(path: Path): string {
-	return JSON.stringify(path);
+export type PathKey = string & { readonly __brand: 'PathKey' };
+
+export function pathKey(path: Path): PathKey {
+	return JSON.stringify(path) as PathKey;
 }
 
-export function rowKey(row: Row): string {
-	if (row.variant === 'close') return pathKey(row.parentPath) + '/__close';
-	if (row.variant === 'placeholder') return pathKey(row.parentPath) + '/__ph/' + row.index;
+export type RowKey = string & { readonly __brand: 'RowKey' };
+
+export function rowKey(row: Row): RowKey {
+	if (row.variant === 'close') return (pathKey(row.parentPath) + '/__close') as RowKey;
+	if (row.variant === 'placeholder')
+		return (pathKey(row.parentPath) + '/__ph/' + row.index) as RowKey;
 	if (row.variant === 'vgap')
-		return pathKey(row.parentPath) + '/__vgap/' + row.fromIndex + '-' + row.toIndex;
-	return pathKey(row.path);
+		return (pathKey(row.parentPath) + '/__vgap/' + row.fromIndex + '-' + row.toIndex) as RowKey;
+	return pathKey(row.path) as string as RowKey;
 }
 
 export type MenuAction =

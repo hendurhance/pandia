@@ -1,11 +1,7 @@
 import { readTextFile, stat } from '@tauri-apps/plugin-fs';
-import {
-	docDetectAndConvert,
-	docRepairText,
-	docSetFilePath,
-	type IpcErrorKind,
-} from '$lib/ipc/doc';
-import type { DetectResult, DocHandle, OpenResult, OpenSource } from '$lib/ipc/types';
+import { ipc } from '$lib/ipc/client';
+import type { IpcErrorKind } from '$lib/ipc/error';
+import type { DetectResult, DocHandle, OpenResult, OpenSource } from '$lib/ipc/bindings';
 import { stem } from '$lib/util/path';
 
 const MAX_WARNINGS = 6;
@@ -82,7 +78,7 @@ export async function runFormatDetect(source: OpenSource, deps: FormatDetectDeps
 
 	let detected: DetectResult;
 	try {
-		detected = await docDetectAndConvert(text);
+		detected = await ipc.docDetectAndConvert(text);
 	} catch {
 		return;
 	}
@@ -104,7 +100,7 @@ export async function runAutoRepair(
 
 	let repaired;
 	try {
-		repaired = await docRepairText(text);
+		repaired = await ipc.docRepairText(text);
 	} catch {
 		return;
 	}
@@ -117,7 +113,7 @@ export async function runAutoRepair(
 		const handle = deps.handle();
 		if (handle) {
 			try {
-				deps.setSummary(await docSetFilePath(handle, source.path));
+				deps.setSummary(await ipc.docSetFilePath(handle, source.path));
 			} catch {}
 		}
 	}

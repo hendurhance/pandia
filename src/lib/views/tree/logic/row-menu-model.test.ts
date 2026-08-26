@@ -11,7 +11,6 @@ function row(over: Partial<ContentRow>): ContentRow {
 		kind: 'string',
 		preview: '""',
 		childCount: null,
-		sizeHint: 0,
 		expanded: false,
 		...over,
 	};

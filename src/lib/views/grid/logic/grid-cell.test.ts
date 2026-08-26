@@ -1,9 +1,9 @@
+import { kindOf } from '$lib/ipc/wire';
 import { describe, it, expect } from 'vitest';
 import { LosslessNumber } from 'lossless-json';
 import {
 	UNLOADED,
 	MISSING,
-	valueKind,
 	cellText,
 	isAlignRight,
 	cellClass,
@@ -12,14 +12,14 @@ import {
 	inspectorText,
 } from './grid-cell';
 
-describe('valueKind', () => {
+describe('kindOf', () => {
 	it('maps JS values to NodeKind', () => {
-		expect(valueKind(null)).toBe('null');
-		expect(valueKind(true)).toBe('bool');
-		expect(valueKind(42)).toBe('number');
-		expect(valueKind('x')).toBe('string');
-		expect(valueKind([1, 2])).toBe('array');
-		expect(valueKind({ a: 1 })).toBe('object');
+		expect(kindOf(null)).toBe('null');
+		expect(kindOf(true)).toBe('bool');
+		expect(kindOf(42)).toBe('number');
+		expect(kindOf('x')).toBe('string');
+		expect(kindOf([1, 2])).toBe('array');
+		expect(kindOf({ a: 1 })).toBe('object');
 	});
 });
 
@@ -40,8 +40,8 @@ describe('cellText', () => {
 	it('renders a lossless big integer literally, as a number', () => {
 		const big = new LosslessNumber('123456789012345678');
 		expect(cellText(big)).toBe('123456789012345678');
-		expect(valueKind(big)).toBe('number');
-		expect(isAlignRight(valueKind(big))).toBe(true);
+		expect(kindOf(big)).toBe('number');
+		expect(isAlignRight(kindOf(big))).toBe(true);
 		expect(inspectorText(big)).toBe('123456789012345678');
 		expect(cellTitle(big)).toBe('123456789012345678');
 	});

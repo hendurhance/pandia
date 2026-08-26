@@ -1,6 +1,6 @@
 import type { TreeRowsController } from '../../views/tree/state/tree-rows.svelte';
 import { isContent, isExpandable, rootRow } from '../../views/tree/logic/model';
-import type { NodeKind, Path } from '../../ipc/types';
+import type { NodeKind, Path } from '$lib/ipc/bindings';
 
 export const SAFETY_PASSES = 100;
 
@@ -26,6 +26,7 @@ export async function expandAll(deps: BulkExpandDeps): Promise<void> {
 				const idx = deps.tree.contentRowIdx(p);
 				if (idx < 0) continue;
 				const cur = deps.tree.rows[idx];
+				if (!cur) continue;
 				// Re-check expansion state — a previous toggle in this same loop
 				if (cur.variant === 'content' && isExpandable(cur) && !cur.expanded) {
 					await deps.tree.toggleAt(idx);

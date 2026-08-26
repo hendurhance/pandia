@@ -1,5 +1,5 @@
 import type { ContentRow, MenuAction } from './model';
-import type { NodeKind } from '$lib/ipc/types';
+import type { NodeKind } from '$lib/ipc/bindings';
 
 export interface MenuLeaf {
 	type: 'action';

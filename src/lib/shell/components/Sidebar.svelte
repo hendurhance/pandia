@@ -9,7 +9,7 @@
 	import TypegenPanel from '$lib/panels/TypegenPanel.svelte';
 	import OutlinePanel from '$lib/panels/OutlinePanel.svelte';
 	import HistoryPanel from '$lib/panels/HistoryPanel.svelte';
-	import type { DocHandle, Path } from '$lib/ipc/types';
+	import type { DocHandle, Path } from '$lib/ipc/bindings';
 	import { resizable } from '$lib/ui/resizable';
 
 	interface DocContext {

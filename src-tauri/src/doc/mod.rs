@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod backup;
 pub mod canonical;
 pub mod detect;
@@ -20,6 +21,7 @@ pub mod search;
 pub mod store;
 pub mod typegen;
 pub mod types;
+pub mod wire;
 
 #[cfg(test)]
 mod baseline;

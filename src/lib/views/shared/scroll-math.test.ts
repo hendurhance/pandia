@@ -6,7 +6,7 @@ import {
 	indexAtOffset,
 	restoreScrollTop,
 	visibleWindow,
-} from './virtualizer';
+} from './scroll-math';
 
 describe('buildOffsets', () => {
 	it('uniform-height fast path: zero rows', () => {
@@ -22,7 +22,7 @@ describe('buildOffsets', () => {
 
 	it('variable-height path consults the heightAt callback', () => {
 		const heights = [22, 22, 60, 22, 100]; // row 2 wrapped, row 4 huge
-		const { view } = buildOffsets(5, (i) => heights[i], new Float64Array(0), false);
+		const { view } = buildOffsets(5, (i) => heights[i] ?? 0, new Float64Array(0), false);
 		expect(Array.from(view)).toEqual([0, 22, 44, 104, 126, 226]);
 	});
 
@@ -40,7 +40,7 @@ describe('buildOffsets', () => {
 
 	it('view length is rowCount + 1; view[rowCount] is the total height', () => {
 		const heights = [10, 20, 30];
-		const { view } = buildOffsets(3, (i) => heights[i], new Float64Array(0), false);
+		const { view } = buildOffsets(3, (i) => heights[i] ?? 0, new Float64Array(0), false);
 		expect(view.length).toBe(4);
 		expect(view[3]).toBe(60); // 10 + 20 + 30
 	});

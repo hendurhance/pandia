@@ -23,12 +23,13 @@
 	async function setMode(next: Mode) {
 		if (mode === next) return;
 		const fam = familyOf(appearancePrefs.themeId) ?? DEFAULT_FAMILY;
+		if (!fam) return;
 		if (next === 'auto') {
-			const id = fam.dark && fam.light ? fam.dark : DEFAULT_FAMILY.dark;
+			const id = fam.dark && fam.light ? fam.dark : DEFAULT_FAMILY?.dark;
 			if (id) await appearancePrefs.setAuto(id);
 			return;
 		}
-		const id = fam[next] ?? DEFAULT_FAMILY[next];
+		const id = fam[next] ?? DEFAULT_FAMILY?.[next];
 		if (id) await appearancePrefs.setTheme(id);
 	}
 

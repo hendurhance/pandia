@@ -1,4 +1,4 @@
-import type { Column, NodeKind } from '$lib/ipc/types';
+import type { Column, NodeKind } from '$lib/ipc/bindings';
 
 export const PX_PER_CH = 7.6;
 const CELL_PAD_CH = 2;
@@ -64,7 +64,7 @@ export function computeColumnLayout(
 	let acc = 0;
 	for (let i = 0; i < widths.length; i++) {
 		offsets[i] = acc;
-		acc += widths[i];
+		acc += widths[i] ?? 0;
 	}
 	return { widths, offsets, total: acc };
 }
@@ -78,24 +78,13 @@ export function columnWindow(
 	const { offsets, widths } = layout;
 	if (widths.length === 0) return { start: 0, end: 0 };
 	let start = 0;
-	while (start < widths.length && offsets[start] + widths[start] <= scrollLeft) start++;
+	while (start < widths.length && (offsets[start] ?? Infinity) + (widths[start] ?? 0) <= scrollLeft)
+		start++;
 	const right = scrollLeft + viewportWidth;
 	let end = start;
-	while (end < widths.length && offsets[end] < right) end++;
+	while (end < widths.length && (offsets[end] ?? Infinity) < right) end++;
 	return {
 		start: Math.max(0, start - overscan),
 		end: Math.min(widths.length, end + overscan),
 	};
-}
-
-export function rowWindow(
-	scrollTop: number,
-	viewportHeight: number,
-	rowHeight: number,
-	rowCount: number,
-	overscan: number,
-): VisibleRange {
-	const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-	const end = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan);
-	return { start, end };
 }

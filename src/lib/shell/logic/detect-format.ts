@@ -25,8 +25,8 @@ export function detectFormat(text: string): DetectedFormat {
 	}
 
 	if (nonEmptyHead.length >= 2) {
-		const commas0 = (nonEmptyHead[0].match(/,/g) ?? []).length;
-		const commas1 = (nonEmptyHead[1].match(/,/g) ?? []).length;
+		const commas0 = (nonEmptyHead[0]?.match(/,/g) ?? []).length;
+		const commas1 = (nonEmptyHead[1]?.match(/,/g) ?? []).length;
 		if (commas0 >= 2 && commas1 >= 1) return 'csv';
 	}
 

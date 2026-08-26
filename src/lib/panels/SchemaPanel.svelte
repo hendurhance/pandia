@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { docValidateSchema } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, Path } from '$lib/ipc/types';
+	import type { DocHandle, Path } from '$lib/ipc/bindings';
 	import { schemaStore } from './state/schema-store.svelte';
 	import { hasSchemaKeywords } from './schema-keywords';
 	import { parseJsonPointer } from '$lib/util/path';
@@ -67,7 +67,7 @@
 		const mySeq = ++seq;
 		const versionAtValidate = context.version;
 		try {
-			const result = await docValidateSchema(context.handle, text);
+			const result = await ipc.docValidateSchema(context.handle, text);
 			if (mySeq !== seq) return; // newer request started
 			schemaStore.setResult(tabId, result, null, versionAtValidate);
 		} catch (e) {

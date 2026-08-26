@@ -1,7 +1,8 @@
-import { docGetRowsAt } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
-import type { DocHandle, NodeKind, Path } from '$lib/ipc/types';
-import { UNLOADED, MISSING, inspectorText, valueKind } from '../logic/grid-cell';
+import type { DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
+import { UNLOADED, MISSING, inspectorText } from '../logic/grid-cell';
+import { kindOf } from '$lib/ipc/wire';
 import { CopyFlag } from '$lib/util/clipboard.svelte';
 import type { GridDataController } from './grid-data.svelte';
 
@@ -40,7 +41,7 @@ export class GridSelectionController {
 
 	readonly selectedKind = $derived.by<NodeKind | null>(() => {
 		const v = this.selectedValue;
-		return v === UNLOADED || v === MISSING || v === undefined ? null : valueKind(v);
+		return v === UNLOADED || v === MISSING || v === undefined ? null : kindOf(v);
 	});
 
 	rowSelected = (orig: number | undefined): boolean => orig != null && this.selectedRows.has(orig);
@@ -78,9 +79,7 @@ export class GridSelectionController {
 		const idx = [...this.selectedRows].sort((a, b) => a - b);
 		if (idx.length === 0) return;
 		try {
-			// Pretty JSON serialized in Rust — big integers survive (JSON.stringify of
-			// an IPC-parsed value would truncate them through f64).
-			const json = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
+			const json = await ipc.docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
 			if (!(await this.rowsCopy.copy(json))) this.deps.onError('clipboard unavailable');
 		} catch (e) {
 			this.deps.onError(describeError(e));
@@ -91,7 +90,7 @@ export class GridSelectionController {
 		const idx = [...this.selectedRows].sort((a, b) => a - b);
 		if (idx.length === 0) return;
 		try {
-			const json = await docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
+			const json = await ipc.docGetRowsAt(this.deps.handle(), this.deps.path(), idx);
 			this.deps.onExtract(json, idx.length);
 		} catch (e) {
 			this.deps.onError(describeError(e));

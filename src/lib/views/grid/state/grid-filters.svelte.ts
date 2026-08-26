@@ -1,13 +1,15 @@
-import { docColumnValues, type ColumnValues } from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
-import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/types';
+import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
 import {
 	type ColOp,
 	type ColFilter,
+	type DecodedColumnValues,
 	sameVal,
 	colActive,
 	compileGroups,
-	colValueLabel,
+	valLabel,
 } from '../logic/grid-filter-model';
 import type { GridQuery } from './grid-data.svelte';
 
@@ -46,7 +48,7 @@ export class GridFilterController {
 	openAnchorEl: HTMLElement | null = $state(null); // funnel button (Popover ignores its clicks)
 	openOp: ColOp = $state('is');
 	valueSearch = $state('');
-	valuesByCol = $state.raw(new Map<string, ColumnValues>());
+	valuesByCol = $state.raw(new Map<string, DecodedColumnValues>());
 	valuesLoading: string | null = $state(null);
 
 	constructor(private deps: GridFilterDeps) {
@@ -93,7 +95,7 @@ export class GridFilterController {
 		if (!cv) return null;
 		const q = this.valueSearch.trim().toLowerCase();
 		const values = q
-			? cv.values.filter((v) => colValueLabel(v).toLowerCase().includes(q))
+			? cv.values.filter((v) => valLabel(v.value).toLowerCase().includes(q))
 			: cv.values;
 		return { values, capped: cv.capped };
 	});
@@ -218,9 +220,12 @@ export class GridFilterController {
 		if (this.valuesByCol.has(key)) return;
 		this.valuesLoading = key;
 		try {
-			const cv = await docColumnValues(this.deps.handle(), this.deps.path(), key, VALUE_LIMIT);
+			const cv = await ipc.docColumnValues(this.deps.handle(), this.deps.path(), key, VALUE_LIMIT);
 			const next = new Map(this.valuesByCol);
-			next.set(key, cv);
+			next.set(key, {
+				capped: cv.capped,
+				values: cv.values.map((v) => ({ value: decodeLossless(v.value), count: v.count })),
+			});
 			this.valuesByCol = next;
 		} catch (e) {
 			this.deps.onError(describeError(e));

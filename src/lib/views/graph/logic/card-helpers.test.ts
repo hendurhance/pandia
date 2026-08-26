@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { containerPreview, hueOf, NHUES, scalarText, toRow } from './card-helpers';
-import type { NodeView } from '$lib/ipc/types';
+import type { NodeView } from '$lib/ipc/bindings';
 
 describe('containerPreview', () => {
 	it('formats arrays with item counts', () => {
@@ -19,7 +19,7 @@ describe('containerPreview', () => {
 
 describe('scalarText', () => {
 	function v(kind: NodeView['kind'], preview: string): NodeView {
-		return { key: 0, kind, preview, childCount: null, sizeHint: 0 };
+		return { key: 0, kind, preview, childCount: null };
 	}
 	it('strips JSON quotes around string previews', () => {
 		expect(scalarText(v('string', '"hello"'))).toBe('hello');
@@ -63,7 +63,7 @@ describe('toRow', () => {
 		preview: string,
 		childCount: number | null = null,
 	): NodeView {
-		return { key, kind, preview, childCount, sizeHint: 0 };
+		return { key, kind, preview, childCount };
 	}
 	it('builds a primitive row with the right kind + value', () => {
 		const r = toRow(['parent'], v('age', 'number', '42'));
@@ -85,6 +85,11 @@ describe('toRow', () => {
 		const r = toRow([], v('empty', 'array', '[]', 0));
 		expect(r.container).toBe(true);
 		expect(r.expandable).toBe(false);
+	});
+	it('an uncounted container (childCount null, past the lazy budget) stays expandable', () => {
+		const r = toRow([], v('huge', 'object', '{…}', null));
+		expect(r.container).toBe(true);
+		expect(r.expandable).toBe(true);
 	});
 	it('extracts a hex color swatch when the value is a hex string', () => {
 		const r = toRow([], v('color', 'string', '"#ff6a3a"'));

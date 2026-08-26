@@ -1,16 +1,7 @@
 <script lang="ts">
 	import { open as openDialog } from '@tauri-apps/plugin-dialog';
-	import {
-		docOpen,
-		docClose,
-		docGetSlice,
-		docGetValue,
-		docApplyOp,
-		docColumnSchema,
-		docUndo,
-		docRedo,
-	} from '$lib/ipc/doc';
-	import type { OpenResult, NodeView, Op, Path } from '$lib/ipc/types';
+	import { ipc } from '$lib/ipc/client';
+	import type { OpenResult, NodeView, Op, Path } from '$lib/ipc/bindings';
 	import { fmtBytes } from '$lib/util/format';
 	import { SANDBOX_ENABLED } from '$lib/util/flags';
 
@@ -83,7 +74,7 @@
 	async function onOpenText() {
 		const label = `doc_open(text "${textName}")`;
 		try {
-			const res = await docOpen({ kind: 'text', text: textBody, name: textName || null });
+			const res = await ipc.docOpen({ kind: 'text', text: textBody, name: textName || null });
 			docs = [...docs, res];
 			activeHandle = res.handle;
 			logEntry('ok', label, res);
@@ -96,7 +87,7 @@
 		if (!filePathText.trim()) return;
 		const label = `doc_open(file ${filePathText})`;
 		try {
-			const res = await docOpen({ kind: 'file', path: filePathText.trim() });
+			const res = await ipc.docOpen({ kind: 'file', path: filePathText.trim() });
 			docs = [...docs, res];
 			activeHandle = res.handle;
 			logEntry('ok', label, res);
@@ -123,7 +114,7 @@
 
 	async function onClose(handle: string) {
 		try {
-			const ok = await docClose(handle);
+			const ok = await ipc.docClose(handle);
 			docs = docs.filter((d) => d.handle !== handle);
 			if (activeHandle === handle) activeHandle = docs[0]?.handle ?? null;
 			logEntry(ok ? 'ok' : 'info', `doc_close(${shortId(handle)})`, ok);
@@ -142,7 +133,7 @@
 		const label = `doc_get_slice(${shortId(activeHandle)}, ${pathText}, ${rangeStart}..${rangeEnd})`;
 		try {
 			const t0 = performance.now();
-			const slice: NodeView[] = await docGetSlice(activeHandle, path, rangeStart, rangeEnd);
+			const slice: NodeView[] = await ipc.docGetSlice(activeHandle, path, rangeStart, rangeEnd);
 			const dt = (performance.now() - t0).toFixed(1);
 			logEntry('ok', `${label} · ${dt} ms · ${slice.length} nodes`, slice);
 		} catch (e) {
@@ -160,7 +151,7 @@
 		const label = `doc_get_value(${shortId(activeHandle)}, ${pathText})`;
 		try {
 			const t0 = performance.now();
-			const value = await docGetValue(activeHandle, path);
+			const value = await ipc.docGetValue(activeHandle, path);
 			const dt = (performance.now() - t0).toFixed(1);
 			logEntry('ok', `${label} · ${dt} ms`, value);
 		} catch (e) {
@@ -190,7 +181,7 @@
 		const label = `doc_apply_op(${shortId(activeHandle)}, ${op.kind})`;
 		try {
 			const t0 = performance.now();
-			const result = await docApplyOp(activeHandle, op);
+			const result = await ipc.docApplyOp(activeHandle, op);
 			const dt = (performance.now() - t0).toFixed(1);
 			logEntry('ok', `${label} · ${dt} ms · v${result.version}`, result);
 		} catch (e) {
@@ -208,7 +199,7 @@
 		const label = `doc_column_schema(${shortId(activeHandle)}, ${pathText})`;
 		try {
 			const t0 = performance.now();
-			const schema = await docColumnSchema(activeHandle, path);
+			const schema = await ipc.docColumnSchema(activeHandle, path);
 			const dt = (performance.now() - t0).toFixed(1);
 			const tag = schema.gridSuitable
 				? `grid · ${schema.columns.length} cols`
@@ -224,7 +215,7 @@
 		const label = `doc_undo(${shortId(activeHandle)})`;
 		try {
 			const t0 = performance.now();
-			const result = await docUndo(activeHandle);
+			const result = await ipc.docUndo(activeHandle);
 			const dt = (performance.now() - t0).toFixed(1);
 			if (result === null) {
 				logEntry('info', `${label} · ${dt} ms`, 'no undo entries');
@@ -241,7 +232,7 @@
 		const label = `doc_redo(${shortId(activeHandle)})`;
 		try {
 			const t0 = performance.now();
-			const result = await docRedo(activeHandle);
+			const result = await ipc.docRedo(activeHandle);
 			const dt = (performance.now() - t0).toFixed(1);
 			if (result === null) {
 				logEntry('info', `${label} · ${dt} ms`, 'no redo entries');

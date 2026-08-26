@@ -52,7 +52,9 @@ export function exportLayoutSVG(
 	parts.push('</g>');
 
 	for (let i = 0; i < layout.cards.length; i++) {
-		renderCardSVG(layout.cards[i], i, theme, measurer, parts);
+		const card = layout.cards[i];
+		if (!card) continue;
+		renderCardSVG(card, i, theme, measurer, parts);
 	}
 
 	parts.push('</g></svg>');
@@ -91,6 +93,7 @@ function renderCardSVG(
 
 	for (let i = 0; i < card.rows.length; i++) {
 		const row = card.rows[i];
+		if (!row) continue;
 		const rowY = card.y + HEADER_H + i * ROW_H;
 		if (i < card.rows.length - 1) {
 			out.push(

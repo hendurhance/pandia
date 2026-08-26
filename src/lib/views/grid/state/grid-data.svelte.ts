@@ -1,15 +1,10 @@
-import {
-	cancelJob,
-	docGetRows,
-	docGetRowsSorted,
-	docGetRowsFiltered,
-	type GridFilter,
-	type SortedRow,
-	IpcError,
-} from '$lib/ipc/doc';
+import { ipc } from '$lib/ipc/client';
+import type { DocHandle, GridFilter, Path, RowJson } from '$lib/ipc/bindings';
+import { decodeLossless } from '$lib/ipc/wire';
+import { IpcError } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
-import type { DocHandle, Path } from '$lib/ipc/types';
-import { rowWindow } from '../logic/grid-geometry';
+import { PagedSource } from '$lib/views/shared/paged-source.svelte';
+import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 import { UNLOADED, MISSING, cellText } from '../logic/grid-cell';
 
 export const ROW_HEIGHT = 24;
@@ -44,48 +39,98 @@ export interface GridDataDeps {
 }
 
 export class GridDataController {
-	chunks = $state.raw(new Map<number, GridRow[]>());
-	filteredTotal: number | null = $state(null);
-
-	scrollTop = $state(0);
-	scrollLeft = $state(0);
-	viewportWidth = $state(0);
-	viewportHeight = $state(0);
-
-	private inFlight = new Map<number, Promise<void>>();
 	private filterJobId: string | null = null;
-	private generation = 0;
-	fetching = $state(false);
+
+	private readonly source = new PagedSource<GridRow>({
+		pageSize: CHUNK,
+		debounceMs: 0,
+		fetch: async (start, end) => {
+			const q = this.deps.query();
+			const handle = this.deps.handle();
+			const path = this.deps.path();
+			const decodeRow = (r: RowJson): GridRow => ({
+				index: r.index,
+				value: decodeLossless(r.value),
+			});
+			if (q.filtering) {
+				if (!this.filterJobId) {
+					this.filterJobId = `grid-filter-${start}-${Math.random().toString(36).slice(2, 10)}`;
+				}
+				const res = await ipc.docGetRowsFiltered(
+					handle,
+					path,
+					start,
+					end,
+					{
+						groups: q.filterGroups,
+						quick: q.quick.trim() || null,
+						quickKeys: q.quickKeys,
+						sortKey: q.sortKey,
+						descending: q.sortDesc,
+					},
+					this.filterJobId,
+				);
+				return { items: res.rows.map(decodeRow), total: res.total };
+			}
+			if (q.sortKey) {
+				const hi = Math.min(end, this.deps.rowCount());
+				const rows = await ipc.docGetRowsSorted(handle, path, start, hi, q.sortKey, q.sortDesc);
+				return { items: rows.map(decodeRow) };
+			}
+			const hi = Math.min(end, this.deps.rowCount());
+			const raw = await ipc.docGetRows(handle, path, start, hi);
+			return { items: raw.map((value, k) => ({ index: start + k, value: decodeLossless(value) })) };
+		},
+		onError: (e) => {
+			if (e instanceof IpcError && e.kind === 'cancelled') return;
+			if (this.deps.query().sortKey || this.deps.query().filtering) {
+				this.deps.onFilterOverflow(describeError(e));
+			} else {
+				this.deps.onError(describeError(e));
+			}
+		},
+		onReset: () => {
+			if (this.filterJobId) {
+				void ipc.cancelJob(this.filterJobId);
+				this.filterJobId = null;
+			}
+		},
+	});
+
+	readonly scroller = new WindowedScroller({
+		rowCount: () => this.effectiveRowCount,
+		rowHeight: ROW_HEIGHT,
+		overscan: ROW_OVERSCAN,
+	});
 
 	constructor(private deps: GridDataDeps) {}
+
+	get chunks(): Map<number, GridRow[]> {
+		return this.source.pages;
+	}
+
+	get filteredTotal(): number | null {
+		return this.source.total;
+	}
+
+	get fetching(): boolean {
+		return this.source.fetching;
+	}
 
 	readonly effectiveRowCount = $derived.by(() =>
 		this.deps.query().filtering ? (this.filteredTotal ?? 0) : this.deps.rowCount(),
 	);
 
-	private readonly rowRange = $derived(
-		rowWindow(
-			this.scrollTop,
-			this.viewportHeight,
-			ROW_HEIGHT,
-			this.effectiveRowCount,
-			ROW_OVERSCAN,
-		),
-	);
-
 	readonly visibleRows = $derived(
 		Array.from(
-			{ length: Math.max(0, this.rowRange.end - this.rowRange.start) },
-			(_, k) => this.rowRange.start + k,
+			{ length: Math.max(0, this.scroller.window.end - this.scroller.window.start) },
+			(_, k) => this.scroller.window.start + k,
 		),
 	);
 
-	chunkStart = (i: number): number => Math.floor(i / CHUNK) * CHUNK;
+	chunkStart = (i: number): number => this.source.pageStart(i);
 
-	getRow = (rowIdx: number): GridRow | undefined => {
-		const start = this.chunkStart(rowIdx);
-		return this.chunks.get(start)?.[rowIdx - start];
-	};
+	getRow = (rowIdx: number): GridRow | undefined => this.source.get(rowIdx);
 
 	getCell = (rowIdx: number, colKey: string): unknown => {
 		const row = this.getRow(rowIdx);
@@ -109,113 +154,16 @@ export class GridDataController {
 		return out;
 	};
 
-	private fetchChunk(start: number): Promise<void> {
-		if (this.chunks.has(start)) return Promise.resolve();
-		const existing = this.inFlight.get(start);
-		if (existing) return existing;
-
-		const q = this.deps.query();
-		const handle = this.deps.handle();
-		const path = this.deps.path();
-		if (q.filtering && !this.filterJobId) {
-			this.filterJobId = `grid-filter-${start}-${Math.random().toString(36).slice(2, 10)}`;
-		}
-		const jobId = q.filtering ? this.filterJobId : null;
-		const gen = this.generation;
-		const work = (async () => {
-			try {
-				let rows: GridRow[];
-				let total: number | null = null;
-				if (q.filtering) {
-					const res = await docGetRowsFiltered(
-						handle,
-						path,
-						start,
-						start + CHUNK,
-						q.filterGroups,
-						q.quick.trim() || null,
-						q.quickKeys,
-						q.sortKey,
-						q.sortDesc,
-						jobId ?? undefined,
-					);
-					total = res.total;
-					rows = res.rows;
-				} else if (q.sortKey) {
-					const end = Math.min(start + CHUNK, this.deps.rowCount());
-					rows = (await docGetRowsSorted(
-						handle,
-						path,
-						start,
-						end,
-						q.sortKey,
-						q.sortDesc,
-					)) as SortedRow[];
-				} else {
-					const end = Math.min(start + CHUNK, this.deps.rowCount());
-					const raw = await docGetRows(handle, path, start, end);
-					rows = raw.map((value, k) => ({ index: start + k, value }));
-				}
-				// Drop stale responses: if the user retyped the filter or
-				// changed query while this was in flight, the in-flight Rust
-				// cancel flag might have missed (response already sent), so
-				// guard the write here too.
-				if (gen !== this.generation) return;
-				if (total !== null) this.filteredTotal = total;
-				const next = new Map(this.chunks);
-				next.set(start, rows);
-				this.chunks = next;
-			} catch (e) {
-				if (e instanceof IpcError && e.kind === 'cancelled') return;
-				if (gen !== this.generation) return;
-				if (q.sortKey || q.filtering) {
-					this.deps.onFilterOverflow(describeError(e));
-				} else {
-					this.deps.onError(describeError(e));
-				}
-			} finally {
-				if (gen === this.generation) this.inFlight.delete(start);
-			}
-		})();
-		this.inFlight.set(start, work);
-		this.fetching = true;
-		void work.finally(() => {
-			if (this.inFlight.size === 0) this.fetching = false;
-		});
-		return work;
-	}
-
 	fetchVisible = () => {
-		const first = this.chunkStart(this.rowRange.start);
-		const last = this.chunkStart(Math.max(this.rowRange.start, this.rowRange.end - 1));
-		for (let s = first; s <= last; s += CHUNK) void this.fetchChunk(s);
+		const range = this.scroller.window;
+		this.source.ensureVisible(range.start, range.end);
 	};
 
 	fetchRange = async (lo: number, hi: number) => {
-		for (let s = this.chunkStart(lo); s <= this.chunkStart(hi); s += CHUNK) {
-			await this.fetchChunk(s);
-		}
-	};
-
-	setScroll = (top: number, left: number) => {
-		this.scrollTop = top;
-		this.scrollLeft = left;
-	};
-
-	setViewport = (width: number, height: number) => {
-		this.viewportWidth = width;
-		this.viewportHeight = height;
+		await this.source.ensureRange(lo, hi + 1);
 	};
 
 	reset = () => {
-		this.generation += 1;
-		if (this.filterJobId) {
-			void cancelJob(this.filterJobId);
-			this.filterJobId = null;
-		}
-		this.chunks = new Map();
-		this.inFlight.clear();
-		this.filteredTotal = null;
-		this.fetching = false;
+		this.source.reset();
 	};
 }

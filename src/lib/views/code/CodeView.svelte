@@ -56,18 +56,12 @@
 		replaceAll as cmReplaceAllCmd,
 		SearchCursor,
 	} from '@codemirror/search';
-	import { docValueJson } from '$lib/ipc/doc';
+	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import { parseLossless } from '$lib/util/lossless';
+	import { pathKey } from '$lib/views/tree/logic/model';
 	import { noirHighlight, noirTheme } from './logic/codemirror-theme';
-	import type { DocHandle, Path } from '$lib/ipc/types';
-	import {
-		diffHighlightExtension,
-		lookupOffsets,
-		setHighlights,
-		stringifyWithOffsets,
-		type Highlight,
-	} from './logic/highlights';
+	import type { DocHandle, Path } from '$lib/ipc/bindings';
+	import { diffHighlightExtension, setHighlights, type Highlight } from './logic/highlights';
 
 	interface Props {
 		handle: DocHandle | null;
@@ -109,7 +103,10 @@
 	let error: string | null = $state(null);
 
 	let editorView: EditorView | undefined;
-	let editorOffsets: Map<string, [number, number]> | null = null;
+	// Canonical text and its offsets both come from Rust (docs/adr/0002) —
+	// ranges are fetched on demand per highlighted path, keyed by pathKey.
+	let offsetRanges = new Map<string, [number, number]>();
+	let offsetsInFlight = new Set<string>();
 
 	let dirty = $state(false);
 	let parseError: string | null = $state(null);
@@ -237,11 +234,12 @@
 		loading = true;
 		error = null;
 
-		docValueJson(handle, [])
-			.then((raw) => {
+		ipc
+			.docCanonicalText(handle)
+			.then((text) => {
 				if (cancelled || !container) return;
-				const { text, offsets } = stringifyWithOffsets(parseLossless(raw));
-				editorOffsets = offsets;
+				offsetRanges = new Map();
+				offsetsInFlight = new Set();
 				baseline = text;
 				setDirty(false);
 				parseError = null;
@@ -274,7 +272,7 @@
 					}),
 				});
 				editorView = view;
-				applyDecorations();
+				void ensureOffsets();
 				onScrollerReady?.(view.scrollDOM);
 				if (editable) {
 					onReady?.(api);
@@ -304,7 +302,8 @@
 			}
 			view?.destroy();
 			editorView = undefined;
-			editorOffsets = null;
+			offsetRanges = new Map();
+			offsetsInFlight = new Set();
 		};
 	});
 
@@ -334,13 +333,13 @@
 	}
 
 	function applyDecorations() {
-		if (!editorView || !editorOffsets) return;
+		if (!editorView) return;
 		const ranges: Array<{ from: number; to: number; kind: Highlight['kind'] }> = [];
 		for (const h of highlights) {
-			const range = lookupOffsets(editorOffsets, h.path);
+			const range = offsetRanges.get(pathKey(h.path));
 			if (range) ranges.push({ from: range[0], to: range[1], kind: h.kind });
 		}
-		const active = activePath ? lookupOffsets(editorOffsets, activePath) : null;
+		const active = activePath ? (offsetRanges.get(pathKey(activePath)) ?? null) : null;
 		editorView.dispatch({
 			effects: setHighlights.of({
 				ranges,
@@ -356,10 +355,43 @@
 		}
 	}
 
+	async function ensureOffsets() {
+		const h = handle;
+		if (!h || !editorView) return;
+		const needed: Path[] = [];
+		const requested = new Set<string>();
+		const want = (p: Path) => {
+			const k = pathKey(p);
+			if (offsetRanges.has(k) || offsetsInFlight.has(k) || requested.has(k)) return;
+			requested.add(k);
+			needed.push(p);
+		};
+		for (const hl of highlights) want(hl.path);
+		if (activePath) want(activePath);
+		if (needed.length === 0) {
+			applyDecorations();
+			return;
+		}
+		for (const k of requested) offsetsInFlight.add(k);
+		try {
+			const res = await ipc.docCanonicalOffsets(h, needed);
+			if (handle !== h || !editorView) return;
+			needed.forEach((p, idx) => {
+				const r = res[idx];
+				if (r) offsetRanges.set(pathKey(p), [r.start, r.end]);
+			});
+		} catch {
+			// Highlights are decorative; the text itself already rendered.
+		} finally {
+			for (const k of requested) offsetsInFlight.delete(k);
+		}
+		applyDecorations();
+	}
+
 	$effect(() => {
 		void highlights;
 		void activePath;
-		applyDecorations();
+		void ensureOffsets();
 	});
 </script>
 

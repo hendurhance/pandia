@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { docSummary } from '$lib/ipc/doc';
-	import type { DiffKind, DocHandle, Path } from '$lib/ipc/types';
+	import { ipc } from '$lib/ipc/client';
+	import type { DiffKind, DocHandle, Path } from '$lib/ipc/bindings';
 	import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
 	import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 	import TreeView from '$lib/views/tree/components/TreeView.svelte';
@@ -50,7 +50,7 @@
 		void (async () => {
 			let sum;
 			try {
-				sum = await docSummary(h);
+				sum = await ipc.docSummary(h);
 			} catch {
 				return;
 			}

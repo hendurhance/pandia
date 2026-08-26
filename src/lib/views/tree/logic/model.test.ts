@@ -16,18 +16,17 @@ import {
 	type VirtualGapRow,
 	type Row,
 } from './model';
-import type { NodeView, Path } from '$lib/ipc/types';
+import type { NodeView, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, depth: number, opts: Partial<ContentRow> = {}): ContentRow {
 	return {
 		variant: 'content',
 		path,
 		depth,
-		key: path.length ? path[path.length - 1] : '$',
+		key: path[path.length - 1] ?? '$',
 		kind: 'object',
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: false,
 		...opts,
 	};
@@ -115,7 +114,6 @@ describe('rootRow / viewToRow', () => {
 			kind: 'number',
 			preview: '42',
 			childCount: null,
-			sizeHint: 2,
 		};
 		expect(viewToRow(view, ['a'], 0)).toMatchObject({
 			path: ['a', 'x'],

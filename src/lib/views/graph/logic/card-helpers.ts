@@ -1,4 +1,4 @@
-import type { NodeKind, NodeView, Path } from '$lib/ipc/types';
+import type { NodeKind, NodeView, Path } from '$lib/ipc/bindings';
 import { hexColorOf, isContainerKind, rowKeyLabel, type CardRow, type GraphCard } from './layout';
 
 export const NHUES = 4;
@@ -33,7 +33,8 @@ export function hueOf(path: Path): number {
 export function toRow(parentPath: Path, v: NodeView): CardRow {
 	const childPath = [...parentPath, v.key];
 	const container = isContainerKind(v.kind);
-	const expandable = container && (v.childCount ?? 0) > 0;
+
+	const expandable = container && v.childCount !== 0;
 	const value = container ? containerPreview(v.kind, v.childCount) : scalarText(v);
 	return {
 		key: rowKeyLabel(v.key),

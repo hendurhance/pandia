@@ -1,4 +1,4 @@
-import type { Path } from '../../ipc/types';
+import type { Path } from '$lib/ipc/bindings';
 import type { Row } from '../../views/tree/logic/model';
 import { pathKey } from '../../views/tree/logic/model';
 import { resolveJsonPointer } from '../../util/path';

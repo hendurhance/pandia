@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/types';
+	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
 	import {
 		computeColumnLayout,
 		columnWindow,
@@ -125,7 +125,11 @@
 
 	function colContentX(clientX: number): number {
 		if (!headerEl) return 0;
-		return contentXFromClient(clientX, headerEl.getBoundingClientRect().left, data.scrollLeft);
+		return contentXFromClient(
+			clientX,
+			headerEl.getBoundingClientRect().left,
+			data.scroller.scrollLeft,
+		);
 	}
 
 	function onColPointerDown(e: PointerEvent, key: string, i: number) {
@@ -161,10 +165,10 @@
 	}
 
 	const autoScroller = createAutoScroller({
-		scroller: () => scroller,
+		scroller: () => data.scroller.el,
 		axis: 'horizontal',
 		pointer: () => colDrag?.lastX ?? 0,
-		active: () => !!colDrag?.moved && !!scroller,
+		active: () => !!colDrag?.moved && !!data.scroller.el,
 		onTick: () => {
 			if (!colDrag) return;
 			colDropGap = gapForX(colContentX(colDrag.lastX), columnLayout.offsets, columnLayout.widths);
@@ -195,26 +199,8 @@
 		onError: (msg) => onError(msg),
 	});
 
-	let scroller: HTMLDivElement | undefined = $state();
-
-	$effect(() => {
-		if (!scroller) return;
-		data.setViewport(scroller.clientWidth, scroller.clientHeight);
-		const ro = new ResizeObserver(() => {
-			if (scroller) data.setViewport(scroller.clientWidth, scroller.clientHeight);
-		});
-		ro.observe(scroller);
-		return () => ro.disconnect();
-	});
-
-	function onScroll(e: Event) {
-		const el = e.currentTarget as HTMLDivElement;
-		data.setScroll(el.scrollTop, el.scrollLeft);
-		filter.closeDropdown();
-	}
-
 	const colWindow = $derived(
-		columnWindow(columnLayout, data.scrollLeft, data.viewportWidth, COL_OVERSCAN),
+		columnWindow(columnLayout, data.scroller.scrollLeft, data.scroller.viewportWidth, COL_OVERSCAN),
 	);
 
 	$effect(() => {
@@ -228,11 +214,7 @@
 		void schema;
 		void filter.query;
 		data.reset();
-		if (scroller) {
-			scroller.scrollTop = 0;
-			scroller.scrollLeft = 0;
-		}
-		data.setScroll(0, 0);
+		data.scroller.resetTop();
 	});
 
 	$effect(() => {
@@ -345,7 +327,7 @@
 		<div class="header" bind:this={headerEl}>
 			<div
 				class="header-track"
-				style="width: {columnLayout.total}px; transform: translateX(-{data.scrollLeft}px);"
+				style="width: {columnLayout.total}px; transform: translateX(-{data.scroller.scrollLeft}px);"
 			>
 				{#if colDropGap !== null}
 					<div
@@ -359,8 +341,8 @@
 					{#if i >= colWindow.start && i < colWindow.end}
 						<ColumnHeader
 							{col}
-							left={columnLayout.offsets[i]}
-							width={columnLayout.widths[i]}
+							left={columnLayout.offsets[i] ?? 0}
+							width={columnLayout.widths[i] ?? 0}
 							active={filter.sortKey === col.key}
 							sortDesc={filter.sortDesc}
 							hasFilter={filter.colFilters.has(col.key)}
@@ -373,7 +355,7 @@
 							onOpenFilter={(e) => filter.openFilter(e, col.key)}
 							onResizeStart={() => {
 								suppressSort = true;
-								resizeStartW = columnLayout.widths[i];
+								resizeStartW = columnLayout.widths[i] ?? 0;
 							}}
 							onResizeMove={(dx) => resizeColumn(col.key, dx)}
 							onResizeEnd={(moved) => {
@@ -389,7 +371,7 @@
 
 	<div class="body">
 		<div class="index-gutter" style="width: {indexWidth}px;">
-			<div class="index-track" style="transform: translateY(-{data.scrollTop}px);">
+			<div class="index-track" style="transform: translateY(-{data.scroller.scrollTop}px);">
 				{#each data.visibleRows as rowIdx (rowIdx)}
 					{@const row = data.getRow(rowIdx)}
 					<button
@@ -405,7 +387,7 @@
 			</div>
 		</div>
 
-		<div bind:this={scroller} class="scroller" onscroll={onScroll}>
+		<div class="scroller" use:data.scroller.attach onscroll={() => filter.closeDropdown()}>
 			<div
 				class="content"
 				style="width: {columnLayout.total}px; height: {data.effectiveRowCount * ROW_HEIGHT}px;"

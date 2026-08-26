@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeInvalidMarks } from './invalid-marks';
 import { pathKey } from '../../views/tree/logic/model';
 import type { ContentRow, Row } from '../../views/tree/logic/model';
-import type { NodeKind, Path } from '../../ipc/types';
+import type { NodeKind, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, kind: NodeKind = 'object'): ContentRow {
 	return {
@@ -13,7 +13,6 @@ function content(path: Path, kind: NodeKind = 'object'): ContentRow {
 		kind,
 		preview: '',
 		childCount: null,
-		sizeHint: 0,
 		expanded: true,
 	};
 }

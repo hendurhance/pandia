@@ -1,4 +1,14 @@
-import type { GridFilter } from '$lib/ipc/doc';
+import type { GridFilter } from '$lib/ipc/bindings';
+import { asLosslessText, encodeLossless, isLosslessNumber, type LosslessText } from '$lib/ipc/wire';
+
+export interface DecodedColumnValue {
+	value: unknown;
+	count: number;
+}
+export interface DecodedColumnValues {
+	values: DecodedColumnValue[];
+	capped: boolean;
+}
 
 export type ColOp = 'is' | 'isNot' | 'contains' | 'startsWith';
 
@@ -28,21 +38,28 @@ export function compileGroups(groups: Map<string, ColFilter>[]): GridFilter[][] 
 	return groups.map(compileFilters).filter((g) => g.length > 0);
 }
 
+const JSON_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
+
+function numberOperand(text: string): LosslessText {
+	const t = text.trim();
+	return JSON_NUMBER.test(t) ? asLosslessText(t) : encodeLossless(null);
+}
+
 export function compileFilters(colFilters: Map<string, ColFilter>): GridFilter[] {
 	const out: GridFilter[] = [];
 	for (const [key, c] of colFilters) {
 		const op = c.op ?? 'is';
 		if ((op === 'is' || op === 'isNot') && c.values?.length) {
-			out.push({ key, op: op === 'is' ? 'in' : 'notIn', value: c.values });
+			out.push({ key, op: op === 'is' ? 'in' : 'notIn', value: encodeLossless(c.values) });
 		} else if ((op === 'is' || op === 'isNot') && c.text?.trim()) {
-			out.push({ key, op: op === 'is' ? 'eq' : 'ne', value: c.text.trim() });
+			out.push({ key, op: op === 'is' ? 'eq' : 'ne', value: encodeLossless(c.text.trim()) });
 		} else if (op === 'contains' && c.text?.trim()) {
-			out.push({ key, op: 'contains', value: c.text.trim() });
+			out.push({ key, op: 'contains', value: encodeLossless(c.text.trim()) });
 		} else if (op === 'startsWith' && c.text?.trim()) {
-			out.push({ key, op: 'startsWith', value: c.text.trim() });
+			out.push({ key, op: 'startsWith', value: encodeLossless(c.text.trim()) });
 		}
-		if (c.min?.trim()) out.push({ key, op: 'gte', value: Number(c.min) });
-		if (c.max?.trim()) out.push({ key, op: 'lte', value: Number(c.max) });
+		if (c.min?.trim()) out.push({ key, op: 'gte', value: numberOperand(c.min) });
+		if (c.max?.trim()) out.push({ key, op: 'lte', value: numberOperand(c.max) });
 		if (c.presence === 'empty') out.push({ key, op: 'isEmpty' });
 		else if (c.presence === 'notEmpty') out.push({ key, op: 'isNotEmpty' });
 	}
@@ -53,12 +70,9 @@ export function valLabel(v: unknown): string {
 	if (v === null || v === undefined) return '(empty)';
 	if (typeof v === 'string') return v === '' ? '(empty)' : v;
 	if (typeof v === 'boolean') return v ? 'true' : 'false';
+	if (isLosslessNumber(v)) return String(v);
 	if (typeof v === 'object') return Array.isArray(v) ? `[${v.length}]` : '{…}';
 	return String(v);
-}
-
-export function colValueLabel(cv: { value: unknown; label?: string | null }): string {
-	return cv.label ?? valLabel(cv.value);
 }
 
 export function chipSummary(c: ColFilter): string {
