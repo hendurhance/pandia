@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { docSummary } from '$lib/ipc/doc';
 	import type { DiffKind, DocHandle, Path } from '$lib/ipc/types';
 	import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
@@ -10,13 +11,11 @@
 
 		diff: Map<string, DiffKind>;
 
-		diffPaths: Path[];
-
 		activePath?: Path | null;
 
 		onScrollerReady?: (el: HTMLElement) => void;
 	}
-	let { handle, diff, diffPaths, activePath = null, onScrollerReady }: Props = $props();
+	let { handle, diff, activePath = null, onScrollerReady }: Props = $props();
 
 	const tree = new TreeRowsController({
 		handle: () => handle,
@@ -26,26 +25,27 @@
 
 	let scrollRequest = $state<{ idx: number; nonce: number } | null>(null);
 	let scrollNonce = 0;
+	async function revealActive(target: Path) {
+		await tree.ensurePathVisible(target);
+		await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		const idx = tree.contentRowIdx(target);
+		if (idx >= 0) {
+			scrollNonce++;
+			scrollRequest = { idx, nonce: scrollNonce };
+		}
+	}
+
 	$effect(() => {
 		const target = activePath;
 		if (!target) {
 			scrollRequest = null;
 			return;
 		}
-		void (async () => {
-			await tree.ensurePathVisible(target);
-			await new Promise<void>((r) => requestAnimationFrame(() => r()));
-			const idx = tree.contentRowIdx(target);
-			if (idx >= 0) {
-				scrollNonce++;
-				scrollRequest = { idx, nonce: scrollNonce };
-			}
-		})();
+		void untrack(() => revealActive(target));
 	});
 
 	$effect(() => {
 		const h = handle;
-		const paths = diffPaths;
 		let cancelled = false;
 		void (async () => {
 			let sum;
@@ -58,7 +58,7 @@
 			const root = rootRow(sum.rootKind, sum.rootChildCount);
 			tree.setRows([root]);
 			if (isExpandable(root)) await tree.toggleAt(0);
-			void paths;
+			if (!cancelled && activePath) await revealActive(activePath);
 		})();
 		return () => {
 			cancelled = true;

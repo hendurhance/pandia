@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { docValidateSchema } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle, Path } from '$lib/ipc/types';
 	import { schemaStore } from './state/schema-store.svelte';
 	import { hasSchemaKeywords } from './schema-keywords';
@@ -71,7 +72,7 @@
 			schemaStore.setResult(tabId, result, null, versionAtValidate);
 		} catch (e) {
 			if (mySeq !== seq) return;
-			schemaStore.setResult(tabId, null, String(e), null);
+			schemaStore.setResult(tabId, null, describeError(e), null);
 		}
 	}
 

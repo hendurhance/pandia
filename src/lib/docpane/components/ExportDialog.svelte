@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 	import { docExport, docExportPreview, docExportToFile } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle, ExportFormat } from '$lib/ipc/types';
 	import { stem } from '$lib/util/path';
 	import { CopyFlag } from '$lib/util/clipboard.svelte';
@@ -63,7 +64,7 @@
 			if (mySeq !== seq) return;
 			previewText = '';
 			previewTruncated = false;
-			error = String(e).replace(/^.*?Error:\s*/i, '');
+			error = describeError(e);
 		} finally {
 			if (mySeq === seq) busy = false;
 		}
@@ -82,7 +83,7 @@
 				filters: [{ name: format.toUpperCase(), extensions: [ext] }],
 			});
 		} catch (e) {
-			actionError = String(e);
+			actionError = describeError(e);
 			return;
 		}
 		if (typeof picked !== 'string') return;
@@ -90,7 +91,7 @@
 			await docExportToFile(handle, format, picked);
 			onClose();
 		} catch (e) {
-			actionError = String(e).replace(/^.*?Error:\s*/i, '');
+			actionError = describeError(e);
 		}
 	}
 
@@ -100,9 +101,9 @@
 		copying = true;
 		try {
 			const full = await docExport(handle, format);
-			await copyFlag.copy(full);
+			if (!(await copyFlag.copy(full))) actionError = 'clipboard unavailable';
 		} catch (e) {
-			actionError = String(e).replace(/^.*?Error:\s*/i, '');
+			actionError = describeError(e);
 		} finally {
 			copying = false;
 		}

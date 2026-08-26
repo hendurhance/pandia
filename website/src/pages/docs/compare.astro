@@ -36,8 +36,9 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 
   <h2>Limits</h2>
   <div class="callout warn">
-    <p><strong>Note —</strong> the Inline diff is capped at <strong>3 MB per side</strong>. For
-    larger documents, use the Side-by-side or Tree mode, which read the document lazily.</p>
+    <p><strong>Note —</strong> comparing works up to the <strong>200 MB</strong> whole-document
+    ceiling, because both sides are rendered in full before they are compared. Side-by-side and
+    Tree mode read the document lazily and are not affected.</p>
   </div>
 
   <h2>Next steps</h2>

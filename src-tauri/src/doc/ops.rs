@@ -11,6 +11,11 @@ pub enum Op {
         value: Value,
     },
 
+    SetValueText {
+        path: Path,
+        text: String,
+    },
+
     RenameKey {
         path: Path,
         from: String,
@@ -98,9 +103,9 @@ impl Op {
                         .map(|s| STR_BASE_BYTES + s.len())
                         .sum::<usize>()
             }
-            Op::InsertItemText { text, .. } | Op::InsertKeyText { text, .. } => {
-                OP_BASE_BYTES + STR_BASE_BYTES + text.len()
-            }
+            Op::SetValueText { text, .. }
+            | Op::InsertItemText { text, .. }
+            | Op::InsertKeyText { text, .. } => OP_BASE_BYTES + STR_BASE_BYTES + text.len(),
             _ => OP_BASE_BYTES,
         }
     }
@@ -138,7 +143,9 @@ pub struct OpDescription {
 impl Op {
     pub fn describe(&self) -> OpDescription {
         let (label, path) = match self {
-            Op::SetValue { path, .. } => ("set value".to_string(), path.clone()),
+            Op::SetValue { path, .. } | Op::SetValueText { path, .. } => {
+                ("set value".to_string(), path.clone())
+            }
             Op::RenameKey { path, from, to } => {
                 let mut p = path.clone();
                 p.push(PathSegment::Key(from.clone()));
@@ -201,6 +208,7 @@ impl Op {
     pub fn apply(&self, root: &mut Value) -> DocResult<OpOutcome> {
         match self {
             Op::SetValue { path, value } => apply_set_value(root, path, value.clone()),
+            Op::SetValueText { path, text } => apply_set_value_text(root, path, text),
             Op::RenameKey { path, from, to } => apply_rename_key(root, path, from, to),
             Op::InsertKey {
                 path,
@@ -262,6 +270,11 @@ fn apply_set_value(root: &mut Value, path: &Path, new_value: Value) -> DocResult
         },
         affected_paths: vec![path.clone()],
     })
+}
+
+fn apply_set_value_text(root: &mut Value, path: &Path, text: &str) -> DocResult<OpOutcome> {
+    let value: Value = serde_json::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
+    apply_set_value(root, path, value)
 }
 
 fn apply_rename_key(root: &mut Value, path: &Path, from: &str, to: &str) -> DocResult<OpOutcome> {
@@ -1377,6 +1390,43 @@ mod tests {
             .unwrap_err(),
             DocError::Edit(_)
         ));
+    }
+
+    #[test]
+    fn set_value_text_stores_the_typed_token_and_leaves_siblings_alone() {
+        let mut v: Value =
+            serde_json::from_str(r#"{"a":1.50,"pi":2,"b":9007199254740993}"#).unwrap();
+        let out = Op::SetValueText {
+            path: p(vec![k("pi")]),
+            text: "3.14159265358979323846264338327950288419716939937510582097494".into(),
+        }
+        .apply(&mut v)
+        .unwrap();
+        assert_eq!(
+            serde_json::to_string(&v).unwrap(),
+            r#"{"a":1.50,"pi":3.14159265358979323846264338327950288419716939937510582097494,"b":9007199254740993}"#,
+            "the edited token is stored verbatim, adjacent tokens untouched"
+        );
+        out.inverse.apply(&mut v).unwrap();
+        assert_eq!(
+            serde_json::to_string(&v).unwrap(),
+            r#"{"a":1.50,"pi":2,"b":9007199254740993}"#
+        );
+    }
+
+    #[test]
+    fn set_value_text_invalid_json_errors() {
+        let mut v = json!({"a": 1});
+        assert!(matches!(
+            Op::SetValueText {
+                path: p(vec![k("a")]),
+                text: "{bad".into(),
+            }
+            .apply(&mut v)
+            .unwrap_err(),
+            DocError::Parse(_)
+        ));
+        assert_eq!(v, json!({"a": 1}), "doc unchanged on error");
     }
 
     #[test]

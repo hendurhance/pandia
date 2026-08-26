@@ -1,4 +1,5 @@
 pub mod backup;
+pub mod canonical;
 pub mod detect;
 pub mod diagnose;
 pub mod diff;
@@ -10,6 +11,7 @@ pub mod grid_filter;
 pub mod history;
 pub mod jobs;
 pub mod lazy;
+pub mod linediff;
 pub mod ops;
 pub mod repair;
 pub mod schema;

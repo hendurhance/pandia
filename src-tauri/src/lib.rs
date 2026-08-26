@@ -91,6 +91,8 @@ pub fn run() {
             commands::doc_undo,
             commands::doc_redo,
             commands::doc_diff,
+            commands::doc_diff_lines,
+            commands::doc_get_lines,
             commands::doc_search,
             commands::cancel_job,
             commands::doc_replace,

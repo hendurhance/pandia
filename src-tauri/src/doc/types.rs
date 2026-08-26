@@ -144,6 +144,9 @@ pub enum DocError {
     #[error("document too large: {actual} bytes (limit {limit} bytes)")]
     TooLarge { actual: u64, limit: u64 },
 
+    #[error("line range too large: {lines} lines requested (limit {limit} per call)")]
+    RangeTooLarge { lines: u32, limit: u32 },
+
     #[error("parse error: {0}")]
     Parse(String),
 
@@ -170,6 +173,10 @@ pub type DocResult<T> = Result<T, DocError>;
 pub struct WireError {
     pub kind: ErrorKind,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -178,6 +185,7 @@ pub enum ErrorKind {
     NotFound,
     InvalidPath,
     TooLarge,
+    RangeTooLarge,
     Parse,
     Edit,
     Schema,
@@ -188,20 +196,29 @@ pub enum ErrorKind {
 
 impl From<DocError> for WireError {
     fn from(e: DocError) -> Self {
-        let kind = match &e {
-            DocError::NotFound(_) => ErrorKind::NotFound,
-            DocError::InvalidPath(_) => ErrorKind::InvalidPath,
-            DocError::TooLarge { .. } => ErrorKind::TooLarge,
-            DocError::Parse(_) => ErrorKind::Parse,
-            DocError::Edit(_) => ErrorKind::Edit,
-            DocError::Schema(_) => ErrorKind::Schema,
-            DocError::Export(_) => ErrorKind::Export,
-            DocError::Io(_) => ErrorKind::Io,
-            DocError::Cancelled => ErrorKind::Cancelled,
+        let (kind, actual, limit) = match &e {
+            DocError::NotFound(_) => (ErrorKind::NotFound, None, None),
+            DocError::InvalidPath(_) => (ErrorKind::InvalidPath, None, None),
+            DocError::TooLarge { actual, limit } => {
+                (ErrorKind::TooLarge, Some(*actual), Some(*limit))
+            }
+            DocError::RangeTooLarge { lines, limit } => (
+                ErrorKind::RangeTooLarge,
+                Some(u64::from(*lines)),
+                Some(u64::from(*limit)),
+            ),
+            DocError::Parse(_) => (ErrorKind::Parse, None, None),
+            DocError::Edit(_) => (ErrorKind::Edit, None, None),
+            DocError::Schema(_) => (ErrorKind::Schema, None, None),
+            DocError::Export(_) => (ErrorKind::Export, None, None),
+            DocError::Io(_) => (ErrorKind::Io, None, None),
+            DocError::Cancelled => (ErrorKind::Cancelled, None, None),
         };
         WireError {
             kind,
             message: e.to_string(),
+            actual,
+            limit,
         }
     }
 }
@@ -309,6 +326,39 @@ mod tests {
             size_hint: 7,
         };
         assert_eq!(roundtrip(&leaf), leaf);
+    }
+
+    #[test]
+    fn wire_error_too_large_carries_sizes_as_data() {
+        let wire = WireError::from(DocError::TooLarge {
+            actual: 2_147_483_649,
+            limit: 2_147_483_648,
+        });
+        let json = serde_json::to_string(&wire).unwrap();
+        assert!(json.contains("\"kind\":\"tooLarge\""));
+        assert!(json.contains("\"actual\":2147483649"));
+        assert!(json.contains("\"limit\":2147483648"));
+    }
+
+    #[test]
+    fn wire_error_range_too_large_has_own_kind_and_line_counts() {
+        let wire = WireError::from(DocError::RangeTooLarge {
+            lines: 12_000,
+            limit: 5_000,
+        });
+        let json = serde_json::to_string(&wire).unwrap();
+        assert!(json.contains("\"kind\":\"rangeTooLarge\""));
+        assert!(json.contains("\"actual\":12000"));
+        assert!(json.contains("\"limit\":5000"));
+    }
+
+    #[test]
+    fn wire_error_without_sizes_omits_the_fields() {
+        let wire = WireError::from(DocError::Parse("expected value".into()));
+        let json = serde_json::to_string(&wire).unwrap();
+        assert!(!json.contains("actual"));
+        assert!(!json.contains("limit"));
+        assert_eq!(roundtrip(&wire).message, wire.message);
     }
 
     #[test]

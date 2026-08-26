@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { docHistory } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle, HistoryView } from '$lib/ipc/types';
 
 	interface Context {
@@ -37,7 +38,7 @@
 				}
 			})
 			.catch((e) => {
-				if (loadedKey === key) error = String(e);
+				if (loadedKey === key) error = describeError(e);
 			});
 	});
 

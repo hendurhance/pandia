@@ -1,4 +1,5 @@
-import { docGetValue } from '$lib/ipc/doc';
+import { docGetValue, IpcError } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle, Path } from '$lib/ipc/types';
 import { parsePath, pathToString } from '$lib/util/path';
 import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
@@ -71,8 +72,12 @@ export class DocNavController {
 		if (parsed.path.length > 0) {
 			try {
 				await docGetValue(handle, parsed.path); // throws InvalidPath if absent
-			} catch {
-				this.deps.setError(`path not found: ${pathToString(parsed.path)}`);
+			} catch (e) {
+				this.deps.setError(
+					e instanceof IpcError && e.kind === 'invalidPath'
+						? `path not found: ${pathToString(parsed.path)}`
+						: describeError(e),
+				);
 				return;
 			}
 		}

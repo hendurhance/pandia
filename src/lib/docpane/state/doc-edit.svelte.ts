@@ -1,6 +1,7 @@
 import { docGetValue } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type { ContentRow, Row } from '$lib/views/tree/logic/model';
-import type { ApplyResult, DocHandle, Op } from '$lib/ipc/types';
+import type { ApplyResult, DocHandle, Op, Path } from '$lib/ipc/types';
 
 export interface EditState {
 	rowIndex: number;
@@ -17,7 +18,21 @@ export interface DocEditDeps {
 	setError: (msg: string | null) => void;
 }
 
-const INVALID = Symbol('invalid');
+export function valueCommitOp(
+	kind: Exclude<ContentRow['kind'], 'object' | 'array'>,
+	path: Path,
+	preview: string,
+	buffer: string,
+): { op: Op } | { error: string } | null {
+	if (kind === 'string') return { op: { kind: 'setValue', path, value: buffer } };
+	if (buffer === preview) return null;
+	try {
+		JSON.parse(buffer);
+	} catch (e) {
+		return { error: `invalid ${kind}: ${(e as Error).message}` };
+	}
+	return { op: { kind: 'setValueText', path, text: buffer } };
+}
 
 export class DocEditController {
 	state: EditState | null = $state(null);
@@ -42,15 +57,19 @@ export class DocEditController {
 		if (row.kind === 'object' || row.kind === 'array') return;
 		this.deps.setError(null);
 		if (row.kind === 'string') {
-			const handle = this.deps.handle();
-			if (row.preview.endsWith('…"') && handle) {
+			if (row.preview.endsWith('…"')) {
+				const handle = this.deps.handle();
+				if (!handle) return;
+				let full: unknown;
 				try {
-					const full = await docGetValue(handle, row.path);
-					if (typeof full === 'string' && this.deps.rows()[rowIndex] === row) {
-						this.state = { rowIndex, field: 'value', buffer: full };
-						return;
-					}
-				} catch {}
+					full = await docGetValue(handle, row.path);
+				} catch (e) {
+					this.deps.setError(describeError(e));
+					return;
+				}
+				if (typeof full !== 'string' || this.deps.rows()[rowIndex] !== row) return;
+				this.state = { rowIndex, field: 'value', buffer: full };
+				return;
 			}
 			this.state = { rowIndex, field: 'value', buffer: row.preview.replace(/^"|"$/g, '') };
 			return;
@@ -82,22 +101,16 @@ export class DocEditController {
 		}
 
 		if (row.kind === 'object' || row.kind === 'array') return;
-		const parsed = this.parseValue(buffer, row.kind);
-		if (parsed === INVALID) return;
-		await this.deps.apply({ kind: 'setValue', path: row.path, value: parsed });
+		const result = valueCommitOp(row.kind, row.path, row.preview, buffer);
+		if (result === null) return;
+		if ('error' in result) {
+			this.deps.setError(result.error);
+			return;
+		}
+		await this.deps.apply(result.op);
 	};
 
 	cancel = () => {
 		this.state = null;
 	};
-
-	private parseValue(text: string, kind: ContentRow['kind']): unknown | typeof INVALID {
-		if (kind === 'string') return text;
-		try {
-			return JSON.parse(text);
-		} catch (e) {
-			this.deps.setError(`invalid ${kind}: ${(e as Error).message}`);
-			return INVALID;
-		}
-	}
 }

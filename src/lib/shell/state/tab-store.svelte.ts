@@ -6,6 +6,7 @@ import type { DocHandle, OpenSource } from '$lib/ipc/types';
 export interface TabMeta {
 	id: string;
 	label: string;
+	sourceName: string | null;
 }
 
 export interface DocContext {
@@ -28,7 +29,7 @@ function omit<T>(rec: Record<string, T>, key: string): Record<string, T> {
 }
 
 export class TabStore {
-	tabs: TabMeta[] = $state([{ id: 'tab-1', label: 'untitled' }]);
+	tabs: TabMeta[] = $state([{ id: 'tab-1', label: 'untitled', sourceName: null }]);
 	activeId = $state('tab-1');
 	capWarning = $state(false);
 
@@ -62,7 +63,7 @@ export class TabStore {
 			this.warnCap();
 			return;
 		}
-		const t: TabMeta = { id: this.newId(), label: 'untitled' };
+		const t: TabMeta = { id: this.newId(), label: 'untitled', sourceName: null };
 		this.tabs = [...this.tabs, t];
 		this.activeId = t.id;
 	};
@@ -76,7 +77,7 @@ export class TabStore {
 		this.pendingOpens = omit(this.pendingOpens, id);
 		const next = this.tabs.filter((t) => t.id !== id);
 		if (next.length === 0) {
-			const fresh: TabMeta = { id: this.newId(), label: 'untitled' };
+			const fresh: TabMeta = { id: this.newId(), label: 'untitled', sourceName: null };
 			this.tabs = [fresh];
 			this.activeId = fresh.id;
 			return;
@@ -113,12 +114,12 @@ export class TabStore {
 		this.tabs = next;
 	};
 
-	setLabel = (id: string, label: string) => {
+	setLabel = (id: string, label: string, sourceName: string | null) => {
 		untrack(() => {
 			const i = this.tabs.findIndex((t) => t.id === id);
 			if (i < 0) return;
-			if (this.tabs[i].label === label) return;
-			this.tabs = this.tabs.map((t, idx) => (idx === i ? { ...t, label } : t));
+			if (this.tabs[i].label === label && this.tabs[i].sourceName === sourceName) return;
+			this.tabs = this.tabs.map((t, idx) => (idx === i ? { ...t, label, sourceName } : t));
 		});
 	};
 
@@ -167,7 +168,7 @@ export class TabStore {
 			this.warnCap();
 			return false;
 		}
-		const t: TabMeta = { id: this.newId(), label: 'untitled' };
+		const t: TabMeta = { id: this.newId(), label: 'untitled', sourceName: null };
 		this.tabs = [...this.tabs, t];
 		if (focus) this.activeId = t.id;
 		this.setPendingOpen(t.id, source);

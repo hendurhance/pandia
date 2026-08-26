@@ -103,15 +103,15 @@
 			<button
 				class="switch"
 				role="switch"
-				aria-checked={behaviorPrefs.autoRepairOnPaste}
-				onclick={() => behaviorPrefs.setAutoRepairOnPaste(!behaviorPrefs.autoRepairOnPaste)}
+				aria-checked={behaviorPrefs.autoRepairOnOpen}
+				onclick={() => behaviorPrefs.setAutoRepairOnOpen(!behaviorPrefs.autoRepairOnOpen)}
 			>
 				<span class="switch-knob"></span>
-				<span class="switch-text">{behaviorPrefs.autoRepairOnPaste ? 'on' : 'off'}</span>
+				<span class="switch-text">{behaviorPrefs.autoRepairOnOpen ? 'on' : 'off'}</span>
 			</button>
 			<div class="text-sm dim">
-				When a pasted/opened document fails to parse, attempt JSON repair (trailing commas,
-				unterminated strings, comments, …) before showing an error.
+				When a document fails to parse — pasted, dropped, opened from disk, or fetched — attempt
+				JSON repair (trailing commas, unterminated strings, comments, …) before showing an error.
 			</div>
 		</div>
 	</section>

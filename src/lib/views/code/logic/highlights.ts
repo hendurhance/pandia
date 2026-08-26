@@ -1,5 +1,6 @@
 import { StateEffect, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
+import { isLosslessNumber } from '$lib/util/lossless';
 import type { DiffKind, Path, PathSegment } from '$lib/ipc/types';
 
 export function stringifyWithOffsets(value: unknown): {
@@ -31,6 +32,8 @@ export function stringifyWithOffsets(value: unknown): {
 			write(v ? 'true' : 'false');
 		} else if (typeof v === 'number') {
 			write(String(v));
+		} else if (isLosslessNumber(v)) {
+			write(v.toString());
 		} else if (typeof v === 'string') {
 			write(JSON.stringify(v));
 		} else if (Array.isArray(v)) {

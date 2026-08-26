@@ -42,8 +42,17 @@ playwright-report/
 # Claude
 .claude/
 
+examples/
+
 # Misc
 *.backup
 *.bak
 temp/
 tmp/
+social/
+.agents
+taste/
+seo/
+writing/
+bench/results/
+bench/fixtures/

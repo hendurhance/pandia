@@ -1,0 +1,193 @@
+[
+	{
+		"name": "float-one-point-zero",
+		"input": "1.0",
+		"expected": "1.0"
+	},
+	{
+		"name": "float-trailing-zero",
+		"input": "1.50",
+		"expected": "1.50"
+	},
+	{
+		"name": "float-plain",
+		"input": "3.141592653589793",
+		"expected": "3.141592653589793"
+	},
+	{
+		"name": "float-tenth",
+		"input": "0.1",
+		"expected": "0.1"
+	},
+	{
+		"name": "exp-upper",
+		"input": "1E5",
+		"expected": "1E5"
+	},
+	{
+		"name": "exp-1e20-stays-token",
+		"input": "1e20",
+		"expected": "1e20"
+	},
+	{
+		"name": "exp-1e21-stays-token",
+		"input": "1e21",
+		"expected": "1e21"
+	},
+	{
+		"name": "exp-1e-6-stays-token",
+		"input": "1e-6",
+		"expected": "1e-6"
+	},
+	{
+		"name": "exp-1e-7-exponent-form",
+		"input": "1e-7",
+		"expected": "1e-7"
+	},
+	{
+		"name": "exp-negative-small",
+		"input": "-1.5e-8",
+		"expected": "-1.5e-8"
+	},
+	{
+		"name": "exp-min-subnormal",
+		"input": "5e-324",
+		"expected": "5e-324"
+	},
+	{
+		"name": "exp-max-double",
+		"input": "1.7976931348623157e308",
+		"expected": "1.7976931348623157e308"
+	},
+	{
+		"name": "exp-1e999-stays-token",
+		"input": "1e999",
+		"expected": "1e999"
+	},
+	{
+		"name": "int-zero",
+		"input": "0",
+		"expected": "0"
+	},
+	{
+		"name": "int-negative-zero",
+		"input": "-0",
+		"expected": "0",
+		"jsExpected": "-0"
+	},
+	{
+		"name": "float-negative-zero",
+		"input": "-0.0",
+		"expected": "-0.0"
+	},
+	{
+		"name": "int-small",
+		"input": "42",
+		"expected": "42"
+	},
+	{
+		"name": "int-negative",
+		"input": "-7",
+		"expected": "-7"
+	},
+	{
+		"name": "int-2p53",
+		"input": "9007199254740992",
+		"expected": "9007199254740992"
+	},
+	{
+		"name": "int-past-2p53",
+		"input": "9007199254740993",
+		"expected": "9007199254740993"
+	},
+	{
+		"name": "int-18-digits",
+		"input": "123456789012345678",
+		"expected": "123456789012345678"
+	},
+	{
+		"name": "int-30-digits",
+		"input": "123456789012345678901234567890",
+		"expected": "123456789012345678901234567890"
+	},
+	{
+		"name": "string-unicode",
+		"input": "\"héllo wörld — ünïcøde ✓\"",
+		"expected": "\"héllo wörld — ünïcøde ✓\""
+	},
+	{
+		"name": "string-emoji",
+		"input": "\"emoji 😀 and pair \\ud83d\\ude00\"",
+		"expected": "\"emoji 😀 and pair 😀\""
+	},
+	{
+		"name": "string-escapes",
+		"input": "\"escapes \\\" \\\\ \\n \\t \\r \\b \\f\"",
+		"expected": "\"escapes \\\" \\\\ \\n \\t \\r \\b \\f\""
+	},
+	{
+		"name": "string-control-chars",
+		"input": "\"control \\u0001 \\u001f \\u0000\"",
+		"expected": "\"control \\u0001 \\u001f \\u0000\""
+	},
+	{
+		"name": "string-line-separators",
+		"input": "\"seps \\u2028 \\u2029\"",
+		"expected": "\"seps    \""
+	},
+	{
+		"name": "string-escaped-solidus",
+		"input": "\"solidus \\/ stays plain\"",
+		"expected": "\"solidus / stays plain\""
+	},
+	{
+		"name": "null",
+		"input": "null",
+		"expected": "null"
+	},
+	{
+		"name": "bool-true",
+		"input": "true",
+		"expected": "true"
+	},
+	{
+		"name": "bool-false",
+		"input": "false",
+		"expected": "false"
+	},
+	{
+		"name": "empty-object",
+		"input": "{}",
+		"expected": "{}"
+	},
+	{
+		"name": "empty-array",
+		"input": "[]",
+		"expected": "[]"
+	},
+	{
+		"name": "nested-empties",
+		"input": "{\"a\": {}, \"b\": [[], {}], \"c\": [{}, []]}",
+		"expected": "{\n  \"a\": {},\n  \"b\": [\n    [],\n    {}\n  ],\n  \"c\": [\n    {},\n    []\n  ]\n}"
+	},
+	{
+		"name": "integer-like-keys",
+		"input": "{\"10\": \"a\", \"2\": \"b\", \"1\": \"c\", \"01\": \"d\", \"x\": \"e\", \"4294967295\": \"f\", \"4294967294\": \"g\", \"-1\": \"h\", \"1.5\": \"i\", \"00\": \"j\"}",
+		"expected": "{\n  \"1\": \"c\",\n  \"2\": \"b\",\n  \"10\": \"a\",\n  \"4294967294\": \"g\",\n  \"01\": \"d\",\n  \"x\": \"e\",\n  \"4294967295\": \"f\",\n  \"-1\": \"h\",\n  \"1.5\": \"i\",\n  \"00\": \"j\"\n}"
+	},
+	{
+		"name": "keys-needing-escapes",
+		"input": "{\"key\\nnl\": 1, \"ta\\tb\": 2, \"ключ\": 3}",
+		"expected": "{\n  \"key\\nnl\": 1,\n  \"ta\\tb\": 2,\n  \"ключ\": 3\n}"
+	},
+	{
+		"name": "deeply-nested",
+		"input": "[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [[{\"b\": {\"a\": [{\"leaf\": [1.0, \"end\"]}]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]]}}]",
+		"expected": "[\n  {\n    \"b\": {\n      \"a\": [\n        [\n          {\n            \"b\": {\n              \"a\": [\n                [\n                  {\n                    \"b\": {\n                      \"a\": [\n                        [\n                          {\n                            \"b\": {\n                              \"a\": [\n                                [\n                                  {\n                                    \"b\": {\n                                      \"a\": [\n                                        [\n                                          {\n                                            \"b\": {\n                                              \"a\": [\n                                                [\n                                                  {\n                                                    \"b\": {\n                                                      \"a\": [\n                                                        [\n                                                          {\n                                                            \"b\": {\n                                                              \"a\": [\n                                                                [\n                                                                  {\n                                                                    \"b\": {\n                                                                      \"a\": [\n                                                                        [\n                                                                          {\n                                                                            \"b\": {\n                                                                              \"a\": [\n                                                                                [\n                                                                                  {\n                                                                                    \"b\": {\n                                                                                      \"a\": [\n                                                                                        [\n                                                                                          {\n                                                                                            \"b\": {\n                                                                                              \"a\": [\n                                                                                                [\n                                                                                                  {\n                                                                                                    \"b\": {\n                                                                                                      \"a\": [\n                                                                                                        [\n                                                                                                          {\n                                                                                                            \"b\": {\n                                                                                                              \"a\": [\n                                                                                                                [\n                                                                                                                  {\n                                                                                                                    \"b\": {\n                                                                                                                      \"a\": [\n                                                                                                                        [\n                                                                                                                          {\n                                                                                                                            \"b\": {\n                                                                                                                              \"a\": [\n                                                                                                                                [\n                                                                                                                                  {\n                                                                                                                                    \"b\": {\n                                                                                                                                      \"a\": [\n                                                                                                                                        [\n                                                                                                                                          {\n                                                                                                                                            \"b\": {\n                                                                                                                                              \"a\": [\n                                                                                                                                                [\n                                                                                                                                                  {\n                                                                                                                                                    \"b\": {\n                                                                                                                                                      \"a\": [\n                                                                                                                                                        [\n                                                                                                                                                          {\n                                                                                                                                                            \"b\": {\n                                                                                                                                                              \"a\": [\n                                                                                                                                                                [\n                                                                                                                                                                  {\n                                                                                                                                                                    \"b\": {\n                                                                                                                                                                      \"a\": [\n                                                                                                                                                                        [\n                                                                                                                                                                          {\n                                                                                                                                                                            \"b\": {\n                                                                                                                                                                              \"a\": [\n                                                                                                                                                                                [\n                                                                                                                                                                                  {\n                                                                                                                                                                                    \"b\": {\n                                                                                                                                                                                      \"a\": [\n                                                                                                                                                                                        [\n                                                                                                                                                                                          {\n                                                                                                                                                                                            \"b\": {\n                                                                                                                                                                                              \"a\": [\n                                                                                                                                                                                                [\n                                                                                                                                                                                                  {\n                                                                                                                                                                                                    \"b\": {\n                                                                                                                                                                                                      \"a\": [\n                                                                                                                                                                                                        [\n                                                                                                                                                                                                          {\n                                                                                                                                                                                                            \"b\": {\n                                                                                                                                                                                                              \"a\": [\n                                                                                                                                                                                                                [\n                                                                                                                                                                                                                  {\n                                                                                                                                                                                                                    \"b\": {\n                                                                                                                                                                                                                      \"a\": [\n                                                                                                                                                                                                                        [\n                                                                                                                                                                                                                          {\n                                                                                                                                                                                                                            \"b\": {\n                                                                                                                                                                                                                              \"a\": [\n                                                                                                                                                                                                                                [\n                                                                                                                                                                                                                                  {\n                                                                                                                                                                                                                                    \"b\": {\n                                                                                                                                                                                                                                      \"a\": [\n                                                                                                                                                                                                                                        [\n                                                                                                                                                                                                                                          {\n                                                                                                                                                                                                                                            \"b\": {\n                                                                                                                                                                                                                                              \"a\": [\n                                                                                                                                                                                                                                                {\n                                                                                                                                                                                                                                                  \"leaf\": [\n                                                                                                                                                                                                                                                    1.0,\n                                                                                                                                                                                                                                                    \"end\"\n                                                                                                                                                                                                                                                  ]\n                                                                                                                                                                                                                                                }\n                                                                                                                                                                                                                                              ]\n                                                                                                                                                                                                                                            }\n                                                                                                                                                                                                                                          }\n                                                                                                                                                                                                                                        ]\n                                                                                                                                                                                                                                      ]\n                                                                                                                                                                                                                                    }\n                                                                                                                                                                                                                                  }\n                                                                                                                                                                                                                                ]\n                                                                                                                                                                                                                              ]\n                                                                                                                                                                                                                            }\n                                                                                                                                                                                                                          }\n                                                                                                                                                                                                                        ]\n                                                                                                                                                                                                                      ]\n                                                                                                                                                                                                                    }\n                                                                                                                                                                                                                  }\n                                                                                                                                                                                                                ]\n                                                                                                                                                                                                              ]\n                                                                                                                                                                                                            }\n                                                                                                                                                                                                          }\n                                                                                                                                                                                                        ]\n                                                                                                                                                                                                      ]\n                                                                                                                                                                                                    }\n                                                                                                                                                                                                  }\n                                                                                                                                                                                                ]\n                                                                                                                                                                                              ]\n                                                                                                                                                                                            }\n                                                                                                                                                                                          }\n                                                                                                                                                                                        ]\n                                                                                                                                                                                      ]\n                                                                                                                                                                                    }\n                                                                                                                                                                                  }\n                                                                                                                                                                                ]\n                                                                                                                                                                              ]\n                                                                                                                                                                            }\n                                                                                                                                                                          }\n                                                                                                                                                                        ]\n                                                                                                                                                                      ]\n                                                                                                                                                                    }\n                                                                                                                                                                  }\n                                                                                                                                                                ]\n                                                                                                                                                              ]\n                                                                                                                                                            }\n                                                                                                                                                          }\n                                                                                                                                                        ]\n                                                                                                                                                      ]\n                                                                                                                                                    }\n                                                                                                                                                  }\n                                                                                                                                                ]\n                                                                                                                                              ]\n                                                                                                                                            }\n                                                                                                                                          }\n                                                                                                                                        ]\n                                                                                                                                      ]\n                                                                                                                                    }\n                                                                                                                                  }\n                                                                                                                                ]\n                                                                                                                              ]\n                                                                                                                            }\n                                                                                                                          }\n                                                                                                                        ]\n                                                                                                                      ]\n                                                                                                                    }\n                                                                                                                  }\n                                                                                                                ]\n                                                                                                              ]\n                                                                                                            }\n                                                                                                          }\n                                                                                                        ]\n                                                                                                      ]\n                                                                                                    }\n                                                                                                  }\n                                                                                                ]\n                                                                                              ]\n                                                                                            }\n                                                                                          }\n                                                                                        ]\n                                                                                      ]\n                                                                                    }\n                                                                                  }\n                                                                                ]\n                                                                              ]\n                                                                            }\n                                                                          }\n                                                                        ]\n                                                                      ]\n                                                                    }\n                                                                  }\n                                                                ]\n                                                              ]\n                                                            }\n                                                          }\n                                                        ]\n                                                      ]\n                                                    }\n                                                  }\n                                                ]\n                                              ]\n                                            }\n                                          }\n                                        ]\n                                      ]\n                                    }\n                                  }\n                                ]\n                              ]\n                            }\n                          }\n                        ]\n                      ]\n                    }\n                  }\n                ]\n              ]\n            }\n          }\n        ]\n      ]\n    }\n  }\n]"
+	},
+	{
+		"name": "mixed-document",
+		"input": "{\"name\":\"fixture\",\"version\":1,\"ratio\":0.25,\"big\":1e+21,\"tiny\":1e-7,\"flags\":[true,false,null],\"meta\":{\"tags\":[\"a\",\"b\"],\"depth\":{\"level\":2,\"items\":[{\"id\":1},{\"id\":2.5}]}},\"empty\":{},\"none\":[]}",
+		"expected": "{\n  \"name\": \"fixture\",\n  \"version\": 1,\n  \"ratio\": 0.25,\n  \"big\": 1e+21,\n  \"tiny\": 1e-7,\n  \"flags\": [\n    true,\n    false,\n    null\n  ],\n  \"meta\": {\n    \"tags\": [\n      \"a\",\n      \"b\"\n    ],\n    \"depth\": {\n      \"level\": 2,\n      \"items\": [\n        {\n          \"id\": 1\n        },\n        {\n          \"id\": 2.5\n        }\n      ]\n    }\n  },\n  \"empty\": {},\n  \"none\": []\n}"
+	}
+]

@@ -13,7 +13,7 @@ const example = `+ tags: ["admin", "early"]   (added)
 const faqItems = [
   { q: 'How do I compare two JSON files in Pandia?', a: 'Open one document, press ⌘D, and choose what to compare it against — another open tab or a file from disk. Pandia computes the diff and switches the canvas into the Compare view.' },
   { q: 'Is the diff structural or just text?', a: 'Structural. Pandia diffs the JSON itself and classifies every change as added, removed, changed or moved — so reordered keys and formatting noise don’t show up as false differences.' },
-  { q: 'Can it diff large JSON files?', a: 'Yes. The Side-by-side and Tree modes read both documents lazily, so they handle large files. The Inline unified diff is capped at 3 MB per side.' },
+  { q: 'Can it diff large JSON files?', a: 'Yes. Differences are computed in Rust and only the lines on screen are fetched, so an 800,000-line comparison takes about 40 milliseconds. Side-by-side and Tree modes read both documents lazily; comparing is bounded by the 200 MB whole-document ceiling.' },
 ];
 
 ---

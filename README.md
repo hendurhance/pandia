@@ -31,7 +31,7 @@
   <a href="#features">Features</a> ·
   <a href="https://www.pandia.app/docs">Docs</a> ·
   <a href="#building-from-source">Build</a> ·
-  <a href="https://github.com/hendurhance/pandia/issues/new">Report issue</a>
+  <a href="https://github.com/hendurhance/pandia/issues/new/choose">Report issue</a>
 </p>
 
 ---

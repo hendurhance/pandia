@@ -56,7 +56,9 @@
 		replaceAll as cmReplaceAllCmd,
 		SearchCursor,
 	} from '@codemirror/search';
-	import { docGetValue } from '$lib/ipc/doc';
+	import { docValueJson } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
+	import { parseLossless } from '$lib/util/lossless';
 	import { noirHighlight, noirTheme } from './logic/codemirror-theme';
 	import type { DocHandle, Path } from '$lib/ipc/types';
 	import {
@@ -235,10 +237,10 @@
 		loading = true;
 		error = null;
 
-		docGetValue(handle, [])
-			.then((value) => {
+		docValueJson(handle, [])
+			.then((raw) => {
 				if (cancelled || !container) return;
-				const { text, offsets } = stringifyWithOffsets(value);
+				const { text, offsets } = stringifyWithOffsets(parseLossless(raw));
 				editorOffsets = offsets;
 				baseline = text;
 				setDirty(false);
@@ -280,7 +282,7 @@
 				}
 			})
 			.catch((e) => {
-				if (!cancelled) error = String(e);
+				if (!cancelled) error = describeError(e);
 			})
 			.finally(() => {
 				if (!cancelled) loading = false;

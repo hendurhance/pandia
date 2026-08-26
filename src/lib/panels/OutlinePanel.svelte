@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { docGetSlice } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle, NodeView, Path } from '$lib/ipc/types';
 	import { pathToString } from '$lib/util/path';
 	import { fixedWindow } from '$lib/views/tree/logic/virtualizer';
@@ -87,7 +88,7 @@
 				}
 			})
 			.catch((e) => {
-				if (loadedHandle === ctx.handle) error = String(e);
+				if (loadedHandle === ctx.handle) error = describeError(e);
 			})
 			.finally(() => {
 				if (loadedHandle === ctx.handle) loading = false;
@@ -110,7 +111,7 @@
 				n.children = children;
 				n.more = children.length === PER_LEVEL;
 			} catch (e) {
-				error = String(e);
+				error = describeError(e);
 				return;
 			}
 		}
@@ -132,7 +133,7 @@
 			}
 			roots = roots;
 		} catch (e) {
-			error = String(e);
+			error = describeError(e);
 		}
 	}
 

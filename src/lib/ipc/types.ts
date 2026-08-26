@@ -45,6 +45,7 @@ export interface Summary {
 	dirty: boolean;
 	fileBacked: boolean;
 	recoveryNote: string | null;
+	commentsStripped: boolean;
 }
 
 export interface SaveResult {
@@ -63,6 +64,7 @@ export interface OpenResult {
 
 export type Op =
 	| { kind: 'setValue'; path: Path; value: unknown }
+	| { kind: 'setValueText'; path: Path; text: string }
 	| { kind: 'renameKey'; path: Path; from: string; to: string }
 	| {
 			kind: 'insertKey';
@@ -120,6 +122,19 @@ export interface DiffEntry {
 	rightPreview?: string;
 
 	fromIndex?: number;
+}
+
+export interface LineHunk {
+	leftStart: number;
+	leftLen: number;
+	rightStart: number;
+	rightLen: number;
+}
+
+export interface LineDiffResult {
+	hunks: LineHunk[];
+	leftLines: number;
+	rightLines: number;
 }
 
 export type MatchField = 'key' | 'value';

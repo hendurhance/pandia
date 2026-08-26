@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { LosslessNumber } from 'lossless-json';
 import { stringifyWithOffsets, lookupOffsets, highlightsForSide } from './highlights';
 import type { DiffKind, Path } from '$lib/ipc/types';
 
@@ -27,6 +28,17 @@ describe('stringifyWithOffsets', () => {
 	it('maps the root path to the entire document', () => {
 		const { text, offsets } = stringifyWithOffsets({ a: 1 });
 		expect(text.slice(...at(offsets, [])!)).toBe(text);
+	});
+	it('writes lossless number tokens verbatim', () => {
+		const { text, offsets } = stringifyWithOffsets({
+			big: new LosslessNumber('9007199254740993'),
+			zeros: new LosslessNumber('1.50000000000000000000'),
+			f: 1.5,
+		});
+		expect(text).toBe(
+			'{\n  "big": 9007199254740993,\n  "zeros": 1.50000000000000000000,\n  "f": 1.5\n}',
+		);
+		expect(text.slice(...at(offsets, ['big'])!)).toBe('9007199254740993');
 	});
 });
 

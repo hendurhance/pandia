@@ -12,6 +12,7 @@
 	import { loadOpenTabs, saveOpenTabs } from '$lib/shell/state/tabs-restore';
 	import { SANDBOX_ENABLED } from '$lib/util/flags';
 	import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
+	import { describeError } from '$lib/ipc/error-copy';
 	import CommandPalette from '$lib/palette/CommandPalette.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import {
@@ -69,6 +70,17 @@
 		return choice === 'primary';
 	}
 
+	async function confirmCommentLoss(name: string): Promise<'save' | 'saveAs' | 'cancel'> {
+		const choice = await confirm.ask({
+			title: 'comments will be lost',
+			message: `Pandia removed the comments in ${name} to read it as JSON. Saving overwrites the file without them. Save As keeps the original file untouched.`,
+			primaryLabel: 'save without comments',
+			secondaryLabel: 'save as…',
+			dangerPrimary: true,
+		});
+		return choice === 'primary' ? 'save' : choice === 'secondary' ? 'saveAs' : 'cancel';
+	}
+
 	async function requestCloseTab(id: string): Promise<boolean> {
 		const status = tabStore.statuses[id];
 		const ctx = tabStore.contexts[id];
@@ -79,9 +91,10 @@
 		}
 		if (behaviorPrefs.autoSaveOnIdle && ctx?.fileBacked && ctx) {
 			const ok = await ctx.save({ silent: true });
-			if (!ok) return false;
-			tabStore.close(id);
-			return true;
+			if (ok) {
+				tabStore.close(id);
+				return true;
+			}
 		}
 		tabStore.activate(id);
 		const name = ctx?.sourceName ? basename(ctx.sourceName) : 'untitled';
@@ -167,7 +180,7 @@
 		checkForUpdates,
 		openWebsite: () => void openInBrowser('https://www.pandia.app').catch(() => {}),
 		reportIssue: () =>
-			void openInBrowser('https://github.com/hendurhance/pandia/issues/new').catch(() => {}),
+			void openInBrowser('https://github.com/hendurhance/pandia/issues/new/choose').catch(() => {}),
 		isDev: SANDBOX_ENABLED,
 	};
 
@@ -374,7 +387,10 @@
 				await message("You're up to date.", { title: 'Pandia' });
 			}
 		} catch (e) {
-			await message(`Couldn't check for updates.\n\n${e}`, { title: 'Pandia', kind: 'warning' });
+			await message(`Couldn't check for updates.\n\n${describeError(e)}`, {
+				title: 'Pandia',
+				kind: 'warning',
+			});
 		}
 	}
 
@@ -539,7 +555,7 @@
 					<DocPane
 						tabId={tab.id}
 						isActive={tab.id === tabStore.activeId}
-						onLabelChange={(label) => tabStore.setLabel(tab.id, label)}
+						onLabelChange={(label, sourceName) => tabStore.setLabel(tab.id, label, sourceName)}
 						onStatusChange={(status) => tabStore.setStatus(tab.id, status)}
 						pendingOpen={tabStore.pendingOpens[tab.id] ?? null}
 						onOpened={() => tabStore.clearPendingOpen(tab.id)}
@@ -547,6 +563,7 @@
 						onContextChange={(ctx) => tabStore.setContext(tab.id, ctx)}
 						isHandleAlive={(h) => Object.values(tabStore.contexts).some((c) => c?.handle === h)}
 						confirmLargeFile={maybeConfirmLargeFile}
+						{confirmCommentLoss}
 						{navRequest}
 						{historyRequest}
 						{compareRequest}

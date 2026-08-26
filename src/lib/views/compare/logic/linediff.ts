@@ -1,6 +1,7 @@
+import type { LineDiffResult, LineHunk } from '$lib/ipc/types';
+
 export interface DiffRow {
 	type: 'context' | 'add' | 'del';
-	text: string;
 
 	leftNo: number | null;
 	rightNo: number | null;
@@ -10,160 +11,92 @@ export interface GapRow {
 
 	count: number;
 
-	lines: DiffRow[];
+	leftStart: number;
+	rightStart: number;
 }
 export type UnifiedRow = DiffRow | GapRow;
 
-const LCS_CELL_CAP = 4_000_000;
-
-type Op = { type: 'context' | 'add' | 'del'; text: string };
-
-function diffMiddle(a: string[], b: string[]): Op[] {
-	const A = a.length;
-	const B = b.length;
-	if (A === 0) return b.map((text) => ({ type: 'add', text }));
-	if (B === 0) return a.map((text) => ({ type: 'del', text }));
-	if (A * B > LCS_CELL_CAP) {
-		return [
-			...a.map((text): Op => ({ type: 'del', text })),
-			...b.map((text): Op => ({ type: 'add', text })),
-		];
-	}
-
-	const dp: Uint32Array[] = Array.from({ length: A + 1 }, () => new Uint32Array(B + 1));
-	for (let i = A - 1; i >= 0; i--) {
-		const row = dp[i];
-		const next = dp[i + 1];
-		for (let j = B - 1; j >= 0; j--) {
-			row[j] = a[i] === b[j] ? next[j + 1] + 1 : Math.max(next[j], row[j + 1]);
-		}
-	}
-
-	const ops: Op[] = [];
-	let i = 0;
-	let j = 0;
-	while (i < A && j < B) {
-		if (a[i] === b[j]) {
-			ops.push({ type: 'context', text: a[i] });
-			i++;
-			j++;
-		} else if (dp[i + 1][j] >= dp[i][j + 1]) {
-			ops.push({ type: 'del', text: a[i] });
-			i++;
-		} else {
-			ops.push({ type: 'add', text: b[j] });
-			j++;
-		}
-	}
-	while (i < A) ops.push({ type: 'del', text: a[i++] });
-	while (j < B) ops.push({ type: 'add', text: b[j++] });
-	return ops;
+function contextRow(leftStart: number, rightStart: number, k: number): DiffRow {
+	return { type: 'context', leftNo: leftStart + k + 1, rightNo: rightStart + k + 1 };
 }
 
-function fullRows(leftText: string, rightText: string): DiffRow[] {
-	const L = leftText.split('\n');
-	const R = rightText.split('\n');
-	const n = L.length;
-	const m = R.length;
-
-	let pre = 0;
-	while (pre < n && pre < m && L[pre] === R[pre]) pre++;
-	let endL = n;
-	let endR = m;
-	while (endL > pre && endR > pre && L[endL - 1] === R[endR - 1]) {
-		endL--;
-		endR--;
-	}
-
-	const rows: DiffRow[] = [];
-	let ln = 0;
-	let rn = 0;
-
-	for (let i = 0; i < pre; i++) {
-		rows.push({ type: 'context', text: L[i], leftNo: ++ln, rightNo: ++rn });
-	}
-	for (const op of diffMiddle(L.slice(pre, endL), R.slice(pre, endR))) {
-		if (op.type === 'context') {
-			rows.push({ type: 'context', text: op.text, leftNo: ++ln, rightNo: ++rn });
-		} else if (op.type === 'del') {
-			rows.push({ type: 'del', text: op.text, leftNo: ++ln, rightNo: null });
-		} else {
-			rows.push({ type: 'add', text: op.text, leftNo: null, rightNo: ++rn });
-		}
-	}
-	for (let i = endL; i < n; i++) {
-		rows.push({ type: 'context', text: L[i], leftNo: ++ln, rightNo: ++rn });
-	}
-	return rows;
+export function gapRows(gap: GapRow): DiffRow[] {
+	return Array.from({ length: gap.count }, (_, k) => contextRow(gap.leftStart, gap.rightStart, k));
 }
 
 function emitContext(
 	out: UnifiedRow[],
-	run: DiffRow[],
+	leftStart: number,
+	rightStart: number,
+	len: number,
 	atStart: boolean,
 	atEnd: boolean,
 	ctx: number,
 ) {
-	const len = run.length;
-	if (atStart && atEnd) {
-		if (len > 0) out.push({ type: 'gap', count: len, lines: run.slice() });
-		return;
-	}
+	if (len <= 0) return;
 	if (atStart) {
 		const keep = Math.min(ctx, len);
 		if (len - keep > 0) {
-			out.push({ type: 'gap', count: len - keep, lines: run.slice(0, len - keep) });
+			out.push({ type: 'gap', count: len - keep, leftStart, rightStart });
 		}
-		for (let k = len - keep; k < len; k++) out.push(run[k]);
+		for (let k = len - keep; k < len; k++) out.push(contextRow(leftStart, rightStart, k));
 		return;
 	}
 	if (atEnd) {
 		const keep = Math.min(ctx, len);
-		for (let k = 0; k < keep; k++) out.push(run[k]);
+		for (let k = 0; k < keep; k++) out.push(contextRow(leftStart, rightStart, k));
 		if (len - keep > 0) {
-			out.push({ type: 'gap', count: len - keep, lines: run.slice(keep) });
+			out.push({
+				type: 'gap',
+				count: len - keep,
+				leftStart: leftStart + keep,
+				rightStart: rightStart + keep,
+			});
 		}
 		return;
 	}
 	if (len <= ctx * 2) {
-		for (const r of run) out.push(r);
+		for (let k = 0; k < len; k++) out.push(contextRow(leftStart, rightStart, k));
 		return;
 	}
-	for (let k = 0; k < ctx; k++) out.push(run[k]);
+	for (let k = 0; k < ctx; k++) out.push(contextRow(leftStart, rightStart, k));
 	out.push({
 		type: 'gap',
 		count: len - ctx * 2,
-		lines: run.slice(ctx, len - ctx),
+		leftStart: leftStart + ctx,
+		rightStart: rightStart + ctx,
 	});
-	for (let k = len - ctx; k < len; k++) out.push(run[k]);
+	for (let k = len - ctx; k < len; k++) out.push(contextRow(leftStart, rightStart, k));
 }
 
-export function unifiedDiff(leftText: string, rightText: string, ctx = 3): UnifiedRow[] {
-	const full = fullRows(leftText, rightText);
-	if (!full.some((r) => r.type !== 'context')) return [];
-
+export function unifiedRows(diff: LineDiffResult, ctx = 3): UnifiedRow[] {
+	const { hunks } = diff;
+	if (hunks.length === 0) return [];
 	const out: UnifiedRow[] = [];
-	let i = 0;
-	while (i < full.length) {
-		if (full[i].type !== 'context') {
-			out.push(full[i]);
-			i++;
-			continue;
+	let l = 0;
+	let r = 0;
+	for (let i = 0; i < hunks.length; i++) {
+		const h = hunks[i];
+		emitContext(out, l, r, h.leftStart - l, i === 0, false, ctx);
+		for (let k = 0; k < h.leftLen; k++) {
+			out.push({ type: 'del', leftNo: h.leftStart + k + 1, rightNo: null });
 		}
-		let j = i;
-		while (j < full.length && full[j].type === 'context') j++;
-		emitContext(out, full.slice(i, j) as DiffRow[], i === 0, j === full.length, ctx);
-		i = j;
+		for (let k = 0; k < h.rightLen; k++) {
+			out.push({ type: 'add', leftNo: null, rightNo: h.rightStart + k + 1 });
+		}
+		l = h.leftStart + h.leftLen;
+		r = h.rightStart + h.rightLen;
 	}
+	emitContext(out, l, r, diff.leftLines - l, false, true, ctx);
 	return out;
 }
 
-export function changeCounts(rows: UnifiedRow[]): { adds: number; dels: number } {
+export function changeCounts(hunks: LineHunk[]): { adds: number; dels: number } {
 	let adds = 0;
 	let dels = 0;
-	for (const r of rows) {
-		if (r.type === 'add') adds++;
-		else if (r.type === 'del') dels++;
+	for (const h of hunks) {
+		adds += h.rightLen;
+		dels += h.leftLen;
 	}
 	return { adds, dels };
 }

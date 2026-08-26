@@ -16,7 +16,7 @@ export const AUTO_SAVE_IDLE_MAX = 10_000;
 
 interface Persisted {
 	schemaDebounceMs: number;
-	autoRepairOnPaste: boolean;
+	autoRepairOnOpen: boolean;
 	autoSaveOnIdle: boolean;
 	autoSaveIdleMs: number;
 	warnLargeFileOpen: boolean;
@@ -26,7 +26,7 @@ interface Persisted {
 function sanitize(raw: unknown): Persisted {
 	const fallback: Persisted = {
 		schemaDebounceMs: SCHEMA_DEBOUNCE_DEFAULT,
-		autoRepairOnPaste: true,
+		autoRepairOnOpen: true,
 		autoSaveOnIdle: false,
 		autoSaveIdleMs: AUTO_SAVE_IDLE_DEFAULT,
 		warnLargeFileOpen: true,
@@ -46,7 +46,7 @@ function sanitize(raw: unknown): Persisted {
 	if (idle > AUTO_SAVE_IDLE_MAX) idle = AUTO_SAVE_IDLE_MAX;
 	return {
 		schemaDebounceMs: ms,
-		autoRepairOnPaste: typeof r.autoRepairOnPaste === 'boolean' ? r.autoRepairOnPaste : true,
+		autoRepairOnOpen: typeof r.autoRepairOnOpen === 'boolean' ? r.autoRepairOnOpen : true,
 		autoSaveOnIdle: typeof r.autoSaveOnIdle === 'boolean' ? r.autoSaveOnIdle : false,
 		autoSaveIdleMs: idle,
 		warnLargeFileOpen: typeof r.warnLargeFileOpen === 'boolean' ? r.warnLargeFileOpen : true,
@@ -56,7 +56,7 @@ function sanitize(raw: unknown): Persisted {
 
 class BehaviorPrefs extends PersistedStore {
 	schemaDebounceMs: number = $state(SCHEMA_DEBOUNCE_DEFAULT);
-	autoRepairOnPaste: boolean = $state(true);
+	autoRepairOnOpen: boolean = $state(true);
 	autoSaveOnIdle: boolean = $state(false);
 	autoSaveIdleMs: number = $state(AUTO_SAVE_IDLE_DEFAULT);
 	warnLargeFileOpen: boolean = $state(true);
@@ -65,7 +65,7 @@ class BehaviorPrefs extends PersistedStore {
 	protected async load(): Promise<void> {
 		const p = sanitize(await loadPersisted<Persisted>(SETTINGS_FILE, STORE_KEY));
 		this.schemaDebounceMs = p.schemaDebounceMs;
-		this.autoRepairOnPaste = p.autoRepairOnPaste;
+		this.autoRepairOnOpen = p.autoRepairOnOpen;
 		this.autoSaveOnIdle = p.autoSaveOnIdle;
 		this.autoSaveIdleMs = p.autoSaveIdleMs;
 		this.warnLargeFileOpen = p.warnLargeFileOpen;
@@ -75,7 +75,7 @@ class BehaviorPrefs extends PersistedStore {
 	private async persist(): Promise<void> {
 		await savePersisted(SETTINGS_FILE, STORE_KEY, {
 			schemaDebounceMs: this.schemaDebounceMs,
-			autoRepairOnPaste: this.autoRepairOnPaste,
+			autoRepairOnOpen: this.autoRepairOnOpen,
 			autoSaveOnIdle: this.autoSaveOnIdle,
 			autoSaveIdleMs: this.autoSaveIdleMs,
 			warnLargeFileOpen: this.warnLargeFileOpen,
@@ -92,9 +92,9 @@ class BehaviorPrefs extends PersistedStore {
 		await this.persist();
 	}
 
-	async setAutoRepairOnPaste(on: boolean): Promise<void> {
-		if (this.autoRepairOnPaste === on) return;
-		this.autoRepairOnPaste = on;
+	async setAutoRepairOnOpen(on: boolean): Promise<void> {
+		if (this.autoRepairOnOpen === on) return;
+		this.autoRepairOnOpen = on;
 		await this.persist();
 	}
 

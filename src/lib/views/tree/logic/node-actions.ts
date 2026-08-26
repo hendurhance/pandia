@@ -1,4 +1,5 @@
 import { docGetSlice, docGetValue, docValueJson } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import { pathKey, type ContentRow, type Row } from './model';
 import { findIndexPaged } from './paging';
 import { reorderDestination } from '$lib/util/reorder';
@@ -69,7 +70,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			try {
 				await fn(...args);
 			} catch (e) {
-				deps.setError(String(e));
+				deps.setError(describeError(e));
 			}
 		};
 	}
@@ -85,7 +86,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 			await navigator.clipboard.writeText(text);
 			return true;
 		} catch (e) {
-			deps.setError(String(e));
+			deps.setError(describeError(e));
 			return false;
 		}
 	}
@@ -133,14 +134,18 @@ export function createNodeActions(deps: NodeActionDeps) {
 				const targetIndex = where === 'before' ? row.key : row.key + 1;
 				const valueText = await deps.prompt.show(`value at index ${targetIndex} (JSON):`, 'null');
 				if (valueText === null) return;
-				let value: unknown;
 				try {
-					value = JSON.parse(valueText);
+					JSON.parse(valueText);
 				} catch (e) {
 					deps.setError(`invalid JSON: ${(e as Error).message}`);
 					return;
 				}
-				await deps.apply({ kind: 'insertItem', path: parentPath, index: targetIndex, value });
+				await deps.apply({
+					kind: 'insertItemText',
+					path: parentPath,
+					index: targetIndex,
+					text: valueText,
+				});
 				return;
 			}
 
@@ -148,9 +153,8 @@ export function createNodeActions(deps: NodeActionDeps) {
 			if (newKey === null || newKey === '') return;
 			const valueText = await deps.prompt.show(`value for "${newKey}" (JSON):`, 'null');
 			if (valueText === null) return;
-			let value: unknown;
 			try {
-				value = JSON.parse(valueText);
+				JSON.parse(valueText);
 			} catch (e) {
 				deps.setError(`invalid JSON: ${(e as Error).message}`);
 				return;
@@ -161,10 +165,10 @@ export function createNodeActions(deps: NodeActionDeps) {
 				rowPosition === null ? null : where === 'before' ? rowPosition : rowPosition + 1;
 
 			await deps.apply({
-				kind: 'insertKey',
+				kind: 'insertKeyText',
 				path: parentPath,
 				key: newKey,
-				value,
+				text: valueText,
 				position: targetPosition,
 			});
 		}),
@@ -269,7 +273,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 				deps.setCutMark(null);
 				deps.flash('copied path');
 			} catch (e) {
-				deps.setError(String(e));
+				deps.setError(describeError(e));
 			}
 		},
 
@@ -283,7 +287,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 				deps.setCutMark({ path: row.path, text });
 				deps.flash('cut — paste to move');
 			} catch (e) {
-				deps.setError(String(e));
+				deps.setError(describeError(e));
 			}
 		},
 
@@ -362,7 +366,7 @@ export function createNodeActions(deps: NodeActionDeps) {
 					name: extractName(row),
 				});
 			} catch (e) {
-				deps.setError(String(e));
+				deps.setError(describeError(e));
 			}
 		},
 	};

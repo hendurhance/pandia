@@ -51,6 +51,28 @@ describe('nextNumberValue', () => {
 	it('parses leading numeric prefixes via parseFloat', () => {
 		expect(nextNumberValue('3.14abc', 1)).toBe('4.14');
 	});
+
+	it('steps integers beyond 2^53 exactly', () => {
+		expect(nextNumberValue('9007199254740993', 1)).toBe('9007199254740994');
+		expect(nextNumberValue('12345678901234567890', 10)).toBe('12345678901234567900');
+		expect(nextNumberValue('-98765432109876543210987654321', -10)).toBe(
+			'-98765432109876543210987654331',
+		);
+	});
+
+	it('leaves tokens a JS number cannot reproduce untouched', () => {
+		expect(nextNumberValue('1e309', 1)).toBe('1e309');
+		expect(nextNumberValue('1.50000000000000000000', 1)).toBe('1.50000000000000000000');
+		expect(nextNumberValue('2.5e+7', 1)).toBe('2.5e+7');
+		expect(
+			nextNumberValue('3.14159265358979323846264338327950288419716939937510582097494', 1),
+		).toBe('3.14159265358979323846264338327950288419716939937510582097494');
+	});
+
+	it('still steps ordinary decimals', () => {
+		expect(nextNumberValue('1.5', 1)).toBe('2.5');
+		expect(nextNumberValue('2.5e-7', 1)).toBe('1.00000025');
+	});
 });
 
 describe('createEditHandlers', () => {

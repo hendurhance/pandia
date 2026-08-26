@@ -11,6 +11,7 @@ import type {
 	DocHandle,
 	ExportFormat,
 	HistoryView,
+	LineDiffResult,
 	NodeView,
 	Op,
 	OpenResult,
@@ -207,6 +208,20 @@ export function docRedo(handle: DocHandle): Promise<ApplyResult | null> {
 
 export function docDiff(left: DocHandle, right: DocHandle): Promise<DiffEntry[]> {
 	return call<DiffEntry[]>('doc_diff', { left, right });
+}
+
+export function docDiffLines(
+	left: DocHandle,
+	right: DocHandle,
+	jobId?: string,
+): Promise<LineDiffResult> {
+	return call<LineDiffResult>('doc_diff_lines', { left, right, jobId });
+}
+
+export const LINE_FETCH_MAX = 5000;
+
+export function docGetLines(handle: DocHandle, start: number, end: number): Promise<string[]> {
+	return call<string[]>('doc_get_lines', { handle, start, end });
 }
 
 export function docSearch(

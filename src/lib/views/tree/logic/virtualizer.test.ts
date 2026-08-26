@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildOffsets, DEFAULT_ROW_H, indexAtOffset, visibleWindow } from './virtualizer';
+import {
+	buildOffsets,
+	captureScrollAnchor,
+	DEFAULT_ROW_H,
+	indexAtOffset,
+	restoreScrollTop,
+	visibleWindow,
+} from './virtualizer';
 
 describe('buildOffsets', () => {
 	it('uniform-height fast path: zero rows', () => {
@@ -115,6 +122,46 @@ describe('visibleWindow', () => {
 		const { start, end } = visibleWindow(off, 5, 55, 20, 0);
 		expect(start).toBe(1);
 		expect(end).toBe(4);
+	});
+});
+
+describe('captureScrollAnchor / restoreScrollTop', () => {
+	const offsets = [0, 22, 44, 66, 88, 110];
+
+	it('returns null for an empty row set', () => {
+		expect(captureScrollAnchor([0], 0, 0)).toBeNull();
+	});
+
+	it('anchors the row exactly at the viewport top with zero delta', () => {
+		expect(captureScrollAnchor(offsets, 5, 44)).toEqual({ index: 2, delta: 0 });
+	});
+
+	it('anchors the first fully visible row when the top row is clipped', () => {
+		const a = captureScrollAnchor(offsets, 5, 23);
+		expect(a).toEqual({ index: 2, delta: 21 });
+	});
+
+	it('round-trips: restoring against unchanged offsets returns the same scrollTop', () => {
+		for (const top of [0, 1, 22, 23, 43, 44, 87]) {
+			const a = captureScrollAnchor(offsets, 5, top)!;
+			expect(restoreScrollTop(offsets, a.index, a.delta)).toBe(top);
+		}
+	});
+
+	it('keeps the anchor row at the same viewport offset when rows above it grow', () => {
+		const a = captureScrollAnchor(offsets, 5, 23)!;
+		const grown = [0, 22, 154, 176, 198, 220];
+		expect(restoreScrollTop(grown, a.index + 0, a.delta)).toBe(154 - 21);
+	});
+
+	it('clamps the anchor to the last row when scrolled past the end', () => {
+		const a = captureScrollAnchor(offsets, 5, 500)!;
+		expect(a.index).toBe(4);
+		expect(restoreScrollTop(offsets, a.index, a.delta)).toBe(500);
+	});
+
+	it('never restores to a negative scrollTop', () => {
+		expect(restoreScrollTop(offsets, 0, 30)).toBe(0);
 	});
 });
 

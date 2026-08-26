@@ -77,7 +77,8 @@
 						>
 						<button
 							class="link-btn"
-							onclick={() => void openInBrowser('https://github.com/hendurhance/pandia/issues/new')}
+							onclick={() =>
+								void openInBrowser('https://github.com/hendurhance/pandia/issues/new/choose')}
 							>Report Issue ↗</button
 						>
 					</div>

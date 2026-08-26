@@ -13,6 +13,7 @@ import {
 	IpcError,
 	type IpcErrorKind,
 } from '$lib/ipc/doc';
+import { describeError } from '$lib/ipc/error-copy';
 import type {
 	ApplyResult,
 	Diagnosis,
@@ -27,7 +28,12 @@ import { basename } from '$lib/util/path';
 import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
-import { runAutoRepair, readSourceText, type RepairInfo } from '../logic/doc-repair';
+import {
+	runAutoRepair,
+	runFormatDetect,
+	readSourceText,
+	type RepairInfo,
+} from '../logic/doc-repair';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { addRecent } from '$lib/shell/state/recents-store.svelte';
 
@@ -45,11 +51,15 @@ export interface DocSessionDeps {
 
 	flushPendingEdits: () => Promise<boolean>;
 
+	applyDefaultView: (summary: OpenResult['summary'] | null) => Promise<void>;
+
 	flash: (msg: string) => void;
 
 	cancelBackupTimer: () => void;
 
 	confirmLargeFile?: (path: string) => Promise<boolean>;
+
+	confirmCommentLoss?: (name: string) => Promise<'save' | 'saveAs' | 'cancel'>;
 }
 
 export class DocSessionController {
@@ -81,7 +91,7 @@ export class DocSessionController {
 				await this.deps.tree.toggleAt(0);
 			}
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			this.lastErrorKind = e instanceof IpcError ? e.kind : null;
 		} finally {
 			this.deps.setBusy(false);
@@ -93,11 +103,19 @@ export class DocSessionController {
 			const proceed = await this.deps.confirmLargeFile(source.path);
 			if (!proceed) return false;
 		}
+		await this.deps.applyDefaultView(null);
 		const name = source.kind === 'file' ? source.path : (source.name ?? '(inline)');
 		await this.load(() => docOpen(source), name);
 		if (this.deps.getError() !== null) {
+			await runFormatDetect(source, {
+				error: () => this.deps.getError(),
+				errorKind: () => this.lastErrorKind,
+				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
+			});
+		}
+		if (this.deps.getError() !== null) {
 			await runAutoRepair(source, name, {
-				enabled: () => behaviorPrefs.autoRepairOnPaste,
+				enabled: () => behaviorPrefs.autoRepairOnOpen,
 				error: () => this.deps.getError(),
 				errorKind: () => this.lastErrorKind,
 				reopen: (text, n) => this.load(() => docOpen({ kind: 'text', text, name: n }), n),
@@ -113,7 +131,10 @@ export class DocSessionController {
 		if (source.kind === 'file' && this.deps.getError() === null) {
 			addRecent(source.path, undefined, this.summary?.sourceSize);
 		}
-		if (this.deps.getError() === null) return true;
+		if (this.deps.getError() === null) {
+			await this.deps.applyDefaultView(this.summary);
+			return true;
+		}
 
 		const text = await readSourceText(source);
 		if (text != null) {
@@ -177,7 +198,7 @@ export class DocSessionController {
 			}
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -193,7 +214,7 @@ export class DocSessionController {
 			}
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -207,7 +228,7 @@ export class DocSessionController {
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -221,7 +242,7 @@ export class DocSessionController {
 			await this.deps.tree.refetchAfterOp(result.affectedPaths);
 			return result;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return null;
 		}
 	};
@@ -240,6 +261,13 @@ export class DocSessionController {
 		if (!this.summary.fileBacked) {
 			return this.saveAs(opts);
 		}
+		if (this.summary.commentsStripped) {
+			if (opts.silent) return false;
+			const choice =
+				(await this.deps.confirmCommentLoss?.(basename(this.sourceName ?? 'this file'))) ?? 'save';
+			if (choice === 'cancel') return false;
+			if (choice === 'saveAs') return this.saveAs(opts);
+		}
 		try {
 			const res = await docSave(this.handle);
 			this.clearBackup();
@@ -247,7 +275,7 @@ export class DocSessionController {
 			if (!opts.silent) this.deps.flash(`saved ${basename(res.path)}`);
 			return true;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return false;
 		}
 	};
@@ -262,7 +290,7 @@ export class DocSessionController {
 				filters: [{ name: 'JSON', extensions: ['json'] }],
 			});
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return false;
 		}
 		if (typeof picked !== 'string') return false; // cancelled
@@ -274,7 +302,7 @@ export class DocSessionController {
 			if (!opts.silent) this.deps.flash(`saved ${basename(res.path)}`);
 			return true;
 		} catch (e) {
-			this.deps.setError(String(e));
+			this.deps.setError(describeError(e));
 			return false;
 		}
 	};

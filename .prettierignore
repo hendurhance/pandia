@@ -19,5 +19,7 @@ src-tauri/
 # Data fixtures (don't reflow)
 *fixture*.json
 
+examples/
+
 # Editor configs
 .vscode/tasks.json

@@ -2,6 +2,7 @@
 	import { onDestroy, untrack } from 'svelte';
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import { docColumnSchema } from '$lib/ipc/doc';
+	import { describeError } from '$lib/ipc/error-copy';
 	import type {
 		ColumnSchema,
 		DocHandle,
@@ -24,8 +25,9 @@
 	import FindBar from '$lib/find/components/FindBar.svelte';
 	import ExportDialog from '$lib/docpane/components/ExportDialog.svelte';
 	import PromptDialog from '$lib/ui/PromptDialog.svelte';
-	import { pathToString, basename, stem } from '$lib/util/path';
+	import { pathToString, basename, stem, truncatePathMiddle } from '$lib/util/path';
 	import { computeInvalidMarks } from '../logic/invalid-marks';
+	import { resolveDefaultView } from '../logic/default-view';
 	import { kindAtSelection, validityFromView } from '../logic/status-derivation';
 	import {
 		expandAllDisabled as canExpandAllDisabled,
@@ -63,7 +65,7 @@
 	interface Props {
 		tabId: string;
 		isActive: boolean;
-		onLabelChange: (label: string) => void;
+		onLabelChange: (label: string, sourceName: string | null) => void;
 		onStatusChange: (status: DocStatus | null) => void;
 		pendingOpen?: OpenSource | null;
 		onOpened?: () => void;
@@ -86,6 +88,8 @@
 		isHandleAlive?: (h: DocHandle) => boolean;
 
 		confirmLargeFile?: (path: string) => Promise<boolean>;
+
+		confirmCommentLoss?: (name: string) => Promise<'save' | 'saveAs' | 'cancel'>;
 	}
 
 	let {
@@ -102,12 +106,12 @@
 		compareRequest = null,
 		isHandleAlive = () => true,
 		confirmLargeFile,
+		confirmCommentLoss,
 	}: Props = $props();
 
 	function tabLabelFor(name: string | null): string {
 		if (!name) return 'untitled';
-		const base = basename(name);
-		return base.length > 24 ? base.slice(0, 23) + '…' : base;
+		return truncatePathMiddle(basename(name), 24);
 	}
 
 	let busy = $state(false);
@@ -222,12 +226,18 @@
 			if (viewMode === 'code' && codeDirty && codeApi) return codeApi.flush();
 			return true;
 		},
+		applyDefaultView: async (summary) => {
+			await sidebarPrefs.init();
+			viewMode = resolveDefaultView(sidebarPrefs.defaultView, summary);
+		},
 		flash,
 		cancelBackupTimer: () => {
 			if (backupTimer) clearTimeout(backupTimer);
 		},
 		confirmLargeFile: (p: string) =>
 			confirmLargeFile ? confirmLargeFile(p) : Promise.resolve(true),
+		confirmCommentLoss: (n: string) =>
+			confirmCommentLoss ? confirmCommentLoss(n) : Promise.resolve('save' as const),
 	});
 
 	const recoveryNoteDismissed = $derived(
@@ -435,7 +445,7 @@
 	});
 
 	$effect(() => {
-		onLabelChange(tabLabelFor(session.sourceName));
+		onLabelChange(tabLabelFor(session.sourceName), session.sourceName);
 	});
 
 	$effect(() => {
@@ -505,7 +515,7 @@
 				if (session.handle === h && session.summary?.version === v) gridSchema = s;
 			})
 			.catch((e) => {
-				if (session.handle === h) error = String(e);
+				if (session.handle === h) error = describeError(e);
 			});
 	});
 
