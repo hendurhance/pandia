@@ -14,6 +14,7 @@ export default defineConfig(
 			'.svelte-kit/',
 			'src-tauri/',
 			'node_modules/',
+			'src/lib/ipc/bindings.ts',
 			'playwright-report/',
 			'website/',
 		],
