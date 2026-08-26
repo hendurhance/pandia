@@ -298,7 +298,7 @@ export type Summary = {
 	commentsStripped: boolean,
 };
 
-export type TypegenLang = "typescript" | "rust" | "go" | "kotlin" | "json-schema" | "python" | "php" | "java" | "zod";
+export type TypegenLang = "typescript" | "rust" | "go" | "kotlin" | "json-schema" | "python" | "php" | "java" | "zod" | "dart";
 
 export type WireError = {
 	kind: ErrorKind,

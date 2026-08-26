@@ -12,6 +12,7 @@ export const TYPEGEN_LANGS: ReadonlyArray<{ id: TypegenLang; label: string }> = 
 	{ id: 'php', label: 'PHP' },
 	{ id: 'java', label: 'Java' },
 	{ id: 'zod', label: 'Zod' },
+	{ id: 'dart', label: 'Dart' },
 ];
 
 const VALID_LANGS: TypegenLang[] = TYPEGEN_LANGS.map((t) => t.id);
