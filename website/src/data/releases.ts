@@ -14,7 +14,7 @@ export interface Release {
 export const releases: Release[] = [
 	{
 		version: '1.0.6',
-		date: 'TBD',
+		date: 'August 26, 2026',
 		tag: 'Stable',
 		tagKind: 'stable',
 		groups: [
