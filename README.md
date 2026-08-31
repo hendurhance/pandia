@@ -100,6 +100,22 @@ Download the latest version for your platform from [releases](https://github.com
 
 The macOS bundle is signed and notarised.
 
+Or install with [Homebrew](https://brew.sh):
+
+```bash
+# Install
+brew tap hendurhance/tap
+brew install --cask pandia
+
+# Upgrade
+brew update
+brew upgrade --cask pandia
+
+# Uninstall
+brew uninstall --cask pandia
+brew untap hendurhance/tap
+```
+
 ### Windows
 
 | Type | Download |

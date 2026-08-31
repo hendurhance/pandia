@@ -15,6 +15,10 @@ const faqItems = [
     a: 'macOS 10.15 (Catalina) and later. Pandia follows your system appearance, switching between dark and light automatically.',
   },
   {
+    q: 'Can I install Pandia with Homebrew?',
+    a: 'Yes. Run brew tap hendurhance/tap, then brew install --cask pandia. Upgrade later with brew update && brew upgrade --cask pandia, and remove it with brew uninstall --cask pandia.',
+  },
+  {
     q: 'Is the Mac JSON viewer free?',
     a: 'Yes — Pandia is completely free and open source under Apache-2.0. There are no paid tiers, accounts or telemetry.',
   },
@@ -72,6 +76,9 @@ const faqItems = [
               <li>Open the disk image and drag <strong>Pandia</strong> into your Applications folder.</li>
               <li>Launch it, then drag any JSON file onto the window — or open it from <kbd>⌘O</kbd>.</li>
             </ol>
+            <p>Prefer the terminal? Install the <a href="https://brew.sh">Homebrew</a> cask instead:</p>
+            <pre><code><span class="k">brew</span> tap hendurhance/tap
+<span class="k">brew</span> install --cask pandia</code></pre>
             <p>Full steps, including the first-launch Gatekeeper prompt, are in the
             <a href="/docs/installation">installation guide</a>.</p>
 

@@ -5,9 +5,18 @@ import Footer from '../components/home/Footer.astro';
 import { VERSION, TAG, RELEASE_BASE as BASE, RELEASES, REPO } from '../data/site';
 import { breadcrumb } from '../data/seo';
 
-const platforms = [
+type Platform = {
+  os: string;
+  icon: string;
+  req: string;
+  cmd?: { label: string; lines: string[] };
+  variants: { label: string; sub: string; file: string }[];
+};
+
+const platforms: Platform[] = [
   {
     os: 'macOS', icon: 'apple', req: 'macOS 10.15+',
+    cmd: { label: 'Homebrew', lines: ['brew tap hendurhance/tap', 'brew install --cask pandia'] },
     variants: [
       { label: 'Apple Silicon', sub: '.dmg · arm64', file: `Pandia_${VERSION}_aarch64.dmg` },
       { label: 'Intel', sub: '.dmg · x64', file: `Pandia_${VERSION}_x64.dmg` },
@@ -78,6 +87,15 @@ const icons: Record<string, string> = {
                     </a>
                   ))}
                 </div>
+                {p.cmd && (
+                  <div class="dl-cmd">
+                    <span class="dl-cmd-head">or install with {p.cmd.label}</span>
+                    <div class="dl-cmd-box">
+                      <code>{p.cmd.lines.map((l) => <span class="dl-cmd-line">{l}</span>)}</code>
+                      <button type="button" class="dl-cmd-copy" data-cmd={p.cmd.lines.join('\n')} aria-label={`Copy ${p.cmd.label} install commands`}>Copy</button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -158,6 +176,19 @@ const icons: Record<string, string> = {
     .pandia-page.dl-page .dl-var:hover .dl-arrow { transform: translateY(2px); }
     .pandia-page.dl-page .dl-arrow { transition: transform var(--dur) var(--ease); }
 
+    .pandia-page.dl-page .dl-cmd { margin-top: auto; padding-top: 20px; }
+    .pandia-page.dl-page .dl-cmd-head { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--page-faint); margin-bottom: 8px; }
+    .pandia-page.dl-page .dl-cmd-box { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--page-rule); background: var(--page-bg); padding: 10px 10px 10px 12px; }
+    .pandia-page.dl-page .dl-cmd-box code { font-family: var(--mono); font-size: 11.5px; color: var(--page-dim); line-height: 1.7; min-width: 0; overflow-x: auto; }
+    .pandia-page.dl-page .dl-cmd-line { display: block; white-space: nowrap; }
+    .pandia-page.dl-page .dl-cmd-line::before { content: "$ "; color: var(--page-faint); }
+    .pandia-page.dl-page .dl-cmd-copy {
+      margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--accent); background: 0; border: 1px solid var(--page-rule-2);
+      padding: 4px 8px; cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+    }
+    .pandia-page.dl-page .dl-cmd-copy:hover { background: var(--page-bg-3); }
+
     .pandia-page.dl-page .dl-fine { margin-top: 24px; font-family: var(--mono); font-size: 12px; color: var(--page-faint); line-height: 1.6; max-width: 74ch; }
     .pandia-page.dl-page .dl-fine a { color: var(--page-dim); text-decoration: underline; text-underline-offset: 2px; }
     .pandia-page.dl-page .dl-fine a:hover { color: var(--page-text); }
@@ -206,5 +237,19 @@ const icons: Record<string, string> = {
       const btn = document.getElementById('dlPrimary') as HTMLAnchorElement | null;
       if (btn && primary) { btn.href = primary; btn.setAttribute('download', ''); }
     }
+
+    document.querySelectorAll('.dl-cmd-copy').forEach((el) => {
+      const btn = el as HTMLButtonElement;
+      btn.addEventListener('click', async () => {
+        const cmd = btn.getAttribute('data-cmd') || '';
+        try {
+          await navigator.clipboard.writeText(cmd);
+          btn.textContent = 'Copied';
+        } catch {
+          btn.textContent = 'Copy failed';
+        }
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+      });
+    });
   </script>
 </Layout>

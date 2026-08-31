@@ -19,7 +19,7 @@ import { VERSION } from '../../data/site';
       <tr><th>Platform</th><th>Artifacts</th></tr>
     </thead>
     <tbody>
-      <tr><td>macOS</td><td>Apple Silicon <code>.dmg</code> (aarch64) &middot; Intel <code>.dmg</code> (x64)</td></tr>
+      <tr><td>macOS</td><td>Apple Silicon <code>.dmg</code> (aarch64) &middot; Intel <code>.dmg</code> (x64) &middot; Homebrew cask</td></tr>
       <tr><td>Windows</td><td>Installer <code>.msi</code> &middot; Setup <code>.exe</code> (x64)</td></tr>
       <tr><td>Linux</td><td><code>AppImage</code> (portable) &middot; <code>.deb</code> &middot; <code>.rpm</code> (x64)</td></tr>
     </tbody>
@@ -41,6 +41,18 @@ import { VERSION } from '../../data/site';
   <h3>macOS</h3>
   <p>Open the <code>.dmg</code> and drag <strong>Pandia</strong> into your Applications folder.
   Pick the Apple Silicon build on an M-series Mac, or the Intel build otherwise.</p>
+  <p>Or install it from the terminal with <a href="https://brew.sh">Homebrew</a>:</p>
+  <pre><code><span class="c"># Install</span>
+<span class="k">brew</span> tap hendurhance/tap
+<span class="k">brew</span> install --cask pandia
+
+<span class="c"># Upgrade</span>
+<span class="k">brew</span> update
+<span class="k">brew</span> upgrade --cask pandia
+
+<span class="c"># Uninstall</span>
+<span class="k">brew</span> uninstall --cask pandia
+<span class="k">brew</span> untap hendurhance/tap</code></pre>
   <h3>Windows</h3>
   <p>Run the <code>.msi</code> installer (or the <code>.exe</code> setup) and follow the prompts.</p>
   <h3>Linux</h3>
@@ -62,7 +74,8 @@ import { VERSION } from '../../data/site';
 
   <h2>Updates</h2>
   <p>Pandia ships with a built-in updater and keeps itself current — it updates in-app, so you
-  don't need to download new releases by hand.</p>
+  don't need to download new releases by hand. If you installed with Homebrew, you can also
+  update the cask with <code>brew upgrade --cask pandia</code>.</p>
 
   <h2>It's free</h2>
   <p>Pandia is <strong>Apache-2.0</strong> and open source. Browse the code, file an issue or
