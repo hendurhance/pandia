@@ -3,41 +3,142 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 ---
 <DocsLayout
   title="Keyboard shortcuts"
-  description="The keyboard shortcuts that matter in Pandia — switch views, compare, export, undo — plus a command palette for everything else."
+  description="Every Pandia keyboard shortcut, grouped by task: files and tabs, views, search, editing, compare and validate. Use Ctrl on Windows and Linux."
   currentDoc="/docs/shortcuts"
 >
   <h1>Keyboard shortcuts</h1>
-  <p class="lead">The keys that matter (and a palette for the rest).</p>
+  <p class="lead">Every key Pandia binds, grouped by what it does.</p>
 
-  <h2>Shortcuts</h2>
+  <p>Most shortcuts come from the native menu bar, so they work from any view unless a focused
+  text field has already taken the key. Press <kbd>⌘/</kbd> to open the same list inside the app.
+  The tables below show the macOS keys. See <a href="#windows-and-linux">Windows and Linux</a>
+  for the one substitution you need.</p>
+
+  <h2 id="files-and-tabs">Files &amp; tabs</h2>
+  <p>Each document opens in its own tab, and each tab keeps its own history. Reach for these keys
+  when you are moving documents in and out of the app.</p>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>New tab</td><td><kbd>⌘T</kbd></td></tr>
+      <tr><td>New file (opens an empty tab)</td><td><kbd>⌘N</kbd></td></tr>
+      <tr><td>Open file…</td><td><kbd>⌘O</kbd></td></tr>
+      <tr><td>Save</td><td><kbd>⌘S</kbd></td></tr>
+      <tr><td>Save as…</td><td><kbd>⌘⇧S</kbd></td></tr>
+      <tr><td>Export…</td><td><kbd>⌘E</kbd></td></tr>
+      <tr><td>Next tab</td><td><kbd>⌘⇧]</kbd></td></tr>
+      <tr><td>Previous tab</td><td><kbd>⌘⇧[</kbd></td></tr>
+      <tr><td>Close tab</td><td><kbd>⌘W</kbd></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Views</h2>
+  <p>The four number keys swap the current document between views without reloading it. Switch
+  when the task changes: an outline to browse, raw text to read line by line, a table to sort, a
+  diagram to follow structure. See <a href="/docs/views">Views</a> for what each one does.</p>
   <table>
     <thead>
       <tr><th>Action</th><th>Shortcut</th></tr>
     </thead>
     <tbody>
       <tr><td>Command palette</td><td><kbd>⌘K</kbd></td></tr>
-      <tr><td>Open file</td><td><kbd>⌘O</kbd></td></tr>
-      <tr><td>New tab</td><td><kbd>⌘T</kbd></td></tr>
-      <tr><td>Close tab</td><td><kbd>⌘W</kbd></td></tr>
-      <tr><td>Save</td><td><kbd>⌘S</kbd></td></tr>
       <tr><td>Tree view</td><td><kbd>⌘1</kbd></td></tr>
       <tr><td>Code view</td><td><kbd>⌘2</kbd></td></tr>
       <tr><td>Grid view</td><td><kbd>⌘3</kbd></td></tr>
       <tr><td>Graph view</td><td><kbd>⌘4</kbd></td></tr>
-      <tr><td>Find in document</td><td><kbd>⌘F</kbd></td></tr>
-      <tr><td>Compare</td><td><kbd>⌘D</kbd></td></tr>
-      <tr><td>Export</td><td><kbd>⌘E</kbd></td></tr>
       <tr><td>Toggle sidebar</td><td><kbd>⌘B</kbd></td></tr>
-      <tr><td>Settings</td><td><kbd>⌘,</kbd></td></tr>
-      <tr><td>Undo</td><td><kbd>⌘Z</kbd></td></tr>
-      <tr><td>Redo</td><td><kbd>⌘⇧Z</kbd></td></tr>
-      <tr><td>Commit Code-view edit</td><td><kbd>⌘⏎</kbd></td></tr>
-      <tr><td>Revert / close</td><td><kbd>Esc</kbd></td></tr>
     </tbody>
   </table>
 
+  <h2>Search &amp; navigation</h2>
+  <p>Find opens a bar over the current view and highlights every match. Once you have matches,
+  step through them with <kbd>⌘G</kbd> instead of going back to the bar. Search is substring and
+  case-insensitive. See <a href="/docs/search">Search &amp; replace</a>.</p>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Find in document…</td><td><kbd>⌘F</kbd></td></tr>
+      <tr><td>Find next</td><td><kbd>⌘G</kbd></td></tr>
+      <tr><td>Find previous</td><td><kbd>⌘⇧G</kbd></td></tr>
+      <tr><td>Find and replace…</td><td><kbd>⌘H</kbd></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Editing</h2>
+  <p>Undo and redo work on the document as a whole and are kept per tab. The rest of the editing
+  keys depend on which view you are in.</p>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Undo</td><td><kbd>⌘Z</kbd></td></tr>
+      <tr><td>Redo</td><td><kbd>⌘⇧Z</kbd></td></tr>
+    </tbody>
+  </table>
+
+  <h3>In the Tree</h3>
+  <p>Tree edits are committed one value at a time. Multi-line strings need <kbd>⌘⏎</kbd>, because
+  a plain <kbd>⏎</kbd> inserts a newline there.</p>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Commit an edit</td><td><kbd>⏎</kbd></td></tr>
+      <tr><td>Commit a multi-line string</td><td><kbd>⌘⏎</kbd></td></tr>
+      <tr><td>Cancel an edit</td><td><kbd>Esc</kbd></td></tr>
+      <tr><td>Open the row menu (or right-click)</td><td><kbd>Ctrl</kbd> <kbd>Q</kbd></td></tr>
+    </tbody>
+  </table>
+
+  <h3>In the Code view</h3>
+  <p>Code view edits sit in a buffer until you commit them, so nothing changes the document until
+  you press <kbd>⌘⏎</kbd>. Folding helps when you are reading a deeply nested file.</p>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Commit the buffer</td><td><kbd>⌘⏎</kbd></td></tr>
+      <tr><td>Revert to the last saved state</td><td><kbd>Esc</kbd></td></tr>
+      <tr><td>Fold at the cursor</td><td><kbd>⌘[</kbd></td></tr>
+      <tr><td>Unfold at the cursor</td><td><kbd>⌘]</kbd></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Compare, validate &amp; settings</h2>
+  <p>Compare asks what to diff against — another open tab or a file on disk. Validate opens the
+  schema panel, where you attach a JSON Schema and read the errors it reports.</p>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Compare files</td><td><kbd>⌘D</kbd></td></tr>
+      <tr><td>Validate JSON</td><td><kbd>⌘⇧V</kbd></td></tr>
+      <tr><td>Settings</td><td><kbd>⌘,</kbd></td></tr>
+      <tr><td>Keyboard shortcuts</td><td><kbd>⌘/</kbd></td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="windows-and-linux">Windows and Linux</h2>
   <div class="callout">
-    <p><strong>On Windows and Linux,</strong> use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd>. To
-    discover everything else, open the command palette with <kbd>⌘K</kbd> and start typing.</p>
+    <p><strong>Use <kbd>Ctrl</kbd> in place of <kbd>⌘</kbd>.</strong> <kbd>⌘S</kbd> becomes
+    <kbd>Ctrl</kbd> <kbd>S</kbd>, <kbd>⌘⇧Z</kbd> becomes <kbd>Ctrl</kbd> <kbd>Shift</kbd>
+    <kbd>Z</kbd>, and so on. The row menu is the exception: it is <kbd>Ctrl</kbd> <kbd>Q</kbd> on
+    every platform, including macOS.</p>
   </div>
+
+  <h2>Command palette</h2>
+  <p>Press <kbd>⌘K</kbd> to open the palette. It fuzzy-matches every command by label and shows
+  the shortcut next to any command that has one, which makes it the fastest way to learn the keys
+  you don't know yet.</p>
+  <p>Plenty of actions have no shortcut and live only in the palette or the row menu: Go to Path,
+  Extract to New Tab, Sort Keys, Expand All, Copy Path, and the type generators for TypeScript,
+  Rust, Go and the rest. See <a href="/docs/type-generation">Type generation</a>.</p>
 </DocsLayout>
