@@ -163,7 +163,7 @@ pandia/
 │   │       ├── document.rs      # open documents; eager vs. lazy backing
 │   │       ├── lazy.rs / eager.rs   # lazy zero-copy slicing for large files
 │   │       ├── detect.rs        # format auto-detect & convert (JSON/YAML/XML/CSV/cURL)
-│   │       ├── typegen.rs       # type generation (9 targets)
+│   │       ├── typegen.rs       # type generation (10 targets)
 │   │       ├── diff.rs          # compare / diff
 │   │       ├── repair.rs        # repair malformed JSON
 │   │       ├── schema_validate.rs   # JSON Schema validation

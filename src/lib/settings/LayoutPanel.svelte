@@ -20,7 +20,7 @@
 	const PANEL_HINTS: Record<SidebarTabId, string> = {
 		outline: 'collapsible document path tree',
 		schema: 'JSON Schema validation',
-		types: 'type generation (9 targets)',
+		types: 'type generation (10 targets)',
 		history: 'op-log timeline of edits',
 	};
 

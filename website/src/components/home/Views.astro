@@ -204,10 +204,10 @@
     background: var(--page-bg-2); transition: all var(--dur) var(--ease); position: relative;
   }
   .pandia-page .vtab:last-child { border-right: 0; }
-  .pandia-page .vtab .vk { color: var(--page-ghost); font-size: 10.5px; }
+  .pandia-page .vtab .vk { color: var(--page-faint); font-size: 10.5px; }
   .pandia-page .vtab:hover { color: var(--page-text); background: var(--page-card); }
   .pandia-page .vtab.on { color: var(--page-text); background: var(--page-card); }
-  .pandia-page .vtab.on .vk { color: var(--accent); }
+  .pandia-page .vtab.on .vk { color: var(--accent-text); }
   .pandia-page .vtab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); z-index: 2; }
 
   .pandia-page .views-stage { border: 1px solid var(--page-rule); background: var(--app-bg); position: relative; overflow: hidden; }
@@ -225,7 +225,7 @@
     font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
     color: var(--app-faint); border-right: 1px solid var(--app-rule); position: relative;
   }
-  .pandia-page .vm .vk { color: var(--app-ghost); }
+  .pandia-page .vm .vk { color: var(--app-faint); }
   .pandia-page .vm.active { color: var(--app-text); background: var(--app-elev-2); }
   .pandia-page .vm.active .vk { color: var(--accent); }
   .pandia-page .vm.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }

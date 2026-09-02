@@ -73,10 +73,10 @@ Most JSON editors hit a wall around 50–100 MB — the tab freezes, the scrollb
 
 ### Generate types
 
-One click, **nine targets**:
+One click, **ten targets**:
 
 <p align="center">
-  TypeScript · Zod · Go · Rust · Kotlin · Python · PHP · Java · JSON Schema
+  TypeScript · Zod · Go · Rust · Kotlin · Python · PHP · Java · Dart · JSON Schema
 </p>
 
 ### Validate against schemas

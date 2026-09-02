@@ -280,6 +280,55 @@ final readonly class Root
     ],
   },
   {
+    slug: 'dart',
+    kind: 'type',
+    name: 'Dart',
+    title: 'JSON to Dart — Generate Flutter Model Classes',
+    description: 'Convert JSON to null-safe Dart classes with fromJson and toJson built in. Runs on your machine. No upload, no size limit. Free and open source.',
+    sub: 'Generate null-safe Dart model classes from any JSON document — with <code>fromJson</code> and <code>toJson</code> already written, and no build step to run.',
+    inputJson: TYPE_INPUT,
+    outputLang: 'Dart',
+    output: `class Root {
+  const Root({
+    required this.active,
+    required this.id,
+    required this.name,
+    required this.tags,
+  });
+
+  factory Root.fromJson(Map<String, dynamic> json) => Root(
+        active: json['active'] as bool,
+        id: json['id'] as int,
+        name: json['name'] as String,
+        tags: List<String>.from(json['tags'] as List<dynamic>),
+      );
+
+  final bool active;
+  final int id;
+  final String name;
+  final List<String> tags;
+
+  Map<String, dynamic> toJson() => {
+        'active': active,
+        'id': id,
+        'name': name,
+        'tags': tags,
+      };
+}`,
+    intro: 'Pandia turns a JSON document into plain Dart classes with null safety applied. Every class gets a <code>const</code> constructor, <code>final</code> fields, a <code>fromJson</code> factory and a <code>toJson</code> method — so the serialization code you would normally generate with <code>build_runner</code> is already in the output. Nested objects and arrays become their own classes and <code>List&lt;T&gt;</code>.',
+    bullets: [
+      'Null-safe classes with <code>final</code> fields and a <code>const</code> constructor.',
+      '<code>fromJson</code> and <code>toJson</code> included — no <code>json_serializable</code>, no <code>build_runner</code>.',
+      'Optional fields become nullable (<code>?</code>) and drop out of the required parameters.',
+      'Field names become <code>lowerCamelCase</code> while the original JSON keys stay in the maps.',
+    ],
+    faq: [
+      { q: 'How do I generate Dart classes from JSON?', a: 'Open the Types panel in Pandia, choose Dart, and copy the generated classes into your Flutter or Dart project.' },
+      { q: 'Do I need json_serializable or build_runner?', a: 'No. Each class carries its own fromJson factory and toJson method, so there is no code generation step and no extra package to add.' },
+      { q: 'Is the output null-safe?', a: 'Yes. Fields missing from some objects become nullable and are left out of the required constructor parameters, so the classes compile under Dart null safety.' },
+    ],
+  },
+  {
     slug: 'json-schema',
     kind: 'type',
     name: 'JSON Schema',

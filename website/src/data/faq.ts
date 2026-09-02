@@ -18,7 +18,7 @@ export const faqs: FaqItem[] = [
   },
   {
     q: 'Can it generate types from my JSON?',
-    a: "Yes — nine targets: <code>TypeScript</code>, <code>Rust</code>, <code>Go</code>, <code>Kotlin</code>, <code>Python</code>, <code>PHP</code>, <code>Java</code>, <code>Zod</code> and <code>JSON Schema (2020-12)</code>. Optional fields are inferred from the data; generation is deliberately not configurable.",
+    a: "Yes — ten targets: <code>TypeScript</code>, <code>Rust</code>, <code>Go</code>, <code>Kotlin</code>, <code>Python</code>, <code>PHP</code>, <code>Java</code>, <code>Dart</code>, <code>Zod</code> and <code>JSON Schema (2020-12)</code>. Optional fields are inferred from the data; generation is deliberately not configurable.",
   },
   {
     q: 'Does it have a query language like jq or JMESPath?',

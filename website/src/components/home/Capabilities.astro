@@ -41,10 +41,10 @@ const icons: Record<string, string> = {
         <button class="cap-item on" data-cap="typegen" role="tab" tabindex="0" aria-selected="true" type="button">
           <span class="cap-ico" set:html={icons.typegen}></span>
           <span class="cap-txt">
-            <span class="cap-h">Generate types — 9 targets</span>
+            <span class="cap-h">Generate types — 10 targets</span>
             <span class="cap-p">Turn any document into ready-to-paste definitions. Optionals are inferred for you.</span>
             <span class="langs">
-              <span class="on">TypeScript</span><span>Rust</span><span>Go</span><span>Kotlin</span><span>Python</span><span>PHP</span><span>Java</span><span>Zod</span><span>JSON&nbsp;Schema</span>
+              <span class="on">TypeScript</span><span>Rust</span><span>Go</span><span>Kotlin</span><span>Python</span><span>PHP</span><span>Java</span><span>Dart</span><span>Zod</span><span>JSON&nbsp;Schema</span>
             </span>
           </span>
         </button>
@@ -222,7 +222,7 @@ const icons: Record<string, string> = {
     font-family: var(--mono); font-size: 13px; color: var(--page-dim); background: var(--page-bg);
   }
   .pandia-page .cap-ico svg { width: 17px; height: 17px; }
-  .pandia-page .cap-item.on .cap-ico { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+  .pandia-page .cap-item.on .cap-ico { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
   .pandia-page .cap-txt { display: flex; flex-direction: column; min-width: 0; }
   .pandia-page .cap-h { font-family: var(--disp); font-size: 16px; font-weight: 600; color: var(--page-text); letter-spacing: -0.01em; }
   .pandia-page .cap-p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 3px; line-height: 1.5; }
@@ -231,7 +231,7 @@ const icons: Record<string, string> = {
     font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
     color: var(--page-dim); border: 1px solid var(--page-rule-2); padding: 2px 7px; background: var(--page-bg);
   }
-  .pandia-page .cap-txt .langs span.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+  .pandia-page .cap-txt .langs span.on { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
 
   .pandia-page .cap-spot { background: var(--app-bg); color: var(--app-text); position: relative; overflow: hidden; display: flex; }
   .pandia-page .cap-spot .spot-panel { display: none; flex: 1; flex-direction: column; min-width: 0; }
@@ -269,7 +269,7 @@ const icons: Record<string, string> = {
      typegen capability uses the same single slide (capSlide) as every other panel. */
 
   .pandia-page .scl { display: flex; padding: 0 18px; }
-  .pandia-page .scl .lno { width: 26px; flex-shrink: 0; color: var(--app-ghost); text-align: right; padding-right: 16px; user-select: none; }
+  .pandia-page .scl .lno { width: 26px; flex-shrink: 0; color: var(--app-faint); text-align: right; padding-right: 16px; user-select: none; }
   .pandia-page .kw { color: var(--s-bool); }
   .pandia-page .ty { color: var(--s-string); }
   .pandia-page .pr { color: var(--app-text); }

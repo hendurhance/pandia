@@ -84,12 +84,12 @@ function inline(md: string): string {
       font-family: var(--disp); font-size: clamp(42px, 6vw, 72px); font-weight: 700;
       letter-spacing: -0.035em; line-height: 0.98; margin-top: 16px; color: var(--page-text);
     }
-    .pandia-page.cl-page .cl-top h1 em { font-style: normal; color: var(--accent); }
+    .pandia-page.cl-page .cl-top h1 em { font-style: normal; color: var(--accent-text); }
     .pandia-page.cl-page .cl-top p {
       font-family: var(--disp); font-size: clamp(16px, 1.6vw, 19px); color: var(--page-dim);
       max-width: 58ch; margin: 20px 0 0; line-height: 1.6;
     }
-    .pandia-page.cl-page .cl-top p a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .pandia-page.cl-page .cl-top p a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
     .pandia-page.cl-page .cl-cta { margin-top: 28px; }
 
     .pandia-page.cl-page .cl-list { padding-top: 8px; }
@@ -102,12 +102,12 @@ function inline(md: string): string {
     .pandia-page.cl-page .cl-tag {
       display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 10px;
       letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 9px; border: 1px solid var(--accent-line);
-      color: var(--accent); background: var(--accent-soft);
+      color: var(--accent-text); background: var(--accent-soft);
     }
     .pandia-page.cl-page .cl-tag.stable { color: var(--green); border-color: var(--green); background: transparent; }
     .pandia-page.cl-page .cl-date { display: block; margin-top: 14px; font-family: var(--mono); font-size: 12px; color: var(--page-faint); letter-spacing: 0.03em; }
     .pandia-page.cl-page .cl-link { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 12px; color: var(--page-dim); }
-    .pandia-page.cl-page .cl-link:hover { color: var(--accent); }
+    .pandia-page.cl-page .cl-link:hover { color: var(--accent-text); }
 
     .pandia-page.cl-page .cl-group + .cl-group { margin-top: 26px; }
     .pandia-page.cl-page .cl-group-label {
@@ -132,7 +132,7 @@ function inline(md: string): string {
       color: var(--page-text); white-space: nowrap;
     }
     .pandia-page.cl-page .cl-changes a {
-      color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+      color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px;
     }
     .pandia-page.cl-page .cl-changes li::before { content: ""; position: absolute; left: 0; top: 19px; width: 7px; height: 1.5px; background: var(--accent); }
 

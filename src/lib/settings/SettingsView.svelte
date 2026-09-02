@@ -63,8 +63,8 @@
 					<p class="muted">
 						A JSON IDE built for files the rest of your tools choke on. Open multi-gigabyte
 						documents instantly, navigate them as a tree, code, table or node graph, diff two
-						versions, generate types in nine languages, validate against JSON Schema. Everything
-						runs locally; nothing leaves your machine.
+						versions, generate types in ten languages, validate against JSON Schema. Everything runs
+						locally; nothing leaves your machine.
 					</p>
 					<div class="links">
 						<button class="link-btn" onclick={() => void openInBrowser('https://www.pandia.app')}

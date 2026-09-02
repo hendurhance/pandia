@@ -3,14 +3,14 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 ---
 <DocsLayout
   title="Type generation"
-  description="Turn any JSON document into ready-to-paste type definitions for 9 languages — TypeScript, Rust, Go, Kotlin, Python, PHP, Java, Zod and JSON Schema."
+  description="Turn any JSON document into ready-to-paste type definitions for 10 languages — TypeScript, Rust, Go, Kotlin, Python, PHP, Java, Dart, Zod and JSON Schema."
   currentDoc="/docs/type-generation"
 >
   <h1>Type generation</h1>
-  <p class="lead">Turn any document into ready-to-paste type definitions for 9 languages.</p>
+  <p class="lead">Turn any document into ready-to-paste type definitions for 10 languages.</p>
 
   <h2>Targets</h2>
-  <p>Pandia generates types for nine targets:</p>
+  <p>Pandia generates types for ten targets:</p>
   <table>
     <thead>
       <tr><th>Target</th><th>Output</th></tr>
@@ -19,12 +19,13 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
       <tr><td><a href="/json-to-typescript">TypeScript</a></td><td><code>export interface</code></td></tr>
       <tr><td><a href="/json-to-rust">Rust</a></td><td>Derived <code>struct</code></td></tr>
       <tr><td><a href="/json-to-go">Go</a></td><td><code>struct</code> with JSON tags</td></tr>
-      <tr><td>Kotlin</td><td><code>data class</code></td></tr>
+      <tr><td><a href="/json-to-kotlin">Kotlin</a></td><td><code>data class</code></td></tr>
       <tr><td><a href="/json-to-python">Python</a></td><td><code>@dataclass</code></td></tr>
-      <tr><td>PHP</td><td><code>final readonly class</code></td></tr>
-      <tr><td>Java</td><td>POJO with getters and setters</td></tr>
+      <tr><td><a href="/json-to-php">PHP</a></td><td><code>final readonly class</code></td></tr>
+      <tr><td><a href="/json-to-java">Java</a></td><td>POJO with getters and setters</td></tr>
+      <tr><td><a href="/json-to-dart">Dart</a></td><td>Null-safe class with <code>fromJson</code></td></tr>
       <tr><td><a href="/json-to-zod">Zod</a></td><td><code>z.object(...)</code> schema</td></tr>
-      <tr><td>JSON Schema</td><td>Draft 2020-12</td></tr>
+      <tr><td><a href="/json-to-json-schema">JSON Schema</a></td><td>Draft 2020-12</td></tr>
     </tbody>
   </table>
 
@@ -60,7 +61,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   <h2>Next steps</h2>
   <p>Per-language guides: <a href="/json-to-typescript">JSON to TypeScript</a>,
   <a href="/json-to-rust">Rust</a>, <a href="/json-to-go">Go</a>,
-  <a href="/json-to-python">Python</a> and <a href="/json-to-zod">Zod</a> — or browse
+  <a href="/json-to-python">Python</a>, <a href="/json-to-dart">Dart</a> and <a href="/json-to-zod">Zod</a> — or browse
   <a href="/json-converter">all JSON converters</a>.</p>
   <p>Need the data itself out, not just its types? See <a href="/docs/export">Export</a>.</p>
 </DocsLayout>
