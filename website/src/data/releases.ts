@@ -13,6 +13,34 @@ export interface Release {
 
 export const releases: Release[] = [
 	{
+		version: '1.0.7',
+		date: 'September 30, 2026',
+		tag: 'Stable',
+		tagKind: 'stable',
+		groups: [
+			{
+				label: 'New',
+				items: [
+					{
+						title: 'Grid view shows where newlines are',
+						detail:
+							'A cell containing line breaks now displays a dim ↵ at each break instead of silently joining the lines. The row stays compact; hover or click the cell to read the full value.',
+					},
+				],
+			},
+			{
+				label: 'Fixed',
+				items: [
+					{
+						title: 'AppImage accepted into the AppImage catalog',
+						detail:
+							'The build was missing the `.DirIcon` file the catalog requires. It is now injected after every Linux release build, GPG-signed and re-packaged automatically.',
+					},
+				],
+			},
+		],
+	},
+	{
 		version: '1.0.6',
 		date: 'August 26, 2026',
 		tag: 'Stable',
