@@ -149,6 +149,7 @@ jobs:
 
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
+          rm -f squashfs-root/.DirIcon
           cp src-tauri/icons/128x128@2x.png squashfs-root/.DirIcon
 
           curl -fsSL -o /tmp/appimagetool \
