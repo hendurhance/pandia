@@ -151,6 +151,7 @@ jobs:
           "$APPIMAGE" --appimage-extract
           rm -f squashfs-root/.DirIcon
           cp src-tauri/icons/128x128@2x.png squashfs-root/.DirIcon
+          chmod +x squashfs-root/AppRun
 
           curl -fsSL -o /tmp/appimagetool \
             "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
