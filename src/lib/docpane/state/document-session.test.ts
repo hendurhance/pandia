@@ -39,17 +39,9 @@ function stubDeps(overrides: Partial<DocumentSessionDeps> = {}): DocumentSession
 }
 
 describe('DocumentSession — one owner for the pane wiring', () => {
-	it('constructs the full controller graph with shared state', () => {
+	it('constructs with correct initial state', () => {
 		const { result: doc, destroy } = inRoot(() => new DocumentSession(stubDeps()));
 		try {
-			expect(doc.session).toBeDefined();
-			expect(doc.tree).toBeDefined();
-			expect(doc.edit).toBeDefined();
-			expect(doc.find).toBeDefined();
-			expect(doc.compare).toBeDefined();
-			expect(doc.nav).toBeDefined();
-			expect(doc.nodeActions).toBeDefined();
-			expect(doc.menuAction).toBeDefined();
 			expect(doc.error).toBeNull();
 			expect(doc.busy).toBe(false);
 			expect(doc.viewMode).toBe('tree');

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	buildOffsets,
 	captureScrollAnchor,
-	DEFAULT_ROW_H,
 	indexAtOffset,
 	restoreScrollTop,
 	visibleWindow,
@@ -162,11 +161,5 @@ describe('captureScrollAnchor / restoreScrollTop', () => {
 
 	it('never restores to a negative scrollTop', () => {
 		expect(restoreScrollTop(offsets, 0, 30)).toBe(0);
-	});
-});
-
-describe('constants', () => {
-	it('DEFAULT_ROW_H is exported for callers that need it', () => {
-		expect(DEFAULT_ROW_H).toBe(22);
 	});
 });

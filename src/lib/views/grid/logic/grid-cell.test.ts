@@ -12,17 +12,6 @@ import {
 	inspectorText,
 } from './grid-cell';
 
-describe('kindOf', () => {
-	it('maps JS values to NodeKind', () => {
-		expect(kindOf(null)).toBe('null');
-		expect(kindOf(true)).toBe('bool');
-		expect(kindOf(42)).toBe('number');
-		expect(kindOf('x')).toBe('string');
-		expect(kindOf([1, 2])).toBe('array');
-		expect(kindOf({ a: 1 })).toBe('object');
-	});
-});
-
 describe('cellText', () => {
 	it('renders scalars as bare values', () => {
 		expect(cellText(null)).toBe('—');
@@ -50,6 +39,11 @@ describe('cellText', () => {
 		expect(out.length).toBe(501);
 		expect(out.endsWith('…')).toBe(true);
 	});
+	it('preserves newlines in output for styled rendering', () => {
+		expect(cellText('a\nb')).toBe('a\nb');
+		expect(cellText('a\r\nb')).toBe('a\r\nb');
+		expect(cellText('line1\nline2\nline3')).toBe('line1\nline2\nline3');
+	});
 });
 
 describe('isAlignRight', () => {
@@ -75,6 +69,9 @@ describe('cellRender', () => {
 		expect(cellRender(MISSING)).toBe('');
 		expect(cellRender(42)).toBe('42');
 	});
+	it('preserves newlines for styled rendering', () => {
+		expect(cellRender('a\nb')).toBe('a\nb');
+	});
 });
 
 describe('cellTitle', () => {
@@ -85,6 +82,9 @@ describe('cellTitle', () => {
 		expect(cellTitle(null)).toBe('null');
 		expect(cellTitle({ a: 1 })).toBe('{"a":1}');
 		expect(cellTitle(42)).toBe('42');
+	});
+	it('preserves raw newlines for tooltip', () => {
+		expect(cellTitle('a\nb')).toBe('a\nb');
 	});
 });
 

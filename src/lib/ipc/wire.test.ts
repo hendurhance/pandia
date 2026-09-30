@@ -6,10 +6,22 @@ import {
 	encodeLossless,
 	asLosslessText,
 	isLosslessNumber,
+	kindOf,
 	LosslessNumber,
 } from './wire';
 
 const t = asLosslessText;
+
+describe('kindOf', () => {
+	it('maps JS values to NodeKind', () => {
+		expect(kindOf(null)).toBe('null');
+		expect(kindOf(true)).toBe('bool');
+		expect(kindOf(42)).toBe('number');
+		expect(kindOf('x')).toBe('string');
+		expect(kindOf([1, 2])).toBe('array');
+		expect(kindOf({ a: 1 })).toBe('object');
+	});
+});
 
 describe('decodeLossless', () => {
 	it('keeps an integer beyond 2^53 lossless', () => {
