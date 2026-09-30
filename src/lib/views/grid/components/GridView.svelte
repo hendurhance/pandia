@@ -403,6 +403,7 @@
 						{#each orderedColumns as col, i (col.key)}
 							{#if i >= colWindow.start && i < colWindow.end}
 								{@const v = data.getCell(rowIdx, col.key)}
+								{@const text = cellRender(v)}
 								<div
 									class={cellClass(v)}
 									class:selected={selection.selected?.row === rowIdx &&
@@ -414,7 +415,14 @@
 									onclick={() => selection.selectCell(rowIdx, col.key)}
 									onkeydown={(e) => selection.onCellKeydown(e, rowIdx, col.key)}
 								>
-									{cellRender(v)}
+									{#if text.includes('\n') || text.includes('\r')}
+										{@const parts = text.replace(/\r\n|\r/g, '\n').split('\n')}
+										{#each parts as seg, j (j)}
+											{#if j > 0}<span class="nl">↵</span>{/if}{seg}
+										{/each}
+									{:else}
+										{text}
+									{/if}
 								</div>
 							{/if}
 						{/each}
@@ -658,5 +666,9 @@
 	.cell.selected {
 		background: var(--accent-soft);
 		box-shadow: inset 0 0 0 1px var(--accent);
+	}
+	.nl {
+		color: var(--text-faint);
+		padding: 0 0.15ch;
 	}
 </style>

@@ -95,8 +95,8 @@ Download the latest version for your platform from [releases](https://github.com
 
 | Chip | Download |
 |---|---|
-| Apple Silicon (M1 / M2 / M3 / M4 / M5 / M6 and newer) | [`Pandia_1.0.6_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_aarch64.dmg) |
-| Intel | [`Pandia_1.0.6_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_x64.dmg) |
+| Apple Silicon (M1 / M2 / M3 / M4 / M5 / M6 and newer) | [`Pandia_1.0.7_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_aarch64.dmg) |
+| Intel | [`Pandia_1.0.7_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_x64.dmg) |
 
 The macOS bundle is signed and notarised.
 
@@ -120,15 +120,15 @@ brew untap hendurhance/tap
 
 | Type | Download |
 |---|---|
-| Installer | [`Pandia_1.0.6_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_x64-setup.exe) |
-| MSI | [`Pandia_1.0.6_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_x64_en-US.msi) |
+| Installer | [`Pandia_1.0.7_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_x64-setup.exe) |
+| MSI | [`Pandia_1.0.7_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_x64_en-US.msi) |
 
 ### Linux
 
 | Format | Download |
 |---|---|
-| AppImage | [`Pandia_1.0.6_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_amd64.AppImage) |
-| Debian / Ubuntu | [`Pandia_1.0.6_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.6_amd64.deb) |
+| AppImage | [`Pandia_1.0.7_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_amd64.AppImage) |
+| Debian / Ubuntu | [`Pandia_1.0.7_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_amd64.deb) |
 
 Linux bundles are GPG-signed; the public key is published with each release.
 

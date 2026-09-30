@@ -126,3 +126,44 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # ── AppImage .DirIcon
+      - name: AppImage .DirIcon
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGN_KEY: ${{ env.GPG_KEY_ID }}
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage \
+            -maxdepth 1 -name '*.AppImage' ! -name '*.tar.gz*' | head -1)
+          [ -z "$APPIMAGE" ] && { echo "No AppImage found"; exit 0; }
+
+          NAME=$(basename "$APPIMAGE")
+          DIR=$(dirname "$APPIMAGE")
+
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract
+          cp src-tauri/icons/128x128@2x.png squashfs-root/.DirIcon
+
+          curl -fsSL -o /tmp/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x /tmp/appimagetool
+          ARCH=x86_64 SIGN=1 /tmp/appimagetool --appimage-extract-and-run \
+            squashfs-root "$APPIMAGE"
+
+          tar -czf "${APPIMAGE}.tar.gz" -C "$DIR" "$NAME"
+          npx tauri signer sign "${APPIMAGE}.tar.gz"
+
+          for S in "" ".tar.gz" ".tar.gz.sig"; do
+            gh release delete-asset "$TAG" "${NAME}${S}" --yes 2>/dev/null || true
+          done
+          gh release upload "$TAG" \
+            "$APPIMAGE" "${APPIMAGE}.tar.gz" "${APPIMAGE}.tar.gz.sig"
+
+          rm -rf squashfs-root /tmp/appimagetool
