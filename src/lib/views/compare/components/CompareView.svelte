@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import CodeView from '$lib/views/code/CodeView.svelte';
 	import InlineDiffView from './InlineDiffView.svelte';
 	import CompareTree from './CompareTree.svelte';
@@ -19,6 +20,8 @@
 		rightSourceSize: number;
 		leftName: string;
 		rightName: string;
+		leftVersion: number;
+		rightVersion: number;
 
 		staleSource?: boolean;
 
@@ -32,6 +35,8 @@
 		rightSourceSize,
 		leftName,
 		rightName,
+		leftVersion,
+		rightVersion,
 		staleSource = false,
 		onExit,
 	}: Props = $props();
@@ -53,10 +58,18 @@
 	}
 
 	let syncScroll = $state(true);
+	let centering = $state(false);
 	const sync = createSyncScrollPair({ enabled: true });
 	$effect(() => {
-		sync.setEnabled(syncScroll);
+		sync.setEnabled(syncScroll && !centering);
 	});
+
+	function bindPane(side: 'left' | 'right', el: HTMLElement) {
+		sync.bind(side, el);
+		for (const type of ['wheel', 'pointerdown', 'keydown', 'touchstart']) {
+			el.addEventListener(type, () => (centering = false), { passive: true });
+		}
+	}
 
 	$effect(() => {
 		return () => {
@@ -67,6 +80,9 @@
 	$effect(() => {
 		const l = leftHandle;
 		const r = rightHandle;
+		void leftVersion;
+		void rightVersion;
+		const kept = untrack(() => entries[activeIndex]?.path);
 		if (staleSource) {
 			loading = false;
 			error = null;
@@ -75,25 +91,32 @@
 			activeHunk = 0;
 			return;
 		}
+		let cancelled = false;
+		const jobId = crypto.randomUUID();
 		loading = true;
 		error = null;
 		entries = [];
 		activeIndex = -1;
 		activeHunk = 0;
 		void ipc
-			.docDiff(l, r, null)
+			.docDiff(l, r, jobId)
 			.then((es) => {
-				if (leftHandle === l && rightHandle === r) {
+				if (!cancelled) {
 					entries = es;
-					if (es.length > 0) activeIndex = 0;
+					const i = kept ? es.findIndex((e) => pathKey(e.path) === pathKey(kept)) : -1;
+					if (es.length > 0) activeIndex = Math.max(i, 0);
 				}
 			})
 			.catch((e) => {
-				if (leftHandle === l && rightHandle === r) error = describeError(e);
+				if (!cancelled) error = describeError(e);
 			})
 			.finally(() => {
-				if (leftHandle === l && rightHandle === r) loading = false;
+				if (!cancelled) loading = false;
 			});
+		return () => {
+			cancelled = true;
+			void ipc.cancelJob(jobId).catch(() => {});
+		};
 	});
 
 	function kindGlyph(k: DiffEntry['kind']): string {
@@ -114,16 +137,16 @@
 	}
 
 	function leftPathOf(e: DiffEntry): Path {
-		if (e.kind !== 'moved' || e.fromIndex == null) return e.path;
-		return [...e.path.slice(0, -1), e.fromIndex];
+		return e.leftPath ?? e.path;
 	}
 
 	function entryPathDisplay(e: DiffEntry): string {
-		if (e.kind !== 'moved' || e.fromIndex == null) return pathToString(e.path);
+		if (e.kind !== 'moved') return pathToString(e.path);
 		const parent = e.path.slice(0, -1);
 		const parentStr = parent.length === 0 ? '$' : pathToString(parent);
+		const fromIdx = leftPathOf(e)[e.path.length - 1];
 		const toIdx = e.path[e.path.length - 1];
-		return `${parentStr}[${e.fromIndex}→${toIdx}]`;
+		return `${parentStr}[${fromIdx}→${toIdx}]`;
 	}
 
 	function selectEntry(i: number) {
@@ -170,9 +193,14 @@
 	const activePath = $derived<Path | null>(
 		activeIndex >= 0 && activeIndex < entries.length ? (entries[activeIndex]?.path ?? null) : null,
 	);
+	$effect(() => {
+		void activePath;
+		centering = true;
+	});
 
 	let chPx = $state(0);
 	let headW = $state(0);
+	let syncW = $state(0);
 	let inlineW = $state(0);
 
 	function measureCh(el: HTMLElement) {
@@ -186,6 +214,9 @@
 
 	const paneBudget = $derived(
 		chPx > 0 && headW > 0 ? Math.max(8, Math.floor((headW - 16) / chPx) - 5) : Infinity,
+	);
+	const rightBudget = $derived(
+		paneBudget === Infinity ? Infinity : Math.max(8, paneBudget - Math.ceil(syncW / chPx) - 1),
 	);
 	const inlineBudget = $derived(
 		chPx > 0 && inlineW > 0 ? Math.max(8, Math.floor(((inlineW - 40) / chPx - 8) / 2)) : Infinity,
@@ -212,42 +243,44 @@
 	});
 </script>
 
+{#snippet syncToggle()}
+	<button
+		class="btn sync-toggle"
+		class:btn-active={syncScroll}
+		bind:clientWidth={syncW}
+		onclick={() => (syncScroll = !syncScroll)}
+		title="Sync scroll between panes"
+		><Icon icon={ArrowDownUp} size="xs" /> Sync scroll{syncScroll ? ' · on' : ' · off'}</button
+	>
+{/snippet}
+
 <div class="compare-root">
 	<div class="navbar rule-b">
-		<button onclick={prev} disabled={navDisabled} title="Previous diff">← Prev</button>
-		<button onclick={next} disabled={navDisabled} title="Next diff">Next →</button>
+		<div class="seg" role="group" aria-label="Diff layout">
+			<button
+				class:active={mode === 'split'}
+				onclick={() => (mode = 'split')}
+				title="Side-by-side code panes">Side-by-side</button
+			>
+			<button
+				class:active={mode === 'tree'}
+				onclick={() => (mode = 'tree')}
+				title="Side-by-side trees with diff highlights">Tree</button
+			>
+			<button
+				class:active={mode === 'inline'}
+				onclick={() => (mode = 'inline')}
+				title="Unified single-column diff">Inline</button
+			>
+		</div>
+		<button class="btn" onclick={prev} disabled={navDisabled} title="Previous diff">← Prev</button>
+		<button class="btn" onclick={next} disabled={navDisabled} title="Next diff">Next →</button>
 		<span class="dim text-sm counter">
 			{#if mode === 'inline'}
 				{#if inlineHunkCount > 0}#{activeHunk + 1} / {inlineHunkCount}{/if}
 			{:else if mode === 'split' && activeIndex >= 0}#{activeIndex + 1} / {entries.length}{/if}
 		</span>
 		<span class="dim text-sm summary" title={summaryText}>{summaryText}</span>
-		<div class="mode-seg" role="group" aria-label="Diff layout">
-			<button
-				class:on={mode === 'split'}
-				onclick={() => (mode = 'split')}
-				title="Side-by-side code panes">Side-by-side</button
-			>
-			<button
-				class:on={mode === 'tree'}
-				onclick={() => (mode = 'tree')}
-				title="Side-by-side trees with diff highlights">Tree</button
-			>
-			<button
-				class:on={mode === 'inline'}
-				onclick={() => (mode = 'inline')}
-				title="Unified single-column diff">Inline</button
-			>
-		</div>
-		{#if mode === 'split' || mode === 'tree'}
-			<button
-				class="sync-toggle"
-				class:on={syncScroll}
-				onclick={() => (syncScroll = !syncScroll)}
-				title="Sync scroll between panes"
-				><Icon icon={ArrowDownUp} size="xs" /> Sync scroll{syncScroll ? ' · on' : ' · off'}</button
-			>
-		{/if}
 	</div>
 
 	{#if staleSource}
@@ -274,7 +307,14 @@
 					>R · {truncatePathMiddle(rightName, inlineBudget)}</span
 				>
 			</div>
-			<InlineDiffView {leftHandle} {rightHandle} {activeHunk} onMeta={onInlineMeta} />
+			<InlineDiffView
+				{leftHandle}
+				{rightHandle}
+				{leftVersion}
+				{rightVersion}
+				{activeHunk}
+				onMeta={onInlineMeta}
+			/>
 		{:else if mode === 'tree'}
 			{@const activeEntry = activeIndex >= 0 ? entries[activeIndex] : undefined}
 			<div class="split">
@@ -286,27 +326,31 @@
 					</div>
 					<CompareTree
 						handle={leftHandle}
+						version={leftVersion}
 						diff={leftDiff}
 						activePath={activeEntry ? leftPathOf(activeEntry) : null}
-						onScrollerReady={(el) => sync.bind('left', el)}
+						onScrollerReady={(el) => bindPane('left', el)}
 					/>
 				</div>
 				<div class="divider"></div>
 				<div class="pane">
 					<div class="pane-head rule-b">
 						<span class="dim text-sm file" title={rightName}
-							>R · {truncatePathMiddle(rightName, paneBudget)}</span
+							>R · {truncatePathMiddle(rightName, rightBudget)}</span
 						>
+						{@render syncToggle()}
 					</div>
 					<CompareTree
 						handle={rightHandle}
+						version={rightVersion}
 						diff={rightDiff}
 						{activePath}
-						onScrollerReady={(el) => sync.bind('right', el)}
+						onScrollerReady={(el) => bindPane('right', el)}
 					/>
 				</div>
 			</div>
 		{:else}
+			{@const activeEntry = activeIndex >= 0 ? entries[activeIndex] : undefined}
 			<div class="split">
 				<div class="pane">
 					<div class="pane-head rule-b" bind:clientWidth={headW}>
@@ -316,25 +360,28 @@
 					</div>
 					<CodeView
 						handle={leftHandle}
+						version={leftVersion}
 						sourceSize={leftSourceSize}
 						highlights={leftHighlights}
-						{activePath}
-						onScrollerReady={(el) => sync.bind('left', el)}
+						activePath={activeEntry ? leftPathOf(activeEntry) : null}
+						onScrollerReady={(el) => bindPane('left', el)}
 					/>
 				</div>
 				<div class="divider"></div>
 				<div class="pane">
 					<div class="pane-head rule-b">
 						<span class="dim text-sm file" title={rightName}
-							>R · {truncatePathMiddle(rightName, paneBudget)}</span
+							>R · {truncatePathMiddle(rightName, rightBudget)}</span
 						>
+						{@render syncToggle()}
 					</div>
 					<CodeView
 						handle={rightHandle}
+						version={rightVersion}
 						sourceSize={rightSourceSize}
 						highlights={rightHighlights}
 						{activePath}
-						onScrollerReady={(el) => sync.bind('right', el)}
+						onScrollerReady={(el) => bindPane('right', el)}
 					/>
 				</div>
 			</div>
@@ -364,11 +411,10 @@
 								{#if e.kind === 'moved'}
 									<span class="right">{e.leftPreview ?? ''}</span>
 								{:else}
-									{#if e.leftPreview !== undefined}<span class="left">{e.leftPreview}</span>{/if}
-									{#if e.leftPreview !== undefined && e.rightPreview !== undefined}<span
-											class="arrow">→</span
+									{#if e.leftPreview !== null}<span class="left">{e.leftPreview}</span>{/if}
+									{#if e.leftPreview !== null && e.rightPreview !== null}<span class="arrow">→</span
 										>{/if}
-									{#if e.rightPreview !== undefined}<span class="right">{e.rightPreview}</span>{/if}
+									{#if e.rightPreview !== null}<span class="right">{e.rightPreview}</span>{/if}
 								{/if}
 							</span>
 						</button>
@@ -394,8 +440,8 @@
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		padding: 0.3rem 0.75rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		background: var(--bg-elev);
 		min-width: 0;
 		overflow: hidden;
@@ -405,8 +451,8 @@
 		flex-shrink: 0;
 	}
 	.navbar button {
-		font-size: 11px;
-		padding: 0.15rem 0.6rem;
+		font-size: var(--font-size-sm);
+		padding: var(--space-2xs) var(--space-sm);
 	}
 	.summary {
 		flex: 1 1 auto;
@@ -416,13 +462,13 @@
 	}
 	.counter {
 		font-variant-numeric: tabular-nums;
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 	.counter:empty {
 		display: none;
 	}
 	.err {
-		color: var(--accent);
+		color: var(--danger);
 	}
 
 	.stale-notice {
@@ -430,90 +476,57 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 1.5rem;
+		padding: var(--space-lg);
 		background: var(--bg);
 	}
 	.stale-card {
 		max-width: 460px;
-		padding: 1.25rem 1.5rem;
+		padding: var(--space-lg);
 		background: var(--bg-elev);
 		border: 1px solid var(--rule);
-		border-left: 3px solid var(--accent);
+		border-left: 3px solid var(--warning);
 		border-radius: 4px;
 		color: var(--text);
 	}
 	.stale-title {
-		font-size: 13px;
-		font-weight: 600;
-		color: var(--accent);
-		margin-bottom: 0.5rem;
+		font-size: var(--font-size-base);
+		font-weight: 700;
+		color: var(--text);
+		margin-bottom: var(--space-sm);
 	}
 	.stale-body {
-		font-size: 12px;
+		font-size: var(--font-size-sm);
 		color: var(--text-dim);
 		line-height: 1.5;
-		margin: 0 0 1rem 0;
+		margin: 0 0 var(--space-md) 0;
 	}
 	.stale-exit {
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		letter-spacing: 0.08em;
-		padding: 0.25rem 0.8rem;
+		padding: var(--space-xs) var(--space-md);
 		background: transparent;
 		border: 1px solid var(--rule-2);
 		color: var(--text);
 		cursor: pointer;
 	}
 	.stale-exit:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+		background: var(--bg-elev-2);
 	}
 
 	.sync-toggle {
-		font-size: 10.5px;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		padding: 0.15rem 0.6rem;
-		background: transparent;
-		border: var(--rule-width) solid var(--rule);
-		color: var(--text-faint);
-	}
-	.sync-toggle:hover {
-		color: var(--text-dim);
-	}
-	.sync-toggle.on {
-		color: var(--accent);
-		border-color: var(--accent-line);
-	}
-
-	.mode-seg {
-		display: flex;
-	}
-	.mode-seg button {
-		font-size: 10.5px;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		padding: 0.15rem 0.6rem;
-		background: transparent;
-		border: var(--rule-width) solid var(--rule);
-		color: var(--text-faint);
-	}
-	.mode-seg button:not(:last-child) {
-		border-right: none;
-	}
-	.mode-seg button:hover {
-		color: var(--text-dim);
-	}
-	.mode-seg button.on {
-		color: var(--accent);
-		border-color: var(--accent-line);
+		flex-shrink: 0;
+		margin-left: auto;
+		padding-block: 0;
+		/* Cancels the border so the right header matches the left one's height and the panes' lines stay aligned. */
+		margin-block: calc(-1 * var(--rule-width));
 	}
 
 	.inline-head {
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.25rem 0.6rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		background: var(--bg-elev);
 		white-space: nowrap;
 		overflow: hidden;
@@ -545,7 +558,8 @@
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		padding: 0.25rem 0.6rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		background: var(--bg-elev);
 		white-space: nowrap;
 		overflow: hidden;
@@ -567,18 +581,18 @@
 		background: var(--bg-elev);
 	}
 	.empty-line {
-		padding: 0.5rem 0.75rem;
+		padding: var(--space-sm);
 	}
 
 	.entry {
 		display: grid;
 		grid-template-columns: 18px minmax(180px, 1fr) 2fr;
-		gap: 0.6rem;
+		gap: var(--space-sm);
 		align-items: center;
 		width: 100%;
 		text-align: left;
-		padding: 0.2rem 0.75rem;
-		font-size: 12px;
+		padding: var(--space-2xs) var(--space-sm);
+		font-size: var(--font-size-sm);
 		background: transparent;
 		border: none;
 		border-bottom: 1px solid var(--rule);
@@ -586,7 +600,7 @@
 		cursor: pointer;
 	}
 	.entry:hover {
-		background: rgba(255, 255, 255, 0.02);
+		background: var(--bg-elev-2);
 	}
 	.entry.active {
 		background: var(--accent-soft);
@@ -594,20 +608,20 @@
 	}
 
 	.glyph {
-		font-weight: 600;
+		font-weight: 700;
 		text-align: center;
 	}
 	.glyph[data-kind='added'] {
 		color: var(--success);
 	}
 	.glyph[data-kind='removed'] {
-		color: var(--accent);
+		color: var(--danger);
 	}
 	.glyph[data-kind='changed'] {
 		color: var(--warning);
 	}
 	.glyph[data-kind='moved'] {
-		color: var(--mauve);
+		color: var(--syntax-boolean);
 	}
 
 	.path {
@@ -618,7 +632,7 @@
 	}
 	.preview {
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		align-items: center;
 		color: var(--text-dim);
 		white-space: nowrap;

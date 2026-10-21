@@ -55,13 +55,11 @@
 		z-index: 3;
 		display: flex;
 		align-items: stretch;
-		gap: 2px;
-		padding: 4px;
+		gap: var(--space-2xs);
+		padding: var(--space-xs);
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
-		box-shadow:
-			0 1px 0 rgba(0, 0, 0, 0.4),
-			0 8px 24px rgba(0, 0, 0, 0.35);
+		box-shadow: var(--shadow-pop);
 		min-width: 320px;
 		max-width: 420px;
 		font-size: var(--font-size-sm);

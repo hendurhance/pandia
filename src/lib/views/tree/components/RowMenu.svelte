@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { pathToString } from '$lib/util/path';
-	import { fmtKbd } from '$lib/util/platform';
 	import Popover from '$lib/ui/Popover.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronRight } from '@lucide/svelte';
@@ -42,7 +41,10 @@
 			</div>
 
 			{#each groups as group, gi (gi)}
-				{#if gi > 0}<div class="menu-divider"></div>{/if}
+				{#if gi > 0}<div
+						class="menu-divider"
+						class:rule={group.some((it) => it.type === 'action' && it.danger)}
+					></div>{/if}
 				{#each group as item (item.type === 'sub' ? 's:' + item.label : 'a:' + item.action)}
 					{#if item.type === 'action'}
 						<button
@@ -74,10 +76,6 @@
 					{/if}
 				{/each}
 			{/each}
-
-			<div class="menu-tip">
-				right-click · <span class="kbd">{fmtKbd('⌃Q')}</span> · esc to close
-			</div>
 		</div>
 	{/snippet}
 </Popover>
@@ -88,19 +86,19 @@
 	}
 
 	.menu-head .target {
-		color: var(--accent-2);
+		color: var(--text-dim);
 		letter-spacing: 0;
 		text-transform: none;
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
 	.menu-item .ico {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		width: 12px;
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		text-align: center;
 		flex-shrink: 0;
 	}
@@ -108,8 +106,8 @@
 		flex: 1;
 	}
 	.menu-item .chev {
-		color: var(--text-faint);
-		font-size: 10px;
+		color: var(--text-dim);
+		font-size: var(--font-size-xs);
 		flex-shrink: 0;
 	}
 	.has-sub:focus-within {
@@ -117,7 +115,7 @@
 	}
 	.menu-item:hover:not(:disabled) .ico,
 	.menu-item:hover:not(:disabled) .chev {
-		color: var(--accent);
+		color: var(--text);
 	}
 
 	.menu-item.danger .ico {
@@ -138,8 +136,8 @@
 		min-width: 168px;
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule-2);
-		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-		padding: 4px 0;
+		box-shadow: var(--shadow-pop);
+		padding: var(--space-xs) 0;
 		z-index: 1001;
 		flex-direction: column;
 	}
@@ -153,13 +151,6 @@
 		right: 100%;
 	}
 	.sub-item {
-		padding-left: 16px;
-	}
-
-	.menu-tip .kbd {
-		color: var(--text-dim);
-		border: var(--rule-width) solid var(--rule-2);
-		padding: 0 4px;
-		font-size: 9.5px;
+		padding-left: var(--space-lg);
 	}
 </style>

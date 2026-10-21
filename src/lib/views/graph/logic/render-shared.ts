@@ -3,7 +3,7 @@ import type { GraphTheme } from './theme';
 
 export const CARD_RADIUS = 6;
 export const FONT_PX = 13;
-export const HEADER_FONT_WEIGHT = 600;
+export const HEADER_FONT_WEIGHT = 700;
 export const ROW_PAD_X = 11; // matches legacy .card-row padding (0.7rem ≈ 11.2px)
 export const SWATCH_W = 11;
 export const SWATCH_GAP = 6;

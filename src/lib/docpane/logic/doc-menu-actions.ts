@@ -35,6 +35,9 @@ export function createDocMenuActions(deps: DocMenuDeps) {
 			case 'extract':
 				await nodeActions.extract(row);
 				break;
+			case 'extract-column':
+				await nodeActions.extractColumn(row);
+				break;
 			case 'insert-before':
 				await nodeActions.insertSibling(row, 'before');
 				break;

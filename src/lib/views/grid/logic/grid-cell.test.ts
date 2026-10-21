@@ -1,4 +1,4 @@
-import { kindOf } from '$lib/ipc/wire';
+import { asLosslessText, decodeLossless, kindOf } from '$lib/ipc/wire';
 import { describe, it, expect } from 'vitest';
 import { LosslessNumber } from 'lossless-json';
 import {
@@ -86,6 +86,10 @@ describe('cellTitle', () => {
 	it('preserves raw newlines for tooltip', () => {
 		expect(cellTitle('a\nb')).toBe('a\nb');
 	});
+	it('keeps nested big and decimal numbers literal', () => {
+		const v = decodeLossless(asLosslessText('{"id": 1075283027435454464, "tags": [1.50]}'));
+		expect(cellTitle(v)).toBe('{"id":1075283027435454464,"tags":[1.50]}');
+	});
 });
 
 describe('inspectorText', () => {
@@ -96,5 +100,9 @@ describe('inspectorText', () => {
 		expect(inspectorText(null)).toBe('null');
 		expect(inspectorText({ a: 1 })).toBe('{\n  "a": 1\n}');
 		expect(inspectorText(42)).toBe('42');
+	});
+	it('pretty-prints nested big and decimal numbers literally', () => {
+		const v = decodeLossless(asLosslessText('{"id": 1075283027435454464, "tags": [1.50]}'));
+		expect(inspectorText(v)).toBe('{\n  "id": 1075283027435454464,\n  "tags": [\n    1.50\n  ]\n}');
 	});
 });

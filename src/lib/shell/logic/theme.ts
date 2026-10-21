@@ -1,3 +1,5 @@
+import { contrastRatio, luminance, mixHex, withAlpha } from '$lib/util/color';
+
 export interface ThemeColors {
 	bg: string;
 	bgElev: string;
@@ -59,8 +61,6 @@ export {
 	type ThemeFamily,
 } from './theme-palettes';
 
-import { DEFAULT_THEME } from './theme-palettes';
-
 export const APPEARANCE_CHANGE_EVENT = 'pandia:appearance-change';
 
 function emitAppearanceChange(): void {
@@ -94,31 +94,60 @@ export function applyTheme(theme: Theme): void {
 	r.style.setProperty('--success', theme.colors.success);
 	r.style.setProperty('--warning', theme.colors.warning);
 	r.style.setProperty('--danger', theme.colors.danger);
+	setDerivedShades(r, theme);
 	r.style.setProperty('color-scheme', theme.colorScheme);
 	emitAppearanceChange();
 }
 
-export type Density = 'compact' | 'normal' | 'comfortable';
+const SOFT_MIX = 0.14;
+const HOVER_MIX = 0.15;
+const LINE_TINT = 0.05;
+const DIFF_TINT = 0.18;
 
-export interface DensityTokens {
-	tight: string;
-	base: string;
-	loose: string;
-	lineHeight: string;
+// Shades are mixed into solid colours per theme rather than layered with opacity.
+function setDerivedShades(r: HTMLElement, theme: Theme): void {
+	const c = theme.colors;
+	const onAccent = readableOn(c.accent, c.bg);
+	r.style.setProperty('--on-accent', onAccent);
+	r.style.setProperty('--accent-hover', hoverShade(c.accent, onAccent));
+	r.style.setProperty('--danger-hover', hoverShade(c.danger, c.bg));
+	r.style.setProperty('--danger-soft', mixHex(c.bg, c.danger, SOFT_MIX));
+	r.style.setProperty('--success-soft', mixHex(c.bg, c.success, SOFT_MIX));
+	r.style.setProperty('--warning-soft', mixHex(c.bg, c.warning, SOFT_MIX));
+	r.style.setProperty('--moved-soft', mixHex(c.bg, c.syntaxBoolean, SOFT_MIX));
+	// Editor highlights sit above CodeMirror's selection layer, so they must stay translucent.
+	r.style.setProperty('--line-tint', withAlpha(c.text, LINE_TINT));
+	r.style.setProperty('--danger-tint', withAlpha(c.danger, DIFF_TINT));
+	r.style.setProperty('--success-tint', withAlpha(c.success, DIFF_TINT));
+	r.style.setProperty('--warning-tint', withAlpha(c.warning, DIFF_TINT));
+	const light = theme.colorScheme === 'light';
+	r.style.setProperty('--shadow-pop', `0 8px 24px rgba(0, 0, 0, ${light ? 0.12 : 0.35})`);
+	r.style.setProperty('--shadow-modal', `0 16px 48px rgba(0, 0, 0, ${light ? 0.18 : 0.5})`);
 }
 
-const DENSITY_PRESETS: Record<Density, DensityTokens> = {
-	compact: { tight: '0.2rem', base: '0.4rem', loose: '0.8rem', lineHeight: '1.4' },
-	normal: { tight: '0.25rem', base: '0.5rem', loose: '1rem', lineHeight: '1.55' },
-	comfortable: { tight: '0.3rem', base: '0.6rem', loose: '1.2rem', lineHeight: '1.7' },
+// The theme background stays the label colour wherever it reaches WCAG AA on the fill.
+function readableOn(fill: string, preferred: string): string {
+	if (contrastRatio(preferred, fill) >= 4.5) return preferred;
+	return contrastRatio('#111111', fill) >= contrastRatio('#ffffff', fill) ? '#111111' : '#ffffff';
+}
+
+// Hover moves the fill away from its label, so the label only gains contrast.
+function hoverShade(fill: string, label: string): string {
+	return mixHex(fill, luminance(label) < 0.5 ? '#ffffff' : '#000000', HOVER_MIX);
+}
+
+export type Density = 'compact' | 'normal' | 'comfortable';
+
+const DENSITY_PRESETS: Record<Density, { scale: number; lineHeight: string }> = {
+	compact: { scale: 0.8, lineHeight: '1.4' },
+	normal: { scale: 1, lineHeight: '1.55' },
+	comfortable: { scale: 1.2, lineHeight: '1.7' },
 };
 
 export function applyDensity(density: Density): void {
 	const t = DENSITY_PRESETS[density];
 	const r = document.documentElement;
-	r.style.setProperty('--space-tight', t.tight);
-	r.style.setProperty('--space-base', t.base);
-	r.style.setProperty('--space-loose', t.loose);
+	r.style.setProperty('--density', String(t.scale));
 	r.style.setProperty('--line-height', t.lineHeight);
 	emitAppearanceChange();
 }
@@ -140,13 +169,14 @@ export function applyFontSizeBase(px: number): void {
 	const clamped = Math.max(10, Math.min(20, px));
 	const r = document.documentElement;
 	r.style.setProperty('--font-size-base', `${clamped}px`);
-	r.style.setProperty('--font-size-sm', `${((clamped * 11) / 12.5).toFixed(2)}px`);
-	r.style.setProperty('--font-size-xs', `${((clamped * 10.5) / 12.5).toFixed(2)}px`);
+	r.style.setProperty('--font-size-sm', `${((clamped * 11.5) / 13).toFixed(2)}px`);
+	r.style.setProperty('--font-size-xs', `${((clamped * 10.5) / 13).toFixed(2)}px`);
+	r.style.setProperty('--font-size-lg', `${((clamped * 16) / 13).toFixed(2)}px`);
+	r.style.setProperty('--font-size-title', `${((clamped * 18) / 13).toFixed(2)}px`);
 	emitAppearanceChange();
 }
 
 export function resetAppearance(): void {
-	applyTheme(DEFAULT_THEME);
 	applyDensity('normal');
 	const r = document.documentElement;
 	r.style.removeProperty('--font-mono');
@@ -154,5 +184,7 @@ export function resetAppearance(): void {
 	r.style.removeProperty('--font-size-base');
 	r.style.removeProperty('--font-size-sm');
 	r.style.removeProperty('--font-size-xs');
+	r.style.removeProperty('--font-size-lg');
+	r.style.removeProperty('--font-size-title');
 	emitAppearanceChange();
 }

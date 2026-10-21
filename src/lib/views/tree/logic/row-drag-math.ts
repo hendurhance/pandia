@@ -1,9 +1,9 @@
-import type { ContentRow, Row } from './model';
+import { vgapCount, type ContentRow, type Row } from './model';
 
 export function siblingSlots(
 	rows: Row[],
 	di: number,
-): { slots: number[]; endIndex: number } | null {
+): { slots: number[]; endIndex: number; hidden: number[]; hiddenTotal: number } | null {
 	const dragged = rows[di];
 	if (!dragged || dragged.variant !== 'content' || dragged.depth === 0) return null;
 	const dd = dragged.depth;
@@ -11,16 +11,21 @@ export function siblingSlots(
 	while (pi >= 0 && !(rows[pi]?.variant === 'content' && rows[pi]?.depth === dd - 1)) pi--;
 	if (pi < 0) return null;
 	const slots: number[] = [];
+	const hidden: number[] = [];
+	let hiddenTotal = 0;
 	let i = pi + 1;
 	for (; i < rows.length; i++) {
 		const r = rows[i];
 		if (!r) break;
 		if (r.depth <= dd - 1) break; // parent's close row → end of the sibling region
-		if ((r.variant === 'content' || r.variant === 'placeholder') && r.depth === dd) {
+		if (r.depth !== dd) continue;
+		if (r.variant === 'vgap') hiddenTotal += vgapCount(r);
+		if (r.variant === 'content' || r.variant === 'placeholder') {
 			slots.push(i);
+			hidden.push(hiddenTotal);
 		}
 	}
-	return { slots, endIndex: i };
+	return { slots, endIndex: i, hidden, hiddenTotal };
 }
 
 export function gapAt(
@@ -31,7 +36,7 @@ export function gapAt(
 ): { gap: number; y: number; depth: number } | null {
 	const info = siblingSlots(rows, di);
 	if (!info) return null;
-	const { slots, endIndex } = info;
+	const { slots, endIndex, hidden, hiddenTotal } = info;
 	const dd = (rows[di] as ContentRow).depth;
 	let best = 0;
 	let bestDist = Infinity;
@@ -44,7 +49,8 @@ export function gapAt(
 		}
 	}
 	const rowIdx = best < slots.length ? (slots[best] ?? endIndex) : endIndex;
-	return { gap: best, y: offsets[rowIdx] ?? 0, depth: dd };
+	const gap = best + (best < slots.length ? (hidden[best] ?? 0) : hiddenTotal);
+	return { gap, y: offsets[rowIdx] ?? 0, depth: dd };
 }
 
 export const ROW_DRAG_EDGE_ZONE = 36;

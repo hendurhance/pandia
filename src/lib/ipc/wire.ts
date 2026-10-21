@@ -34,8 +34,8 @@ export function decodeLossless(text: LosslessText): JsonValue {
 	return parse(text, undefined, parseNumber) as JsonValue;
 }
 
-export function encodeLossless(value: unknown): LosslessText {
-	return (stringify(value) ?? 'null') as LosslessText;
+export function encodeLossless(value: unknown, indent?: number): LosslessText {
+	return (stringify(value, null, indent) ?? 'null') as LosslessText;
 }
 
 export function asLosslessText(rawJson: string): LosslessText {

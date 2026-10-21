@@ -1,12 +1,12 @@
 .hstack {
 	display: flex;
 	align-items: center;
-	gap: var(--space-base);
+	gap: var(--space-sm);
 }
 .vstack {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-base);
+	gap: var(--space-sm);
 }
 .center {
 	display: flex;
@@ -21,10 +21,10 @@
 }
 
 .gap-tight {
-	gap: var(--space-tight);
+	gap: var(--space-xs);
 }
 .gap-loose {
-	gap: var(--space-loose);
+	gap: var(--space-lg);
 }
 
 .grow {

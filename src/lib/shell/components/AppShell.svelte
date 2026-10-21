@@ -1,28 +1,25 @@
 <script lang="ts">
-	import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
+	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-	import { open as openDialog, message, ask } from '@tauri-apps/plugin-dialog';
+	import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 	import { open as openInBrowser } from '@tauri-apps/plugin-shell';
 	import { check } from '@tauri-apps/plugin-updater';
-	import { relaunch } from '@tauri-apps/plugin-process';
 	import { getVersion } from '@tauri-apps/api/app';
 	import { clearRecents, recentsStore } from '$lib/shell/state/recents-store.svelte';
 	import { updateCheck } from '$lib/shell/state/update-check.svelte';
-	import { loadOpenTabs, saveOpenTabs } from '$lib/shell/state/tabs-restore';
+	import { whatsNew } from '$lib/shell/state/whats-new.svelte';
 	import { SANDBOX_ENABLED } from '$lib/util/flags';
 	import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
 	import { describeError } from '$lib/ipc/error-copy';
 	import CommandPalette from '$lib/palette/CommandPalette.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
-	import {
-		buildShellCommands,
-		buildMenuRouteMap,
-		type ShellCommandDeps,
-	} from '$lib/shell/logic/app-commands';
-	import { matchMenuShortcut } from '$lib/shell/logic/shortcuts';
+	import { buildShellCommands, type ShellCommandDeps } from '$lib/shell/logic/app-commands';
+	import { matchShortcut } from '$lib/shell/logic/shortcuts';
 	import DocPane from '$lib/docpane/components/DocPane.svelte';
 	import HelpDialog from '$lib/shell/components/HelpDialog.svelte';
 	import FeedbackDialog from '$lib/shell/components/FeedbackDialog.svelte';
+	import UpdateDialog from '$lib/shell/components/UpdateDialog.svelte';
+	import WhatsNewDialog from '$lib/shell/components/WhatsNewDialog.svelte';
 	import SettingsView from '$lib/settings/SettingsView.svelte';
 	import type { SettingsTab } from '$lib/settings/tabs';
 	import Sidebar from './Sidebar.svelte';
@@ -30,44 +27,45 @@
 	import RecoveryDialog from './RecoveryDialog.svelte';
 	import ComparePicker from './ComparePicker.svelte';
 	import TabBar from '$lib/shell/components/TabBar.svelte';
-	import { TabStore, MAX_TABS } from '$lib/shell/state/tab-store.svelte';
+	import { MAX_TABS, Workspace } from '$lib/shell/state/workspace.svelte';
 	import { sidebarPrefs } from '../state/sidebar-prefs.svelte';
 	import { ipc } from '$lib/ipc/client';
-	import type { BackupRecord, Path } from '$lib/ipc/bindings';
+	import type { BackupRecord, OpenSource, Path, PendingFile } from '$lib/ipc/bindings';
+	import { Handoff } from '$lib/shell/state/handoff';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 	import { PaneCommandBus } from '$lib/shell/state/pane-bus';
 	import { ConfirmController } from '$lib/ui/confirm.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
-	import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
-	import { basename } from '$lib/util/path';
-	import { stat } from '@tauri-apps/plugin-fs';
 	import { fmtBytes } from '$lib/util/format';
-
-	const LARGE_FILE_WARN_BYTES = 200 * 1024 * 1024;
 
 	const FEEDBACK_URL = 'https://tally.so/r/dW419D';
 
-	const tabStore = new TabStore();
 	const confirm = new ConfirmController();
+	const workspace = new Workspace({ confirmLargeFile, confirmUnsaved });
 
-	async function maybeConfirmLargeFile(path: string): Promise<boolean> {
-		if (!behaviorPrefs.warnLargeFileOpen) return true;
-		let size = 0;
-		try {
-			const info = await stat(path);
-			size = Number(info.size ?? 0);
-		} catch {
-			return true; // stat failed — let the open attempt its own error path
-		}
-		if (size < LARGE_FILE_WARN_BYTES) return true;
+	async function confirmLargeFile(name: string, bytes: number): Promise<boolean> {
 		const choice = await confirm.ask({
 			title: 'large file',
-			message: `${basename(path)} is ${fmtBytes(size)}. Opening will work but validation, diff, and export may be slow at this size.`,
+			message: `${name} is ${fmtBytes(bytes)}. Opening will work but validation, diff, and export may be slow at this size.`,
 			primaryLabel: 'open anyway',
 			secondaryLabel: 'cancel',
 			cancelLabel: 'cancel',
 		});
 		return choice === 'primary';
+	}
+
+	async function confirmUnsaved(names: string[]): Promise<'save' | 'discard' | 'cancel'> {
+		const [only] = names;
+		const one = names.length === 1 && only !== undefined;
+		const choice = await confirm.ask({
+			title: 'unsaved changes',
+			message: one
+				? `Do you want to save the changes you made to ${only}?\nYour changes will be lost if you don't save them.`
+				: `You have unsaved changes in ${names.length} documents.\nYour changes will be lost if you don't save them.`,
+			primaryLabel: one ? 'save' : 'save all',
+			secondaryLabel: "don't save",
+		});
+		return choice === 'primary' ? 'save' : choice === 'secondary' ? 'discard' : 'cancel';
 	}
 
 	async function confirmCommentLoss(name: string): Promise<'save' | 'saveAs' | 'cancel'> {
@@ -81,57 +79,32 @@
 		return choice === 'primary' ? 'save' : choice === 'secondary' ? 'saveAs' : 'cancel';
 	}
 
-	async function requestCloseTab(id: string): Promise<boolean> {
-		const status = tabStore.statuses[id];
-		const ctx = tabStore.contexts[id];
-		const dirty = status?.dirty ?? false;
-		if (!dirty) {
-			tabStore.close(id);
-			return true;
-		}
-		if (behaviorPrefs.autoSaveOnIdle && ctx?.fileBacked && ctx) {
-			const ok = await ctx.save({ silent: true });
-			if (ok) {
-				tabStore.close(id);
-				return true;
-			}
-		}
-		tabStore.activate(id);
-		const name = ctx?.sourceName ? basename(ctx.sourceName) : 'untitled';
+	async function confirmSchemaFetch(host: string): Promise<boolean> {
 		const choice = await confirm.ask({
-			title: 'unsaved changes',
-			message: `Do you want to save the changes you made to ${name}?\nYour changes will be lost if you don't save them.`,
-			primaryLabel: 'save',
-			secondaryLabel: "don't save",
+			title: 'load schema from the internet?',
+			message: `This document's $schema points to ${host}. Loading it downloads the schema from that server.`,
+			primaryLabel: 'load schema',
+			cancelLabel: "don't load",
 		});
-		if (choice === 'cancel') return false;
-		if (choice === 'primary') {
-			if (!ctx) return false;
-			const ok = await ctx.save();
-			if (!ok) return false;
-		} else if (choice === 'secondary' && ctx) {
-			void ipc.docBackupClear(ctx.handle).catch(() => {});
-		}
-		tabStore.close(id);
-		return true;
+		return choice === 'primary';
 	}
 
 	const paneBus = new PaneCommandBus();
 	function requestNavigate(path: Path) {
-		paneBus.dispatch(tabStore.activeId, { kind: 'navigate', path });
+		paneBus.dispatch(workspace.activeId, { kind: 'navigate', path });
 	}
 	function requestHistoryStep(delta: number) {
-		paneBus.dispatch(tabStore.activeId, { kind: 'history', delta });
+		paneBus.dispatch(workspace.activeId, { kind: 'history', delta });
 	}
 
 	let comparePickerOpen = $state(false);
 	let compareBtnEl: HTMLElement | null = $state(null); // the Compare button (dismiss ignores its clicks)
 	function toggleComparePicker() {
-		if (!tabStore.activeContext) return;
+		if (!workspace.activeContext) return;
 		comparePickerOpen = !comparePickerOpen;
 	}
 	function requestCompare(target: CompareTarget) {
-		paneBus.dispatch(tabStore.activeId, { kind: 'compare', target });
+		paneBus.dispatch(workspace.activeId, { kind: 'compare', target });
 		comparePickerOpen = false;
 	}
 
@@ -142,20 +115,19 @@
 			filters: JSON_OPEN_FILTERS,
 		});
 		if (typeof picked !== 'string') return;
-		if (!(await maybeConfirmLargeFile(picked))) return;
-		tabStore.openInTab({ kind: 'file', path: picked });
+		await workspace.open({ kind: 'file', path: picked });
 	}
 
 	const shellCommandDeps: ShellCommandDeps = {
-		tabsLength: () => tabStore.tabs.length,
-		activeTabId: () => tabStore.activeId,
-		hasActiveContext: () => !!tabStore.activeContext,
-		newTab: tabStore.create,
-		requestCloseTab,
-		nextTab: tabStore.next,
-		prevTab: tabStore.prev,
+		tabsLength: () => workspace.tabs.length,
+		activeTabId: () => workspace.activeId,
+		hasActiveContext: () => !!workspace.activeContext,
+		newTab: workspace.create,
+		requestCloseTab: (id) => void workspace.close(id),
+		nextTab: workspace.next,
+		prevTab: workspace.prev,
 		openFile: cmdOpenFile,
-		openInTab: (source) => tabStore.openInTab(source),
+		openInTab: (source) => void workspace.open(source),
 		toggleSidebar: () => sidebarPrefs.toggleCollapsed(),
 		revealSchemaPanel: () => {
 			if (sidebarPrefs.collapsed) sidebarPrefs.toggleCollapsed();
@@ -168,6 +140,9 @@
 		openHelp: () => {
 			helpOpen = true;
 		},
+		openWhatsNew: () => {
+			whatsNewOpen = true;
+		},
 		openFeedback: () => {
 			feedbackOpen = true;
 		},
@@ -176,6 +151,8 @@
 		showAbout,
 		checkForUpdates,
 		openWebsite: () => void openInBrowser('https://www.pandia.app').catch(() => {}),
+		openDiscussions: () =>
+			void openInBrowser('https://github.com/hendurhance/pandia/discussions').catch(() => {}),
 		reportIssue: () =>
 			void openInBrowser('https://github.com/hendurhance/pandia/issues/new/choose').catch(() => {}),
 		isDev: SANDBOX_ENABLED,
@@ -203,15 +180,16 @@
 		};
 	});
 
-	function restoreOne(rec: BackupRecord) {
+	async function restoreOne(rec: BackupRecord) {
 		const name = rec.displayName ?? 'recovered.json';
-		tabStore.openInTab({ kind: 'text', text: rec.content, name });
+		const outcome = await workspace.open({ kind: 'text', text: rec.content, name });
+		if (outcome.kind !== 'opened') return;
 		void ipc.docBackupClear(rec.docId).catch(() => {});
 		recovery = recovery.filter((r) => r.docId !== rec.docId);
 	}
 
-	function restoreAll() {
-		for (const rec of [...recovery]) restoreOne(rec);
+	async function restoreAll() {
+		for (const rec of [...recovery]) await restoreOne(rec);
 	}
 
 	function discardRecovery() {
@@ -219,26 +197,12 @@
 		recovery = [];
 	}
 
-	async function snapshotOpenTabs(): Promise<void> {
-		if (!behaviorPrefs.restoreTabsOnLaunch) return;
-		const filePaths: string[] = [];
-		let activeIndex = -1;
-		for (const tab of tabStore.tabs) {
-			const ctx = tabStore.contexts[tab.id];
-			if (!ctx?.fileBacked || !ctx.sourceName) continue;
-			if (tab.id === tabStore.activeId) activeIndex = filePaths.length;
-			filePaths.push(ctx.sourceName);
-		}
-		await saveOpenTabs(filePaths, activeIndex);
-	}
-
 	let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
 	$effect(() => {
-		void tabStore.tabs;
-		void tabStore.activeId;
-		void tabStore.contexts;
+		void workspace.tabList;
+		void workspace.activeId;
 		if (snapshotTimer) clearTimeout(snapshotTimer);
-		snapshotTimer = setTimeout(() => void snapshotOpenTabs(), 250);
+		snapshotTimer = setTimeout(() => void workspace.snapshot(), 250);
 		return () => {
 			if (snapshotTimer) clearTimeout(snapshotTimer);
 		};
@@ -253,42 +217,8 @@
 				event.preventDefault();
 				let shouldClose = true;
 				try {
-					await snapshotOpenTabs();
-					const dirtyTabs = tabStore.tabs.filter((t) => tabStore.statuses[t.id]?.dirty);
-					if (dirtyTabs.length > 0) {
-						const n = dirtyTabs.length;
-						const firstDirty = dirtyTabs[0];
-						const choice = await confirm.ask({
-							title: 'unsaved changes',
-							message:
-								n === 1 && firstDirty
-									? `You have unsaved changes in ${basename(tabStore.contexts[firstDirty.id]?.sourceName ?? firstDirty.label)}.\nYour changes will be lost if you don't save them.`
-									: `You have unsaved changes in ${n} documents.\nYour changes will be lost if you don't save them.`,
-							primaryLabel: n === 1 ? 'save' : 'save all',
-							secondaryLabel: "don't save",
-						});
-						if (choice === 'cancel') {
-							shouldClose = false; // user backed out of quitting
-							return;
-						}
-						if (choice === 'primary') {
-							for (const t of dirtyTabs) {
-								const ctx = tabStore.contexts[t.id];
-								if (!ctx) continue;
-								tabStore.activate(t.id); // surface which doc the save-as dialog is for
-								const ok = await ctx.save();
-								if (!ok) {
-									shouldClose = false; // save failed (parse error / cancelled Save As) — abort quit
-									return;
-								}
-							}
-						} else {
-							for (const t of dirtyTabs) {
-								const ctx = tabStore.contexts[t.id];
-								if (ctx) void ipc.docBackupClear(ctx.handle).catch(() => {});
-							}
-						}
-					}
+					await workspace.snapshot();
+					shouldClose = await workspace.closeAll();
 				} finally {
 					if (shouldClose) await win.destroy();
 				}
@@ -324,9 +254,7 @@
 					dropHint = null;
 					void (async () => {
 						for (const path of p.paths) {
-							if (!(await maybeConfirmLargeFile(path))) continue;
-							const ok = tabStore.openInTab({ kind: 'file', path });
-							if (!ok) break;
+							if ((await workspace.open({ kind: 'file', path })).kind === 'full') break;
 						}
 					})();
 				} else if (p.type === 'leave') {
@@ -345,6 +273,7 @@
 	});
 
 	let helpOpen = $state(false);
+	let whatsNewOpen = $state(false);
 	let feedbackOpen = $state(false);
 	let settingsTab: SettingsTab | null = $state(null);
 
@@ -375,13 +304,7 @@
 		try {
 			const update = await check();
 			if (update) {
-				const yes = await ask(`Pandia ${update.version} is available. Download and install now?`, {
-					title: 'Update available',
-				});
-				if (yes) {
-					await update.downloadAndInstall();
-					await relaunch();
-				}
+				updateCheck.offer(update);
 			} else {
 				await message("You're up to date.", { title: 'Pandia' });
 			}
@@ -403,47 +326,29 @@
 		return () => clearTimeout(t);
 	});
 
-	// Restore file-backed tabs from the previous session if the user opted in.
-	// Runs once on mount, after behavior prefs have loaded. Skipped when the
-	// app was launched with files (CLI args / Finder open / pending queue) so
-	// we don't fight the requested-file flow.
 	$effect(() => {
-		let cancelled = false;
-		void (async () => {
-			await behaviorPrefs.init();
-			if (cancelled || !behaviorPrefs.restoreTabsOnLaunch) return;
-			const { paths, activeIndex } = await loadOpenTabs();
-			if (cancelled || paths.length === 0) return;
-			const anyContext = Object.values(tabStore.contexts).some((c) => c != null);
-			const anyPending = Object.values(tabStore.pendingOpens).some((p) => p != null);
-			if (anyContext || anyPending) return;
-			for (let i = 0; i < paths.length; i++) {
-				const path = paths[i];
-				if (!path) continue;
-				const ok = tabStore.openInTab({ kind: 'file', path }, { focus: i === 0 });
-				if (!ok) break;
-			}
-			if (activeIndex > 0 && activeIndex < tabStore.tabs.length) {
-				const active = tabStore.tabs[activeIndex];
-				if (active) tabStore.activate(active.id);
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
+		void whatsNew.init().catch(() => {});
 	});
 
 	async function drainPendingFiles() {
-		let paths: string[] = [];
+		let pending: PendingFile[] = [];
 		try {
-			paths = await ipc.drainPendingFiles();
+			pending = await ipc.drainPendingFiles();
 		} catch {
 			return;
 		}
-		for (const path of paths) {
-			if (!(await maybeConfirmLargeFile(path))) continue;
-			const ok = tabStore.openInTab({ kind: 'file', path });
-			if (!ok) break;
+		for (const file of pending) {
+			const { path, piped } = file;
+			const handoff = Handoff.needed(file) ? new Handoff(file) : null;
+			const source: OpenSource = piped ? { kind: 'piped', path } : { kind: 'file', path };
+			const outcome = await workspace.open(source, { handoff });
+			if (outcome.kind === 'declined') {
+				void handoff?.abandon('You chose not to open this large file.');
+			} else if (outcome.kind === 'full') {
+				void handoff?.abandon(
+					`Pandia already has ${MAX_TABS} tabs open. Close one, then run the command again.`,
+				);
+			}
 		}
 	}
 
@@ -456,7 +361,7 @@
 			if (cancelled) fn();
 			else unlisten = fn;
 		});
-		void drainPendingFiles();
+		void workspace.restore(drainPendingFiles());
 		return () => {
 			cancelled = true;
 			unlisten?.();
@@ -466,16 +371,13 @@
 	$effect(() => {
 		let unlisten: UnlistenFn | null = null;
 		let cancelled = false;
-		const menuRoutes = buildMenuRouteMap(shellCommandDeps);
 		listen<string>('menu-event', (e) => {
 			const id = e.payload;
 			if (id.startsWith('recent::')) {
 				const path = id.slice('recent::'.length);
-				void (async () => {
-					if (await maybeConfirmLargeFile(path)) tabStore.openInTab({ kind: 'file', path });
-				})();
+				void workspace.open({ kind: 'file', path });
 			} else {
-				menuRoutes[id]?.();
+				commandRegistry.run(id);
 			}
 		}).then((fn) => {
 			if (cancelled) fn();
@@ -489,10 +391,10 @@
 
 	function onWindowKeydown(e: KeyboardEvent) {
 		if (e.defaultPrevented) return; // a focused editor/input already handled it
-		const id = matchMenuShortcut(e);
+		const id = matchShortcut(e);
 		if (!id) return;
 		e.preventDefault();
-		void emit('menu-event', id);
+		commandRegistry.run(id);
 	}
 
 	function onTopBarPointerDown(e: PointerEvent) {
@@ -520,18 +422,18 @@
 		onpointerdown={onTopBarPointerDown}
 	>
 		<TabBar
-			tabs={tabStore.tabs}
-			activeTabId={tabStore.activeId}
-			tabStatuses={tabStore.statuses}
-			capWarning={tabStore.capWarning}
+			tabs={workspace.tabList}
+			activeTabId={workspace.activeId}
+			tabStatuses={workspace.statuses}
+			capWarning={workspace.capWarning}
 			maxTabs={MAX_TABS}
-			hasActiveDoc={!!tabStore.activeContext}
+			hasActiveDoc={!!workspace.activeContext}
 			{comparePickerOpen}
 			bind:compareBtnEl
-			onActivate={tabStore.activate}
-			onClose={(id) => void requestCloseTab(id)}
-			onNew={tabStore.create}
-			onReorder={tabStore.reorder}
+			onActivate={workspace.activate}
+			onClose={(id) => void workspace.close(id)}
+			onNew={workspace.create}
+			onReorder={workspace.reorder}
 			onToggleCompare={toggleComparePicker}
 			onExport={() => commandRegistry.get('doc.export')?.run()}
 		/>
@@ -540,8 +442,8 @@
 	<div class="shell-body">
 		{#snippet sidebarPanel()}
 			<Sidebar
-				activeTabId={tabStore.activeId}
-				activeContext={tabStore.activeContext}
+				activeTabId={workspace.activeId}
+				activeContext={workspace.activeContext}
 				onNavigate={requestNavigate}
 				onHistoryStep={requestHistoryStep}
 			/>
@@ -552,20 +454,17 @@
 		{/if}
 
 		<main class="shell-main">
-			{#each tabStore.tabs as tab (tab.id)}
-				<div class="pane-host" class:active={tab.id === tabStore.activeId}>
+			{#each workspace.tabs as tab (tab.id)}
+				<div class="pane-host" class:active={tab.id === workspace.activeId}>
 					<DocPane
 						tabId={tab.id}
-						isActive={tab.id === tabStore.activeId}
-						onLabelChange={(label, sourceName) => tabStore.setLabel(tab.id, label, sourceName)}
-						onStatusChange={(status) => tabStore.setStatus(tab.id, status)}
-						pendingOpen={tabStore.pendingOpens[tab.id] ?? null}
-						onOpened={() => tabStore.clearPendingOpen(tab.id)}
-						onOpenInNewTab={tabStore.openInTab}
-						onContextChange={(ctx) => tabStore.setContext(tab.id, ctx)}
-						isHandleAlive={(h) => Object.values(tabStore.contexts).some((c) => c?.handle === h)}
-						confirmLargeFile={maybeConfirmLargeFile}
+						slot={workspace.slot(tab.id)}
+						isActive={tab.id === workspace.activeId}
+						pendingOpen={workspace.pendingOpens[tab.id] ?? null}
+						onOpened={() => workspace.clearPendingOpen(tab.id)}
+						onOpenInNewTab={(source, opts) => void workspace.open(source, opts)}
 						{confirmCommentLoss}
+						{confirmSchemaFetch}
 						{paneBus}
 					/>
 				</div>
@@ -579,9 +478,10 @@
 
 	<footer class="shell-status">
 		<StatusBar
-			status={tabStore.activeStatus}
+			status={workspace.activeStatus}
 			onPaletteOpen={openPalette}
 			onFeedback={() => (feedbackOpen = true)}
+			onWhatsNew={() => (whatsNewOpen = true)}
 		/>
 	</footer>
 
@@ -597,6 +497,7 @@
 			onRestore={restoreOne}
 			onRestoreAll={restoreAll}
 			onDiscard={discardRecovery}
+			onLater={() => (recovery = [])}
 		/>
 	{/if}
 
@@ -614,7 +515,7 @@
 
 	{#if comparePickerOpen}
 		<ComparePicker
-			candidates={tabStore.compareCandidates}
+			candidates={workspace.compareCandidates}
 			anchorEl={compareBtnEl}
 			onPick={requestCompare}
 			onDismiss={() => (comparePickerOpen = false)}
@@ -626,6 +527,14 @@
 
 {#if helpOpen}
 	<HelpDialog onClose={() => (helpOpen = false)} />
+{/if}
+
+{#if whatsNewOpen}
+	<WhatsNewDialog onClose={() => (whatsNewOpen = false)} />
+{/if}
+
+{#if updateCheck.dialogOpen && updateCheck.update}
+	<UpdateDialog update={updateCheck.update} />
 {/if}
 
 {#if feedbackOpen}
@@ -703,7 +612,7 @@
 		z-index: 50;
 	}
 	.drop-hint {
-		padding: 0.5rem 1rem;
+		padding: var(--space-sm) var(--space-md);
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--accent);
 		color: var(--accent);

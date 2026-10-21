@@ -2,7 +2,7 @@
 	import type { Path, PathSegment } from '$lib/ipc/bindings';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronRight, FoldVertical, Search, UnfoldVertical } from '@lucide/svelte';
-	import { fmtKbd } from '$lib/util/platform';
+	import { shortcutLabel } from '$lib/shell/logic/shortcuts';
 
 	interface Props {
 		path: Path | null;
@@ -67,7 +67,7 @@
 			class="icon"
 			onclick={onSearch}
 			disabled={!onSearch}
-			title={onSearch ? `Search (${fmtKbd('⌘F')})` : 'Search unavailable'}
+			title={onSearch ? `Search (${shortcutLabel('find.open')})` : 'Search unavailable'}
 			><Icon icon={Search} size="xs" /> Search</button
 		>
 	</div>
@@ -77,12 +77,12 @@
 	.bar {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-sm);
 		height: 28px;
-		padding: 0 16px;
+		padding: 0 var(--space-lg);
 		background: var(--bg);
 		border-bottom: var(--rule-width) solid var(--rule);
-		font-size: 11.5px;
+		font-size: var(--font-size-sm);
 		color: var(--text-dim);
 		flex-shrink: 0;
 	}
@@ -111,7 +111,7 @@
 
 	.path {
 		display: flex;
-		gap: 0.2rem;
+		gap: var(--space-2xs);
 		align-items: center;
 		min-width: 0;
 		overflow: hidden;
@@ -120,20 +120,20 @@
 	.seg {
 		background: transparent;
 		border: none;
-		padding: 0 2px;
+		padding: 0 var(--space-2xs);
 		color: var(--text);
 		cursor: pointer;
 		font: inherit;
-		font-size: 11.5px;
+		font-size: var(--font-size-sm);
 	}
 	.seg:hover {
-		color: var(--accent);
+		background: var(--bg-elev);
 	}
 	.seg.idx {
 		color: var(--text-dim);
 	}
-	.seg.idx:hover {
-		color: var(--accent);
+	.seg.idx:not(.last):hover {
+		color: var(--text);
 	}
 	.seg.last {
 		color: var(--accent);
@@ -143,12 +143,12 @@
 	}
 	.sep {
 		color: var(--text-faint);
-		padding: 0 2px;
+		padding: 0 var(--space-2xs);
 	}
 
 	.actions {
 		display: flex;
-		gap: 12px;
+		gap: var(--space-md);
 		flex-shrink: 0;
 		align-items: center;
 		color: var(--text-faint);
@@ -159,13 +159,13 @@
 	.actions .icon {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-xs);
 		background: transparent;
 		border: none;
 		padding: 0;
-		font-size: 10.5px;
+		font-size: var(--font-size-xs);
 		letter-spacing: 0.06em;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		cursor: pointer;
 		white-space: nowrap;
 	}
@@ -173,7 +173,7 @@
 		color: var(--text);
 	}
 	.actions .icon:disabled {
-		color: var(--text-ghost);
+		color: var(--text-faint);
 		cursor: default;
 	}
 </style>

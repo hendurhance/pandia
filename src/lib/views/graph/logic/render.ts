@@ -1,5 +1,6 @@
 import { HEADER_H, ROW_H, type LayoutResult, type PositionedCard } from './layout';
-import { hueColor, mixHex, type GraphTheme } from './theme';
+import { hueColor, type GraphTheme } from './theme';
+import { mixHex } from '$lib/util/color';
 import { rectsOverlap, type Rect, type ViewportState } from './viewport';
 import {
 	CARD_RADIUS,
@@ -194,11 +195,12 @@ function paintCard(
 			const y = card.y + HEADER_H + i * ROW_H;
 			ctx.fillRect(card.x + ROW_PAD_X, y, card.w - ROW_PAD_X * 2, 0.5 / scale);
 		}
+		if (highlighted) paintHighlightRing(ctx, card, scale, theme);
 		return;
 	}
 
 	ctx.font = `${HEADER_FONT_WEIGHT} ${FONT_PX}px ${theme.monoFamily}`;
-	ctx.fillStyle = accent;
+	ctx.fillStyle = theme.text;
 	ctx.textBaseline = 'middle';
 	ctx.textAlign = 'left';
 	const titleText = fitText(ctx, card.title, card.w - ROW_PAD_X * 2);
@@ -220,7 +222,7 @@ function paintCard(
 			ctx.stroke();
 		}
 
-		paintRow(ctx, card, row, rowY, accent, scale, theme);
+		paintRow(ctx, card, row, rowY, scale, theme);
 	}
 
 	if (highlighted) paintHighlightRing(ctx, card, scale, theme);
@@ -251,14 +253,13 @@ function paintRow(
 	card: PositionedCard,
 	row: PositionedCard['rows'][number],
 	rowY: number,
-	accent: string,
 	scale: number,
 	theme: GraphTheme,
 ): void {
 	const midY = rowY + ROW_H / 2;
 	let cursorX = card.x + ROW_PAD_X;
 
-	ctx.fillStyle = accent;
+	ctx.fillStyle = theme.textDim;
 	ctx.fillText(row.key, cursorX, midY);
 	cursorX += ctx.measureText(row.key).width;
 
@@ -289,10 +290,10 @@ function paintRow(
 		ctx.arc(portX, midY, 8, 0, Math.PI * 2);
 		ctx.fillStyle = theme.bgElev3;
 		ctx.fill();
-		ctx.strokeStyle = open ? accent : theme.rule2;
+		ctx.strokeStyle = open ? theme.textDim : theme.rule2;
 		ctx.lineWidth = 1 / scale;
 		ctx.stroke();
-		ctx.strokeStyle = open ? accent : theme.textDim;
+		ctx.strokeStyle = theme.textDim;
 		ctx.lineWidth = 1.4 / scale;
 		ctx.lineCap = 'round';
 		ctx.beginPath();
@@ -412,5 +413,6 @@ export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
 		if (ctx.measureText(text.slice(0, mid)).width + ellWidth <= maxWidth) lo = mid;
 		else hi = mid - 1;
 	}
+	if (/[\ud800-\udbff]/.test(text.charAt(lo - 1))) lo--; // don't split a surrogate pair
 	return text.slice(0, lo) + ell;
 }

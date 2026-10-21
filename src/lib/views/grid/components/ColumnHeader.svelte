@@ -122,9 +122,7 @@
 		margin: 0;
 		color: var(--text-dim);
 		font-family: var(--font-mono);
-		font-size: 11.5px;
-		letter-spacing: var(--label-tracking);
-		text-transform: lowercase;
+		font-size: var(--font-size-sm);
 		background: transparent;
 		border: none;
 		border-right: 1px solid var(--rule);
@@ -174,7 +172,7 @@
 		justify-content: center;
 		align-self: stretch;
 		width: 20px;
-		margin-right: 2px;
+		margin-right: var(--space-2xs);
 		background: none;
 		border: none;
 		padding: 0;
@@ -188,7 +186,8 @@
 	.cell.head:hover .funnel {
 		opacity: 0.85;
 	}
-	.funnel:hover {
+	.funnel:hover,
+	.funnel:focus-visible {
 		color: var(--text);
 		opacity: 1;
 		background: var(--bg-elev-3);
@@ -198,18 +197,17 @@
 		color: var(--accent);
 	}
 	.mark {
-		font-size: 10px;
-		opacity: 0.7;
+		font-size: var(--font-size-xs);
 	}
 	.mark.mixed {
-		color: var(--accent-2);
+		color: var(--text-dim);
 	}
 	.mark.nullable {
 		color: var(--syntax-null);
 	}
 	.sort-arrow {
 		color: var(--accent);
-		font-size: 9px;
+		font-size: var(--font-size-xs);
 		flex-shrink: 0;
 	}
 

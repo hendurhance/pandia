@@ -1,5 +1,6 @@
 import { HEADER_H, ROW_H, type CardRow, type LayoutResult, type PositionedCard } from './layout';
-import { hueColor, mixHex, type GraphTheme } from './theme';
+import { hueColor, type GraphTheme } from './theme';
+import { mixHex } from '$lib/util/color';
 import {
 	CARD_RADIUS,
 	FONT_PX,
@@ -88,7 +89,7 @@ function renderCardSVG(
 	const titleMax = card.w - ROW_PAD_X * 2;
 	const title = fitText(measurer.title, card.title, titleMax);
 	out.push(
-		`<text x="${n(card.x + ROW_PAD_X)}" y="${n(card.y + HEADER_H / 2)}" fill="${esc(accent)}" font-weight="${HEADER_FONT_WEIGHT}" dominant-baseline="middle">${esc(title)}</text>`,
+		`<text x="${n(card.x + ROW_PAD_X)}" y="${n(card.y + HEADER_H / 2)}" fill="${esc(theme.text)}" font-weight="${HEADER_FONT_WEIGHT}" dominant-baseline="middle">${esc(title)}</text>`,
 	);
 
 	for (let i = 0; i < card.rows.length; i++) {
@@ -100,7 +101,7 @@ function renderCardSVG(
 				`<line x1="${n(card.x)}" y1="${n(rowY + ROW_H)}" x2="${n(card.x + card.w)}" y2="${n(rowY + ROW_H)}" stroke="${esc(theme.rule)}"/>`,
 			);
 		}
-		renderRowSVG(card, cardIdx, i, row, rowY, accent, theme, measurer, out);
+		renderRowSVG(card, cardIdx, i, row, rowY, theme, measurer, out);
 	}
 }
 
@@ -110,7 +111,6 @@ function renderRowSVG(
 	rowIdx: number,
 	row: CardRow,
 	rowY: number,
-	accent: string,
 	theme: GraphTheme,
 	measurer: TextMeasurer,
 	out: string[],
@@ -119,7 +119,7 @@ function renderRowSVG(
 	let cursorX = card.x + ROW_PAD_X;
 
 	out.push(
-		`<text x="${n(cursorX)}" y="${n(midY)}" fill="${esc(accent)}" dominant-baseline="middle">${esc(row.key)}</text>`,
+		`<text x="${n(cursorX)}" y="${n(midY)}" fill="${esc(theme.textDim)}" dominant-baseline="middle">${esc(row.key)}</text>`,
 	);
 	cursorX += measurer.body.measure(row.key);
 
@@ -147,8 +147,8 @@ function renderRowSVG(
 	if (row.expandable) {
 		const portX = card.x + card.w;
 		const open = row.children.length > 0;
-		const ring = open ? accent : theme.rule2;
-		const cross = open ? accent : theme.textDim;
+		const ring = open ? theme.textDim : theme.rule2;
+		const cross = theme.textDim;
 		out.push(
 			`<circle cx="${n(portX)}" cy="${n(midY)}" r="${PORT_R}" fill="${esc(theme.bgElev3)}" stroke="${esc(ring)}"/>`,
 		);
@@ -219,6 +219,7 @@ function fitText(m: MeasureCtx, text: string, maxWidth: number): string {
 		if (m.measure(text.slice(0, mid)) + ellWidth <= maxWidth) lo = mid;
 		else hi = mid - 1;
 	}
+	if (/[\ud800-\udbff]/.test(text.charAt(lo - 1))) lo--; // don't split a surrogate pair
 	return text.slice(0, lo) + ell;
 }
 

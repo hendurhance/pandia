@@ -21,9 +21,30 @@ fn backup_dir(app: &AppHandle) -> std::io::Result<PathBuf> {
         .path()
         .app_data_dir()
         .map_err(|e| std::io::Error::other(e.to_string()))?;
-    let dir = base.join("backups");
+    private_dir(base.join("backups"))
+}
+
+fn private_dir(dir: PathBuf) -> std::io::Result<PathBuf> {
     std::fs::create_dir_all(&dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+    }
     Ok(dir)
+}
+
+fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    super::atomic::write_atomic(path, |w| {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            w.get_ref()
+                .set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        }
+        w.write_all(text.as_bytes())
+    })
 }
 
 fn sanitize_doc_id(doc_id: &str) -> String {
@@ -56,7 +77,7 @@ pub fn write(
         content,
     };
     let json = serde_json::to_string(&rec).map_err(|e| std::io::Error::other(e.to_string()))?;
-    std::fs::write(backup_path(app, doc_id)?, json)
+    write_private(&backup_path(app, doc_id)?, &json)
 }
 
 pub fn clear(app: &AppHandle, doc_id: &str) -> std::io::Result<()> {
@@ -106,7 +127,7 @@ fn dedupe_newest_first(mut records: Vec<BackupRecord>) -> (Vec<BackupRecord>, Ve
         let key = rec
             .original_path
             .clone()
-            .or_else(|| rec.display_name.clone())
+            .filter(|p| std::path::Path::new(p).is_absolute())
             .unwrap_or_else(|| rec.doc_id.clone());
         if seen.insert(key) {
             kept.push(rec);
@@ -120,6 +141,30 @@ fn dedupe_newest_first(mut records: Vec<BackupRecord>) -> (Vec<BackupRecord>, Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn backups_are_readable_by_their_owner_only_even_from_older_versions() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let root = std::env::temp_dir().join(format!("pandia-backup-perm-{}", std::process::id()));
+        let dir = root.join("backups");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let old = dir.join("old.json");
+        std::fs::write(&old, "{}").unwrap();
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let dir = private_dir(dir).unwrap();
+        write_private(&old, "{}").unwrap();
+        let new = dir.join("new.json");
+        write_private(&new, "{}").unwrap();
+
+        assert_eq!(mode(&dir), 0o700);
+        assert_eq!(mode(&old), 0o600);
+        assert_eq!(mode(&new), 0o600);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     fn rec(doc_id: &str, path: Option<&str>, name: Option<&str>, updated_at: &str) -> BackupRecord {
         BackupRecord {
@@ -153,15 +198,16 @@ mod tests {
     }
 
     #[test]
-    fn dedupe_falls_back_to_display_name_then_doc_id() {
+    fn documents_without_a_file_are_never_merged() {
         let recs = vec![
-            rec("d1", None, Some("draft"), "2000"),
-            rec("d2", None, Some("draft"), "1000"),
-            rec("d3", None, None, "1500"),
+            rec("d1", Some("pasted.json"), Some("pasted.json"), "2000"),
+            rec("d2", Some("pasted.json"), Some("pasted.json"), "1000"),
+            rec("d3", None, Some("draft"), "1500"),
+            rec("d4", None, Some("draft"), "1400"),
         ];
         let (kept, stale) = dedupe_newest_first(recs);
         let kept_ids: Vec<_> = kept.iter().map(|r| r.doc_id.as_str()).collect();
-        assert_eq!(kept_ids, vec!["d1", "d3"]);
-        assert_eq!(stale, vec!["d2".to_string()]);
+        assert_eq!(kept_ids, vec!["d1", "d3", "d4", "d2"]);
+        assert!(stale.is_empty());
     }
 }

@@ -29,18 +29,24 @@ const CONVERT: Array<{ action: MenuAction; label: string; kind: NodeKind }> = [
 	{ action: 'convert-null', label: 'Null', kind: 'null' },
 ];
 
+export function editActionFor(row: ContentRow, part: 'key' | 'value'): MenuAction | null {
+	if (part === 'key') return typeof row.key === 'string' && row.depth > 0 ? 'edit-key' : null;
+	return row.kind === 'object' || row.kind === 'array' ? null : 'edit-value';
+}
+
 export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
-	const isObjectChild = typeof row.key === 'string' && row.depth > 0;
 	const isInsideContainer = row.depth > 0;
-	const isLeaf =
-		row.kind === 'string' || row.kind === 'number' || row.kind === 'bool' || row.kind === 'null';
 	const isObject = row.kind === 'object';
+	const isArrayItemKey =
+		typeof row.key === 'string' && typeof row.path[row.path.length - 2] === 'number';
 
 	const g: MenuGroup[] = [];
 
 	const edit: MenuItem[] = [];
-	if (isLeaf) edit.push({ type: 'action', action: 'edit-value', label: 'Edit value', ico: '✎' });
-	if (isObjectChild) edit.push({ type: 'action', action: 'edit-key', label: 'Edit key', ico: '✎' });
+	if (editActionFor(row, 'value'))
+		edit.push({ type: 'action', action: 'edit-value', label: 'Edit value', ico: '✎' });
+	if (editActionFor(row, 'key'))
+		edit.push({ type: 'action', action: 'edit-key', label: 'Edit key', ico: '✎' });
 	if (edit.length) g.push(edit);
 
 	const clip: MenuItem[] = [
@@ -103,7 +109,18 @@ export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
 		g.push([{ type: 'sub', label: 'Convert to', ico: '⇄', children: convertChildren }]);
 	}
 
-	g.push([{ type: 'action', action: 'extract', label: 'Extract to new tab', ico: '↗' }]);
+	const extract: MenuItem[] = [
+		{ type: 'action', action: 'extract', label: 'Extract to new tab', ico: '↗' },
+	];
+	if (isArrayItemKey) {
+		extract.push({
+			type: 'action',
+			action: 'extract-column',
+			label: 'Extract key from all items',
+			ico: '↗',
+		});
+	}
+	g.push(extract);
 
 	if (isInsideContainer) {
 		g.push([{ type: 'action', action: 'remove', label: 'Remove', ico: '✕', danger: true }]);

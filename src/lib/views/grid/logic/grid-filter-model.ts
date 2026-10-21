@@ -42,7 +42,7 @@ const JSON_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
 
 function numberOperand(text: string): LosslessText {
 	const t = text.trim();
-	return JSON_NUMBER.test(t) ? asLosslessText(t) : encodeLossless(null);
+	return JSON_NUMBER.test(t) ? asLosslessText(t) : encodeLossless(t);
 }
 
 export function compileFilters(colFilters: Map<string, ColFilter>): GridFilter[] {
@@ -73,6 +73,16 @@ export function valLabel(v: unknown): string {
 	if (isLosslessNumber(v)) return String(v);
 	if (typeof v === 'object') return Array.isArray(v) ? `[${v.length}]` : '{…}';
 	return String(v);
+}
+
+export function valLabels(values: unknown[]): string[] {
+	const plain = values.map(valLabel);
+	const uses = new Map<string, number>();
+	for (const l of plain) uses.set(l, (uses.get(l) ?? 0) + 1);
+	return values.map((v, i) => {
+		const l = plain[i] ?? '';
+		return typeof v === 'string' && v !== '' && (uses.get(l) ?? 0) > 1 ? JSON.stringify(v) : l;
+	});
 }
 
 export function chipSummary(c: ColFilter): string {

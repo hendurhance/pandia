@@ -6,7 +6,7 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	docOpen: (source: OpenSource) => __TAURI_INVOKE<OpenResult>("doc_open", { source }),
+	docOpen: (source: OpenSource, options: OpenOptions) => __TAURI_INVOKE<OpenOutcome>("doc_open", { source, options }),
 	docClose: (handle: DocHandle) => __TAURI_INVOKE<boolean>("doc_close", { handle }),
 	docGetSlice: (handle: DocHandle, path: Path, start: number, end: number) => __TAURI_INVOKE<NodeView[]>("doc_get_slice", { handle, path, start, end }),
 	docGetValue: (handle: DocHandle, path: Path) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_value", { handle, path }),
@@ -15,9 +15,11 @@ export const commands = {
 	docGetRowsFiltered: (handle: DocHandle, path: Path, start: number, end: number, query: GridQuery, jobId: string | null) => __TAURI_INVOKE<FilteredRowsJson>("doc_get_rows_filtered", { handle, path, start, end, query, jobId }),
 	docColumnValues: (handle: DocHandle, path: Path, key: string, limit: number) => __TAURI_INVOKE<ColumnValues>("doc_column_values", { handle, path, key, limit }),
 	docGetRowsAt: (handle: DocHandle, path: Path, indices: number[]) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_rows_at", { handle, path, indices }),
+	docGetColumn: (handle: DocHandle, path: Path, key: string) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_column", { handle, path, key }),
 	docSummary: (handle: DocHandle) => __TAURI_INVOKE<Summary>("doc_summary", { handle }),
 	docChildCount: (handle: DocHandle, path: Path) => __TAURI_INVOKE<number | null>("doc_child_count", { handle, path }),
 	docColumnSchema: (handle: DocHandle, path: Path) => __TAURI_INVOKE<ColumnSchema>("doc_column_schema", { handle, path }),
+	docScanColumns: (handle: DocHandle, path: Path, jobId: string) => __TAURI_INVOKE<Column[]>("doc_scan_columns", { handle, path, jobId }),
 	docApplyOp: (handle: DocHandle, op: Op) => __TAURI_INVOKE<ApplyResult>("doc_apply_op", { handle, op }),
 	docSetRootText: (handle: DocHandle, text: string) => __TAURI_INVOKE<ApplyResult>("doc_set_root_text", { handle, text }),
 	docUndo: (handle: DocHandle) => __TAURI_INVOKE<{
@@ -36,14 +38,11 @@ export const commands = {
 	docSearch: (handle: DocHandle, opts: SearchOptions, jobId: string | null) => __TAURI_INVOKE<SearchHit[]>("doc_search", { handle, opts, jobId }),
 	cancelJob: (jobId: string) => __TAURI_INVOKE<boolean>("cancel_job", { jobId }),
 	docReplace: (handle: DocHandle, query: string, replacement: string, caseSensitive: boolean) => __TAURI_INVOKE<ReplaceResult>("doc_replace", { handle, query, replacement, caseSensitive }),
-	docRepairText: (text: string) => __TAURI_INVOKE<RepairResult>("doc_repair_text", { text }),
 	docValidateSchema: (handle: DocHandle, schema: string) => __TAURI_INVOKE<SchemaValidationResult>("doc_validate_schema", { handle, schema }),
+	readSchemaFile: (path: string) => __TAURI_INVOKE<string>("read_schema_file", { path }),
 	docGenerateTypes: (handle: DocHandle, lang: TypegenLang, typeName: string) => __TAURI_INVOKE<string>("doc_generate_types", { handle, lang, typeName }),
-	docDetectAndConvert: (text: string) => __TAURI_INVOKE<DetectResult>("doc_detect_and_convert", { text }),
-	docDiagnose: (text: string) => __TAURI_INVOKE<Diagnosis>("doc_diagnose", { text }),
 	docHistory: (handle: DocHandle) => __TAURI_INVOKE<HistoryView>("doc_history", { handle }),
 	docSave: (handle: DocHandle, path: string | null) => __TAURI_INVOKE<SaveResult>("doc_save", { handle, path }),
-	docSetFilePath: (handle: DocHandle, path: string) => __TAURI_INVOKE<Summary>("doc_set_file_path", { handle, path }),
 	docBackup: (handle: DocHandle, displayName: string | null) => __TAURI_INVOKE<boolean>("doc_backup", { handle, displayName }),
 	docBackupClear: (docId: string) => __TAURI_INVOKE<null>("doc_backup_clear", { docId }),
 	docBackupScan: () => __TAURI_INVOKE<BackupRecord[]>("doc_backup_scan"),
@@ -51,7 +50,13 @@ export const commands = {
 	docExportPreview: (handle: DocHandle, format: ExportFormat, maxChars: number) => __TAURI_INVOKE<ExportPreview>("doc_export_preview", { handle, format, maxChars }),
 	docExportToFile: (handle: DocHandle, format: ExportFormat, path: string) => __TAURI_INVOKE<null>("doc_export_to_file", { handle, format, path }),
 	refreshRecentFiles: (items: RecentFile[]) => __TAURI_INVOKE<null>("refresh_recent_files", { items }),
-	drainPendingFiles: () => __TAURI_INVOKE<string[]>("drain_pending_files"),
+	drainPendingFiles: () => __TAURI_INVOKE<PendingFile[]>("drain_pending_files"),
+	cliWaitDone: (id: string, report: TabReport) => __TAURI_INVOKE<void>("cli_wait_done", { id, report }),
+	cliReply: (handle: DocHandle, path: string) => __TAURI_INVOKE<null>("cli_reply", { handle, path }),
+	cliDiscardPiped: (path: string) => __TAURI_INVOKE<void>("cli_discard_piped", { path }),
+	shellCommandStatus: () => __TAURI_INVOKE<ShellCommand>("shell_command_status"),
+	shellCommandInstall: () => __TAURI_INVOKE<ShellCommand>("shell_command_install"),
+	shellCommandRemove: () => __TAURI_INVOKE<ShellCommand>("shell_command_remove"),
 };
 
 /* Constants */
@@ -60,6 +65,8 @@ export const EDIT_SIZE_LIMIT = 209715200 as const;
 export const LINE_FETCH_MAX = 5000 as const;
 
 export const MAX_DOC_BYTES = 2147483648 as const;
+
+export const SHORTCUTS = [{"command":"tab.new","key":"T","shift":false,"alt":false,"platform":"all"},{"command":"doc.new","key":"N","shift":false,"alt":false,"platform":"all"},{"command":"doc.openFile","key":"O","shift":false,"alt":false,"platform":"all"},{"command":"doc.save","key":"S","shift":false,"alt":false,"platform":"all"},{"command":"doc.saveAs","key":"S","shift":true,"alt":false,"platform":"all"},{"command":"doc.export","key":"E","shift":false,"alt":false,"platform":"all"},{"command":"tab.next","key":"]","shift":true,"alt":false,"platform":"all"},{"command":"tab.prev","key":"[","shift":true,"alt":false,"platform":"all"},{"command":"tab.close","key":"W","shift":false,"alt":false,"platform":"all"},{"command":"doc.undo","key":"Z","shift":false,"alt":false,"platform":"all"},{"command":"doc.redo","key":"Z","shift":true,"alt":false,"platform":"all"},{"command":"find.open","key":"F","shift":false,"alt":false,"platform":"all"},{"command":"find.next","key":"G","shift":false,"alt":false,"platform":"all"},{"command":"find.prev","key":"G","shift":true,"alt":false,"platform":"all"},{"command":"find.replace","key":"F","shift":false,"alt":true,"platform":"mac"},{"command":"find.replace","key":"H","shift":false,"alt":false,"platform":"notMac"},{"command":"palette.toggle","key":"K","shift":false,"alt":false,"platform":"all"},{"command":"view.toggleSidebar","key":"B","shift":false,"alt":false,"platform":"all"},{"command":"view.tree","key":"1","shift":false,"alt":false,"platform":"all"},{"command":"view.code","key":"2","shift":false,"alt":false,"platform":"all"},{"command":"view.grid","key":"3","shift":false,"alt":false,"platform":"all"},{"command":"view.graph","key":"4","shift":false,"alt":false,"platform":"all"},{"command":"nav.settings","key":",","shift":false,"alt":false,"platform":"all"},{"command":"view.openSchemaPanel","key":"V","shift":true,"alt":false,"platform":"all"},{"command":"compare.pick","key":"D","shift":false,"alt":false,"platform":"all"},{"command":"help.shortcuts","key":"/","shift":false,"alt":false,"platform":"all"}] as const;
 
 /* Types */
 export type ApplyResult = {
@@ -108,12 +115,6 @@ export type ColumnValues = {
 
 export type DetectKind = "json" | "yaml" | "xml" | "csv" | "curl" | "unknown";
 
-export type DetectResult = {
-	kind: DetectKind,
-	json: string,
-	error: string | null,
-};
-
 export type Diagnosis = {
 	title: string,
 	detail: string,
@@ -138,17 +139,17 @@ export type DiagnosisFix = {
 
 export type DiffEntry = {
 	path: Path,
+	leftPath: Path | null,
 	kind: DiffKind,
 	leftPreview: string | null,
 	rightPreview: string | null,
-	fromIndex: number | null,
 };
 
 export type DiffKind = "added" | "removed" | "changed" | "moved";
 
 export type DocHandle = string;
 
-export type ErrorKind = "notFound" | "invalidPath" | "tooLarge" | "rangeTooLarge" | "parse" | "edit" | "schema" | "export" | "io" | "cancelled";
+export type ErrorKind = "notFound" | "invalidPath" | "tooLarge" | "rangeTooLarge" | "tooDeep" | "parse" | "edit" | "schema" | "schemaExternalRef" | "export" | "io" | "cancelled";
 
 export type ExportFormat = "json" | "json-min" | "yaml" | "csv" | "xml";
 
@@ -156,6 +157,8 @@ export type ExportPreview = {
 	text: string,
 	truncated: boolean,
 };
+
+export type FileOp = "open" | "save" | "export";
 
 export type FilterOp = "contains" | "notContains" | "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "isEmpty" | "isNotEmpty" | "in" | "notIn" | "startsWith";
 
@@ -185,6 +188,14 @@ export type HistoryView = {
 	redo: OpDescription[],
 	cap: number,
 };
+
+export type IoInfo = {
+	problem: IoProblem,
+	op: FileOp | null,
+	file: string | null,
+};
+
+export type IoProblem = "missing" | "noPermission" | "isFolder" | "notText" | "diskFull" | "readOnly" | "other";
 
 export type LineDiffResult = {
 	hunks: LineHunk[],
@@ -217,36 +228,61 @@ export type OpDescription = {
 	pathDisplay: string,
 };
 
-export type OpenResult = {
-	handle: DocHandle,
-	summary: Summary,
+export type OpenFailure = {
+	detail: string,
+	tooLargeToFix: boolean,
+	diagnosis: Diagnosis,
 };
 
-export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null };
+export type OpenNotes = {
+	convertedFrom: DetectKind | null,
+	repairs: string[],
+};
+
+export type OpenOptions = {
+	repair: boolean,
+};
+
+export type OpenOutcome = {
+	kind: "opened",
+} & OpenedDoc | {
+	kind: "failed",
+} & OpenFailure;
+
+export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null } | { kind: "piped"; path: string };
+
+export type OpenedDoc = {
+	handle: DocHandle,
+	summary: Summary,
+	notes: OpenNotes,
+};
 
 export type Path = PathSegment[];
 
 export type PathSegment = string | number;
+
+export type PendingFile = {
+	path: string,
+	piped: boolean,
+	schema: string | null,
+	compareWith: string | null,
+	wait: string | null,
+	reply: string | null,
+};
 
 export type RecentFile = {
 	path: string,
 	name: string,
 };
 
-export type RepairResult = {
-	success: boolean,
-	repairedJson: string,
-	errors: string[],
-	warnings: string[],
-	originalLength: number,
-	repairedLength: number,
-	wasUnescaped: boolean,
-	cleanedUp: boolean,
-};
-
 export type ReplaceResult = {
 	count: number,
 	applied: ApplyResult | null,
+};
+
+export type ReportError = {
+	pointer: string,
+	message: string,
 };
 
 export type RowJson = {
@@ -285,6 +321,12 @@ export type SearchOptions = {
 	maxResults?: number | null,
 };
 
+export type ShellCommand = {
+	installed: boolean,
+	location: string,
+	removable: boolean,
+};
+
 export type Summary = {
 	rootKind: NodeKind,
 	rootChildCount: number | null,
@@ -298,6 +340,16 @@ export type Summary = {
 	commentsStripped: boolean,
 };
 
+export type TabReport = {
+	path: string | null,
+	opened: boolean,
+	saved: boolean,
+	valid: boolean | null,
+	errorCount: number,
+	errors: ReportError[],
+	problem: string | null,
+};
+
 export type TypegenLang = "typescript" | "rust" | "go" | "kotlin" | "json-schema" | "python" | "php" | "java" | "zod" | "dart";
 
 export type WireError = {
@@ -307,5 +359,6 @@ export type WireError = {
 	path: Path | null,
 	actual: number | null,
 	limit: number | null,
+	io: IoInfo | null,
 };
 

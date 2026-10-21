@@ -18,6 +18,12 @@ export interface CardRow {
 	children: GraphCard[];
 }
 
+/** The array whose remaining items a "… N more" card pages in. */
+export interface MoreItems {
+	row: CardRow;
+	total: number;
+}
+
 export interface GraphCard {
 	id: string; // JSON of path
 	path: Path;
@@ -26,6 +32,8 @@ export interface GraphCard {
 	rows: CardRow[];
 
 	hue: number;
+
+	more?: MoreItems;
 }
 
 export interface PositionedCard {
@@ -35,6 +43,7 @@ export interface PositionedCard {
 	kind: NodeKind;
 	rows: CardRow[];
 	hue: number;
+	more?: MoreItems;
 	x: number;
 	y: number;
 	w: number;
@@ -112,13 +121,14 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 			y = nextY;
 			nextY += h + V_GAP;
 		} else {
+			const top = nextY;
 			for (const ch of childCards) placed.set(ch.id, place(ch, depth + 1));
 			const firstChild = childCards[0];
 			const lastChild = childCards[childCards.length - 1];
 			const first = firstChild ? placed.get(firstChild.id) : undefined;
 			const last = lastChild ? placed.get(lastChild.id) : undefined;
 			if (first && last) {
-				y = (first.y + last.y + last.h) / 2 - h / 2;
+				y = Math.max((first.y + last.y + last.h) / 2 - h / 2, top);
 				nextY = Math.max(nextY, y + h + V_GAP); // keep packing monotonic
 			} else {
 				y = nextY;
@@ -133,6 +143,7 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 			kind: card.kind,
 			rows: card.rows,
 			hue: card.hue,
+			more: card.more,
 			x,
 			y,
 			w,
@@ -159,15 +170,6 @@ export function layoutGraph(root: GraphCard): LayoutResult {
 	}
 
 	place(root, 0);
-
-	const minY = Math.min(0, ...cards.map((c) => c.y));
-	if (minY < 0) {
-		for (const c of cards) c.y -= minY;
-		for (const e of edges) {
-			e.y1 -= minY;
-			e.y2 -= minY;
-		}
-	}
 
 	const width = Math.max(0, ...cards.map((c) => c.x + c.w));
 	const height = Math.max(0, ...cards.map((c) => c.y + c.h));

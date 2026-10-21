@@ -7,6 +7,7 @@
 	} from './state/command-store.svelte';
 	import { fuzzyMatch, highlightLabel } from './match';
 	import { fmtKbd } from '$lib/util/platform';
+	import { shortcutKeys } from '$lib/shell/logic/shortcuts';
 
 	interface Props {
 		open: boolean;
@@ -19,13 +20,21 @@
 	let selectedIdx = $state(0);
 	let inputEl: HTMLInputElement | undefined = $state();
 	let listEl: HTMLUListElement | undefined = $state();
+	let pressedBackdrop = false;
+	let ranCommand = false;
 
 	$effect(() => {
-		if (open) {
-			query = '';
-			selectedIdx = 0;
-			queueMicrotask(() => inputEl?.focus());
-		}
+		if (!open) return;
+		query = '';
+		selectedIdx = 0;
+		ranCommand = false;
+		const returnFocus = document.activeElement;
+		queueMicrotask(() => inputEl?.focus());
+		return () => {
+			if (!ranCommand && returnFocus instanceof HTMLElement && returnFocus.isConnected) {
+				returnFocus.focus();
+			}
+		};
 	});
 
 	interface Entry {
@@ -36,7 +45,7 @@
 	}
 
 	const results = $derived.by<Entry[]>(() => {
-		const cmds = commandRegistry.list.filter((c) => !c.enabled || c.enabled());
+		const cmds = commandRegistry.list.filter((c) => !c.hidden && (!c.enabled || c.enabled()));
 		const trimmed = query.trim();
 
 		if (!trimmed) {
@@ -76,6 +85,7 @@
 		const r = results[idx];
 		if (!r) return;
 		commandUsage.bump(r.cmd.id);
+		ranCommand = true;
 		onClose();
 		void r.cmd.run();
 	}
@@ -120,7 +130,8 @@
 {#if open}
 	<div
 		class="backdrop"
-		onclick={onClose}
+		onmousedown={(e) => (pressedBackdrop = e.target === e.currentTarget)}
+		onclick={() => pressedBackdrop && onClose()}
 		onkeydown={(e) => {
 			if (e.key === 'Escape') onClose();
 		}}
@@ -129,7 +140,13 @@
 		<div
 			class="palette"
 			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
+			onkeydown={(e) => {
+				e.stopPropagation();
+				if (e.key === 'Tab') {
+					e.preventDefault();
+					inputEl?.focus();
+				}
+			}}
 			role="dialog"
 			aria-label="Command palette"
 			tabindex="-1"
@@ -153,6 +170,7 @@
 				{:else}
 					{#each results as r, i (r.cmd.id)}
 						{@const section = showSectionFor(i)}
+						{@const keys = shortcutKeys(r.cmd.id)}
 						{#if section}
 							<li class="section">{section === 'Recent' ? 'Recently used' : section}</li>
 						{/if}
@@ -177,8 +195,8 @@
 							{#if query.trim() || r.section === 'Recent'}
 								<span class="cat">{r.cmd.category}</span>
 							{/if}
-							{#if r.cmd.keybinding}
-								<span class="kbd">{fmtKbd(r.cmd.keybinding)}</span>
+							{#if keys}
+								<span class="kbd">{fmtKbd(keys)}</span>
 							{/if}
 						</li>
 					{/each}
@@ -199,11 +217,12 @@
 	.backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
+		background: var(--scrim);
 		display: grid;
 		grid-template-rows: 22vh 1fr;
 		justify-content: center;
-		z-index: 100;
+		/* above dialogs (2000), so ⌘K over a dialog is seen */
+		z-index: 2100;
 	}
 	.palette {
 		grid-row: 2;
@@ -213,7 +232,7 @@
 		flex-direction: column;
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
-		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+		box-shadow: var(--shadow-modal);
 		font-family: var(--font-mono);
 		color: var(--text);
 	}
@@ -221,13 +240,13 @@
 	.search {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 0.75rem;
+		gap: var(--space-sm);
+		padding: var(--space-sm);
 		border-bottom: var(--rule-width) solid var(--rule);
 		background: var(--bg);
 	}
 	.prompt {
-		color: var(--accent);
+		color: var(--text-dim);
 		font-weight: bold;
 	}
 	.search input {
@@ -239,7 +258,7 @@
 	}
 	.kbd-hint {
 		font-size: var(--font-size-xs);
-		color: var(--text-faint);
+		color: var(--text-dim);
 		padding: 0 0.4ch;
 		border: var(--rule-width) solid var(--rule);
 	}
@@ -249,7 +268,7 @@
 		min-height: 0;
 		overflow-y: auto;
 		list-style: none;
-		padding: 0.25rem 0;
+		padding: var(--space-xs) 0;
 		margin: 0;
 	}
 
@@ -258,12 +277,12 @@
 		top: 0;
 		z-index: 2;
 		background: var(--bg-elev);
-		margin-top: 0.5rem;
-		padding: 0.4rem 0.75rem 0.3rem;
+		margin-top: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		font-size: var(--font-size-xs);
 		text-transform: uppercase;
-		letter-spacing: 0.2em;
-		color: var(--accent);
+		letter-spacing: var(--label-tracking);
+		color: var(--text-dim);
 		border-top: var(--rule-width) solid var(--rule);
 	}
 	.section:first-child {
@@ -273,8 +292,8 @@
 
 	.row {
 		align-items: baseline;
-		gap: 0.6rem;
-		padding: 0.35rem 0.75rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		font-size: var(--font-size-base);
 		user-select: none;
 	}
@@ -291,7 +310,7 @@
 	}
 	.cat {
 		flex-shrink: 0;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		font-size: var(--font-size-xs);
 		text-transform: uppercase;
 		letter-spacing: var(--label-tracking);
@@ -302,7 +321,7 @@
 	.label :global(mark) {
 		background: transparent;
 		color: var(--accent-2);
-		font-weight: 600;
+		font-weight: 700;
 	}
 	.row.selected .label :global(mark) {
 		color: var(--accent);
@@ -310,7 +329,7 @@
 	.kbd {
 		flex-shrink: 0;
 		font-size: var(--font-size-xs);
-		color: var(--text-faint);
+		color: var(--text-dim);
 		padding: 0 0.5ch;
 		border: var(--rule-width) solid var(--rule);
 	}
@@ -320,7 +339,7 @@
 	}
 
 	.empty {
-		padding: 2rem 0.75rem;
+		padding: var(--space-xl) var(--space-sm);
 		text-align: center;
 		color: var(--text-dim);
 		font-size: var(--font-size-sm);
@@ -329,8 +348,8 @@
 	.footer {
 		display: flex;
 		justify-content: space-between;
-		gap: 0.6rem;
-		padding: 0.4rem 0.75rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		border-top: var(--rule-width) solid var(--rule);
 		background: var(--bg);
 	}

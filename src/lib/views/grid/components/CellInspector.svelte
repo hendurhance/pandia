@@ -42,13 +42,13 @@
 	.insp-head {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.25rem 0.6rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		border-bottom: 1px solid var(--rule);
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 	}
 	.insp-loc {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		font-variant-numeric: tabular-nums;
 		letter-spacing: var(--label-tracking);
 	}
@@ -56,24 +56,24 @@
 		background: transparent;
 		border: 1px solid var(--rule);
 		color: var(--text-dim);
-		font-size: 11px;
-		padding: 0.05rem 0.5rem;
+		font-size: var(--font-size-sm);
+		padding: 0.05rem var(--space-sm);
 		cursor: pointer;
 	}
 	.insp-btn:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
+		border-color: var(--rule-2);
 	}
 	.insp-body {
 		flex: 1;
 		min-height: 0;
 		margin: 0;
-		padding: 0.5rem 0.7rem;
+		padding: var(--space-sm);
 		overflow: auto;
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 		font-family: var(--font-mono);
-		font-size: 12.5px;
+		font-size: var(--font-size-base);
 		line-height: 1.5;
 		color: var(--text);
 	}

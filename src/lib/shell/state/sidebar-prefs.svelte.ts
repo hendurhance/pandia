@@ -9,9 +9,10 @@ export type SidebarSide = 'left' | 'right';
 export const DEFAULT_VIEWS = ['tree', 'code', 'grid', 'graph'] as const;
 export type DefaultView = (typeof DEFAULT_VIEWS)[number];
 
-export const MIN_WIDTH = 180;
+// The tab words fit at 272 px at the default font size; larger fonts raise the floor in CSS.
+export const MIN_WIDTH = 272;
 export const MAX_WIDTH = 480;
-const DEFAULT_WIDTH = 240;
+const DEFAULT_WIDTH = 280;
 
 type PanelFlags = Record<SidebarTabId, boolean>;
 const ALL_ENABLED: PanelFlags = { outline: true, schema: true, types: true, history: true };

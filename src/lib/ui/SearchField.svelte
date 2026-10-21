@@ -114,7 +114,7 @@
 		min-width: 0;
 		background: var(--bg);
 		border: var(--rule-width) solid var(--rule);
-		padding: 0 6px;
+		padding: 0 var(--space-sm);
 		height: 26px;
 		transition: border-color 80ms linear;
 	}
@@ -139,10 +139,10 @@
 	}
 	.sf-counter {
 		flex-shrink: 0;
-		margin-left: 8px;
-		font-size: 10px;
+		margin-left: var(--space-sm);
+		font-size: var(--font-size-xs);
 		letter-spacing: 0.06em;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		white-space: nowrap;
 	}
 	.sf-counter.err {
@@ -164,7 +164,7 @@
 		justify-content: center;
 		color: var(--text-dim);
 		cursor: pointer;
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		line-height: 1;
 		padding: 0;
 	}
@@ -178,14 +178,14 @@
 		background: var(--bg-elev-2);
 	}
 	.sf-ic:disabled {
-		color: var(--text-ghost);
+		color: var(--text-faint);
 		cursor: default;
 	}
 	.sf-ic.close {
-		font-size: 16px;
+		font-size: var(--font-size-lg);
 	}
 	.sf-ic.cancel {
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		color: var(--accent);
 	}
 	.sf-ic.cancel:hover {
@@ -197,7 +197,7 @@
 		width: 1px;
 		height: 16px;
 		background: var(--rule);
-		margin: 0 2px;
+		margin: 0 var(--space-2xs);
 		align-self: center;
 	}
 </style>

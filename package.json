@@ -1,6 +1,6 @@
 {
   "name": "pandia",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "A powerful cross-platform desktop JSON IDE",
   "private": true,
   "scripts": {
@@ -66,6 +66,7 @@
     "@fontsource/victor-mono": "5.2.8",
     "@lucide/svelte": "^1.17.0",
     "@tauri-apps/api": "^2.7.0",
+    "@tauri-apps/plugin-clipboard-manager": "~2.3.3",
     "@tauri-apps/plugin-dialog": "^2.3.2",
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-http": "^2.5.4",

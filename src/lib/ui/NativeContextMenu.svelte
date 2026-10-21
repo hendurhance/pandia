@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { EditorView } from '@codemirror/view';
+	import { selectAll } from '@codemirror/commands';
 	import { BLOCK_CONTEXT_MENU } from '$lib/util/flags';
+	import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 
 	type Editable = HTMLInputElement | HTMLTextAreaElement;
 
@@ -12,6 +15,7 @@
 	let canPaste = $state(false);
 	let canSelectAll = $state(false);
 	let editableTarget: Editable | null = $state(null);
+	let editorTarget: EditorView | null = $state(null);
 	let selectAllTarget: HTMLElement | null = $state(null);
 
 	function isEditable(el: EventTarget | null): el is Editable {
@@ -22,17 +26,28 @@
 		return window.getSelection()?.toString() ?? '';
 	}
 
+	function getEditorSelectionText(view: EditorView): string {
+		const { from, to } = view.state.selection.main;
+		return view.state.sliceDoc(from, to);
+	}
+
 	function close() {
 		open = false;
 		editableTarget = null;
+		editorTarget = null;
 		selectAllTarget = null;
 	}
 
+	function onMenuMousedown(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
 	async function doCopy() {
-		const text = getSelectionText();
+		const text = editorTarget ? getEditorSelectionText(editorTarget) : getSelectionText();
 		if (text) {
 			try {
-				await navigator.clipboard.writeText(text);
+				await writeText(text);
 			} catch {
 				// clipboard access denied; silently no-op
 			}
@@ -40,7 +55,7 @@
 			const { selectionStart: s, selectionEnd: e, value } = editableTarget;
 			if (s != null && e != null && s !== e) {
 				try {
-					await navigator.clipboard.writeText(value.slice(s, e));
+					await writeText(value.slice(s, e));
 				} catch {
 					// ignore
 				}
@@ -50,6 +65,18 @@
 	}
 
 	async function doCut() {
+		const editor = editorTarget;
+		if (editor) {
+			const { from, to } = editor.state.selection.main;
+			try {
+				await writeText(editor.state.sliceDoc(from, to));
+				editor.dispatch({ changes: { from, to }, userEvent: 'delete.cut' });
+			} catch {
+				// ignore
+			}
+			close();
+			return;
+		}
 		if (!editableTarget) {
 			close();
 			return;
@@ -60,7 +87,7 @@
 			return;
 		}
 		try {
-			await navigator.clipboard.writeText(value.slice(s, e));
+			await writeText(value.slice(s, e));
 			editableTarget.value = value.slice(0, s) + value.slice(e);
 			editableTarget.setSelectionRange(s, s);
 			editableTarget.dispatchEvent(new Event('input', { bubbles: true }));
@@ -71,18 +98,32 @@
 	}
 
 	async function doPaste() {
+		const editor = editorTarget;
+		if (editor) {
+			try {
+				const text = await readText();
+				editor.dispatch(editor.state.replaceSelection(text), {
+					userEvent: 'input.paste',
+					scrollIntoView: true,
+				});
+			} catch {
+				// ignore
+			}
+			close();
+			return;
+		}
 		if (!editableTarget) {
 			close();
 			return;
 		}
 		try {
-			const text = await navigator.clipboard.readText();
+			const text = await readText();
 			const { selectionStart: s, selectionEnd: e, value } = editableTarget;
 			const start = s ?? value.length;
 			const end = e ?? value.length;
 			editableTarget.value = value.slice(0, start) + text + value.slice(end);
-			editableTarget.setSelectionRange(start + text.length, start + text.length);
 			editableTarget.dispatchEvent(new Event('input', { bubbles: true }));
+			editableTarget.setSelectionRange(start + text.length, start + text.length);
 		} catch {
 			// ignore
 		}
@@ -90,7 +131,9 @@
 	}
 
 	function doSelectAll() {
-		if (editableTarget) {
+		if (editorTarget) {
+			selectAll(editorTarget);
+		} else if (editableTarget) {
 			editableTarget.select();
 		} else if (selectAllTarget) {
 			const sel = window.getSelection();
@@ -109,14 +152,12 @@
 
 		const onContextMenu = (e: MouseEvent) => {
 			const target = e.target as HTMLElement | null;
-			// Inputs/textareas only — anywhere else we just suppress the native
-			// menu and don't show our own. (Selectable read-only text gets its
-			// Copy via ⌘C; we don't want to wrap every DOM string in a menu.)
 			const editable = isEditable(target) ? target : null;
-			const selectionText = getSelectionText();
+			const cm = target?.isContentEditable ? target.closest<HTMLElement>('.cm-editor') : null;
+			const editor = cm && EditorView.findFromDOM(cm);
+			const selectionText = editor ? getEditorSelectionText(editor) : getSelectionText();
 
-			// If there's literally nothing to do, just kill the native menu.
-			if (!editable && !selectionText) {
+			if (!editable && !editor && !selectionText) {
 				e.preventDefault();
 				return;
 			}
@@ -125,15 +166,17 @@
 			x = e.clientX;
 			y = e.clientY;
 			editableTarget = editable;
+			editorTarget = editor;
 			selectAllTarget = editable ?? target;
 			canCopy =
 				!!selectionText || !!(editable && editable.selectionStart !== editable.selectionEnd);
 			canCut =
-				!!editable &&
-				editable.selectionStart !== null &&
-				editable.selectionStart !== editable.selectionEnd;
-			canPaste = !!editable;
-			canSelectAll = !!editable || (target?.textContent?.length ?? 0) > 0;
+				(!!editor && !!selectionText) ||
+				(!!editable &&
+					editable.selectionStart !== null &&
+					editable.selectionStart !== editable.selectionEnd);
+			canPaste = !!editable || !!editor;
+			canSelectAll = !!editable || !!editor || (target?.textContent?.length ?? 0) > 0;
 			open = true;
 		};
 
@@ -161,6 +204,7 @@
 		style="left: {x}px; top: {y}px"
 		role="menu"
 		tabindex="-1"
+		onmousedown={onMenuMousedown}
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.key === 'Escape' && close()}
 	>
@@ -187,9 +231,10 @@
 		position: fixed;
 		z-index: 9999;
 		min-width: 140px;
-		padding: 4px 0;
+		padding: var(--space-xs) 0;
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
+		box-shadow: var(--shadow-pop);
 		font-size: var(--font-size-sm);
 		color: var(--text);
 		user-select: none;
@@ -197,7 +242,7 @@
 	.ctx-item {
 		display: block;
 		width: 100%;
-		padding: 4px 12px;
+		padding: var(--space-xs) var(--space-md);
 		background: transparent;
 		border: none;
 		text-align: left;
@@ -206,12 +251,12 @@
 		cursor: pointer;
 	}
 	.ctx-item:hover {
-		background: var(--accent-soft);
-		color: var(--accent);
+		background: var(--bg-elev-2);
+		color: var(--text);
 	}
 	.ctx-sep {
 		height: 1px;
-		margin: 4px 0;
+		margin: var(--space-xs) 0;
 		background: var(--rule);
 	}
 </style>

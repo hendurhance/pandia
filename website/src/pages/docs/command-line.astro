@@ -1,0 +1,109 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+const REPORT_EXAMPLE = `{
+  "exitCode": 1,
+  "files": [
+    {
+      "path": "/work/config.json",
+      "opened": true,
+      "saved": true,
+      "valid": false,
+      "errorCount": 1,
+      "errors": [{ "pointer": "/retries", "message": "\\"3\\" is not of type \\"integer\\"" }],
+      "problem": null
+    }
+  ]
+}`;
+---
+<DocsLayout
+  title="Command line"
+  description="Open, pipe and compare JSON from any terminal with the pandia command, review piped JSON for a script or AI agent, validate against a schema, and use Pandia as git's diff tool."
+  currentDoc="/docs/command-line"
+>
+  <h1>Command line</h1>
+  <p class="lead">Open, pipe and compare JSON from any terminal with the <code>pandia</code> command.</p>
+
+  <h2>Install the command</h2>
+  <p>Open <strong>Settings → Behavior → terminal command</strong> and click
+  <strong>Install pandia command</strong>. Then open a new terminal and run
+  <code>pandia --help</code>.</p>
+  <ul>
+    <li><strong>macOS</strong> creates <code>/usr/local/bin/pandia</code>. macOS may ask for your
+    password. If you installed Pandia with Homebrew, the command is already there.</li>
+    <li><strong>Windows</strong> creates <code>pandia.cmd</code> in Pandia's data folder and adds
+    that folder to your user PATH.</li>
+    <li><strong>Linux</strong> creates <code>~/.local/bin/pandia</code>. If your shell can't find it,
+    add <code>~/.local/bin</code> to your PATH.</li>
+  </ul>
+
+  <h2>Open files</h2>
+  <pre><code><span class="k">pandia</span> data.json
+<span class="k">pandia</span> a.json b.json
+<span class="k">curl</span> -s https://api.example.com/users | <span class="k">pandia</span> -
+<span class="k">pandia</span> --diff old.json new.json
+<span class="k">pandia</span> config.json --schema config.schema.json</code></pre>
+  <p>If Pandia is already open, each file opens as a new tab in that window. The command returns
+  straight away, so your terminal stays free.</p>
+  <p><code>-</code> opens whatever is piped in, in a tab named <strong>stdin</strong>. While the tab
+  is open, Pandia keeps a temp copy that only your account can read, and deletes it when you close
+  the tab. Save asks where to keep it. YAML, CSV and broken JSON are converted or repaired the same
+  way as files you open.</p>
+  <p><code>--diff</code> opens the first file in <a href="/docs/compare">Compare</a> against the
+  second. <code>--schema</code> fills the Schema panel for every file the command opens; see
+  <a href="/docs/validate">Validate</a>.</p>
+
+  <h2>Wait for Pandia</h2>
+  <p><code>--wait</code> keeps the command running until you close every tab it opened. Its exit
+  code tells a script what happened:</p>
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0</td><td>You closed the tabs and the Schema panel showed no errors.</td></tr>
+      <tr><td>1</td><td>The Schema panel showed errors, a file didn't open, or Pandia quit before you closed the tabs.</td></tr>
+      <tr><td>2</td><td>The command was mistyped. Pandia prints what to fix.</td></tr>
+      <tr><td>3</td><td>Piped input was closed without saving, so nothing was sent back.</td></tr>
+    </tbody>
+  </table>
+  <pre><code><span class="k">pandia</span> --wait config.json --schema config.schema.json && <span class="k">echo</span> "config is valid"</code></pre>
+
+  <h2>Review piped JSON and send it back</h2>
+  <p>With <code>--wait</code>, piped input becomes a review step for a script or an AI agent. A
+  bar in the tab says a terminal is waiting. Edit the JSON, press <strong>Save</strong>
+  (<kbd>⌘S</kbd>) to send it back, then close the tab. The command prints the saved JSON.</p>
+  <pre><code><span class="k">cat</span> draft.json | <span class="k">pandia</span> --wait - --schema config.schema.json > config.json</code></pre>
+  <p>Closing the tab without saving sends nothing and exits with 3, so <code>&&</code> stops the
+  rest of the script.</p>
+
+  <h2>Get a report your script can read</h2>
+  <p>Add <code>--json</code> to <code>--wait</code> and the command prints one JSON report when the
+  tabs close, instead of the document:</p>
+  <pre><code>{REPORT_EXAMPLE}</code></pre>
+  <p>Each error names its location as a JSON Pointer. <code>valid</code> is <code>null</code> when no
+  schema ran. <code>problem</code> says why a file didn't open or why its schema couldn't be used.
+  Piped input has a <code>path</code> of <code>null</code>, and once saved, its JSON is in
+  <code>content</code>.</p>
+
+  <h2>Use Pandia as git's diff tool</h2>
+  <pre><code><span class="k">git</span> config --global difftool.pandia.cmd 'pandia --wait --diff "$LOCAL" "$REMOTE"'
+<span class="k">git</span> difftool --tool=pandia -- data.json</code></pre>
+  <p>On Windows, write <code>pandia.cmd</code> instead of <code>pandia</code> in the first line.</p>
+
+  <h2>Options</h2>
+  <table>
+    <thead>
+      <tr><th>Option</th><th>What it does</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>-</code></td><td>Open what is piped in.</td></tr>
+      <tr><td><code>--schema &lt;path|url&gt;</code></td><td>Validate the opened files against this schema.</td></tr>
+      <tr><td><code>--diff &lt;a&gt; &lt;b&gt;</code></td><td>Open <code>a</code> in Compare against <code>b</code>.</td></tr>
+      <tr><td><code>--wait</code></td><td>Return after you close the opened tabs.</td></tr>
+      <tr><td><code>--json</code></td><td>With <code>--wait</code>, print a JSON report of what happened.</td></tr>
+      <tr><td><code>-h</code>, <code>--help</code></td><td>Show the options.</td></tr>
+      <tr><td><code>--</code></td><td>Treat every name after it as a file, like <code>pandia -- -data.json</code>.</td></tr>
+    </tbody>
+  </table>
+</DocsLayout>

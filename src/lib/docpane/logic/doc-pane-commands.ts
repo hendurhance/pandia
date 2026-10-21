@@ -15,6 +15,18 @@ const TYPEGEN_TARGETS: Array<[TypegenLang, string]> = [
 	['zod', 'Zod'],
 ];
 
+function cycleFind(actions: DocPaneActions, dir: 1 | -1): void {
+	const { find } = actions;
+	const hasHits = actions.isCodeView() ? find.codeMatchCount > 0 : find.hits.length > 0;
+	if (!hasHits) {
+		find.openFind();
+		return;
+	}
+	find.open = true;
+	if (dir === 1) find.next();
+	else find.prev();
+}
+
 export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 	const withRow = (fn: (r: ContentRow) => void) => () => {
 		const r = actions.selectedContentRow();
@@ -26,7 +38,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'doc.save',
 			label: 'Save Document',
 			category: 'Document',
-			keybinding: '⌘S',
 			enabled: actions.hasDoc,
 			run: () => actions.doSave(),
 		},
@@ -34,7 +45,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'doc.saveAs',
 			label: 'Save Document As…',
 			category: 'Document',
-			keybinding: '⌘⇧S',
 			enabled: actions.hasDoc,
 			run: () => actions.doSaveAs(),
 		},
@@ -42,7 +52,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'doc.export',
 			label: 'Export (JSON · YAML · CSV · XML)…',
 			category: 'Import / Export',
-			keybinding: '⌘E',
 			enabled: actions.hasDoc,
 			run: () => actions.openExport(),
 		},
@@ -50,14 +59,12 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'view.tree',
 			label: 'Tree View',
 			category: 'View',
-			keybinding: '⌘1',
 			run: () => actions.switchView('tree'),
 		},
 		{
 			id: 'view.code',
 			label: 'Code View',
 			category: 'View',
-			keybinding: '⌘2',
 			enabled: actions.hasDoc,
 			run: () => actions.switchView('code'),
 		},
@@ -65,7 +72,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'view.grid',
 			label: 'Grid View',
 			category: 'View',
-			keybinding: '⌘3',
 			enabled: actions.hasDoc,
 			run: () => actions.switchView('grid'),
 		},
@@ -73,7 +79,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'view.graph',
 			label: 'Graph View',
 			category: 'View',
-			keybinding: '⌘4',
 			enabled: actions.hasDoc,
 			run: () => actions.switchView('graph'),
 		},
@@ -81,7 +86,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'doc.undo',
 			label: 'Undo',
 			category: 'Document',
-			keybinding: '⌘Z',
 			enabled: actions.hasDoc,
 			run: () => actions.undo(),
 		},
@@ -89,7 +93,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'doc.redo',
 			label: 'Redo',
 			category: 'Document',
-			keybinding: '⌘⇧Z',
 			enabled: actions.hasDoc,
 			run: () => actions.redo(),
 		},
@@ -111,7 +114,6 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'find.open',
 			label: 'Find in Document…',
 			category: 'Navigate',
-			keybinding: '⌘F',
 			enabled: actions.hasDoc,
 			run: () => actions.find.openFind(),
 		},
@@ -119,17 +121,22 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'find.next',
 			label: 'Find Next',
 			category: 'Navigate',
-			keybinding: '⌘G',
-			enabled: () => actions.find.hits.length > 0,
-			run: () => actions.find.next(),
+			enabled: actions.hasDoc,
+			run: () => cycleFind(actions, 1),
 		},
 		{
 			id: 'find.prev',
 			label: 'Find Previous',
 			category: 'Navigate',
-			keybinding: '⌘⇧G',
-			enabled: () => actions.find.hits.length > 0,
-			run: () => actions.find.prev(),
+			enabled: actions.hasDoc,
+			run: () => cycleFind(actions, -1),
+		},
+		{
+			id: 'find.replace',
+			label: 'Find and Replace…',
+			category: 'Navigate',
+			enabled: actions.hasDoc,
+			run: () => actions.find.openReplace(),
 		},
 		{
 			id: 'tree.expandAll',

@@ -31,6 +31,8 @@ pub struct Recovered {
 pub const COMMENTS_STRIPPED_NOTE: &str =
     "Removed the comments — saving will write plain JSON without them";
 
+const NULLED_NOTE: &str = "Replaced undefined, NaN or Infinity values with null";
+
 impl Recovered {
     fn noted(json: String, note: &'static str) -> Self {
         Self {
@@ -61,18 +63,20 @@ pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
     };
 
     let dialect = attempts.into_iter().find_map(|attempt| {
-        let (json, comments) = match attempt {
-            Attempt::Ndjson => (ndjson_to_array(body)?, false),
+        let (json, comments, nulled) = match attempt {
+            Attempt::Ndjson => (ndjson_to_array(body)?, false, false),
             Attempt::Relaxed => relaxed_to_json(body)?,
             Attempt::RelaxedNdjson => {
-                let (json, comments) = relaxed_to_json(body)?;
-                (ndjson_to_array(&json)?, comments)
+                let (json, comments, nulled) = relaxed_to_json(body)?;
+                (ndjson_to_array(&json)?, comments, nulled)
             }
         };
-        is_valid_json(&json).then_some((json, comments))
+        is_valid_json(&json).then_some((json, comments, nulled))
     });
-    if let Some((json, comments_stripped)) = dialect {
-        let note = if comments_stripped {
+    if let Some((json, comments_stripped, nulled)) = dialect {
+        let note = if nulled {
+            Some(NULLED_NOTE)
+        } else if comments_stripped {
             Some(COMMENTS_STRIPPED_NOTE)
         } else {
             note
@@ -85,12 +89,16 @@ pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
     }
 
     let inner = unwrap_quoted(body)?;
-    let (json, comments_stripped) = relaxed_to_json(&inner.json)
-        .or_else(|| ndjson_to_array(&inner.json).map(|json| (json, false)))
-        .filter(|(c, _)| is_valid_json(c))?;
+    let (json, comments_stripped, nulled) = relaxed_to_json(&inner.json)
+        .or_else(|| ndjson_to_array(&inner.json).map(|json| (json, false, false)))
+        .filter(|(c, ..)| is_valid_json(c))?;
     Some(Recovered {
         json,
-        note: inner.note,
+        note: if nulled {
+            Some(NULLED_NOTE)
+        } else {
+            inner.note
+        },
         comments_stripped,
     })
 }
@@ -178,7 +186,7 @@ enum Attempt {
 }
 
 fn is_valid_json(text: &str) -> bool {
-    serde_json::from_str::<IgnoredAny>(text).is_ok()
+    super::lazy::parse_json::<IgnoredAny>(text).is_ok()
 }
 
 fn top_level_spans(text: &str) -> Vec<(usize, usize)> {
@@ -277,12 +285,13 @@ enum Ctx {
     Arr,
 }
 
-fn relaxed_to_json(text: &str) -> Option<(String, bool)> {
+fn relaxed_to_json(text: &str) -> Option<(String, bool, bool)> {
     let b = text.as_bytes();
     let mut out = String::with_capacity(text.len());
     let mut stack: Vec<Ctx> = Vec::new();
     let mut changed = false;
     let mut saw_comment = false;
+    let mut nulled = false;
     let mut i = 0;
 
     while i < b.len() {
@@ -356,12 +365,12 @@ fn relaxed_to_json(text: &str) -> Option<(String, bool)> {
                     i += 1;
                     continue;
                 }
-                changed |= emit_bare_token(&text[start..i], &stack, &mut out);
+                changed |= emit_bare_token(&text[start..i], &stack, &mut out, &mut nulled);
             }
         }
     }
 
-    changed.then_some((out, saw_comment))
+    changed.then_some((out, saw_comment, nulled))
 }
 
 fn is_token_delim(c: u8) -> bool {
@@ -372,7 +381,7 @@ fn is_token_delim(c: u8) -> bool {
         )
 }
 
-fn emit_bare_token(tok: &str, stack: &[Ctx], out: &mut String) -> bool {
+fn emit_bare_token(tok: &str, stack: &[Ctx], out: &mut String, nulled: &mut bool) -> bool {
     if matches!(stack.last(), Some(Ctx::Obj { key_pos: true })) {
         push_json_string(tok, out);
         return true;
@@ -384,6 +393,7 @@ fn emit_bare_token(tok: &str, stack: &[Ctx], out: &mut String) -> bool {
         }
         "Infinity" | "-Infinity" | "+Infinity" | "NaN" | "-NaN" | "+NaN" | "undefined" => {
             out.push_str("null");
+            *nulled = true;
             true
         }
         _ => match normalize_number(tok) {
@@ -762,6 +772,15 @@ mod tests {
             v,
             serde_json::json!({"a": null, "b": null, "c": null, "d": null})
         );
+    }
+
+    #[test]
+    fn non_finite_numbers_turned_into_null_carry_a_note() {
+        let note = Some("Replaced undefined, NaN or Infinity values with null");
+        assert_eq!(recover("{\"a\": NaN, \"b\": 1}", None).unwrap().note, note);
+        let commented = recover("{// c\n a: Infinity}", None).unwrap();
+        assert_eq!(commented.note, note);
+        assert!(commented.comments_stripped);
     }
 
     #[test]

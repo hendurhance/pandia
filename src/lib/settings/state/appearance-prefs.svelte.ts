@@ -18,8 +18,9 @@ const DARK_QUERY = '(prefers-color-scheme: dark)';
 const STORE_KEY = 'appearance';
 
 const DEFAULT_THEME_ID = DEFAULT_THEME.id;
+const DEFAULT_AUTO_MODE = true;
 const DEFAULT_MONO = 'IBM Plex Mono';
-const DEFAULT_FONT_SIZE = 12.5;
+const DEFAULT_FONT_SIZE = 13;
 const DEFAULT_DENSITY: Density = 'normal';
 
 export const FONT_SIZE_MIN = 11;
@@ -42,7 +43,7 @@ const VALID_DENSITY: Density[] = ['compact', 'normal', 'comfortable'];
 function sanitize(raw: unknown): Persisted {
 	const fallback: Persisted = {
 		themeId: DEFAULT_THEME_ID,
-		autoMode: false,
+		autoMode: DEFAULT_AUTO_MODE,
 		fontFamily: DEFAULT_MONO,
 		fontSizeBase: DEFAULT_FONT_SIZE,
 		density: DEFAULT_DENSITY,
@@ -51,7 +52,7 @@ function sanitize(raw: unknown): Persisted {
 	const r = raw;
 	return {
 		themeId: typeof r.themeId === 'string' && r.themeId in THEMES ? r.themeId : DEFAULT_THEME_ID,
-		autoMode: typeof r.autoMode === 'boolean' ? r.autoMode : false,
+		autoMode: typeof r.autoMode === 'boolean' ? r.autoMode : DEFAULT_AUTO_MODE,
 		fontFamily:
 			typeof r.fontFamily === 'string' && r.fontFamily.trim() ? r.fontFamily.trim() : DEFAULT_MONO,
 		fontSizeBase:
@@ -64,7 +65,7 @@ function sanitize(raw: unknown): Persisted {
 
 class AppearancePrefs extends PersistedStore {
 	themeId: string = $state(DEFAULT_THEME_ID);
-	autoMode: boolean = $state(false);
+	autoMode: boolean = $state(DEFAULT_AUTO_MODE);
 
 	systemPrefersDark: boolean = $state(true);
 	fontFamily: string = $state(DEFAULT_MONO);
@@ -72,6 +73,14 @@ class AppearancePrefs extends PersistedStore {
 	density: Density = $state(DEFAULT_DENSITY);
 
 	private mediaBound = false;
+
+	async init(): Promise<void> {
+		if (!this.loaded) {
+			this.bindSystemTheme();
+			this.applyResolved();
+		}
+		await super.init();
+	}
 
 	protected async load(): Promise<void> {
 		try {
@@ -117,12 +126,8 @@ class AppearancePrefs extends PersistedStore {
 	private applyAll(): void {
 		this.applyResolved();
 		applyDensity(this.density);
-		if (this.fontFamily !== DEFAULT_MONO) {
-			applyFontFamily({ mono: this.fontFamily });
-		}
-		if (this.fontSizeBase !== DEFAULT_FONT_SIZE) {
-			applyFontSizeBase(this.fontSizeBase);
-		}
+		applyFontFamily({ mono: this.fontFamily });
+		applyFontSizeBase(this.fontSizeBase);
 	}
 
 	private async persist(): Promise<void> {
@@ -179,11 +184,12 @@ class AppearancePrefs extends PersistedStore {
 
 	async reset(): Promise<void> {
 		this.themeId = DEFAULT_THEME_ID;
-		this.autoMode = false;
+		this.autoMode = DEFAULT_AUTO_MODE;
 		this.fontFamily = DEFAULT_MONO;
 		this.fontSizeBase = DEFAULT_FONT_SIZE;
 		this.density = DEFAULT_DENSITY;
 		resetAppearance();
+		this.applyResolved();
 		await this.persist();
 	}
 }

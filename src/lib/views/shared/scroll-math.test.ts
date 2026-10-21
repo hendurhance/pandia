@@ -3,7 +3,9 @@ import {
 	buildOffsets,
 	captureScrollAnchor,
 	indexAtOffset,
+	MAX_SCROLL_HEIGHT,
 	restoreScrollTop,
+	scaledOffset,
 	visibleWindow,
 } from './scroll-math';
 
@@ -161,5 +163,23 @@ describe('captureScrollAnchor / restoreScrollTop', () => {
 
 	it('never restores to a negative scrollTop', () => {
 		expect(restoreScrollTop(offsets, 0, 30)).toBe(0);
+	});
+});
+
+describe('scaledOffset', () => {
+	const VIEWPORT = 600;
+	const FULL = 2_000_000 * 24; // 48M px, past what the browser lays out
+
+	it.each([
+		['the first row', 0, 0],
+		['the middle', 7_999_700, 23_999_700],
+		['the last row', 15_999_400, 47_999_400],
+	])('maps the scrollbar to %s of a very long list', (_, scrollTop, offset) => {
+		expect(scaledOffset(scrollTop, VIEWPORT, FULL)).toBeCloseTo(offset, 6);
+	});
+
+	it('leaves content that fits unscaled', () => {
+		expect(scaledOffset(1234.5, VIEWPORT, 100 * 24)).toBe(1234.5);
+		expect(scaledOffset(15_999_400, VIEWPORT, MAX_SCROLL_HEIGHT)).toBe(15_999_400);
 	});
 });

@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::ops::Range;
+use std::sync::Arc;
 
 use serde_json::Value;
 use sonic_rs::{FastStr, JsonType, JsonValueTrait, LazyValue, PointerNode};
@@ -15,23 +18,37 @@ use super::types::{quote_preview, DocError, DocResult, NodeKind, NodeView, Path,
 
 const COUNT_BUDGET_BYTES: usize = 64 * 1024;
 
+type ElementSpans = Arc<Vec<(u32, u32)>>;
+
 #[derive(Debug)]
 pub struct LazyDoc {
     source: FastStr,
     root_kind: NodeKind,
-    root_index: Option<Vec<(u32, u32)>>,
+    root_index: Option<ElementSpans>,
+    nested_index: parking_lot::Mutex<HashMap<Path, ElementSpans>>,
 }
 
 impl LazyDoc {
-    pub fn new(text: &str) -> DocResult<Self> {
-        sonic_rs::from_str::<serde::de::IgnoredAny>(text)
+    pub fn new(text: FastStr) -> DocResult<Self> {
+        let repeated_keys = prescan(&text)?;
+        sonic_rs::from_str::<serde::de::IgnoredAny>(&text)
             .map_err(|e| DocError::Parse(e.to_string()))?;
-        let root_kind = root_kind_of(text);
+        let root_kind = root_kind_of(&text);
 
-        let source = FastStr::new(text);
+        let source = if repeated_keys.is_empty() {
+            text
+        } else {
+            // Collapse repeated keys the way serde_json reads them (first position,
+            // last value) so every lazy read agrees with the eager backend.
+            let start = skip_ws(text.as_bytes(), 0);
+            let end = skip_value(text.as_bytes(), start)?;
+            let mut deduped = String::with_capacity(text.len());
+            write_deduped(&text, start..end, &repeated_keys, &mut deduped);
+            FastStr::from_string(deduped)
+        };
 
         let root_index = if root_kind == NodeKind::Array {
-            Some(build_root_index(&source)?)
+            Some(Arc::new(build_array_index(source.as_bytes(), 0)?))
         } else {
             None
         };
@@ -40,6 +57,7 @@ impl LazyDoc {
             source,
             root_kind,
             root_index,
+            nested_index: parking_lot::Mutex::new(HashMap::new()),
         })
     }
 
@@ -52,7 +70,7 @@ impl LazyDoc {
     }
 
     pub fn root_element_spans(&self) -> Option<&[(u32, u32)]> {
-        self.root_index.as_deref()
+        self.root_index.as_deref().map(Vec::as_slice)
     }
 
     pub fn root_child_count(&self) -> Option<u32> {
@@ -82,9 +100,12 @@ impl LazyDoc {
     }
 
     pub fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)> {
+        if let Some(spans) = self.array_spans(path)? {
+            return Ok((NodeKind::Array, Some(spans.len() as u32)));
+        }
         let lv = self.lookup(path)?;
         let kind = json_type_to_node_kind(lv.get_type());
-        let count = maybe_count(&lv, kind);
+        let count = count_uncapped(&lv, kind);
         Ok((kind, count))
     }
 
@@ -101,20 +122,18 @@ impl LazyDoc {
     }
 
     pub fn get_value(&self, path: &Path) -> DocResult<Value> {
-        if path.0.len() == 1 {
-            if let Some(idx) = &self.root_index {
-                if let PathSegment::Index(i) = path.0[0] {
-                    let (begin, fin) = *idx
-                        .get(i as usize)
-                        .ok_or_else(|| DocError::InvalidPath(path.clone()))?;
-                    let bytes = &self.source.as_str()[begin as usize..fin as usize];
-                    return serde_json::from_str(bytes).map_err(|e| DocError::Parse(e.to_string()));
-                }
+        if let Some((PathSegment::Index(i), parent)) = path.0.split_last() {
+            if let Ok(Some(spans)) = self.array_spans(&Path(parent.to_vec())) {
+                let (begin, fin) = *spans
+                    .get(*i as usize)
+                    .ok_or_else(|| DocError::InvalidPath(path.clone()))?;
+                let bytes = &self.source.as_str()[begin as usize..fin as usize];
+                return parse_json(bytes);
             }
         }
 
         let lv = self.lookup(path)?;
-        serde_json::from_str(lv.as_raw_str()).map_err(|e| DocError::Parse(e.to_string()))
+        parse_json(lv.as_raw_str())
     }
 
     pub fn array_field_cells(&self, path: &Path, field: &str) -> DocResult<Vec<Option<Value>>> {
@@ -124,35 +143,19 @@ impl LazyDoc {
             // by `LazyDoc::new`, and `bytes` is a substring of it; the
             // unchecked variant skips redundant re-validation in this hot path.
             match unsafe { sonic_rs::get_from_str_unchecked(bytes, &needle) } {
-                Ok(lv) => serde_json::from_str(lv.as_raw_str()).ok(),
+                Ok(lv) => parse_json(lv.as_raw_str()).ok(),
                 Err(_) => None, // field absent / element not an object
             }
         };
 
-        if path.is_root() {
-            let Some(idx) = &self.root_index else {
-                return Ok(Vec::new()); // root isn't an array
-            };
-            let src = self.source.as_str();
-            return Ok(idx
-                .iter()
-                .map(|(b, e)| extract(&src[*b as usize..*e as usize]))
-                .collect());
-        }
-
-        let lv = self.lookup(path)?;
-        if lv.get_type() != JsonType::Array {
+        let Some(spans) = self.array_spans(path)? else {
             return Ok(Vec::new());
-        }
-        let iter = lv
-            .into_array_iter()
-            .expect("array type confirmed by get_type");
-        let mut out = Vec::new();
-        for entry in iter {
-            let el = entry.map_err(|e| DocError::Parse(e.to_string()))?;
-            out.push(extract(el.as_raw_str()));
-        }
-        Ok(out)
+        };
+        let src = self.source.as_str();
+        Ok(spans
+            .iter()
+            .map(|(b, e)| extract(&src[*b as usize..*e as usize]))
+            .collect())
     }
 
     pub fn array_field_text_lower(
@@ -175,30 +178,14 @@ impl LazyDoc {
             }
         };
 
-        if path.is_root() {
-            let Some(idx) = &self.root_index else {
-                return Ok(Vec::new());
-            };
-            let src = self.source.as_str();
-            return Ok(idx
-                .iter()
-                .map(|(b, e)| extract(&src[*b as usize..*e as usize]))
-                .collect());
-        }
-
-        let lv = self.lookup(path)?;
-        if lv.get_type() != JsonType::Array {
+        let Some(spans) = self.array_spans(path)? else {
             return Ok(Vec::new());
-        }
-        let iter = lv
-            .into_array_iter()
-            .expect("array type confirmed by get_type");
-        let mut out = Vec::new();
-        for entry in iter {
-            let el = entry.map_err(|e| DocError::Parse(e.to_string()))?;
-            out.push(extract(el.as_raw_str()));
-        }
-        Ok(out)
+        };
+        let src = self.source.as_str();
+        Ok(spans
+            .iter()
+            .map(|(b, e)| extract(&src[*b as usize..*e as usize]))
+            .collect())
     }
 
     pub fn search(&self, opts: &SearchOptions, cancel: &CancelFlag) -> Vec<SearchHit> {
@@ -230,6 +217,28 @@ impl LazyDoc {
         }
     }
 
+    // Element offsets of the array at `path`, so reading element i doesn't rescan the ones
+    // before it. A nested array is indexed on first use and kept: the source never changes.
+    fn array_spans(&self, path: &Path) -> DocResult<Option<ElementSpans>> {
+        if path.is_root() {
+            return Ok(self.root_index.clone());
+        }
+        if let Some(spans) = self.nested_index.lock().get(path) {
+            return Ok(Some(Arc::clone(spans)));
+        }
+        let lv = self.lookup(path)?;
+        if lv.get_type() != JsonType::Array {
+            return Ok(None);
+        }
+        // `lookup` returns a slice of the source, so its distance from the start is its offset.
+        let start = lv.as_raw_str().as_ptr() as usize - self.source.as_str().as_ptr() as usize;
+        let spans = Arc::new(build_array_index(self.source.as_bytes(), start)?);
+        self.nested_index
+            .lock()
+            .insert(path.clone(), Arc::clone(&spans));
+        Ok(Some(spans))
+    }
+
     fn lookup(&self, path: &Path) -> DocResult<LazyValue<'_>> {
         if let Some(idx) = &self.root_index {
             if let Some(PathSegment::Index(i)) = path.0.first() {
@@ -249,7 +258,7 @@ impl LazyDoc {
         }
 
         let pointer = sonic_pointer(&path.0);
-        unsafe { sonic_rs::get_from_faststr_unchecked(&self.source, &pointer) }
+        unsafe { sonic_rs::get_from_str_unchecked(self.source.as_str(), &pointer) }
             .map_err(|_| DocError::InvalidPath(path.clone()))
     }
 }
@@ -297,12 +306,75 @@ fn root_lv(source: &FastStr) -> DocResult<LazyValue<'_>> {
         .map_err(|e| DocError::Parse(e.to_string()))
 }
 
-fn build_root_index(source: &FastStr) -> DocResult<Vec<(u32, u32)>> {
-    let bytes = source.as_str().as_bytes();
-    let mut i = skip_ws(bytes, 0);
+// `repeated` holds the ascending offsets of objects that repeat a key; spans
+// containing none of them are copied verbatim.
+fn write_deduped(text: &str, span: Range<usize>, repeated: &[usize], out: &mut String) {
+    let next = repeated.partition_point(|&at| at < span.start);
+    if !matches!(repeated.get(next), Some(&at) if at < span.end) {
+        out.push_str(&text[span]);
+        return;
+    }
+    let bytes = text.as_bytes();
+    let mut i = skip_ws(bytes, span.start + 1);
+    if bytes[span.start] == b'[' {
+        out.push('[');
+        while bytes[i] != b']' {
+            let end = skip_value(bytes, i).expect("validated JSON");
+            write_deduped(text, i..end, repeated, out);
+            i = skip_ws(bytes, end);
+            if bytes[i] == b',' {
+                out.push(',');
+                i = skip_ws(bytes, i + 1);
+            }
+        }
+        out.push(']');
+        return;
+    }
+    let mut entries: Vec<(&str, Range<usize>)> = Vec::new();
+    let mut index_of: HashMap<Cow<'_, str>, usize> = HashMap::new();
+    while bytes[i] != b'}' {
+        let key_end = skip_string(bytes, i).expect("validated JSON");
+        let raw_key = &text[i..key_end];
+        let value_start = skip_ws(bytes, skip_ws(bytes, key_end) + 1);
+        let value = value_start..skip_value(bytes, value_start).expect("validated JSON");
+        i = skip_ws(bytes, value.end);
+        if bytes[i] == b',' {
+            i = skip_ws(bytes, i + 1);
+        }
+        let key = key_text(raw_key);
+        match index_of.get(&key) {
+            Some(&n) => entries[n].1 = value,
+            None => {
+                index_of.insert(key, entries.len());
+                entries.push((raw_key, value));
+            }
+        }
+    }
+    out.push('{');
+    for (n, (raw_key, value)) in entries.into_iter().enumerate() {
+        if n > 0 {
+            out.push(',');
+        }
+        out.push_str(raw_key);
+        out.push(':');
+        write_deduped(text, value, repeated, out);
+    }
+    out.push('}');
+}
+
+fn key_text(raw: &str) -> Cow<'_, str> {
+    if raw.contains('\\') {
+        serde_json::from_str(raw).map_or(Cow::Borrowed(raw), Cow::Owned)
+    } else {
+        Cow::Borrowed(&raw[1..raw.len() - 1])
+    }
+}
+
+fn build_array_index(bytes: &[u8], start: usize) -> DocResult<Vec<(u32, u32)>> {
+    let mut i = skip_ws(bytes, start);
 
     if i >= bytes.len() || bytes[i] != b'[' {
-        return Err(DocError::Parse("expected array root".into()));
+        return Err(DocError::Parse("expected array".into()));
     }
     i += 1;
     i = skip_ws(bytes, i);
@@ -401,6 +473,66 @@ fn skip_balanced(bytes: &[u8], i: usize) -> DocResult<usize> {
         }
     }
     Err(DocError::Parse("unbalanced object/array".into()))
+}
+
+pub(crate) const MAX_DEPTH: u32 = 1000;
+
+// Iterative, so text nested too deep for the recursive parsers is refused before
+// they see it. Returns the byte offsets, ascending, of objects that repeat a key.
+pub(crate) fn prescan(text: &str) -> DocResult<Vec<usize>> {
+    let bytes = text.as_bytes();
+    // Per open object: its byte offset and where its keys start in `keys`; None for an array.
+    let mut open: Vec<Option<(usize, usize)>> = Vec::new();
+    let mut keys: Vec<Cow<'_, str>> = Vec::new();
+    let mut repeated = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => {
+                let Ok(end) = skip_string(bytes, i) else {
+                    break;
+                };
+                if matches!(open.last(), Some(Some(_)))
+                    && bytes.get(skip_ws(bytes, end)) == Some(&b':')
+                {
+                    keys.push(key_text(&text[i..end]));
+                }
+                i = end;
+            }
+            b'{' | b'[' => {
+                if open.len() == MAX_DEPTH as usize {
+                    return Err(DocError::TooDeep { limit: MAX_DEPTH });
+                }
+                open.push((bytes[i] == b'{').then_some((i, keys.len())));
+                i += 1;
+            }
+            b'}' | b']' => {
+                if let Some(Some((at, start))) = open.pop() {
+                    let own = &mut keys[start..];
+                    own.sort_unstable();
+                    if own.windows(2).any(|w| w[0] == w[1]) {
+                        repeated.push(at);
+                    }
+                    keys.truncate(start);
+                }
+                i += 1;
+            }
+            _ => i += 1,
+        }
+    }
+    repeated.sort_unstable();
+    Ok(repeated)
+}
+
+// Use for document text instead of serde_json::from_str, whose limit of 128 levels
+// would refuse documents Pandia supports.
+pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> DocResult<T> {
+    prescan(text)?;
+    let mut de = serde_json::Deserializer::from_str(text);
+    de.disable_recursion_limit();
+    T::deserialize(&mut de)
+        .and_then(|v| de.end().map(|()| v))
+        .map_err(|e| DocError::Parse(e.to_string()))
 }
 
 fn check_literal(bytes: &[u8], i: usize, lit: &[u8]) -> DocResult<usize> {
@@ -625,8 +757,10 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
         JsonType::Boolean => TypeShape::Primitive(PrimitiveKind::Bool),
         JsonType::Number => {
             let raw = lv.as_raw_str();
-            if raw.parse::<i64>().is_ok() || raw.parse::<u64>().is_ok() {
+            if raw.parse::<i64>().is_ok() {
                 TypeShape::Primitive(PrimitiveKind::Integer)
+            } else if raw.parse::<u64>().is_ok() {
+                TypeShape::Primitive(PrimitiveKind::Unsigned)
             } else {
                 TypeShape::Primitive(PrimitiveKind::Float)
             }
@@ -674,7 +808,7 @@ fn preview_lazy(lv: &LazyValue<'_>) -> String {
     match lv.get_type() {
         JsonType::Null => "null".into(),
         JsonType::Boolean => lv.as_bool().unwrap_or(false).to_string(),
-        JsonType::Number => lv.as_raw_str().to_string(),
+        JsonType::Number => number_preview(lv),
         JsonType::String => {
             let s = lv.as_str().unwrap_or("");
             if s.chars().count() > CAP {
@@ -684,15 +818,21 @@ fn preview_lazy(lv: &LazyValue<'_>) -> String {
                 format!("\"{s}\"")
             }
         }
-        JsonType::Object => match maybe_count(lv, NodeKind::Object) {
+        JsonType::Object => match count_uncapped(lv, NodeKind::Object) {
             Some(n) => format!("{{{n} keys}}"),
             None => "{\u{2026}}".into(),
         },
-        JsonType::Array => match maybe_count(lv, NodeKind::Array) {
+        JsonType::Array => match count_uncapped(lv, NodeKind::Array) {
             Some(n) => format!("[{n} items]"),
             None => "[\u{2026}]".into(),
         },
     }
+}
+
+fn number_preview(lv: &LazyValue<'_>) -> String {
+    let raw = lv.as_raw_str();
+    serde_json::from_str::<serde_json::Number>(raw)
+        .map_or_else(|_| raw.to_string(), |n| n.to_string())
 }
 
 fn node_view(key: PathSegment, lv: &LazyValue<'_>) -> NodeView {
@@ -733,6 +873,34 @@ impl super::backend::DocumentBackend for LazyDoc {
 
     fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
         self.array_field_text_lower(path, key)
+    }
+
+    fn for_each_row_field(
+        &self,
+        path: &Path,
+        cancel: &CancelFlag,
+        f: &mut dyn FnMut(&str, NodeKind),
+    ) -> DocResult<u32> {
+        let Some(spans) = self.array_spans(path)? else {
+            return Ok(0);
+        };
+        let src = self.source.as_str();
+        for (i, (b, e)) in spans.iter().enumerate() {
+            if i % 4096 == 0 && cancel.is_cancelled() {
+                return Err(DocError::Cancelled);
+            }
+
+            let row = unsafe {
+                sonic_rs::get_from_str_unchecked(&src[*b as usize..*e as usize], EMPTY_PATH)
+            };
+            let Some(fields) = row.ok().and_then(|lv| lv.into_object_iter()) else {
+                continue;
+            };
+            for (k, v) in fields.flatten() {
+                f(&k, json_type_to_node_kind(v.get_type()));
+            }
+        }
+        Ok(spans.len() as u32)
     }
 
     fn search(
@@ -826,7 +994,7 @@ fn preview(lv: &LazyValue<'_>, kind: NodeKind, child_count: Option<u32>) -> Stri
     match kind {
         NodeKind::Null => "null".into(),
         NodeKind::Bool => lv.as_bool().unwrap_or(false).to_string(),
-        NodeKind::Number => lv.as_raw_str().to_string(),
+        NodeKind::Number => number_preview(lv),
         NodeKind::String => match lv.as_str() {
             Some(s) => quote_preview(s),
             None => String::new(),
@@ -849,7 +1017,7 @@ mod tests {
     use super::*;
 
     fn doc(s: &str) -> LazyDoc {
-        LazyDoc::new(s).expect("valid JSON in test")
+        LazyDoc::new(FastStr::new(s)).expect("valid JSON in test")
     }
 
     #[test]
@@ -1059,7 +1227,7 @@ mod tests {
     #[test]
     fn lazy_typegen_matches_eager() {
         use crate::doc::typegen::{generate, generate_from_shape, TypegenLang};
-        let json = r#"{"id":1,"name":"x","tags":["a","b"],"meta":{"k":1.5,"big":18446744073709551616},"opt":null,"rows":[{"a":1},{"a":2,"b":3}]}"#;
+        let json = r#"{"id":1,"uid":18446744073709551615,"name":"x","tags":["a","b"],"meta":{"k":1.5,"big":18446744073709551616},"opt":null,"rows":[{"a":1},{"a":2,"b":3}]}"#;
         let lazy = doc(json);
         let v: Value = serde_json::from_str(json).unwrap();
         for lang in [

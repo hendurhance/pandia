@@ -216,26 +216,28 @@ export type Root = z.infer<typeof Root>;`,
     sub: 'Generate Java classes — plain POJOs with typed fields, getters and setters — from any JSON document. Boxed types and nested classes inferred, nothing uploaded.',
     inputJson: TYPE_INPUT,
     outputLang: 'Java',
-    output: `public class Root {
+    output: `import java.util.List;
+
+public class Root {
+    private Boolean active;
     private Long id;
     private String name;
-    private Boolean active;
     private List<String> tags;
 
+    public Boolean getActive() { return this.active; }
+    public void setActive(Boolean active) { this.active = active; }
     public Long getId() { return this.id; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return this.name; }
     public void setName(String name) { this.name = name; }
-    public Boolean getActive() { return this.active; }
-    public void setActive(Boolean active) { this.active = active; }
     public List<String> getTags() { return this.tags; }
     public void setTags(List<String> tags) { this.tags = tags; }
 }`,
-    intro: 'Pandia turns a JSON document into Java classes — classic POJOs with private fields and public getters and setters. Numbers use boxed types (<code>Long</code>, <code>Double</code>) so nulls are representable, and nested objects and arrays become their own classes and <code>List&lt;T&gt;</code> fields.',
+    intro: 'Pandia turns a JSON document into Java classes — classic POJOs with private fields and public getters and setters. Numbers use boxed types (<code>Long</code>, <code>Double</code>) so nulls are representable, nested objects become nested classes, and arrays become <code>List&lt;T&gt;</code> fields. The output compiles as one file.',
     bullets: [
       'POJO classes with private fields plus public getters and setters.',
       'Boxed types (<code>Long</code>, <code>Double</code>, <code>Boolean</code>) so every field is nullable.',
-      'Nested objects and arrays become named classes and <code>List&lt;T&gt;</code>.',
+      'Nested objects become nested <code>static</code> classes, and arrays become <code>List&lt;T&gt;</code>.',
       'Works with Jackson or Gson — add annotations if your setup needs them.',
     ],
     faq: [
@@ -429,19 +431,21 @@ tags:
   <id>42</id>
   <name>Ada</name>
   <active>true</active>
-  <tags>admin</tags>
-  <tags>early</tags>
+  <tags>
+    <item>admin</item>
+    <item>early</item>
+  </tags>
 </root>`,
-    intro: 'Pandia converts between JSON and XML in both directions. Import an <code>.xml</code> file and Pandia auto-detects and parses it into a JSON tree; or open JSON and export it as XML, with arrays expanded into repeated elements.',
+    intro: 'Pandia converts between JSON and XML in both directions. Import an <code>.xml</code> file and Pandia auto-detects and parses it into a JSON tree; or open JSON and export it as XML, with each array item written as an <code>&lt;item&gt;</code> element.',
     bullets: [
       'Export any open JSON document as XML.',
       'Import is bidirectional — XML, JSON, YAML, CSV and cURL are auto-detected.',
-      'Arrays become repeated elements; nesting is preserved.',
+      'Each array item becomes an item element; nesting is preserved.',
       localAngle('convert'),
     ],
     faq: [
       { q: 'How do I convert JSON to XML in Pandia?', a: 'Open the JSON document and choose XML from the export menu. You can also import XML and Pandia will parse it into a JSON tree.' },
-      { q: 'How are arrays represented?', a: 'Array items are written as repeated elements under their key, and nested objects keep their structure.' },
+      { q: 'How are arrays represented?', a: 'An array becomes one element named after its key, with an item element for each entry. Nested objects keep their structure.' },
       { q: 'Does it work offline and on large files?', a: 'Yes — conversion runs locally with no upload, and there is no size limit on opening the source document.' },
     ],
   },

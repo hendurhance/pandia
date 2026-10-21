@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { IpcError, type IpcErrorKind } from './error';
-import { describeError } from './error-copy';
+import { describeError, describeOpenFailure } from './error-copy';
+import type { FileOp, IoProblem } from './bindings';
 
 describe('describeError — backend kinds', () => {
 	it('tooLarge formats sizes as human bytes and states the honest fix', () => {
@@ -66,7 +67,7 @@ describe('describeError — backend kinds', () => {
 		);
 	});
 
-	it('edit, schema, export, io lead with plain language and keep the detail', () => {
+	it('edit, schema, export lead with plain language and keep the detail', () => {
 		expect(
 			describeError(
 				new IpcError('edit', 'edit error: key "foo" already exists', {
@@ -86,13 +87,71 @@ describe('describeError — backend kinds', () => {
 				}),
 			),
 		).toBe('Export failed: unsupported value.');
+	});
+
+	it('names the address a schema refers to instead of the library text', () => {
 		expect(
 			describeError(
-				new IpcError('io', 'io error: No such file or directory (os error 2)', {
-					detail: 'No such file or directory (os error 2)',
+				new IpcError('schemaExternalRef', 'schema refers to https://example.com/s.json', {
+					detail: 'https://example.com/s.json',
 				}),
 			),
-		).toBe("Couldn't read or write the file: No such file or directory (os error 2).");
+		).toBe(
+			'This schema points to another schema at https://example.com/s.json, which Pandia doesn\'t load. Copy the definitions you need into this schema under "$defs", and point the "$ref" there.',
+		);
+	});
+
+	const fileError = (problem: IoProblem, op: FileOp | null, detail = 'raw system text') =>
+		describeError(
+			new IpcError('io', `io error: ${detail}`, {
+				detail,
+				io: { problem, op, file: '/Users/me/data.json' },
+			}),
+		);
+
+	it('file errors name the file, say what went wrong and how to fix it, never the OS code', () => {
+		expect(fileError('missing', 'open')).toBe(
+			"Couldn't open “data.json” — there's no file at that path. It may have been moved, renamed, or deleted.",
+		);
+		expect(fileError('missing', 'save')).toBe(
+			"Couldn't save “data.json” — that folder doesn't exist. Choose another location.",
+		);
+		expect(fileError('noPermission', 'open')).toBe(
+			"Couldn't open “data.json” — Pandia doesn't have permission to read it.",
+		);
+		expect(fileError('noPermission', 'export')).toBe(
+			"Couldn't export to “data.json” — Pandia doesn't have permission to write there. Choose another location.",
+		);
+		expect(fileError('isFolder', 'open')).toBe(
+			"Couldn't open “data.json” — it's a folder, not a file.",
+		);
+		expect(fileError('notText', 'open')).toBe(
+			"Couldn't open “data.json” — it isn't UTF-8 text, so it can't be read as JSON.",
+		);
+		expect(fileError('diskFull', 'save')).toBe(
+			"Couldn't save “data.json” — the disk is full. Free up some space and try again.",
+		);
+		expect(fileError('readOnly', 'save')).toBe(
+			"Couldn't save “data.json” — that location is read-only. Choose another location.",
+		);
+	});
+
+	it('an unrecognised file problem keeps the system detail as a last resort', () => {
+		expect(fileError('other', 'open', 'Too many open files (os error 24)')).toBe(
+			"Couldn't open “data.json”: Too many open files (os error 24).",
+		);
+	});
+
+	it('an io error with no file behind it is an internal failure, not a file problem', () => {
+		expect(describeError(new IpcError('io', 'task 7 panicked'))).toBe(
+			'Something went wrong inside Pandia. Try again, and use Feedback to report it if it keeps happening.',
+		);
+	});
+
+	it('tooDeep says how deep is too deep and what to do', () => {
+		expect(describeError(new IpcError('tooDeep', 'too deep', { limit: 1000 }))).toBe(
+			'This JSON is nested more than 1,000 levels deep, which is more than Pandia supports. Reduce the nesting and try again.',
+		);
 	});
 
 	it('cancelled stays terse', () => {
@@ -121,5 +180,16 @@ describe('describeError — degradation', () => {
 			expect(msg).toBe('Something went wrong.');
 		}
 		expect(describeError('plain thrown string')).toBe('plain thrown string.');
+	});
+});
+
+describe('describeOpenFailure', () => {
+	it('names the parse problem, and says when a file is too large to fix', () => {
+		expect(describeOpenFailure({ detail: 'EOF at line 4 column 0', tooLargeToFix: false })).toBe(
+			"This isn't valid JSON: EOF at line 4 column 0.",
+		);
+		expect(describeOpenFailure({ detail: 'EOF at line 4 column 0', tooLargeToFix: true })).toBe(
+			"This isn't valid JSON: EOF at line 4 column 0. It's over 200.0 MiB, so Pandia can't repair or convert it automatically.",
+		);
 	});
 });

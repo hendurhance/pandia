@@ -1,16 +1,11 @@
 <script lang="ts">
+	import type { DocContext } from '$lib/shell/state/workspace.svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, HistoryView } from '$lib/ipc/bindings';
-
-	interface Context {
-		handle: DocHandle;
-		version: number;
-		sourceName: string | null;
-	}
+	import type { HistoryView } from '$lib/ipc/bindings';
 
 	interface Props {
-		context: Context | null;
+		context: DocContext | null;
 
 		onStep?: (delta: number) => void;
 	}
@@ -25,6 +20,7 @@
 		const ctx = context;
 		if (!ctx) {
 			view = null;
+			loadedKey = '';
 			return;
 		}
 		const key = `${ctx.handle}@${ctx.version}`;
@@ -91,25 +87,25 @@
 
 <style>
 	.empty {
-		padding: 0.6rem 0.2rem;
+		padding: var(--space-sm) var(--space-2xs);
 		text-align: center;
 	}
 	.err {
-		color: var(--accent);
+		color: var(--danger);
 	}
 
 	.entry .bullet {
 		flex-shrink: 0;
-		font-size: 8px;
+		font-size: var(--font-size-xs);
 	}
 	.entry.past {
 		color: var(--text);
 	}
 	.entry.past .bullet {
-		color: var(--accent);
+		color: var(--text-dim);
 	}
 	.entry.future {
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 	.entry.future .bullet {
 		color: var(--text-faint);
@@ -118,24 +114,21 @@
 		flex-shrink: 0;
 	}
 	.entry .path {
-		color: var(--accent-2);
+		color: var(--text-dim);
 		overflow: hidden;
 		text-overflow: ellipsis;
-		font-size: 10.5px;
-	}
-	.entry.future .path {
-		color: var(--text-ghost);
+		font-size: var(--font-size-xs);
 	}
 
 	.now {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 4px 10px;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-md);
 		color: var(--accent);
 		text-transform: uppercase;
-		letter-spacing: 0.2em;
-		font-size: 9.5px;
+		letter-spacing: var(--label-tracking);
+		font-size: var(--font-size-xs);
 		border-top: var(--rule-width) solid var(--rule);
 		border-bottom: var(--rule-width) solid var(--rule);
 		background: var(--accent-soft);
@@ -148,7 +141,7 @@
 
 	.hint {
 		flex-shrink: 0;
-		padding: 0.4rem 0.5rem;
+		padding: var(--space-xs) var(--space-sm);
 		border-top: var(--rule-width) solid var(--rule);
 	}
 </style>

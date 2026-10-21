@@ -3,7 +3,8 @@ use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use specta_typescript::branded;
 
-use super::types::{DocError, DocResult};
+use super::lazy::parse_json;
+use super::types::DocResult;
 
 branded!(
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,7 +31,7 @@ impl LosslessText {
     }
 
     pub fn parse(&self) -> DocResult<serde_json::Value> {
-        serde_json::from_str(&self.0).map_err(|e| DocError::Parse(e.to_string()))
+        parse_json(&self.0)
     }
 }
 

@@ -121,7 +121,7 @@ npm run tauri dev
 | Command | Description |
 |---------|-------------|
 | `npm run tauri dev` | Run the full app (Rust + webview) in development |
-| `npm run tauri build` | Build the production app and platform installers |
+| `npm run tauri build -- --config src-tauri/tauri.prod.conf.json` | Build the production app and platform installers (without `--config` you get the pastel dev icon) |
 | `npm run dev` | Run the frontend only (Vite dev server) |
 | `npm run build` | Build the frontend bundle |
 | `npm run check` | Type-check the frontend (`svelte-check`) |

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { DocContext } from '$lib/shell/state/workspace.svelte';
 	import {
 		sidebarPrefs,
 		MIN_WIDTH,
@@ -9,16 +10,8 @@
 	import TypegenPanel from '$lib/panels/TypegenPanel.svelte';
 	import OutlinePanel from '$lib/panels/OutlinePanel.svelte';
 	import HistoryPanel from '$lib/panels/HistoryPanel.svelte';
-	import type { DocHandle, Path } from '$lib/ipc/bindings';
+	import type { Path } from '$lib/ipc/bindings';
 	import { resizable } from '$lib/ui/resizable';
-
-	interface DocContext {
-		handle: DocHandle;
-		version: number;
-		sourceName: string | null;
-		fileBacked: boolean;
-		save: (opts?: { silent?: boolean }) => Promise<boolean>;
-	}
 
 	interface Props {
 		activeTabId: string;
@@ -43,8 +36,8 @@
 
 	const TAB_HINTS: Record<SidebarTabId, string> = {
 		outline: 'document outline — collapsible path tree.',
-		schema: '', // Replaced by SchemaPanel — kept here so the type stays exhaustive.
-		types: '', // Replaced by TypegenPanel — kept here so the type stays exhaustive.
+		schema: '',
+		types: '',
 		history: 'op-log timeline — every apply/undo/redo step, navigable.',
 	};
 
@@ -54,6 +47,8 @@
 
 	let dragging = $state(false);
 	let resizeStartW = 0;
+	// What's on screen, which can be wider than the saved width when the tab words need more room.
+	let renderedWidth = $state(0);
 
 	function onResizeDouble() {
 		sidebarPrefs.setWidth((MIN_WIDTH + MAX_WIDTH) / 2 - 30);
@@ -64,10 +59,10 @@
 		const shrinkKey = sidebarPrefs.side === 'right' ? 'ArrowRight' : 'ArrowLeft';
 		if (e.key === growKey) {
 			e.preventDefault();
-			sidebarPrefs.setWidth(sidebarPrefs.width + 16);
+			sidebarPrefs.setWidth(renderedWidth + 16);
 		} else if (e.key === shrinkKey) {
 			e.preventDefault();
-			sidebarPrefs.setWidth(sidebarPrefs.width - 16);
+			sidebarPrefs.setWidth(renderedWidth - 16);
 		}
 	}
 </script>
@@ -81,14 +76,14 @@
 		role="separator"
 		aria-orientation="vertical"
 		aria-label="resize sidebar"
-		aria-valuenow={sidebarPrefs.width}
+		aria-valuenow={renderedWidth}
 		aria-valuemin={MIN_WIDTH}
 		aria-valuemax={MAX_WIDTH}
 		tabindex="0"
 		use:resizable={{
 			onStart: () => {
 				dragging = true;
-				resizeStartW = sidebarPrefs.width;
+				resizeStartW = renderedWidth;
 			},
 			onMove: (dx) =>
 				sidebarPrefs.setWidthLive(resizeStartW + (sidebarPrefs.side === 'right' ? -dx : dx)),
@@ -108,6 +103,7 @@
 	class="sidebar"
 	class:right={sidebarPrefs.side === 'right'}
 	style="width: {sidebarPrefs.width}px;"
+	bind:offsetWidth={renderedWidth}
 	aria-label="sidebar"
 >
 	<nav class="tabs" aria-label="sidebar tabs">
@@ -116,10 +112,9 @@
 				class="tab"
 				class:active={sidebarPrefs.activeTab === t}
 				onclick={() => activate(t)}
-				title={TAB_LABELS[t]}
 				aria-current={sidebarPrefs.activeTab === t ? 'page' : undefined}
 			>
-				<span class="tab-label">{TAB_LABELS[t]}</span>
+				{TAB_LABELS[t]}
 			</button>
 		{/each}
 	</nav>
@@ -148,7 +143,8 @@
 	.sidebar {
 		display: flex;
 		flex-direction: column;
-		min-width: 0;
+		/* Never narrower than the tab words, whatever the font, size or density. */
+		min-width: min-content;
 		min-height: 0;
 		background: var(--bg);
 		border-right: var(--rule-width) solid var(--rule);
@@ -170,27 +166,27 @@
 	}
 
 	.tab {
-		flex: 1;
+		flex: 1 1 auto;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
 		border: none;
 		border-right: var(--rule-width) solid var(--rule);
-		color: var(--text-faint);
+		color: var(--text-dim);
 		font-size: var(--font-size-xs);
 		text-transform: uppercase;
-		letter-spacing: 0.16em;
+		letter-spacing: var(--label-tracking);
 		cursor: pointer;
-		padding: 0 0.4rem;
-		min-width: 0;
+		padding: 0 var(--space-sm);
+		white-space: nowrap;
 		position: relative;
 	}
 	.tab:last-child {
 		border-right: none;
 	}
 	.tab:hover {
-		color: var(--text-dim);
+		color: var(--text);
 	}
 	.tab.active {
 		color: var(--text);
@@ -206,23 +202,19 @@
 		background: var(--accent);
 	}
 
-	.tab-label {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
 	.body {
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
-		padding: 1rem 0.9rem;
+		/* Wide panel content scrolls instead of widening the panel. */
+		contain: inline-size;
+		padding: var(--space-md);
 	}
 
 	.placeholder {
 		display: flex;
 		flex-direction: column;
-		gap: 0.6rem;
+		gap: var(--space-sm);
 	}
 	.ph-hint {
 		color: var(--text-dim);
@@ -252,7 +244,9 @@
 		background: transparent;
 		transition: background 80ms linear;
 	}
-	.resize:hover::before,
+	.resize:hover::before {
+		background: var(--text-faint);
+	}
 	.resize:focus-visible::before,
 	.resize.dragging::before {
 		background: var(--accent);

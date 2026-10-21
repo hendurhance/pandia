@@ -165,12 +165,12 @@
 <style>
 	.edit-input {
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		background: var(--bg-edit);
 		color: var(--text);
 		border: none;
 		border-bottom: 1px solid var(--accent);
-		padding: 0 0.3rem;
+		padding: 0 var(--space-xs);
 		outline: none;
 		flex-shrink: 0;
 		width: auto;
@@ -199,7 +199,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 3px;
+		gap: var(--space-xs);
 	}
 	.edit-area {
 		width: 100%;
@@ -207,13 +207,13 @@
 		resize: none;
 		overflow: hidden;
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		line-height: 18px;
 		background: var(--bg-edit);
 		color: var(--syntax-string);
 		border: none;
 		border-bottom: 1px solid var(--accent);
-		padding: 1px 0.3rem;
+		padding: 1px var(--space-xs);
 		outline: none;
 		caret-color: var(--accent);
 		white-space: pre-wrap;
@@ -229,21 +229,21 @@
 		height: 18px;
 		background: var(--bg-elev-2);
 		border: 1px solid var(--rule-2);
-		margin-left: 4px;
+		margin-left: var(--space-xs);
 		flex-shrink: 0;
 	}
 	.micro-bar .slot {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0 8px;
+		padding: 0 var(--space-sm);
 		border: none;
 		border-right: 1px solid var(--rule-2);
 		background: transparent;
 		color: var(--text-dim);
 		font: inherit;
-		font-size: 10px;
-		letter-spacing: 0.14em;
+		font-size: var(--font-size-xs);
+		letter-spacing: var(--label-tracking);
 		text-transform: uppercase;
 		cursor: pointer;
 		white-space: nowrap;
@@ -252,8 +252,6 @@
 		border-right: none;
 	}
 	.micro-bar .type {
-		color: var(--accent);
-		border-right: 1px solid var(--accent-line);
 		cursor: default;
 	}
 	.micro-bar .commit {
@@ -261,10 +259,10 @@
 	}
 	.micro-bar .commit:hover {
 		background: var(--accent);
-		color: var(--bg);
+		color: var(--on-accent);
 	}
 	.micro-bar .cancel {
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 	.micro-bar .cancel:hover {
 		color: var(--text);
@@ -284,20 +282,20 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0 12px;
+		padding: 0 var(--space-md);
 		background: transparent;
 		border: none;
 		border-right: 1px solid var(--rule-2);
-		color: var(--text-faint);
+		color: var(--text-dim);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		cursor: pointer;
 	}
 	.bool-seg .opt:last-child {
 		border-right: none;
 	}
 	.bool-seg .opt:hover:not(.active) {
-		color: var(--text-dim);
+		color: var(--text);
 	}
 	.bool-seg .opt.active {
 		background: var(--accent-fill);
@@ -331,14 +329,14 @@
 		justify-content: center;
 		background: transparent;
 		border: none;
-		color: var(--text-faint);
-		font-size: 8px;
+		color: var(--text-dim);
+		font-size: var(--font-size-xs);
 		line-height: 1;
 		cursor: pointer;
 		padding: 0;
 	}
 	.num-edit .step .arrow:hover {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--bg-elev-3);
 	}
 	.num-edit .step .arrow + .arrow {
@@ -346,11 +344,11 @@
 	}
 
 	.edit-hint {
-		color: var(--text-faint);
-		font-size: 10px;
-		letter-spacing: 0.12em;
+		color: var(--text-dim);
+		font-size: var(--font-size-xs);
+		letter-spacing: var(--label-tracking);
 		text-transform: uppercase;
 		flex-shrink: 0;
-		margin-left: 6px;
+		margin-left: var(--space-sm);
 	}
 </style>

@@ -52,7 +52,7 @@ export function diffHighlightExtension(): Extension {
 }
 
 export function highlightsForSide(
-	entries: Array<{ path: Path; kind: DiffKind }>,
+	entries: Array<{ path: Path; leftPath?: Path | null; kind: DiffKind }>,
 	side: 'left' | 'right',
 ): Highlight[] {
 	return entries
@@ -61,5 +61,5 @@ export function highlightsForSide(
 				? e.kind === 'removed' || e.kind === 'changed'
 				: e.kind === 'added' || e.kind === 'changed',
 		)
-		.map((e) => ({ path: e.path, kind: e.kind }));
+		.map((e) => ({ path: side === 'left' ? (e.leftPath ?? e.path) : e.path, kind: e.kind }));
 }

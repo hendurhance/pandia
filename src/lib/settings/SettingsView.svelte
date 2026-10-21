@@ -78,8 +78,19 @@
 						<button
 							class="link-btn"
 							onclick={() =>
+								void openInBrowser('https://github.com/hendurhance/pandia/discussions')}
+							>Discussions ↗</button
+						>
+						<button
+							class="link-btn"
+							onclick={() =>
 								void openInBrowser('https://github.com/hendurhance/pandia/issues/new/choose')}
 							>Report Issue ↗</button
+						>
+						<button
+							class="link-btn"
+							onclick={() => void openInBrowser('https://github.com/sponsors/hendurhance')}
+							>Donate ↗</button
 						>
 					</div>
 				</div>
@@ -100,8 +111,8 @@
 	.top {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		padding: 0.5rem 1rem;
+		gap: var(--space-md);
+		padding: var(--space-sm) var(--space-md);
 		border-bottom: var(--rule-width) solid var(--rule);
 		background: var(--bg);
 	}
@@ -123,12 +134,12 @@
 		font-size: var(--font-size-sm);
 		background: transparent;
 		border: var(--rule-width) solid var(--rule);
-		padding: 0.2rem 0.6rem;
+		padding: var(--space-2xs) var(--space-sm);
 		color: var(--text-dim);
 	}
 	.back:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
+		border-color: var(--rule-2);
 	}
 
 	.body {
@@ -142,14 +153,14 @@
 		flex-direction: column;
 		border-right: var(--rule-width) solid var(--rule);
 		background: var(--bg);
-		padding: 1rem 0.4rem;
-		gap: 0.1rem;
+		padding: var(--space-md) var(--space-xs);
+		gap: var(--space-2xs);
 	}
 	.nav-item {
 		background: transparent;
 		border: none;
 		text-align: left;
-		padding: 0.35rem 0.6rem;
+		padding: var(--space-xs) var(--space-sm);
 		color: var(--text-dim);
 		font-size: var(--font-size-sm);
 		letter-spacing: 0.05em;
@@ -166,19 +177,19 @@
 
 	.content {
 		overflow-y: auto;
-		padding: 1.2rem 1.4rem;
+		padding: var(--space-lg);
 		min-width: 0;
 	}
 
 	.about {
 		display: flex;
 		flex-direction: column;
-		gap: 0.6rem;
+		gap: var(--space-sm);
 		max-width: 520px;
 	}
 	.h2 {
 		margin: 0;
-		font-size: 18px;
+		font-size: var(--font-size-title);
 		letter-spacing: var(--label-tracking);
 	}
 	.muted {
@@ -188,19 +199,20 @@
 	}
 	.links {
 		display: flex;
-		gap: 0.6rem;
-		margin-top: 0.4rem;
+		flex-wrap: wrap;
+		gap: var(--space-sm);
+		margin-top: var(--space-xs);
 	}
 	.link-btn {
 		background: transparent;
 		border: var(--rule-width) solid var(--rule);
 		color: var(--text-dim);
 		font-size: var(--font-size-sm);
-		padding: 0.2rem 0.6rem;
+		padding: var(--space-2xs) var(--space-sm);
 		cursor: pointer;
 	}
 	.link-btn:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
+		border-color: var(--rule-2);
 	}
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { fetch } from '@tauri-apps/plugin-http';
 	import { parseHeaders, URL_FETCH_TIMEOUT_MS } from '../logic/url-fetch';
-	import { describeError } from '$lib/ipc/error-copy';
+	import { describeError, describeUrlFetchFailure } from '$lib/ipc/error-copy';
 
 	interface Props {
 		busy: boolean;
@@ -33,16 +33,19 @@
 		try {
 			const headers = parseHeaders(headersText);
 			const r = await fetch(url, { signal: ctrl.signal, headers });
-			if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+			if (!r.ok) {
+				urlError = describeError(`HTTP ${r.status} ${r.statusText}`);
+				return;
+			}
 			const text = await r.text();
 			onLoad(text, url);
-		} catch (e) {
-			urlError =
-				(e as Error).name === 'AbortError'
-					? timedOut
-						? `timed out after ${URL_FETCH_TIMEOUT_MS / 1000}s`
-						: 'cancelled'
-					: describeError(e);
+		} catch {
+			// The HTTP plugin rejects with raw reqwest text, and a cancel isn't an AbortError.
+			urlError = ctrl.signal.aborted
+				? timedOut
+					? `timed out after ${URL_FETCH_TIMEOUT_MS / 1000}s`
+					: 'cancelled'
+				: describeUrlFetchFailure(url);
 		} finally {
 			clearTimeout(timer);
 			urlBusy = false;
@@ -72,9 +75,11 @@
 			}}
 		/>
 		{#if urlBusy}
-			<button onclick={cancelFetch}>Cancel</button>
+			<button class="btn" onclick={cancelFetch}>Cancel</button>
 		{:else}
-			<button onclick={onFetchUrl} disabled={busy || !urlText.trim()}>Fetch</button>
+			<button class="btn btn-primary" onclick={onFetchUrl} disabled={busy || !urlText.trim()}
+				>Fetch</button
+			>
 		{/if}
 	</div>
 	{#if showHeaders}
@@ -95,17 +100,17 @@
 	.block {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 	}
 	.label-row {
 		display: flex;
 		align-items: baseline;
-		gap: 0.6rem;
+		gap: var(--space-sm);
 	}
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-sm);
 	}
 	.url-row {
 		flex-wrap: nowrap;
@@ -132,7 +137,7 @@
 		resize: vertical;
 	}
 	.err {
-		color: var(--accent);
-		padding-top: 0.2rem;
+		color: var(--danger);
+		padding-top: var(--space-2xs);
 	}
 </style>

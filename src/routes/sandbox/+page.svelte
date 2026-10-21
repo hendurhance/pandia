@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { open as openDialog } from '@tauri-apps/plugin-dialog';
 	import { ipc } from '$lib/ipc/client';
-	import type { OpenResult, NodeView, Op, Path } from '$lib/ipc/bindings';
+	import type { OpenedDoc, NodeView, Op, Path } from '$lib/ipc/bindings';
 	import { fmtBytes } from '$lib/util/format';
 	import { SANDBOX_ENABLED } from '$lib/util/flags';
 
@@ -17,7 +17,7 @@
 		body: string;
 	}
 
-	let docs: OpenResult[] = $state([]);
+	let docs: OpenedDoc[] = $state([]);
 	let activeHandle: string | null = $state(null);
 	let log: LogEntry[] = $state([]);
 
@@ -74,7 +74,11 @@
 	async function onOpenText() {
 		const label = `doc_open(text "${textName}")`;
 		try {
-			const res = await ipc.docOpen({ kind: 'text', text: textBody, name: textName || null });
+			const res = await ipc.docOpen(
+				{ kind: 'text', text: textBody, name: textName || null },
+				{ repair: false },
+			);
+			if (res.kind === 'failed') return logEntry('err', label, res);
 			docs = [...docs, res];
 			activeHandle = res.handle;
 			logEntry('ok', label, res);
@@ -87,7 +91,8 @@
 		if (!filePathText.trim()) return;
 		const label = `doc_open(file ${filePathText})`;
 		try {
-			const res = await ipc.docOpen({ kind: 'file', path: filePathText.trim() });
+			const res = await ipc.docOpen({ kind: 'file', path: filePathText.trim() }, { repair: false });
+			if (res.kind === 'failed') return logEntry('err', label, res);
 			docs = [...docs, res];
 			activeHandle = res.handle;
 			logEntry('ok', label, res);

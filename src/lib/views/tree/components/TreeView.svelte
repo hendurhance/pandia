@@ -10,15 +10,19 @@
 		rowKey,
 		vgapCount,
 		type ContentRow,
+		type MenuAction,
 		type Row,
 		type VirtualGapRow,
 	} from '../logic/model';
 	import { chipText, openBracket, renderKey, detectUrl } from '../logic/row-format';
+	import { mayBeImage } from '$lib/views/shared/image-source';
+	import { imagePreview } from '$lib/views/shared/image-preview.svelte';
+	import { editActionFor } from '../logic/row-menu-model';
 	import { gapAt, ROW_DRAG_EDGE_ZONE, ROW_DRAG_MAX_STEP } from '../logic/row-drag-math';
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from '@lucide/svelte';
-	import { DEFAULT_ROW_H, OVERSCAN } from '$lib/views/shared/scroll-math';
+	import { DEFAULT_ROW_H, OVERSCAN, scaledOffset } from '$lib/views/shared/scroll-math';
 	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 	import type { DiffKind, Path } from '$lib/ipc/bindings';
 	import InlineCellEditor from './InlineCellEditor.svelte';
@@ -30,7 +34,7 @@
 	}
 
 	interface EditingState {
-		rowIndex: number;
+		path: Path;
 		field: 'key' | 'value';
 		buffer: string;
 	}
@@ -42,6 +46,7 @@
 		onSelect: (index: number) => void;
 		onVisibleRange: (start: number, end: number) => void;
 		onRowMenu: (index: number, x: number, y: number) => void;
+		onRowAction?: (index: number, action: MenuAction) => void;
 		scrollRequest: ScrollRequest | null;
 		editing: EditingState | null;
 		onEditInput: (text: string) => void;
@@ -61,6 +66,8 @@
 		onScrollerReady?: (el: HTMLElement) => void;
 
 		onMaterializeGap?: (gap: VirtualGapRow, fromIdx: number, toIdx: number) => void;
+
+		readString?: (path: Path) => Promise<string | null>;
 	}
 
 	let {
@@ -70,6 +77,7 @@
 		onSelect,
 		onVisibleRange,
 		onRowMenu,
+		onRowAction,
 		scrollRequest,
 		editing,
 		onEditInput,
@@ -82,9 +90,11 @@
 		cutPath = null,
 		onScrollerReady,
 		onMaterializeGap,
+		readString,
 	}: Props = $props();
 
 	const cutKey = $derived(cutPath ? pathKey(cutPath) : null);
+	const editingKey = $derived(editing ? pathKey(editing.path) : null);
 
 	const tallHeights = new Map<string, number>();
 	let heightsVersion = $state(0);
@@ -114,7 +124,7 @@
 		},
 	});
 	const offsets = $derived(s.offsets);
-	const totalHeight = $derived(s.totalHeight);
+	const contentHeight = $derived(s.contentHeight);
 	const startIndex = $derived(s.window.start);
 	const endIndex = $derived(s.window.end);
 	const visibleRows = $derived(rows.slice(startIndex, endIndex));
@@ -147,8 +157,8 @@
 
 	$effect(() => {
 		if (!onMaterializeGap) return;
-		const top = s.scrollTop;
-		const bottom = s.scrollTop + s.viewportHeight;
+		const top = s.offset;
+		const bottom = s.offset + s.viewportHeight;
 		const GAP_OVERSCAN_ROWS = 32;
 		for (let i = startIndex; i < endIndex && i < rows.length; i++) {
 			const r = rows[i];
@@ -225,6 +235,13 @@
 		openInBrowser(url).catch(() => {});
 	}
 
+	function onImageHover(e: PointerEvent, row: ContentRow) {
+		const url = detectUrl(row.preview);
+		imagePreview.hoverStart(e.currentTarget as Element, () =>
+			url ? Promise.resolve(url) : (readString?.(row.path) ?? Promise.resolve(null)),
+		);
+	}
+
 	function onRowClick(i: number, row: Row) {
 		onSelect(i);
 		if (row.variant === 'content' && isExpandable(row)) {
@@ -247,12 +264,29 @@
 		onRowMenu(i, rect.right, rect.bottom);
 	}
 
+	const editable = $derived(!readOnly && !!onRowAction);
+
+	function onRowDblClick(e: MouseEvent, i: number, row: Row) {
+		if (!editable || row.variant !== 'content') return;
+		const part = (e.target as Element).closest('.k, .v:not(.url)');
+		if (!part) return;
+		const action = editActionFor(row, part.classList.contains('k') ? 'key' : 'value');
+		if (action) onRowAction?.(i, action);
+	}
+
 	function onRowKeydown(e: KeyboardEvent, i: number, row: Row) {
 		if (row.variant !== 'content') return;
 		if (e.key.toLowerCase() === 'q' && e.ctrlKey && !e.metaKey) {
 			e.preventDefault();
 			const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
 			onRowMenu(i, rect.left + 100, rect.bottom);
+			return;
+		}
+		if (e.key === 'F2' && editable) {
+			const action = editActionFor(row, 'value') ?? editActionFor(row, 'key');
+			if (!action) return;
+			e.preventDefault();
+			onRowAction?.(i, action);
 			return;
 		}
 		if (e.key === 'Enter' || e.key === ' ') {
@@ -281,13 +315,18 @@
 		drag = { index: i, pointerId: e.pointerId, startY: e.clientY, lastY: e.clientY, moved: false };
 	}
 
+	function contentY(clientY: number): number {
+		const el = s.el!;
+		const top = scaledOffset(el.scrollTop, s.viewportHeight, s.totalHeight);
+		return clientY - el.getBoundingClientRect().top + top;
+	}
+
 	function onDragMove(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId || !s.el) return;
 		drag.lastY = e.clientY;
 		if (!drag.moved && Math.abs(e.clientY - drag.startY) < DRAG_THRESHOLD) return;
 		drag.moved = true;
-		const rect = s.el.getBoundingClientRect();
-		dropTarget = gapAt(rows, offsets, drag.index, e.clientY - rect.top + s.el.scrollTop);
+		dropTarget = gapAt(rows, offsets, drag.index, contentY(e.clientY));
 		startAutoScroll();
 	}
 
@@ -319,8 +358,7 @@
 		maxStep: ROW_DRAG_MAX_STEP,
 		onTick: () => {
 			if (!drag || !s.el) return;
-			const rect = s.el.getBoundingClientRect();
-			dropTarget = gapAt(rows, offsets, drag.index, drag.lastY - rect.top + s.el.scrollTop);
+			dropTarget = gapAt(rows, offsets, drag.index, contentY(drag.lastY));
 		},
 	});
 	const startAutoScroll = () => autoScroller.start();
@@ -331,16 +369,17 @@
 <div
 	class="scroller"
 	class:dragging={!!drag}
+	class:editable
 	use:s.attach
 	onpointermove={onDragMove}
 	onpointerup={onDragUp}
 	onpointercancel={onDragCancel}
 >
-	<div class="spacer" style="height: {totalHeight}px; width: max(100%, {maxRowCh}ch);">
+	<div class="spacer" style="height: {contentHeight}px; width: max(100%, {maxRowCh}ch);">
 		{#if dropTarget}
 			<div
 				class="drop-line"
-				style="top: {dropTarget.y}px; left: calc(0.5rem + {dropTarget.depth} * 1.2rem);"
+				style="top: {dropTarget.y - s.shift}px; left: calc(0.5rem + {dropTarget.depth} * 1.2rem);"
 			></div>
 		{/if}
 		{#each visibleRows as row, j (rowKey(row) + '@' + (startIndex + j))}
@@ -348,6 +387,7 @@
 			{#if isContent(row)}
 				{@const expandable = isExpandable(row)}
 				{@const url = row.kind === 'string' ? detectUrl(row.preview) : null}
+				{@const image = row.kind === 'string' && mayBeImage(url ?? row.preview.slice(1))}
 				{@const selected = i === selectedIndex}
 				{@const diff = diffHighlights?.get(pathKey(row.path))}
 				{@const invalid = invalidMarks?.get(pathKey(row.path))}
@@ -362,10 +402,11 @@
 					data-diff={diff}
 					data-invalid={invalid}
 					data-ri={i}
-					style="transform: translate3d(0, {offsets[i]}px, 0);"
+					style="transform: translate3d(0, {s.offsetAt(i) - s.shift}px, 0);"
 					role="button"
 					tabindex={0}
 					onclick={() => onRowClick(i, row)}
+					ondblclick={(e) => onRowDblClick(e, i, row)}
 					oncontextmenu={(e) => onRowContext(e, i, row)}
 					onkeydown={(e) => onRowKeydown(e, i, row)}
 				>
@@ -390,7 +431,7 @@
 								size="xs"
 							/>{/if}</span
 					>
-					{#if editing && editing.rowIndex === i && editing.field === 'key'}
+					{#if editing?.field === 'key' && editingKey === pathKey(row.path)}
 						<InlineCellEditor
 							field="key"
 							buffer={editing.buffer}
@@ -403,7 +444,7 @@
 						<span class="k" class:idx={typeof row.key === 'number'}>{renderKey(row)}</span>
 					{/if}
 					{#if row.depth > 0 || row.kind !== 'object'}<span class="colon">:</span>{/if}
-					{#if editing && editing.rowIndex === i && editing.field === 'value'}
+					{#if editing?.field === 'value' && editingKey === pathKey(row.path)}
 						<InlineCellEditor
 							field="value"
 							buffer={editing.buffer}
@@ -417,9 +458,19 @@
 					{:else if chipText(row)}
 						<span class="chip {row.kind}">{chipText(row)}</span>
 					{:else if url}
-						<a class="v string url" href={url} onclick={(e) => onUrlClick(e, url)}>{row.preview}</a>
+						<a
+							class="v string url"
+							href={url}
+							onclick={(e) => onUrlClick(e, url)}
+							onpointerenter={image ? (e) => onImageHover(e, row) : undefined}
+							onpointerleave={image ? imagePreview.hoverEnd : undefined}>{row.preview}</a
+						>
 					{:else}
-						<span class="v {row.kind}">{row.preview}</span>
+						<span
+							class="v {row.kind}"
+							onpointerenter={image ? (e) => onImageHover(e, row) : undefined}
+							onpointerleave={image ? imagePreview.hoverEnd : undefined}>{row.preview}</span
+						>
 					{/if}
 					{#if !readOnly}
 						<button
@@ -434,7 +485,7 @@
 				<div
 					class="r placeholder"
 					data-ri={i}
-					style="transform: translate3d(0, {offsets[i]}px, 0);"
+					style="transform: translate3d(0, {s.offsetAt(i) - s.shift}px, 0);"
 				>
 					{#each Array.from({ length: row.depth }) as _, g (g)}
 						<span class="guide"></span>
@@ -444,7 +495,11 @@
 					<span class="ph-label">Loading [{row.index}]</span>
 				</div>
 			{:else if isVGap(row)}{:else}
-				<div class="r close" data-ri={i} style="transform: translate3d(0, {offsets[i]}px, 0);">
+				<div
+					class="r close"
+					data-ri={i}
+					style="transform: translate3d(0, {s.offsetAt(i) - s.shift}px, 0);"
+				>
 					{#each Array.from({ length: row.depth }) as _, g (g)}
 						<span class="guide"></span>
 					{/each}
@@ -480,26 +535,28 @@
 		min-height: 22px;
 		display: flex;
 		align-items: flex-start;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		padding: 2px 0.5rem;
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		line-height: 18px;
 	}
 	.r.expandable {
 		cursor: pointer;
 	}
-	.r.expandable:hover {
-		background: var(--bg-elev);
-	}
-	.r.close:hover {
+	.r:hover {
 		background: var(--bg-elev);
 	}
 	.r.selected {
 		background: var(--accent-soft);
 		box-shadow: inset 2px 0 0 var(--accent);
 	}
-	.r.selected.expandable:hover {
+	.r.selected:hover {
 		background: var(--accent-fill);
+	}
+	/* A preceding .guide means depth > 0: the root key is not editable. */
+	.scroller.editable .guide ~ .k:not(.idx),
+	.scroller.editable .v:not(.url) {
+		cursor: text;
 	}
 
 	.r.cut {
@@ -512,24 +569,24 @@
 	}
 
 	.r[data-diff='added'] {
-		background: rgba(123, 166, 136, 0.16);
+		background: var(--success-soft);
 		box-shadow: inset 2px 0 0 var(--success);
 	}
 	.r[data-diff='removed'] {
-		background: var(--accent-fill);
-		box-shadow: inset 2px 0 0 var(--accent);
+		background: var(--danger-soft);
+		box-shadow: inset 2px 0 0 var(--danger);
 	}
 	.r[data-diff='changed'] {
-		background: rgba(201, 162, 75, 0.16);
+		background: var(--warning-soft);
 		box-shadow: inset 2px 0 0 var(--warning);
 	}
 	.r[data-diff='moved'] {
-		background: rgba(168, 132, 196, 0.16);
-		box-shadow: inset 2px 0 0 var(--mauve);
+		background: var(--moved-soft);
+		box-shadow: inset 2px 0 0 var(--syntax-boolean);
 	}
 
 	.r[data-invalid='ancestor'] {
-		box-shadow: inset 2px 0 0 var(--accent-line);
+		box-shadow: inset 2px 0 0 var(--warning);
 	}
 	.r[data-invalid='error'] {
 		box-shadow: inset 2px 0 0 var(--danger);
@@ -542,14 +599,14 @@
 	}
 
 	.r[data-invalid='stale-ancestor'] {
-		box-shadow: inset 2px 0 0 var(--accent-fill);
+		box-shadow: inset 2px 0 0 var(--text-faint);
 	}
 	.r[data-invalid='stale-error'] {
-		box-shadow: inset 2px 0 0 var(--accent-line);
+		box-shadow: inset 2px 0 0 var(--text-faint);
 	}
 	.r[data-invalid='stale-error'] .v,
 	.r[data-invalid='stale-error'] .k {
-		text-decoration: underline wavy var(--accent-line);
+		text-decoration: underline wavy var(--text-faint);
 		text-decoration-skip-ink: none;
 		text-underline-offset: 3px;
 	}
@@ -580,6 +637,9 @@
 	}
 
 	.r.expandable .caret {
+		color: var(--text-dim);
+	}
+	.r.selected .caret {
 		color: var(--accent);
 	}
 
@@ -594,7 +654,7 @@
 	.colon {
 		color: var(--syntax-punct);
 		flex-shrink: 0;
-		padding-right: 0.3rem;
+		padding-right: var(--space-xs);
 		white-space: nowrap;
 	}
 
@@ -651,8 +711,8 @@
 		color: var(--text-dim);
 		background: var(--bg-elev-3);
 		border: 1px solid var(--rule-2);
-		padding: 0 0.5rem;
-		font-size: 11.5px;
+		padding: 0 var(--space-sm);
+		font-size: var(--font-size-sm);
 		flex-shrink: 0;
 	}
 
@@ -667,9 +727,9 @@
 		background: transparent;
 		border: 1px solid var(--rule);
 		color: var(--text-dim);
-		padding: 0 0.4rem;
+		padding: 0 var(--space-xs);
 		font: inherit;
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		line-height: 1;
 		cursor: pointer;
 	}
@@ -679,8 +739,8 @@
 	}
 	.trigger:hover {
 		background: var(--bg-elev);
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
+		border-color: var(--rule-2);
 	}
 
 	.grip {
@@ -692,8 +752,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: var(--text-faint);
-		font-size: 11px;
+		color: var(--text-dim);
+		font-size: var(--font-size-sm);
 		line-height: 1;
 		cursor: grab;
 		visibility: hidden;
@@ -705,7 +765,7 @@
 		visibility: visible;
 	}
 	.grip:hover {
-		color: var(--accent);
+		color: var(--text);
 	}
 	.scroller.dragging .grip {
 		cursor: grabbing;
@@ -738,8 +798,8 @@
 		flex-shrink: 0;
 	}
 	.ph-label {
-		color: var(--text-faint);
-		font-size: 10.5px;
+		color: var(--text-dim);
+		font-size: var(--font-size-xs);
 		letter-spacing: 0.04em;
 	}
 </style>

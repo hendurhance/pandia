@@ -17,19 +17,16 @@ export interface ValidationResult {
 export interface InvalidMarksInput {
 	result: ValidationResult | null;
 
-	validatedVersion: number | null;
-
-	liveVersion: number | null;
+	stale: boolean;
 
 	rows: ReadonlyArray<Row>;
 }
 
 export function computeInvalidMarks(input: InvalidMarksInput): Map<string, InvalidMark> {
 	const m = new Map<string, InvalidMark>();
-	const { result, validatedVersion, liveVersion, rows } = input;
+	const { result, stale, rows } = input;
 	if (!result || result.valid || result.errors.length === 0) return m;
 
-	const stale = liveVersion != null && validatedVersion != null && liveVersion > validatedVersion;
 	const errKind: InvalidMark = stale ? 'stale-error' : 'error';
 	const ancKind: InvalidMark = stale ? 'stale-ancestor' : 'ancestor';
 

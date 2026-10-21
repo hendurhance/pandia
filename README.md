@@ -81,7 +81,11 @@ One click, **ten targets**:
 
 ### Validate against schemas
 
-Inline JSON Schema validation against **draft-07** and **2020-12**. Debounce is user-tunable: immediate, 250 ms, 500 ms, 1 s, 2 s, or manual.
+Inline JSON Schema validation against **draft-07** and **2020-12**. Debounce is user-tunable: immediate, 250 ms, 500 ms, 1 s, 2 s, or manual. Load a schema automatically with `--schema <path|https-url>` or a document's top-level `$schema`; remote schemas from a document ask before downloading.
+
+### Work from the terminal
+
+Install the `pandia` command from **Settings → Behavior** (Homebrew adds it for you). `pandia data.json` opens a tab in the running window, `curl … | pandia -` opens piped input, `pandia --diff a.json b.json` opens Compare, and `--wait` makes it usable as `git difftool` or in scripts, exiting 1 when the schema fails. For scripts and AI agents, `… | pandia --wait - > out.json` turns Pandia into a review step: save to send the edited JSON back, and `--json` prints a report with each schema error as a JSON Pointer.
 
 ### Privacy-first by design
 
@@ -95,8 +99,8 @@ Download the latest version for your platform from [releases](https://github.com
 
 | Chip | Download |
 |---|---|
-| Apple Silicon (M1 / M2 / M3 / M4 / M5 / M6 and newer) | [`Pandia_1.0.7_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_aarch64.dmg) |
-| Intel | [`Pandia_1.0.7_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_x64.dmg) |
+| Apple Silicon (M1 / M2 / M3 / M4 / M5 / M6 and newer) | [`Pandia_1.0.8_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_aarch64.dmg) |
+| Intel | [`Pandia_1.0.8_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_x64.dmg) |
 
 The macOS bundle is signed and notarised.
 
@@ -120,15 +124,15 @@ brew untap hendurhance/tap
 
 | Type | Download |
 |---|---|
-| Installer | [`Pandia_1.0.7_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_x64-setup.exe) |
-| MSI | [`Pandia_1.0.7_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_x64_en-US.msi) |
+| Installer | [`Pandia_1.0.8_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_x64-setup.exe) |
+| MSI | [`Pandia_1.0.8_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_x64_en-US.msi) |
 
 ### Linux
 
 | Format | Download |
 |---|---|
-| AppImage | [`Pandia_1.0.7_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_amd64.AppImage) |
-| Debian / Ubuntu | [`Pandia_1.0.7_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.7_amd64.deb) |
+| AppImage | [`Pandia_1.0.8_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_amd64.AppImage) |
+| Debian / Ubuntu | [`Pandia_1.0.8_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_amd64.deb) |
 
 Linux bundles are GPG-signed; the public key is published with each release.
 
@@ -242,8 +246,8 @@ git clone https://github.com/hendurhance/pandia
 cd pandia
 npm ci
 
-npm run tauri dev      # development build, hot-reload
-npm run tauri build    # release build for the current platform
+npm run tauri dev      # development build, hot-reload (pastel dev icon)
+npm run tauri build -- --config src-tauri/tauri.prod.conf.json    # release build with the real icon
 ```
 
 ### Useful commands

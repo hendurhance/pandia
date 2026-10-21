@@ -4,6 +4,7 @@
 	import { X } from '@lucide/svelte';
 	import { commandRegistry, type CommandCategory } from '$lib/palette/state/command-store.svelte';
 	import { fmtKbd } from '$lib/util/platform';
+	import { shortcutKeys } from '$lib/shell/logic/shortcuts';
 
 	interface Props {
 		onClose: () => void;
@@ -55,9 +56,10 @@
 	const commandGroups = $derived.by<Group[]>(() => {
 		const byCategory = new Map<CommandCategory, Shortcut[]>();
 		for (const c of commandRegistry.list) {
-			if (!c.keybinding) continue;
+			const keys = shortcutKeys(c.id);
+			if (!keys) continue;
 			const items = byCategory.get(c.category) ?? [];
-			items.push({ keys: splitKeys(c.keybinding), label: c.label });
+			items.push({ keys: splitKeys(keys), label: c.label });
 			byCategory.set(c.category, items);
 		}
 		return CATEGORY_ORDER.flatMap((cat) => {
@@ -66,10 +68,6 @@
 		});
 	});
 
-	const GENERAL: Group = {
-		title: 'General',
-		items: [{ keys: ['⌘', 'K'], label: 'Command palette' }],
-	};
 	const IN_THE_TREE: Group = {
 		title: 'In the tree',
 		items: [
@@ -80,7 +78,7 @@
 		],
 	};
 
-	const groups = $derived([GENERAL, ...commandGroups, IN_THE_TREE]);
+	const groups = $derived([...commandGroups, IN_THE_TREE]);
 </script>
 
 <Dialog {onClose}>
@@ -122,30 +120,30 @@
 
 	.body {
 		overflow-y: auto;
-		padding: 0.9rem 1rem 0.4rem;
+		padding: var(--space-md) var(--space-md) var(--space-xs);
 
 		columns: 2;
-		column-gap: 2rem;
+		column-gap: var(--space-xl);
 	}
 	.grp {
 		break-inside: avoid;
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-md);
 	}
 	.grp-title {
-		color: var(--accent);
+		color: var(--text-dim);
 		text-transform: uppercase;
-		letter-spacing: 0.2em;
+		letter-spacing: var(--label-tracking);
 		font-size: var(--font-size-xs);
-		padding-bottom: 0.35rem;
-		margin-bottom: 0.25rem;
+		padding-bottom: var(--space-xs);
+		margin-bottom: var(--space-xs);
 		border-bottom: var(--rule-width) solid var(--rule);
 	}
 
 	.rows {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		column-gap: 0.8rem;
-		row-gap: 0.34rem;
+		column-gap: var(--space-md);
+		row-gap: var(--space-xs);
 		align-items: baseline;
 		list-style: none;
 		margin: 0;
@@ -156,12 +154,12 @@
 	}
 	.keys {
 		display: flex;
-		gap: 3px;
+		gap: var(--space-xs);
 		justify-content: flex-start;
 	}
 	.keys kbd {
 		font-family: var(--font-mono);
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		min-width: 1.4em;
 		text-align: center;
 		padding: 0 0.4ch;

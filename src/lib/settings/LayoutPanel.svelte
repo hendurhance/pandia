@@ -105,7 +105,7 @@
 	.panel-toggles {
 		display: flex;
 		flex-direction: column;
-		gap: 0.55rem;
+		gap: var(--space-sm);
 		align-items: flex-start;
 	}
 </style>

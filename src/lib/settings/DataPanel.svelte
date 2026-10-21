@@ -8,26 +8,11 @@
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
 	import { exportSettings, importSettings, PERSISTED_FILES } from '$lib/util/persist';
 	import { describeError } from '$lib/ipc/error-copy';
+	import { Arm } from '$lib/util/arm.svelte';
 
-	// Window between two clicks of a destructive button before the second
-	// click reverts to "needs confirmation" again.
-	const CONFIRM_ARM_MS = 3000;
 	const BUNDLE_FLASH_MS = 3500;
 
-	let armed: string | null = $state(null);
-	let armTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function arm(id: string, action: () => void) {
-		if (armed === id) {
-			if (armTimer) clearTimeout(armTimer);
-			armed = null;
-			action();
-			return;
-		}
-		armed = id;
-		if (armTimer) clearTimeout(armTimer);
-		armTimer = setTimeout(() => (armed = null), CONFIRM_ARM_MS);
-	}
+	const clearArm = new Arm();
 
 	let bundleBusy = $state(false);
 	let bundleStatus: { msg: string; kind: 'ok' | 'err' } | null = $state(null);
@@ -128,27 +113,15 @@
 		<div class="field-control">
 			<button
 				class="btn self-start"
-				class:btn-danger={armed === 'recents'}
-				onclick={() => arm('recents', clearRecents)}
+				class:btn-danger={clearArm.armed}
+				onclick={() => clearArm.press(clearRecents)}
 				disabled={recentsStore.list.length === 0}
-				>{armed === 'recents'
+				>{clearArm.armed
 					? 'click again to confirm'
 					: `clear ${recentsStore.list.length} recent file${recentsStore.list.length === 1 ? '' : 's'}`}</button
 			>
 			<div class="text-sm dim">
 				Forgets the recent-files list shown on the empty state. Files on disk are untouched.
-			</div>
-		</div>
-	</section>
-
-	<section class="field">
-		<div class="field-label">appearance</div>
-		<div class="field-control">
-			<button class="btn self-start" onclick={() => appearancePrefs.reset()}
-				>restore appearance defaults</button
-			>
-			<div class="text-sm dim">
-				Resets theme, font, size, and density to terminal-noir defaults.
 			</div>
 		</div>
 	</section>
@@ -176,14 +149,14 @@
 		list-style: none;
 		display: flex;
 		flex-direction: column;
-		gap: 0.15rem;
+		gap: var(--space-2xs);
 		font-family: var(--font-mono);
 		font-size: var(--font-size-xs);
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 	.btn-row {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-sm);
 		flex-wrap: wrap;
 	}
 	.err {

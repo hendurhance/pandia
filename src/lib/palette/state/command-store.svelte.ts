@@ -15,8 +15,7 @@ export interface Command {
 	id: string;
 	label: string;
 	category: CommandCategory;
-
-	keybinding?: string;
+	hidden?: boolean;
 
 	enabled?: () => boolean;
 	run: () => void | Promise<void>;
@@ -36,6 +35,11 @@ class CommandRegistry {
 	get(id: string): Command | undefined {
 		return this.list.find((c) => c.id === id);
 	}
+
+	run(id: string): void {
+		const cmd = this.get(id);
+		if (cmd && (!cmd.enabled || cmd.enabled())) void cmd.run();
+	}
 }
 
 export const commandRegistry = new CommandRegistry();
@@ -44,34 +48,29 @@ import { loadPersisted, savePersisted, COMMAND_USAGE_FILE } from '$lib/util/pers
 
 const USAGE_FILE = COMMAND_USAGE_FILE;
 const USAGE_KEY = 'usage';
+const MAX_RECENT = 20;
 
-function sanitizeCounts(raw: unknown): Record<string, number> {
-	if (typeof raw !== 'object' || raw === null) return {};
-	const out: Record<string, number> = {};
-	for (const [k, v] of Object.entries(raw)) {
-		if (typeof v === 'number') out[k] = v;
-	}
-	return out;
+function sanitizeRecent(raw: unknown): string[] {
+	return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : [];
 }
 
 class UsageTracker extends PersistedStore {
-	counts: Record<string, number> = $state({});
+	/** Command ids, most recently run first. */
+	recent: string[] = $state([]);
 
 	protected async load(): Promise<void> {
-		const raw = await loadPersisted<Record<string, number>>(USAGE_FILE, USAGE_KEY);
-		this.counts = sanitizeCounts(raw);
+		const raw = await loadPersisted<string[]>(USAGE_FILE, USAGE_KEY);
+		this.recent = sanitizeRecent(raw);
 	}
 
 	bump(id: string): void {
-		this.counts = { ...this.counts, [id]: (this.counts[id] ?? 0) + 1 };
-		void savePersisted(USAGE_FILE, USAGE_KEY, this.counts);
+		this.recent = [id, ...this.recent.filter((r) => r !== id)].slice(0, MAX_RECENT);
+		void savePersisted(USAGE_FILE, USAGE_KEY, this.recent);
 	}
 
 	topN(n: number, pool: string[]): string[] {
-		return [...pool]
-			.filter((id) => (this.counts[id] ?? 0) > 0)
-			.sort((a, b) => (this.counts[b] ?? 0) - (this.counts[a] ?? 0))
-			.slice(0, n);
+		const available = new Set(pool);
+		return this.recent.filter((id) => available.has(id)).slice(0, n);
 	}
 }
 

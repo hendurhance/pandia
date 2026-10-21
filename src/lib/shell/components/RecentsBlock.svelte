@@ -23,83 +23,81 @@
 	});
 </script>
 
-<section class="block">
-	<div class="label-row">
-		<span class="label">recent</span>
-		{#if recentsStore.list.length > 0}
+{#if recentsStore.list.length > 0}
+	<section class="block">
+		<div class="label-row">
+			<span class="label">recent</span>
 			<span class="recent-count dim text-sm"
 				>{recentsStore.list.length} file{recentsStore.list.length === 1 ? '' : 's'}</span
 			>
+		</div>
+		{#if recentsStore.list.length > 5}
+			<input
+				class="recents-search"
+				type="search"
+				placeholder="search recents…"
+				bind:value={recentsQuery}
+				spellcheck="false"
+				aria-label="Search recent files"
+			/>
 		{/if}
-	</div>
-	{#if recentsStore.list.length > 5}
-		<input
-			class="recents-search"
-			type="search"
-			placeholder="search recents…"
-			bind:value={recentsQuery}
-			spellcheck="false"
-			aria-label="Search recent files"
-		/>
-	{/if}
-	{#if recentsStore.list.length === 0}
-		<div class="dim text-sm empty-recents">No recent files yet</div>
-	{:else if visibleRecents.length === 0}
-		<div class="dim text-sm empty-recents">No matches for "{recentsQuery}"</div>
-	{:else}
-		<ul class="recents">
-			{#each visibleRecents.slice(0, 12) as r (r.path)}
-				<li class="recent" class:pinned={r.pinned}>
-					<button
-						class="pin"
-						onclick={() => togglePin(r.path)}
-						title={r.pinned ? 'Unpin' : 'Pin to top'}
-						aria-label={r.pinned ? 'Unpin' : 'Pin'}
-						aria-pressed={r.pinned}
-					>
-						<Icon icon={r.pinned ? Pin : PinOff} size="xs" />
-					</button>
-					<button
-						class="list-row recent-row"
-						onclick={() => onPick(r.path)}
-						disabled={busy}
-						title={r.path}
-					>
-						<span class="recent-name">{r.name}</span>
-						<span class="recent-meta">
-							{#if r.size != null}<span class="recent-size">{fmtBytes(r.size)}</span>{/if}
-							<span class="dim recent-when">{relativeTime(r.openedAt)}</span>
-						</span>
-					</button>
-					<button
-						class="recent-x"
-						onclick={() => removeRecent(r.path)}
-						title="Remove from recents"
-						aria-label="Remove from recents"><Icon icon={X} size="xs" /></button
-					>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-</section>
+		{#if visibleRecents.length === 0}
+			<div class="dim text-sm empty-recents">No matches for "{recentsQuery}"</div>
+		{:else}
+			<ul class="recents">
+				{#each visibleRecents.slice(0, 12) as r (r.path)}
+					<li class="recent" class:pinned={r.pinned}>
+						<button
+							class="pin"
+							onclick={() => togglePin(r.path)}
+							title={r.pinned ? 'Unpin' : 'Pin to top'}
+							aria-label={r.pinned ? 'Unpin' : 'Pin'}
+							aria-pressed={r.pinned}
+						>
+							<Icon icon={r.pinned ? Pin : PinOff} size="xs" />
+						</button>
+						<button
+							class="list-row recent-row"
+							onclick={() => onPick(r.path)}
+							disabled={busy}
+							title={r.path}
+						>
+							<span class="recent-name">{r.name}</span>
+							<span class="recent-meta">
+								{#if r.size != null}<span class="recent-size">{fmtBytes(r.size)}</span>{/if}
+								<span class="dim recent-when">{relativeTime(r.openedAt)}</span>
+							</span>
+						</button>
+						<button
+							class="recent-x"
+							onclick={() => removeRecent(r.path)}
+							title="Remove from recents"
+							aria-label="Remove from recents"><Icon icon={X} size="xs" /></button
+						>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+{/if}
 
 <style>
 	.block {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 	}
 	.label-row {
 		display: flex;
 		align-items: baseline;
-		gap: 0.6rem;
+		gap: var(--space-sm);
 	}
 	.recent-count {
 		white-space: nowrap;
 	}
 	.recents-search {
 		width: 100%;
-		padding: 3px 8px;
+		padding: var(--space-xs) var(--space-sm);
 		font-size: var(--font-size-sm);
 		background: var(--bg-elev);
 		border: 1px solid var(--rule);
@@ -132,11 +130,11 @@
 		width: 26px;
 		background: transparent;
 		border: none;
-		color: var(--text-ghost);
+		color: var(--text-dim);
 		cursor: pointer;
 	}
 	.pin:hover {
-		color: var(--accent);
+		color: var(--text);
 	}
 	.recent.pinned .pin {
 		color: var(--accent);
@@ -147,13 +145,13 @@
 	.recent-row {
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 0.8rem;
-		padding: 0.5rem 0.6rem;
+		gap: var(--space-md);
+		padding: var(--space-sm);
 		color: var(--text);
 		min-width: 0;
 	}
 	.recent-row:hover {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--bg-elev);
 	}
 	.recent-row:disabled {
@@ -169,12 +167,12 @@
 		flex: 0 0 auto;
 		display: flex;
 		align-items: baseline;
-		gap: 0.7rem;
+		gap: var(--space-sm);
 		font-size: var(--font-size-sm);
 	}
 	.recent-size {
 		font-family: var(--font-mono);
-		color: var(--accent-2);
+		color: var(--text-dim);
 		min-width: 4.5ch;
 		text-align: right;
 	}
@@ -183,17 +181,17 @@
 		text-align: right;
 	}
 	.empty-recents {
-		padding: 0.3rem 0;
+		padding: var(--space-xs) 0;
 	}
 	.recent-x {
 		border: none;
 		background: transparent;
-		padding: 0 0.6rem;
-		font-size: 14px;
-		color: var(--text-faint);
+		padding: 0 var(--space-sm);
+		font-size: var(--font-size-base);
+		color: var(--text-dim);
 		cursor: pointer;
 	}
 	.recent-x:hover {
-		color: var(--accent);
+		color: var(--text);
 	}
 </style>

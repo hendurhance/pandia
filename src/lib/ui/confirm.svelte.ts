@@ -4,7 +4,7 @@ export interface ConfirmRequest {
 	title: string;
 	message: string;
 	primaryLabel: string;
-	secondaryLabel: string;
+	secondaryLabel?: string;
 	cancelLabel?: string;
 
 	dangerPrimary?: boolean;

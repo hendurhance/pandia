@@ -79,3 +79,19 @@ export function fixedWindow(
 	const end = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan);
 	return { start, end };
 }
+
+export const MAX_SCROLL_HEIGHT = 16_000_000;
+
+export function scaledOffset(
+	scrollTop: number,
+	viewportHeight: number,
+	fullHeight: number,
+): number {
+	if (fullHeight <= MAX_SCROLL_HEIGHT) return scrollTop;
+	return (scrollTop * (fullHeight - viewportHeight)) / (MAX_SCROLL_HEIGHT - viewportHeight);
+}
+
+export function scrollTopFor(offset: number, viewportHeight: number, fullHeight: number): number {
+	if (fullHeight <= MAX_SCROLL_HEIGHT) return offset;
+	return (offset * (MAX_SCROLL_HEIGHT - viewportHeight)) / (fullHeight - viewportHeight);
+}

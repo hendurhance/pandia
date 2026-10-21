@@ -16,6 +16,12 @@ pub(crate) trait DocumentBackend {
     fn get_value(&self, path: &Path) -> DocResult<Value>;
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>>;
     fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>>;
+    fn for_each_row_field(
+        &self,
+        path: &Path,
+        cancel: &CancelFlag,
+        f: &mut dyn FnMut(&str, NodeKind),
+    ) -> DocResult<u32>;
     fn search(&self, opts: &SearchOptions, cancel: &CancelFlag) -> Vec<SearchHit>;
     fn generate_types(&self, lang: TypegenLang, type_name: &str) -> DocResult<String>;
     fn hash_into(&self, hasher: &mut blake3::Hasher) -> Result<(), ()>;
@@ -46,7 +52,7 @@ mod conformance {
 
     fn backends() -> (Value, LazyDoc) {
         let eager: Value = serde_json::from_str(FIXTURE).expect("fixture parses");
-        let lazy = LazyDoc::new(FIXTURE).expect("fixture parses lazily");
+        let lazy = LazyDoc::new(FIXTURE.into()).expect("fixture parses lazily");
         (eager, lazy)
     }
 
@@ -72,6 +78,25 @@ mod conformance {
             p(&[k("note")]),
             p(&[k("big")]),
         ]
+    }
+
+    #[test]
+    fn row_fields_agree() {
+        let (eager, lazy) = backends();
+        let fields = |b: &dyn DocumentBackend| {
+            let mut seen = Vec::new();
+            let rows = b
+                .for_each_row_field(&p(&[k("users")]), &CancelFlag::never(), &mut |key, kind| {
+                    seen.push((key.to_string(), kind))
+                })
+                .unwrap();
+            (rows, seen)
+        };
+        let (rows, seen) = fields(&eager);
+        assert_eq!((rows, seen.clone()), fields(&lazy));
+        assert_eq!(rows, 3);
+        assert_eq!(seen.len(), 12);
+        assert!(seen.contains(&("score".to_string(), NodeKind::Null)));
     }
 
     #[test]
@@ -159,6 +184,84 @@ mod conformance {
             let e = DocumentBackend::search(&eager, &opts, &CancelFlag::never());
             let l = DocumentBackend::search(&lazy, &opts, &CancelFlag::never());
             assert_eq!(e, l, "search {query}");
+        }
+    }
+
+    #[test]
+    fn previews_agree_for_large_containers_and_negative_zero() {
+        let rows: Vec<String> = (0..10_000).map(|n| format!(r#"{{"n":{n}}}"#)).collect();
+        let text = format!(r#"{{"big": [{}], "zero": -0}}"#, rows.join(","));
+        let eager: Value = serde_json::from_str(&text).unwrap();
+        let lazy = LazyDoc::new(text.into()).unwrap();
+        for query in ["big", "zero"] {
+            let opts = SearchOptions {
+                query: query.into(),
+                case_sensitive: false,
+                max_results: None,
+            };
+            assert_eq!(
+                DocumentBackend::search(&eager, &opts, &CancelFlag::never()),
+                DocumentBackend::search(&lazy, &opts, &CancelFlag::never()),
+                "search {query}"
+            );
+        }
+        assert_eq!(
+            DocumentBackend::slice(&eager, &Path::root(), 1..2).ok(),
+            DocumentBackend::slice(&lazy, &Path::root(), 1..2).ok(),
+            "tree row for -0"
+        );
+    }
+
+    #[test]
+    fn repeated_keys_keep_first_position_and_last_value_like_eager() {
+        const REPEATED: &str = r#"{"a": 1, "rows": [{"x": "old", "y": 2, "x": "new"}], "b": 3, "a": {"z": "kept"}, "b": 4}"#;
+        let eager: Value = serde_json::from_str(REPEATED).unwrap();
+        let lazy = LazyDoc::new(REPEATED.into()).unwrap();
+        assert_eq!(
+            DocumentBackend::root_kind_and_count(&eager),
+            DocumentBackend::root_kind_and_count(&lazy)
+        );
+        for path in [
+            p(&[]),
+            p(&[k("a")]),
+            p(&[k("a"), k("z")]),
+            p(&[k("b")]),
+            p(&[k("rows")]),
+            p(&[k("rows"), i(0)]),
+            p(&[k("rows"), i(0), k("x")]),
+        ] {
+            assert_eq!(
+                DocumentBackend::slice(&eager, &path, 0..10).ok(),
+                DocumentBackend::slice(&lazy, &path, 0..10).ok(),
+                "slice {path}"
+            );
+            assert_eq!(
+                DocumentBackend::child_count_at(&eager, &path).ok(),
+                DocumentBackend::child_count_at(&lazy, &path).ok(),
+                "child_count_at {path}"
+            );
+            assert_eq!(
+                DocumentBackend::get_value(&eager, &path).ok(),
+                DocumentBackend::get_value(&lazy, &path).ok(),
+                "get_value {path}"
+            );
+        }
+        let rows = p(&[k("rows")]);
+        assert_eq!(
+            DocumentBackend::column_cells(&eager, &rows, "x").ok(),
+            DocumentBackend::column_cells(&lazy, &rows, "x").ok()
+        );
+        for query in ["x", "old", "kept"] {
+            let opts = SearchOptions {
+                query: query.into(),
+                case_sensitive: false,
+                max_results: None,
+            };
+            assert_eq!(
+                DocumentBackend::search(&eager, &opts, &CancelFlag::never()),
+                DocumentBackend::search(&lazy, &opts, &CancelFlag::never()),
+                "search {query}"
+            );
         }
     }
 }

@@ -1,22 +1,22 @@
 .notice {
-	padding: 0.25rem 0.4rem;
-	color: var(--accent);
-	background: var(--accent-soft);
-	border-left: 2px solid var(--accent);
+	padding: var(--space-xs);
+	color: var(--danger);
+	background: var(--danger-soft);
+	border-left: 2px solid var(--danger);
 	font-size: var(--font-size-sm);
 	word-break: break-word;
 }
 .notice-warn {
 	color: var(--text-dim);
-	background: rgba(201, 162, 75, 0.08);
+	background: var(--warning-soft);
 	border-left-color: var(--warning);
 }
 
 .banner {
 	display: flex;
 	align-items: center;
-	gap: 0.6rem;
-	padding: 0.4rem 1rem;
+	gap: var(--space-sm);
+	padding: var(--space-xs) var(--space-md);
 	background: var(--bg-elev);
 	border-bottom: var(--rule-width) solid var(--rule);
 	font-size: var(--font-size-sm);
@@ -30,7 +30,7 @@
 	color: var(--success);
 }
 .banner-info {
-	border-bottom-color: var(--accent-2);
+	border-bottom-color: var(--rule-2);
 	color: var(--text-dim);
 }
 
@@ -39,14 +39,14 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 2rem;
+	padding: var(--space-xl);
 	min-height: 0;
 }
 .empty-state-inner {
 	max-width: 460px;
 	display: flex;
 	flex-direction: column;
-	gap: 0.5rem;
+	gap: var(--space-sm);
 }
 
 .pulse {

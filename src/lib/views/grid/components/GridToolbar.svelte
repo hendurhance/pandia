@@ -15,11 +15,16 @@
 		colCount,
 		sortKey,
 		sortDesc,
+		selectedCount,
+		copied,
 		onClearColumnIn,
 		onClearAll,
 		onAddGroup,
 		onRemoveGroup,
 		onSetActiveGroup,
+		onCopySelected,
+		onExtractSelected,
+		onClearSelection,
 	}: {
 		quick?: string;
 		groups: [string, ColFilter][][];
@@ -32,11 +37,16 @@
 		colCount: number;
 		sortKey: string | null;
 		sortDesc: boolean;
+		selectedCount: number;
+		copied: boolean;
 		onClearColumnIn: (groupIdx: number, key: string) => void;
 		onClearAll: () => void;
 		onAddGroup: () => void;
 		onRemoveGroup: (groupIdx: number) => void;
 		onSetActiveGroup: (groupIdx: number) => void;
+		onCopySelected: () => void;
+		onExtractSelected: () => void;
+		onClearSelection: () => void;
 	} = $props();
 </script>
 
@@ -109,28 +119,36 @@
 				<button class="or-add" onclick={onAddGroup} title="Add an OR group (match either)"
 					>+ OR</button
 				>
+				<button class="link-btn" onclick={onClearAll}>Clear all</button>
 			</div>
 		{/if}
 	</div>
 
 	<div class="toolbar-right">
-		{#if hasFilter}
-			<button class="link-btn" onclick={onClearAll}>Clear all</button>
-		{/if}
-		<span class="counts">
-			{#if filtering && fetching && filteredTotal === null}
-				<span class="fetching">Filtering…</span>
-			{:else if filtering}
-				<b>{(filteredTotal ?? 0).toLocaleString()}</b> of {rowCount.toLocaleString()} rows
-			{:else}
-				{rowCount.toLocaleString()} row{rowCount === 1 ? '' : 's'}
+		{#if selectedCount > 0}
+			<span class="counts"><b>{selectedCount.toLocaleString()}</b> selected</span>
+			·
+			<button class="link-btn" onclick={onCopySelected}>{copied ? 'copied' : 'copy JSON'}</button>
+			·
+			<button class="link-btn" onclick={onExtractSelected}>extract to tab ↗</button>
+			·
+			<button class="link-btn" onclick={onClearSelection}>clear</button>
+		{:else}
+			<span class="counts">
+				{#if filtering && fetching && filteredTotal === null}
+					<span class="fetching">Filtering…</span>
+				{:else if filtering}
+					<b>{(filteredTotal ?? 0).toLocaleString()}</b> of {rowCount.toLocaleString()} rows
+				{:else}
+					{rowCount.toLocaleString()} row{rowCount === 1 ? '' : 's'}
+				{/if}
+				· {colCount} cols
+			</span>
+			{#if sortKey}
+				<span class="sort-status"
+					>· <b>{sortKey}</b> <Icon icon={sortDesc ? ArrowDown : ArrowUp} size="xs" /></span
+				>
 			{/if}
-			· {colCount} cols
-		</span>
-		{#if sortKey}
-			<span class="sort-status"
-				>· <b>{sortKey}</b> <Icon icon={sortDesc ? ArrowDown : ArrowUp} size="xs" /></span
-			>
 		{/if}
 	</div>
 </div>
@@ -140,33 +158,33 @@
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		padding: 0.25rem 0.75rem;
+		gap: var(--space-sm);
+		padding: var(--space-xs) var(--space-sm);
 		border-bottom: 1px solid var(--rule);
 		background: var(--bg-elev);
-		font-size: 11.5px;
+		font-size: var(--font-size-sm);
 		color: var(--text-dim);
 	}
 	.grid-toolbar .counts {
 		font-variant-numeric: tabular-nums;
 		flex: 0 0 auto;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		white-space: nowrap;
 	}
 	.grid-toolbar .counts b {
 		color: var(--text);
-		font-weight: 600;
+		font-weight: 700;
 	}
 	.grid-toolbar .fetching {
-		color: var(--accent);
+		color: var(--text-dim);
 		font-style: italic;
 	}
 	.sort-status {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		flex: 0 0 auto;
 	}
 	.sort-status b {
-		color: var(--accent);
+		color: var(--text);
 		font-weight: 400;
 	}
 
@@ -176,7 +194,7 @@
 		gap: 0.5ch;
 		flex: 0 1 240px;
 		min-width: 140px;
-		padding: 0.1rem 0.5ch;
+		padding: var(--space-2xs) 0.5ch;
 		background: var(--bg);
 		border: 1px solid var(--rule-2);
 		border-radius: 3px;
@@ -197,15 +215,15 @@
 		border: none;
 		color: var(--text);
 		font-family: var(--font-mono);
-		font-size: 11.5px;
-		padding: 0.1rem 0;
+		font-size: var(--font-size-sm);
+		padding: var(--space-2xs) 0;
 	}
 	.quick input:focus {
 		outline: none;
 	}
 	.quick-x {
-		color: var(--text-faint);
-		font-size: 13px;
+		color: var(--text-dim);
+		font-size: var(--font-size-base);
 		padding: 0 0.2ch;
 	}
 
@@ -229,22 +247,22 @@
 		display: flex;
 		align-items: center;
 		flex-wrap: nowrap;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		width: max-content;
 	}
 	.toolbar-right {
 		flex: 0 0 auto;
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--space-sm);
 	}
 	.grp {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 	}
 	.builder.multi .grp {
-		padding: 0.1rem 0.3rem 0.1rem 0.45rem;
+		padding: var(--space-2xs) var(--space-xs);
 		border: 1px dashed var(--rule-2);
 		border-radius: 4px;
 		cursor: pointer;
@@ -255,34 +273,34 @@
 		background: var(--accent-soft);
 	}
 	.or-pill {
-		font-size: 9.5px;
+		font-size: var(--font-size-xs);
 		font-weight: 700;
 		letter-spacing: 0.08em;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		background: var(--bg-elev-3);
 		border: 1px solid var(--rule-2);
 		border-radius: 3px;
-		padding: 0.05rem 0.35rem;
+		padding: 0.05rem var(--space-xs);
 	}
 	.grp-hint {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		font-style: italic;
 	}
 	.grp-sep {
 		align-self: stretch;
 		width: 1px;
-		margin: 0.1rem 0.05rem;
+		margin: var(--space-2xs) 0.05rem;
 		background: var(--rule-2);
 	}
 	.grp-x {
-		color: var(--text-faint);
-		font-size: 13px;
+		color: var(--text-dim);
+		font-size: var(--font-size-base);
 		line-height: 1;
 		padding: 0 0.2ch;
 		align-self: center;
 	}
 	.grp-x:hover {
-		color: var(--accent);
+		color: var(--text);
 	}
 	.or-add {
 		background: none;
@@ -290,20 +308,19 @@
 		border-radius: 4px;
 		color: var(--text-dim);
 		cursor: pointer;
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		font-family: inherit;
-		padding: 0.05rem 0.4rem;
+		padding: 0.05rem var(--space-xs);
 	}
 	.or-add:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
 	}
 
 	.chip {
 		display: inline-flex;
 		align-items: baseline;
 		gap: 0.5ch;
-		padding: 0.1rem 0.2ch 0.1rem 0.6ch;
+		padding: var(--space-2xs) 0.2ch var(--space-2xs) 0.6ch;
 		background: var(--accent-soft);
 		border-radius: 3px;
 		white-space: nowrap;
@@ -311,7 +328,7 @@
 	}
 	.chip-key {
 		color: var(--text);
-		font-weight: 600;
+		font-weight: 700;
 	}
 	.chip-sum {
 		color: var(--text-dim);
@@ -319,24 +336,24 @@
 		text-overflow: ellipsis;
 	}
 	.chip-x {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		padding: 0 0.3ch;
-		font-size: 12px;
+		font-size: var(--font-size-sm);
 		align-self: center;
 	}
 
 	.link-btn {
 		background: none;
 		border: none;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		cursor: pointer;
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		padding: 0;
 		white-space: nowrap;
 		text-decoration: underline dotted;
 		text-underline-offset: 2px;
 	}
 	.link-btn:hover {
-		color: var(--accent);
+		color: var(--text);
 	}
 </style>

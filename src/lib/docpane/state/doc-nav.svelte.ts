@@ -10,7 +10,7 @@ export interface DocNavDeps {
 	tree: TreeRowsController;
 	handle: () => DocHandle | null;
 	prompt: PromptController;
-	switchToTree: () => void;
+	switchToTree: () => Promise<boolean>;
 	setError: (msg: string | null) => void;
 }
 
@@ -45,7 +45,7 @@ export class DocNavController {
 	};
 
 	navigateTo = async (target: Path) => {
-		this.deps.switchToTree();
+		if (!(await this.deps.switchToTree())) return;
 		await this.deps.tree.ensurePathVisible(target);
 		await new Promise<void>((r) => requestAnimationFrame(() => r()));
 		this.selectedPath = target;
@@ -53,8 +53,8 @@ export class DocNavController {
 		if (idx >= 0) this.requestScroll(idx);
 	};
 
-	onGraphPick = (path: Path) => {
-		this.deps.switchToTree();
+	onGraphPick = async (path: Path) => {
+		if (!(await this.deps.switchToTree())) return;
 		this.selectedPath = path;
 		const idx = this.rowIndexOf(path);
 		if (idx >= 0) this.requestScroll(idx);
@@ -72,7 +72,7 @@ export class DocNavController {
 		}
 		if (parsed.path.length > 0) {
 			try {
-				await ipc.docGetValue(handle, parsed.path); // throws InvalidPath if absent
+				await ipc.docChildCount(handle, parsed.path);
 			} catch (e) {
 				this.deps.setError(
 					e instanceof IpcError && e.kind === 'invalidPath'

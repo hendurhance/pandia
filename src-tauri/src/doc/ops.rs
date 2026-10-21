@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use super::lazy::{parse_json, MAX_DEPTH};
 use super::types::{DocError, DocResult, Path, PathSegment};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
@@ -266,8 +267,24 @@ fn navigate_mut<'a>(root: &'a mut Value, path: &Path) -> DocResult<&'a mut Value
     Ok(cur)
 }
 
+fn ensure_depth_fits(value: &Value, levels_above: usize) -> DocResult<()> {
+    let mut stack = vec![(value, levels_above + 1)];
+    while let Some((v, level)) = stack.pop() {
+        match v {
+            Value::Array(a) => stack.extend(a.iter().map(|c| (c, level + 1))),
+            Value::Object(o) => stack.extend(o.values().map(|c| (c, level + 1))),
+            _ => continue,
+        }
+        if level > MAX_DEPTH as usize {
+            return Err(DocError::TooDeep { limit: MAX_DEPTH });
+        }
+    }
+    Ok(())
+}
+
 fn apply_set_value(root: &mut Value, path: &Path, new_value: Value) -> DocResult<OpOutcome> {
     let target = navigate_mut(root, path)?;
+    ensure_depth_fits(&new_value, path.0.len())?;
     let old = std::mem::replace(target, new_value);
     Ok(OpOutcome {
         inverse: Op::SetValue {
@@ -279,7 +296,7 @@ fn apply_set_value(root: &mut Value, path: &Path, new_value: Value) -> DocResult
 }
 
 fn apply_set_value_text(root: &mut Value, path: &Path, text: &str) -> DocResult<OpOutcome> {
-    let value: Value = serde_json::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
+    let value: Value = parse_json(text)?;
     apply_set_value(root, path, value)
 }
 
@@ -330,6 +347,7 @@ fn apply_insert_key(
     if map.contains_key(key) {
         return Err(DocError::Edit(format!("key {key:?} already exists")));
     }
+    ensure_depth_fits(&value, path.0.len() + 1)?;
     match position {
         Some(p) if p > map.len() => {
             return Err(DocError::Edit(format!(
@@ -392,6 +410,7 @@ fn apply_insert_item(
             arr.len()
         )));
     }
+    ensure_depth_fits(&value, path.0.len() + 1)?;
     arr.insert(index, value);
     Ok(OpOutcome {
         inverse: Op::DeleteItem {
@@ -408,7 +427,7 @@ fn apply_insert_item_text(
     index: usize,
     text: &str,
 ) -> DocResult<OpOutcome> {
-    let value: Value = serde_json::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
+    let value: Value = parse_json(text)?;
     apply_insert_item(root, path, index, value)
 }
 
@@ -419,7 +438,7 @@ fn apply_insert_key_text(
     text: &str,
     position: Option<usize>,
 ) -> DocResult<OpOutcome> {
-    let value: Value = serde_json::from_str(text).map_err(|e| DocError::Parse(e.to_string()))?;
+    let value: Value = parse_json(text)?;
     apply_insert_key(root, path, key, value, position)
 }
 
@@ -1356,7 +1375,6 @@ mod tests {
 
     #[test]
     fn duplicate_item_copies_value_and_inverse_removes_it() {
-        // Parse from text so the 19-digit int is a real arbitrary-precision Number.
         let mut v: Value = serde_json::from_str("[123456789012345678, 2]").unwrap();
         let out = Op::DuplicateItem {
             path: root(),
@@ -1475,6 +1493,90 @@ mod tests {
             serde_json::to_string(&v).unwrap(),
             r#"{"id":123456789012345678}"#
         );
+    }
+
+    #[test]
+    fn edits_that_would_nest_past_the_depth_limit_are_refused() {
+        std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(edits_past_the_depth_limit)
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    fn edits_past_the_depth_limit() {
+        let mut doc = json!([]);
+        for _ in 0..999 {
+            doc = json!({ "n": doc });
+        }
+        let before = doc.clone();
+        let deepest = p(vec![k("n"); 999]);
+        let parent = p(vec![k("n"); 998]);
+        let deep_value = (0..128).fold(json!(1), |v, _| json!([v]));
+
+        let refused = [
+            (
+                "insert a 128-deep value into the deepest array",
+                Op::InsertItem {
+                    path: deepest.clone(),
+                    index: 0,
+                    value: deep_value,
+                },
+            ),
+            (
+                "insert [] into the deepest array",
+                Op::InsertItemText {
+                    path: deepest.clone(),
+                    index: 0,
+                    text: "[]".into(),
+                },
+            ),
+            (
+                "set the deepest array to [[]]",
+                Op::SetValueText {
+                    path: deepest.clone(),
+                    text: "[[]]".into(),
+                },
+            ),
+            (
+                "insert key with [[]] beside the deepest array",
+                Op::InsertKeyText {
+                    path: parent.clone(),
+                    key: "m".into(),
+                    text: "[[]]".into(),
+                    position: None,
+                },
+            ),
+        ];
+        for (label, op) in refused {
+            assert!(
+                matches!(op.apply(&mut doc), Err(DocError::TooDeep { limit: 1000 })),
+                "{label}"
+            );
+        }
+        assert!(doc == before, "doc unchanged on error");
+
+        let allowed = [
+            Op::InsertItemText {
+                path: deepest.clone(),
+                index: 0,
+                text: "1".into(),
+            },
+            Op::SetValueText {
+                path: deepest,
+                text: "[1]".into(),
+            },
+            Op::InsertKeyText {
+                path: parent,
+                key: "m".into(),
+                text: "[]".into(),
+                position: None,
+            },
+        ];
+        for op in allowed {
+            op.apply(&mut doc).unwrap();
+        }
     }
 
     #[test]

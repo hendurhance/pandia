@@ -1,4 +1,4 @@
-import type { ErrorKind, Path } from './bindings';
+import type { ErrorKind, IoInfo, Path } from './bindings';
 
 export type IpcErrorKind = ErrorKind | 'unknown';
 
@@ -8,10 +8,11 @@ export class IpcError extends Error {
 	readonly path?: Path;
 	readonly actual?: number;
 	readonly limit?: number;
+	readonly io?: IoInfo;
 	constructor(
 		kind: IpcErrorKind,
 		message: string,
-		extra?: { detail?: string; path?: Path; actual?: number; limit?: number },
+		extra?: { detail?: string; path?: Path; actual?: number; limit?: number; io?: IoInfo },
 	) {
 		super(message);
 		this.name = '';
@@ -20,6 +21,7 @@ export class IpcError extends Error {
 		this.path = extra?.path;
 		this.actual = extra?.actual;
 		this.limit = extra?.limit;
+		this.io = extra?.io;
 	}
 	toString(): string {
 		return this.message;
@@ -33,6 +35,7 @@ function isWireError(e: unknown): e is {
 	path?: Path | null;
 	actual?: number | null;
 	limit?: number | null;
+	io?: IoInfo | null;
 } {
 	return (
 		typeof e === 'object' &&
@@ -49,5 +52,6 @@ export function toIpcError(e: unknown): unknown {
 		path: Array.isArray(e.path) ? e.path : undefined,
 		actual: typeof e.actual === 'number' ? e.actual : undefined,
 		limit: typeof e.limit === 'number' ? e.limit : undefined,
+		io: e.io ?? undefined,
 	});
 }
