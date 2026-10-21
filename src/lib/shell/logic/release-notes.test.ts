@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { releases } from '$releases';
+import { releases } from './releases';
 import {
 	compareVersions,
 	fromMarkdown,

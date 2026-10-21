@@ -18,10 +18,6 @@ const config = {
 	},
 
 	kit: {
-		alias: {
-			// The website's changelog data, bundled so the app shows release notes offline.
-			$releases: 'website/src/data/releases.ts',
-		},
 		adapter: adapter({
 			pages: 'dist',
 			assets: 'dist',

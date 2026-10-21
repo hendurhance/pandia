@@ -1,5 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app';
-import { releases } from '$releases';
+import { releases } from '../logic/releases';
 import { loadPersisted, savePersisted, SETTINGS_FILE } from '$lib/util/persist';
 import { compareVersions, unseenVersions } from '../logic/release-notes';
 import { UPDATER_KEY } from './update-check.svelte';

@@ -7,7 +7,6 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			$lib: fileURLToPath(new URL('./src/lib', import.meta.url)),
-			$releases: fileURLToPath(new URL('./website/src/data/releases.ts', import.meta.url)),
 		},
 		conditions: ['browser'],
 	},

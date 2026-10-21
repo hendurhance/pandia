@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { X } from '@lucide/svelte';
-	import { releases } from '$releases';
+	import { releases } from '$lib/shell/logic/releases';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import ExternalLink from '$lib/ui/ExternalLink.svelte';
