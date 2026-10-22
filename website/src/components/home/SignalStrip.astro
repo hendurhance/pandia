@@ -5,6 +5,7 @@ const usedBy = [
   { name: 'Grab', slug: 'grab' },
   { name: 'Bloomberg', slug: 'bloomberg' },
   { name: 'Tencent', slug: 'tencent' },
+  { name: 'Rostelecom', slug: 'rostelecom' },
   { name: 'Tiflux', slug: 'tiflux' },
   { name: 'Homebox', slug: 'homebox' },
   { name: 'Nucleus Security', slug: 'nucleus-security' },
@@ -87,15 +88,17 @@ const logos = sized.map((l) => ({
   }
 
   @media (max-width: 940px) {
-    .pandia-page .usedby-list { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; row-gap: 26px; }
-    .pandia-page .usedby-logo { width: var(--w); }
+    .pandia-page .usedby-list { display: grid; grid-template-columns: repeat(5, 1fr); row-gap: 26px; }
+    .pandia-page .usedby-list li { display: flex; justify-content: center; }
+    .pandia-page .usedby-logo { width: min(var(--w), 100%); }
     .pandia-page .proof-in { grid-template-columns: 1fr 1fr; }
     .pandia-page .proof-cell:nth-child(2) { border-right: 0; }
     .pandia-page .proof-cell:nth-child(1), .pandia-page .proof-cell:nth-child(2) { border-bottom: 1px solid var(--page-rule); }
   }
   @media (max-width: 560px) {
     .pandia-page .usedby { padding: 24px 16px 26px; }
-    .pandia-page .usedby-logo { width: calc(var(--w) * 0.85); }
+    .pandia-page .usedby-list { grid-template-columns: repeat(2, 1fr); }
+    .pandia-page .usedby-logo { width: min(calc(var(--w) * 0.85), 100%); }
     .pandia-page .proof-cell { padding: 18px 16px; }
     .pandia-page .proof-cell .pv { font-size: 19px; }
     .pandia-page .proof-cell .pl { letter-spacing: 0.08em; }
