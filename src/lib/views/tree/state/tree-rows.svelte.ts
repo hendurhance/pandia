@@ -14,13 +14,14 @@ import {
 	type VirtualGapRow,
 } from '../logic/model';
 import { collectExpandedDescendants } from '../logic/tree-walk';
-import type { DocHandle, OpenResult, Path } from '$lib/ipc/bindings';
+import { findIndexPaged } from '../logic/paging';
+import type { DocHandle, Path, Summary } from '$lib/ipc/bindings';
 
 const CHUNK = 200;
 
 export interface TreeRowsDeps {
 	handle: () => DocHandle | null;
-	summary: () => OpenResult['summary'] | null;
+	summary: () => Summary | null;
 	setError: (msg: string) => void;
 }
 
@@ -103,11 +104,11 @@ export class TreeRowsController {
 		this.expanding.add(key);
 		try {
 			const children = await this.fetchInitialChunk(row.path, row.depth);
-			// The row may have moved or already expanded while we awaited.
 			const cur = this.rows[index];
 			if (cur?.variant !== 'content' || cur.expanded || pathKey(cur.path) !== key) return;
 			let total = cur.childCount;
-			if (total === null && children.length >= CHUNK) {
+			if (total === null && children.length < CHUNK) total = children.length;
+			if (total === null) {
 				const handle = this.deps.handle();
 				if (handle) {
 					try {
@@ -281,13 +282,15 @@ export class TreeRowsController {
 
 		const isCollection = refreshed.kind === 'object' || refreshed.kind === 'array';
 
-		if (row.expanded && isCollection) {
+		if (row.expanded) {
 			const reopen = collectExpandedDescendants(this.rows, idx, row.depth);
 			removeSubtree(this.rows, idx);
 			this.rows[idx] = { ...refreshed, expanded: false };
 			this.scheduleFlush();
-			await this.toggleAt(idx);
-			if (reopen.length > 0) await this.reExpand(reopen);
+			if (isCollection) {
+				await this.toggleAt(idx);
+				if (reopen.length > 0) await this.reExpand(reopen);
+			}
 			return;
 		}
 
@@ -317,10 +320,13 @@ export class TreeRowsController {
 			}
 			const parentPath = row.path.slice(0, -1);
 			const lastSeg = row.path[row.path.length - 1];
-			const parentSlice = await ipc.docGetSlice(handle, parentPath, 0, CHUNK);
-			const newView = parentSlice.find(
-				(nv) => typeof nv.key === typeof lastSeg && nv.key === lastSeg,
-			);
+			const slice = (start: number, end: number) => ipc.docGetSlice(handle, parentPath, start, end);
+			const pos =
+				typeof lastSeg === 'number'
+					? lastSeg
+					: await findIndexPaged(slice, (nv) => nv.key === lastSeg, CHUNK, Infinity);
+			if (pos === null) return null;
+			const [newView] = await slice(pos, pos + 1);
 			if (!newView) return null;
 			return viewToRow(newView, parentPath, row.depth - 1);
 		} catch (e) {

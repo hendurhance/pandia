@@ -1,3 +1,4 @@
+pub mod atomic;
 pub mod backend;
 pub mod backup;
 pub mod canonical;

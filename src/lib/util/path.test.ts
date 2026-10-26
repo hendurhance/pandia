@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pathToString, parsePath, parseJsonPointer, truncatePathMiddle } from './path';
+import { pathToString, parsePath, parseJsonPointer, stem, truncatePathMiddle } from './path';
 
 describe('pathToString', () => {
 	it('renders the root path as $', () => {
@@ -143,5 +143,15 @@ describe('truncatePathMiddle', () => {
 				expect(truncatePathMiddle(dir + a, 1)).toBe(truncatePathMiddle(dir + b, 1));
 			}
 		});
+	});
+});
+
+describe('stem', () => {
+	it('drops the extension', () => {
+		expect(stem('/Users/me/data.min.json')).toBe('data.min');
+	});
+
+	it('keeps the whole name of a dotfile with no extension', () => {
+		expect(stem('/Users/me/.prettierrc')).toBe('.prettierrc');
 	});
 });

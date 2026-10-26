@@ -50,7 +50,9 @@
 	{#if diagnosis.fix}
 		{@const fix = diagnosis.fix}
 		<div class="actions">
-			<button class="fix" onclick={() => onFix(fix.text)} disabled={busy}>{fix.label}</button>
+			<button class="btn btn-primary" onclick={() => onFix(fix.text)} disabled={busy}
+				>{fix.label}</button
+			>
 			{#if fix.warnings.length > 0}
 				<span class="warn"
 					>changes {fix.warnings.length} thing{fix.warnings.length > 1 ? 's' : ''}</span
@@ -72,34 +74,33 @@
 
 <style>
 	.diag {
-		/* --danger has no soft/line companions in tokens.css; derived here
-		   rather than adding globals for a single component. */
-		--diag-soft: rgba(229, 72, 77, 0.1);
+		/* --danger has no line companion in tokens.css; derived here
+		   rather than adding a global for a single component. */
+		--diag-soft: var(--danger-soft);
 		--diag-line: rgba(229, 72, 77, 0.45);
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
-		padding: 0.6rem 0.7rem;
+		gap: var(--space-xs);
+		padding: var(--space-sm);
 		border: 1px solid var(--diag-line);
 		background: var(--diag-soft);
-		border-radius: 4px;
 	}
 
 	.head {
 		display: flex;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 0.5rem;
+		gap: var(--space-sm);
 	}
 	.title {
-		font-weight: 600;
+		font-weight: 700;
 		color: var(--danger);
 	}
 	.dismiss {
 		background: none;
 		border: none;
 		padding: 0;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		cursor: pointer;
 		flex: none;
 	}
@@ -109,7 +110,7 @@
 
 	.detail {
 		margin: 0;
-		font-size: 12px;
+		font-size: var(--font-size-sm);
 		line-height: 1.45;
 		color: var(--text-dim);
 	}
@@ -117,16 +118,15 @@
 	.excerpt {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
-		padding: 0.4rem 0.5rem;
+		gap: var(--space-2xs);
+		padding: var(--space-xs) var(--space-sm);
 		background: var(--bg);
-		border: 1px solid var(--line);
-		border-radius: 3px;
+		border: 1px solid var(--rule);
 		overflow-x: auto;
 	}
 	.code {
 		font-family: var(--font-mono);
-		font-size: 12px;
+		font-size: var(--font-size-sm);
 		white-space: pre;
 	}
 	.ok {
@@ -138,50 +138,32 @@
 		color: var(--danger);
 		background: var(--diag-soft);
 		outline: 1px solid var(--diag-line);
-		border-radius: 2px;
 	}
 	.clip {
 		color: var(--text-faint);
 	}
 	.where {
-		font-size: 10px;
-		letter-spacing: 0.06em;
+		font-size: var(--font-size-xs);
+		letter-spacing: var(--label-tracking);
 		text-transform: uppercase;
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 
 	.actions {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		padding-top: 0.1rem;
-	}
-	.fix {
-		padding: 3px 10px;
-		font-size: 12px;
-		border: 1px solid var(--accent-line);
-		background: var(--accent-soft);
-		color: var(--accent);
-		border-radius: 3px;
-		cursor: pointer;
-	}
-	.fix:hover:not(:disabled) {
-		background: var(--accent);
-		color: var(--bg);
-	}
-	.fix:disabled {
-		opacity: 0.5;
-		cursor: default;
+		gap: var(--space-sm);
+		padding-top: var(--space-2xs);
 	}
 	.warn {
-		font-size: 11px;
-		color: var(--text-faint);
+		font-size: var(--font-size-sm);
+		color: var(--text-dim);
 	}
 	.warn-list {
 		margin: 0;
 		padding-left: 1rem;
-		font-size: 11px;
-		color: var(--text-faint);
+		font-size: var(--font-size-sm);
+		color: var(--text-dim);
 	}
 	.more {
 		list-style: none;

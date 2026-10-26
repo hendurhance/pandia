@@ -38,7 +38,7 @@
 				onclick={() => onPick({ kind: 'tab', handle: c.ctx.handle, sourceName: c.ctx.sourceName })}
 				title={c.ctx.sourceName ?? c.label}
 			>
-				<span class="status-dot busy" aria-hidden="true"></span>
+				<span class="status-dot" aria-hidden="true"></span>
 				<span class="cmp-label">{c.label}</span>
 			</button>
 		{/each}
@@ -63,9 +63,6 @@
 		overflow-y: auto;
 	}
 
-	.menu-item:hover {
-		color: var(--accent);
-	}
 	.menu-item.file {
 		color: var(--text-dim);
 	}
@@ -75,8 +72,8 @@
 		white-space: nowrap;
 	}
 	.cmp-empty {
-		padding: 0.5rem 0.7rem;
-		color: var(--text-faint);
+		padding: var(--space-sm);
+		color: var(--text-dim);
 		font-size: var(--font-size-sm);
 	}
 </style>

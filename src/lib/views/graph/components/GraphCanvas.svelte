@@ -12,7 +12,7 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { CardRow, LayoutResult } from '../logic/layout';
+	import type { CardRow, LayoutResult, MoreItems } from '../logic/layout';
 	import { paintFrame } from '../logic/render';
 	import { readGraphTheme, type GraphTheme } from '../logic/theme';
 	import { APPEARANCE_CHANGE_EVENT } from '$lib/shell/logic/theme';
@@ -33,6 +33,8 @@
 
 		onPortToggle: (row: CardRow) => void;
 
+		onShowMore: (more: MoreItems) => void;
+
 		onScaleChange?: (scale: number) => void;
 
 		onReady?: (api: GraphCanvasApi | null) => void;
@@ -46,6 +48,7 @@
 		layout,
 		onPickCard,
 		onPortToggle,
+		onShowMore,
 		onScaleChange,
 		onReady,
 		highlightCardId = null,
@@ -190,7 +193,10 @@
 		if (wasPanning && !moved) {
 			const rect = canvas.getBoundingClientRect();
 			const hit = hitAtScreen(e.clientX - rect.left, e.clientY - rect.top);
-			if (hit?.kind === 'title') onPickCard(hit.card.path);
+			if (hit?.kind === 'title') {
+				if (hit.card.more) onShowMore(hit.card.more);
+				else onPickCard(hit.card.path);
+			}
 		}
 		canvas.style.cursor = 'grab';
 	}
@@ -200,7 +206,7 @@
 		const rect = canvas.getBoundingClientRect();
 		const hit = hitAtScreen(e.clientX - rect.left, e.clientY - rect.top);
 		if (hit?.kind === 'title') {
-			onPickCard(hit.card.path);
+			if (!hit.card.more) onPickCard(hit.card.path);
 			return;
 		}
 		zoomAtScreenPoint(e.clientX, e.clientY, 1.4);
@@ -230,7 +236,7 @@
 	}
 
 	function zoomBy(factor: number) {
-		zoomAtScreenPoint(screenW / 2, screenH / 2, factor);
+		viewport = zoomAt(viewport, screenW / 2, screenH / 2, factor);
 	}
 
 	function centerOn(worldX: number, worldY: number) {

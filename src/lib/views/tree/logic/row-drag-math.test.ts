@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gapAt, siblingSlots } from './row-drag-math';
-import type { ContentRow, PlaceholderRow, CloseRow, Row } from './model';
+import type { ContentRow, PlaceholderRow, CloseRow, Row, VirtualGapRow } from './model';
 import type { NodeKind, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, depth: number, key: ContentRow['key'] = 'k'): ContentRow {
@@ -18,6 +18,10 @@ function content(path: Path, depth: number, key: ContentRow['key'] = 'k'): Conte
 
 function placeholder(parentPath: Path, depth: number, index: number): PlaceholderRow {
 	return { variant: 'placeholder', parentPath, depth, index };
+}
+
+function vgap(parentPath: Path, depth: number, fromIndex: number, toIndex: number): VirtualGapRow {
+	return { variant: 'vgap', parentPath, depth, fromIndex, toIndex };
 }
 
 function close(parentPath: Path, depth: number): CloseRow {
@@ -91,5 +95,21 @@ describe('gapAt', () => {
 
 	it('returns null for a depth-0 row', () => {
 		expect(gapAt(rows, offsets, 0, 50)).toBeNull();
+	});
+
+	it('counts the unloaded siblings a virtual gap stands for', () => {
+		const paged: Row[] = [
+			content([], 0), // 0
+			content([0], 1, 0), // 1
+			content([1], 1, 1), // 2
+			vgap([], 1, 2, 500), // 3 — items 2..499 not loaded
+			content([500], 1, 500), // 4
+			content([501], 1, 501), // 5
+			close([], 0), // 6
+		];
+		const at = [0, 22, 44, 66, 88, 110, 132];
+		expect(gapAt(paged, at, 5, 88)?.gap).toBe(500); // just above item 500
+		expect(gapAt(paged, at, 1, 44)?.gap).toBe(1); // before the gap: unchanged
+		expect(gapAt(paged, at, 1, 132)?.gap).toBe(502); // after the last item
 	});
 });

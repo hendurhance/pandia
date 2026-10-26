@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { flushSync } from 'svelte';
 import { WindowedScroller } from './windowed-scroller.svelte';
+import { MAX_SCROLL_HEIGHT } from './scroll-math';
 import { inRoot, reactiveBox } from './test-runes.svelte';
 
 beforeAll(() => {
@@ -75,6 +76,24 @@ describe('WindowedScroller — fixed heights', () => {
 			flushSync();
 			expect(s.scrollTop).toBe(600);
 			expect(el.scrollTop).toBe(600);
+		} finally {
+			destroy();
+		}
+	});
+
+	it('scrolls to a row near the end of 2,000,000 rows without passing the height cap', () => {
+		const { result: s, destroy } = inRoot(
+			() => new WindowedScroller({ rowCount: () => 2_000_000, rowHeight: 22 }),
+		);
+		try {
+			const el = scrollerEl(300);
+			s.attach(el);
+			flushSync();
+			s.scrollToIndex(1_999_990, { align: 'center', behavior: 'instant' });
+			el.dispatchEvent(new Event('scroll'));
+			flushSync();
+			expect(el.scrollTop + 300).toBeLessThanOrEqual(MAX_SCROLL_HEIGHT);
+			expect(s.window.end).toBe(2_000_000);
 		} finally {
 			destroy();
 		}

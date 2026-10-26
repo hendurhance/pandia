@@ -63,45 +63,24 @@
 		z-index: 3;
 		display: flex;
 		flex-direction: column;
-		gap: 0.6rem;
-		padding: 0.7rem 0.8rem;
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-md);
 		min-width: 200px;
 		background: var(--bg-elev-2);
 		border: 1px solid var(--rule-2);
 		border-radius: 8px;
-		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+		box-shadow: var(--shadow-pop);
 	}
 	.field {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
+		gap: var(--space-sm);
 		justify-content: space-between;
 	}
 	.label {
-		font-size: 10px;
+		font-size: var(--font-size-xs);
 		letter-spacing: var(--label-tracking);
 		text-transform: uppercase;
-		color: var(--text-faint);
-	}
-	.seg {
-		display: inline-flex;
-		gap: 1px;
-		border: 1px solid var(--rule);
-	}
-	.seg button {
-		background: transparent;
-		border: none;
-		padding: 3px 10px;
-		font-size: var(--font-size-xs);
 		color: var(--text-dim);
-		cursor: pointer;
-	}
-	.seg button:hover {
-		color: var(--text);
-		background: var(--bg-elev-3);
-	}
-	.seg button.active {
-		color: var(--accent);
-		background: var(--accent-soft);
 	}
 </style>

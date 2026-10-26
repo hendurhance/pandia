@@ -1,5 +1,5 @@
 import type { NodeKind } from '$lib/ipc/bindings';
-import { isLosslessNumber, kindOf } from '$lib/ipc/wire';
+import { encodeLossless, isLosslessNumber, kindOf } from '$lib/ipc/wire';
 
 export const UNLOADED = Symbol('unloaded');
 
@@ -44,7 +44,7 @@ export function cellTitle(v: unknown): string | undefined {
 	if (isLosslessNumber(v)) return v.toString();
 	if (typeof v === 'object') {
 		try {
-			return JSON.stringify(v);
+			return encodeLossless(v);
 		} catch {
 			return undefined;
 		}
@@ -58,6 +58,6 @@ export function inspectorText(v: unknown): string {
 	if (typeof v === 'string') return v;
 	if (v === null) return 'null';
 	if (isLosslessNumber(v)) return v.toString();
-	if (typeof v === 'object') return JSON.stringify(v, null, 2);
+	if (typeof v === 'object') return encodeLossless(v, 2);
 	return String(v);
 }

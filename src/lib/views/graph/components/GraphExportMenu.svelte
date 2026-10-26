@@ -56,18 +56,18 @@
 		display: flex;
 		flex-direction: column;
 		min-width: 220px;
-		padding: 0.3rem;
+		padding: var(--space-xs);
 		background: var(--bg-elev-2);
 		border: 1px solid var(--rule-2);
 		border-radius: 8px;
-		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+		box-shadow: var(--shadow-pop);
 	}
 	.menu button {
 		display: flex;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 0.8rem;
-		padding: 0.45rem 0.6rem;
+		gap: var(--space-md);
+		padding: var(--space-xs) var(--space-sm);
 		background: transparent;
 		border: none;
 		border-radius: 4px;
@@ -85,11 +85,11 @@
 		color: var(--accent);
 	}
 	.name {
-		font-weight: 600;
-		font-size: 13px;
+		font-weight: 700;
+		font-size: var(--font-size-base);
 	}
 	.hint {
-		font-size: 10.5px;
-		color: var(--text-faint);
+		font-size: var(--font-size-xs);
+		color: var(--text-dim);
 	}
 </style>

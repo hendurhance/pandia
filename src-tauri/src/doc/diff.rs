@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::ops::Range;
 
+use imara_diff::{Algorithm, Diff, InternedInput};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -21,24 +23,57 @@ pub enum DiffKind {
 #[serde(rename_all = "camelCase")]
 pub struct DiffEntry {
     pub path: Path,
+    pub left_path: Option<Path>,
     pub kind: DiffKind,
     pub left_preview: Option<String>,
     pub right_preview: Option<String>,
-    pub from_index: Option<u32>,
 }
 
 pub fn compute_diff(left: &Value, right: &Value, cancel: &CancelFlag) -> DocResult<Vec<DiffEntry>> {
     let mut out = Vec::new();
-    let mut stack: Vec<PathSegment> = Vec::new();
+    let mut stack = PathStack::default();
     let mut checked: u32 = 0;
     walk(left, right, &mut stack, &mut out, cancel, &mut checked)?;
     Ok(out)
 }
 
+#[derive(Default)]
+struct PathStack {
+    left: Vec<PathSegment>,
+    right: Vec<PathSegment>,
+}
+
+impl PathStack {
+    fn push_key(&mut self, key: &str) {
+        self.left.push(PathSegment::Key(key.to_owned()));
+        self.right.push(PathSegment::Key(key.to_owned()));
+    }
+
+    fn push_index(&mut self, left: usize, right: usize) {
+        self.left.push(PathSegment::Index(left as u32));
+        self.right.push(PathSegment::Index(right as u32));
+    }
+
+    fn pop(&mut self) {
+        self.left.pop();
+        self.right.pop();
+    }
+
+    fn entry(&self, kind: DiffKind, left: Option<&Value>, right: Option<&Value>) -> DiffEntry {
+        DiffEntry {
+            path: Path(self.right.clone()),
+            left_path: (self.left != self.right).then(|| Path(self.left.clone())),
+            kind,
+            left_preview: left.map(preview),
+            right_preview: right.map(preview),
+        }
+    }
+}
+
 fn walk(
     left: &Value,
     right: &Value,
-    stack: &mut Vec<PathSegment>,
+    stack: &mut PathStack,
     out: &mut Vec<DiffEntry>,
     cancel: &CancelFlag,
     checked: &mut u32,
@@ -54,17 +89,11 @@ fn walk(
     match (left, right) {
         (Value::Object(l), Value::Object(r)) => {
             for (k, lv) in l.iter() {
-                stack.push(PathSegment::Key(k.clone()));
+                stack.push_key(k);
                 let res = match r.get(k) {
                     Some(rv) => walk(lv, rv, stack, out, cancel, checked),
                     None => {
-                        out.push(DiffEntry {
-                            path: Path(stack.clone()),
-                            kind: DiffKind::Removed,
-                            left_preview: Some(preview(lv)),
-                            right_preview: None,
-                            from_index: None,
-                        });
+                        out.push(stack.entry(DiffKind::Removed, Some(lv), None));
                         Ok(())
                     }
                 };
@@ -73,26 +102,14 @@ fn walk(
             }
             for (k, rv) in r.iter() {
                 if !l.contains_key(k) {
-                    stack.push(PathSegment::Key(k.clone()));
-                    out.push(DiffEntry {
-                        path: Path(stack.clone()),
-                        kind: DiffKind::Added,
-                        left_preview: None,
-                        right_preview: Some(preview(rv)),
-                        from_index: None,
-                    });
+                    stack.push_key(k);
+                    out.push(stack.entry(DiffKind::Added, None, Some(rv)));
                     stack.pop();
                 }
             }
         }
         (Value::Array(l), Value::Array(r)) => diff_arrays(l, r, stack, out, cancel, checked)?,
-        _ => out.push(DiffEntry {
-            path: Path(stack.clone()),
-            kind: DiffKind::Changed,
-            left_preview: Some(preview(left)),
-            right_preview: Some(preview(right)),
-            from_index: None,
-        }),
+        _ => out.push(stack.entry(DiffKind::Changed, Some(left), Some(right))),
     }
     Ok(())
 }
@@ -105,7 +122,7 @@ enum ArrOp<'a> {
 fn diff_arrays(
     l: &[Value],
     r: &[Value],
-    stack: &mut Vec<PathSegment>,
+    stack: &mut PathStack,
     out: &mut Vec<DiffEntry>,
     cancel: &CancelFlag,
     checked: &mut u32,
@@ -130,39 +147,21 @@ fn diff_arrays(
     }
     let mut pair = vec![Pair::None; n];
 
-    let mut k = 0;
-    while k + 1 < n {
-        if let (ArrOp::Remove(x, _), ArrOp::Add(y, _)) = (&ops[k], &ops[k + 1]) {
-            if x == y {
-                pair[k] = Pair::ChangedAt(k + 1);
-                pair[k + 1] = Pair::ChangedAt(k);
-                k += 2;
-                continue;
-            }
-        }
-        k += 1;
-    }
-
     let mut adds_by_value: HashMap<String, Vec<usize>> = HashMap::new();
     for (j, op) in ops.iter().enumerate() {
         if j as u32 & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
             return Err(DocError::Cancelled);
         }
-        if matches!(pair[j], Pair::None) {
-            if let ArrOp::Add(_, rv) = op {
-                adds_by_value
-                    .entry(serde_json::to_string(rv).unwrap_or_default())
-                    .or_default()
-                    .push(j);
-            }
+        if let ArrOp::Add(_, rv) = op {
+            adds_by_value
+                .entry(serde_json::to_string(rv).unwrap_or_default())
+                .or_default()
+                .push(j);
         }
     }
     for i in 0..n {
         if i as u32 & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
             return Err(DocError::Cancelled);
-        }
-        if !matches!(pair[i], Pair::None) {
-            continue;
         }
         if let ArrOp::Remove(_, lv) = &ops[i] {
             let key = serde_json::to_string(lv).unwrap_or_default();
@@ -178,6 +177,54 @@ fn diff_arrays(
         }
     }
 
+    let mut pair_in_order = |gap: Range<usize>, class: fn(&Value) -> usize| {
+        let mut waiting: [[VecDeque<usize>; 3]; 2] = Default::default();
+        for k in gap {
+            if !matches!(pair[k], Pair::None) {
+                continue;
+            }
+            let (side, v) = match ops[k] {
+                ArrOp::Remove(_, v) => (0, v),
+                ArrOp::Add(_, v) => (1, v),
+            };
+            match waiting[1 - side][class(v)].pop_front() {
+                Some(j) => {
+                    pair[k] = Pair::ChangedAt(j);
+                    pair[j] = Pair::ChangedAt(k);
+                }
+                None => waiting[side][class(v)].push_back(k),
+            }
+        }
+    };
+
+    let (mut removes, mut adds) = (0, 0);
+    let aligned: Vec<usize> = ops
+        .iter()
+        .map(|op| match op {
+            ArrOp::Remove(x, _) => {
+                removes += 1;
+                x + 1 - removes
+            }
+            ArrOp::Add(y, _) => {
+                adds += 1;
+                y + 1 - adds
+            }
+        })
+        .collect();
+    let mut start = 0;
+    for run in aligned.chunk_by(|a, b| a == b) {
+        let gap = start..start + run.len();
+        start = gap.end;
+        pair_in_order(gap.clone(), shape);
+        let removed = ops[gap.clone()]
+            .iter()
+            .filter(|op| matches!(op, ArrOp::Remove(..)))
+            .count();
+        if 2 * removed == gap.len() {
+            pair_in_order(gap, |_| 0);
+        }
+    }
+
     let mut emitted = vec![false; n];
     for k in 0..n {
         if emitted[k] {
@@ -185,14 +232,12 @@ fn diff_arrays(
         }
         emitted[k] = true;
         match pair[k] {
+            Pair::ChangedAt(_) if matches!(ops[k], ArrOp::Remove(..)) => {}
             Pair::ChangedAt(j) => {
-                emitted[j] = true;
-                let (idx, lv, rv) = match (&ops[k], &ops[j]) {
-                    (ArrOp::Remove(x, lv), ArrOp::Add(_, rv))
-                    | (ArrOp::Add(_, rv), ArrOp::Remove(x, lv)) => (*x, *lv, *rv),
-                    _ => unreachable!("ChangedAt pairs a Remove with an Add"),
+                let (ArrOp::Add(y, rv), ArrOp::Remove(x, lv)) = (&ops[k], &ops[j]) else {
+                    unreachable!("ChangedAt pairs a Remove with an Add");
                 };
-                stack.push(PathSegment::Index(idx as u32));
+                stack.push_index(*x, *y);
                 let res = walk(lv, rv, stack, out, cancel, checked);
                 stack.pop();
                 res?;
@@ -204,43 +249,33 @@ fn diff_arrays(
                     (ArrOp::Add(y, _), ArrOp::Remove(x, lv)) => (*x, *y, *lv),
                     _ => unreachable!("MovedTo pairs a Remove with an Add"),
                 };
-                stack.push(PathSegment::Index(to_idx as u32));
-                out.push(DiffEntry {
-                    path: Path(stack.clone()),
-                    kind: DiffKind::Moved,
-                    left_preview: Some(preview(val)),
-                    right_preview: Some(preview(val)),
-                    from_index: Some(from_idx as u32),
-                });
+                stack.push_index(from_idx, to_idx);
+                out.push(stack.entry(DiffKind::Moved, Some(val), Some(val)));
                 stack.pop();
             }
             Pair::None => match &ops[k] {
                 ArrOp::Remove(x, lv) => {
-                    stack.push(PathSegment::Index(*x as u32));
-                    out.push(DiffEntry {
-                        path: Path(stack.clone()),
-                        kind: DiffKind::Removed,
-                        left_preview: Some(preview(lv)),
-                        right_preview: None,
-                        from_index: None,
-                    });
+                    stack.push_index(*x, *x);
+                    out.push(stack.entry(DiffKind::Removed, Some(lv), None));
                     stack.pop();
                 }
                 ArrOp::Add(y, rv) => {
-                    stack.push(PathSegment::Index(*y as u32));
-                    out.push(DiffEntry {
-                        path: Path(stack.clone()),
-                        kind: DiffKind::Added,
-                        left_preview: None,
-                        right_preview: Some(preview(rv)),
-                        from_index: None,
-                    });
+                    stack.push_index(*y, *y);
+                    out.push(stack.entry(DiffKind::Added, None, Some(rv)));
                     stack.pop();
                 }
             },
         }
     }
     Ok(())
+}
+
+fn shape(v: &Value) -> usize {
+    match v {
+        Value::Object(_) => 0,
+        Value::Array(_) => 1,
+        _ => 2,
+    }
 }
 
 #[allow(clippy::needless_range_loop)]
@@ -262,16 +297,16 @@ fn align_middle<'a>(a: &'a [Value], b: &'a [Value], base: usize) -> Vec<ArrOp<'a
 
     const CELL_CAP: usize = 100_000;
     if n.saturating_mul(m) > CELL_CAP {
-        let common = n.min(m);
-        for i in 0..common {
-            ops.push(ArrOp::Remove(base + i, &a[i]));
-            ops.push(ArrOp::Add(base + i, &b[i]));
-        }
-        for i in common..n {
-            ops.push(ArrOp::Remove(base + i, &a[i]));
-        }
-        for j in common..m {
-            ops.push(ArrOp::Add(base + j, &b[j]));
+        let mut input = InternedInput::default();
+        input.update_before(a.iter());
+        input.update_after(b.iter());
+        for hunk in Diff::compute(Algorithm::Histogram, &input).hunks() {
+            for i in hunk.before {
+                ops.push(ArrOp::Remove(base + i as usize, &a[i as usize]));
+            }
+            for j in hunk.after {
+                ops.push(ArrOp::Add(base + j as usize, &b[j as usize]));
+            }
         }
         return ops;
     }
@@ -477,6 +512,79 @@ mod tests {
     }
 
     #[test]
+    fn an_edit_after_an_insert_diffs_inside_the_shifted_item() {
+        let l = json!([{"id": 1, "v": "a"}, {"id": 2, "v": "b"}, {"id": 3, "v": "c"}]);
+        let r = json!([
+            {"id": 1, "v": "a"},
+            {"id": 9, "v": "x"},
+            {"id": 2, "v": "b"},
+            {"id": 3, "v": "CHANGED"}
+        ]);
+        let entries = diff(l, r);
+        let got: Vec<_> = entries
+            .iter()
+            .map(|e| (e.kind, e.path.clone(), e.left_path.clone()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (DiffKind::Added, segs(&["1"]), None),
+                (
+                    DiffKind::Changed,
+                    segs(&["3", "v"]),
+                    Some(segs(&["2", "v"]))
+                ),
+            ]
+        );
+        assert_eq!(entries[1].left_preview.as_deref(), Some("\"c\""));
+        assert_eq!(entries[1].right_preview.as_deref(), Some("\"CHANGED\""));
+    }
+
+    #[test]
+    fn unmatched_items_pair_only_with_the_same_shape() {
+        let entries = diff(json!([0, {"v": "a"}, 9]), json!([0, "new", {"v": "b"}, 9]));
+        let got: Vec<_> = entries
+            .into_iter()
+            .map(|e| (e.kind, e.path, e.left_path))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (DiffKind::Added, segs(&["1"]), None),
+                (
+                    DiffKind::Changed,
+                    segs(&["2", "v"]),
+                    Some(segs(&["1", "v"]))
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_in_place_type_swap_shows_as_changed() {
+        let entries = diff(json!([1, 2, 3]), json!([1, {"a": 1}, 3]));
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, DiffKind::Changed);
+        assert_eq!(entries[0].path, segs(&["1"]));
+        assert_eq!(entries[0].left_preview.as_deref(), Some("2"));
+        assert_eq!(entries[0].right_preview.as_deref(), Some("{1 keys}"));
+    }
+
+    #[test]
+    fn a_type_swap_beside_an_insert_stays_removed_and_added() {
+        let entries = diff(json!([0, {"v": "a"}, 9]), json!([0, "x", "y", 9]));
+        let got: Vec<_> = entries.into_iter().map(|e| (e.kind, e.path)).collect();
+        assert_eq!(
+            got,
+            vec![
+                (DiffKind::Removed, segs(&["1"])),
+                (DiffKind::Added, segs(&["1"])),
+                (DiffKind::Added, segs(&["2"])),
+            ]
+        );
+    }
+
+    #[test]
     fn object_key_order_independent_for_equality() {
         let entries = diff(json!({"a": 1, "b": 2}), json!({"b": 2, "a": 1}));
         assert!(entries.is_empty());
@@ -522,7 +630,7 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].kind, DiffKind::Moved);
         assert_eq!(entries[0].path, segs(&["2"]));
-        assert_eq!(entries[0].from_index, Some(0));
+        assert_eq!(entries[0].left_path, Some(segs(&["0"])));
         assert_eq!(entries[0].left_preview.as_deref(), Some("\"a\""));
         assert_eq!(entries[0].right_preview.as_deref(), Some("\"a\""));
     }
@@ -533,7 +641,7 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].kind, DiffKind::Changed);
         assert_eq!(entries[0].path, segs(&["1"]));
-        assert_eq!(entries[0].from_index, None);
+        assert_eq!(entries[0].left_path, None);
     }
 
     #[test]
@@ -543,9 +651,39 @@ mod tests {
         let moved = entries.iter().find(|e| e.kind == DiffKind::Moved).unwrap();
         let added = entries.iter().find(|e| e.kind == DiffKind::Added).unwrap();
         assert_eq!(moved.path, segs(&["2"]));
-        assert_eq!(moved.from_index, Some(0));
+        assert_eq!(moved.left_path, Some(segs(&["0"])));
         assert_eq!(added.path, segs(&["3"]));
-        assert_eq!(added.from_index, None);
+        assert_eq!(added.left_path, None);
+    }
+
+    #[test]
+    fn shifted_rows_still_align_past_the_cell_cap() {
+        let insert_and_edit = |n: usize| {
+            let left: Vec<Value> = (0..n)
+                .map(|i| json!({"id": i, "name": format!("row {i}"), "ok": true}))
+                .collect();
+            let mut right = left.clone();
+            right.insert(5, json!({"id": "new"}));
+            right[n - 4]["name"] = json!("edited");
+            diff(Value::Array(left), Value::Array(right))
+                .into_iter()
+                .map(|e| (e.kind, e.path, e.left_path))
+                .collect::<Vec<_>>()
+        };
+        let exact = insert_and_edit(300);
+        let capped = insert_and_edit(1000);
+        assert_eq!(capped.len(), exact.len());
+        assert_eq!(
+            capped,
+            vec![
+                (DiffKind::Added, segs(&["5"]), None),
+                (
+                    DiffKind::Changed,
+                    segs(&["996", "name"]),
+                    Some(segs(&["995", "name"]))
+                ),
+            ]
+        );
     }
 
     #[test]

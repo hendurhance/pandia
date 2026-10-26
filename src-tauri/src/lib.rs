@@ -1,11 +1,17 @@
+mod cli;
 mod commands;
 pub(crate) mod doc;
+mod shell_command;
+mod shortcuts;
+
+use cli::PendingFile;
 
 use serde::{Deserialize, Serialize};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuEvent, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
+    menu::{Menu, MenuEvent, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
     AppHandle, Emitter, Manager, RunEvent,
 };
 
@@ -27,9 +33,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_get_rows_filtered,
             commands::doc_column_values,
             commands::doc_get_rows_at,
+            commands::doc_get_column,
             commands::doc_summary,
             commands::doc_child_count,
             commands::doc_column_schema,
+            commands::doc_scan_columns,
             commands::doc_apply_op,
             commands::doc_set_root_text,
             commands::doc_undo,
@@ -42,14 +50,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_search,
             commands::cancel_job,
             commands::doc_replace,
-            commands::doc_repair_text,
             commands::doc_validate_schema,
+            commands::read_schema_file,
             commands::doc_generate_types,
-            commands::doc_detect_and_convert,
-            commands::doc_diagnose,
             commands::doc_history,
             commands::doc_save,
-            commands::doc_set_file_path,
             commands::doc_backup,
             commands::doc_backup_clear,
             commands::doc_backup_scan,
@@ -58,6 +63,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_export_to_file,
             refresh_recent_files,
             drain_pending_files,
+            cli_wait_done,
+            commands::cli_reply,
+            cli_discard_piped,
+            shell_command::shell_command_status,
+            shell_command::shell_command_install,
+            shell_command::shell_command_remove,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .disable_serde_phases()
@@ -65,10 +76,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .constant("LINE_FETCH_MAX", doc::linediff::LINE_FETCH_MAX)
         .constant("EDIT_SIZE_LIMIT", doc::document::EDIT_SIZE_LIMIT)
         .constant("MAX_DOC_BYTES", doc::document::MAX_DOC_BYTES)
+        .constant("SHORTCUTS", shortcuts::SHORTCUTS)
 }
 
 pub(crate) struct AppState {
-    pub pending_files: Mutex<Vec<String>>,
+    pub pending_files: Mutex<Vec<PendingFile>>,
+    pub handoffs: cli::Handoffs,
 }
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["json", "jsonc", "json5", "geojson", "jsonl", "ndjson"];
@@ -93,25 +106,69 @@ fn emit_file_open(app: &AppHandle, paths: Vec<String>) {
         return;
     }
 
+    queue_files(
+        app,
+        supported_paths.into_iter().map(PendingFile::file).collect(),
+    );
+}
+
+fn queue_files(app: &AppHandle, files: Vec<PendingFile>) {
+    if files.is_empty() {
+        return;
+    }
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut pending) = state.pending_files.lock() {
-            pending.extend(supported_paths);
+            pending.extend(files);
         }
     }
-
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("file-open", &());
     }
 }
 
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+const RUNTIME_STACK_BYTES: usize = if cfg!(debug_assertions) { 256 } else { 32 } << 20;
+
+fn doc_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(RUNTIME_STACK_BYTES)
+        .build()
+        .expect("failed to start the async runtime")
+}
+
 pub fn run() {
-    let cli_files: Vec<String> = std::env::args()
-        .skip(1)
-        .filter(|arg| !arg.starts_with('-') && is_supported_file(arg))
-        .collect();
+    let context = tauri::generate_context!();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let launched = std::env::var_os(cli::LAUNCHED_ENV).is_some();
+    let in_terminal = !cfg!(debug_assertions)
+        && !launched
+        && (cli::attach_console() || std::io::stderr().is_terminal());
+    if (!args.is_empty() || in_terminal) && !launched {
+        std::process::exit(cli::launch(args, &context.config().identifier));
+    }
+
+    let runtime = doc_runtime();
+    tauri::async_runtime::set(runtime.handle().clone());
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let files = cli::pending_from(
+                args.into_iter().skip(1),
+                std::path::Path::new(&cwd),
+                &app.state::<AppState>().handoffs,
+            );
+            queue_files(app, files);
+            focus_main_window(app);
+        }))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
@@ -119,13 +176,20 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(AppState {
-            pending_files: Mutex::new(cli_files),
+            pending_files: Mutex::new(Vec::new()),
+            handoffs: cli::Handoffs::default(),
         })
         .manage(std::sync::Arc::new(doc::store::DocStore::new()))
         .manage(std::sync::Arc::new(doc::jobs::JobRegistry::default()))
         .invoke_handler(specta_builder().invoke_handler())
-        .setup(|app| {
+        .setup(move |app| {
+            cli::hold_instance(&app.config().identifier);
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let files = cli::pending_from(args, &cwd, &app.state::<AppState>().handoffs);
+            queue_files(app.handle(), files);
+
             let menu = build_menu(app.handle(), &[])?;
             app.set_menu(menu)?;
 
@@ -137,7 +201,7 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(handle_menu_event)
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
             #[cfg(target_os = "macos")]
@@ -157,17 +221,26 @@ pub fn run() {
 
                 emit_file_open(app, paths);
             }
-            let _ = (app, event);
+            if let RunEvent::Exit = event {
+                app.state::<AppState>().handoffs.finish_all();
+            }
         });
+}
+
+fn item(app: &tauri::AppHandle, id: &str, label: &str) -> tauri::Result<MenuItem<tauri::Wry>> {
+    let builder = MenuItemBuilder::with_id(id, label);
+    match shortcuts::accelerator(id) {
+        Some(keys) => builder.accelerator(keys).build(app),
+        None => builder.build(app),
+    }
 }
 
 fn build_menu(
     app: &tauri::AppHandle,
     recents: &[RecentFile],
 ) -> Result<Menu<tauri::Wry>, tauri::Error> {
-    let about = MenuItemBuilder::with_id("about", "About Pandia").build(app)?;
-    let check_for_updates =
-        MenuItemBuilder::with_id("check_for_updates", "Check for Updates...").build(app)?;
+    let about = item(app, "app.about", "About Pandia")?;
+    let check_for_updates = item(app, "app.checkForUpdates", "Check for Updates...")?;
 
     #[cfg(target_os = "macos")]
     let app_menu = SubmenuBuilder::new(app, "Pandia")
@@ -181,12 +254,8 @@ fn build_menu(
         .item(&PredefinedMenuItem::quit(app, Some("Quit Pandia"))?)
         .build()?;
 
-    let new_file = MenuItemBuilder::with_id("new_file", "New File")
-        .accelerator("CmdOrCtrl+N")
-        .build(app)?;
-    let open_file = MenuItemBuilder::with_id("open_file", "Open File...")
-        .accelerator("CmdOrCtrl+O")
-        .build(app)?;
+    let new_file = item(app, "doc.new", "New File")?;
+    let open_file = item(app, "doc.openFile", "Open File...")?;
 
     let recent_files_menu = {
         let mut builder = SubmenuBuilder::new(app, "Open Recent");
@@ -205,33 +274,18 @@ fn build_menu(
             for it in &items {
                 builder = builder.item(it);
             }
-            let clear_recent =
-                MenuItemBuilder::with_id("clear_recent_files", "Clear Recent Files").build(app)?;
+            let clear_recent = item(app, "doc.clearRecents", "Clear Recent Files")?;
             builder.separator().item(&clear_recent).build()?
         }
     };
 
-    let save_file = MenuItemBuilder::with_id("save_file", "Save")
-        .accelerator("CmdOrCtrl+S")
-        .build(app)?;
-    let save_as = MenuItemBuilder::with_id("save_as", "Save As...")
-        .accelerator("CmdOrCtrl+Shift+S")
-        .build(app)?;
-    let export_doc = MenuItemBuilder::with_id("export_doc", "Export...")
-        .accelerator("CmdOrCtrl+E")
-        .build(app)?;
-    let new_tab = MenuItemBuilder::with_id("new_tab", "New Tab")
-        .accelerator("CmdOrCtrl+T")
-        .build(app)?;
-    let close_tab = MenuItemBuilder::with_id("close_tab", "Close Tab")
-        .accelerator("CmdOrCtrl+W")
-        .build(app)?;
-    let next_tab = MenuItemBuilder::with_id("next_tab", "Next Tab")
-        .accelerator("CmdOrCtrl+Shift+]")
-        .build(app)?;
-    let prev_tab = MenuItemBuilder::with_id("prev_tab", "Previous Tab")
-        .accelerator("CmdOrCtrl+Shift+[")
-        .build(app)?;
+    let save_file = item(app, "doc.save", "Save")?;
+    let save_as = item(app, "doc.saveAs", "Save As...")?;
+    let export_doc = item(app, "doc.export", "Export...")?;
+    let new_tab = item(app, "tab.new", "New Tab")?;
+    let close_tab = item(app, "tab.close", "Close Tab")?;
+    let next_tab = item(app, "tab.next", "Next Tab")?;
+    let prev_tab = item(app, "tab.prev", "Previous Tab")?;
 
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new_tab)
@@ -254,24 +308,12 @@ fn build_menu(
 
     let file_menu = file_menu.build()?;
 
-    let undo = MenuItemBuilder::with_id("undo", "Undo")
-        .accelerator("CmdOrCtrl+Z")
-        .build(app)?;
-    let redo = MenuItemBuilder::with_id("redo", "Redo")
-        .accelerator("CmdOrCtrl+Shift+Z")
-        .build(app)?;
-    let find = MenuItemBuilder::with_id("find", "Find...")
-        .accelerator("CmdOrCtrl+F")
-        .build(app)?;
-    let find_next = MenuItemBuilder::with_id("find_next", "Find Next")
-        .accelerator("CmdOrCtrl+G")
-        .build(app)?;
-    let find_prev = MenuItemBuilder::with_id("find_prev", "Find Previous")
-        .accelerator("CmdOrCtrl+Shift+G")
-        .build(app)?;
-    let find_replace = MenuItemBuilder::with_id("find_replace", "Find and Replace...")
-        .accelerator("CmdOrCtrl+H")
-        .build(app)?;
+    let undo = item(app, "doc.undo", "Undo")?;
+    let redo = item(app, "doc.redo", "Redo")?;
+    let find = item(app, "find.open", "Find...")?;
+    let find_next = item(app, "find.next", "Find Next")?;
+    let find_prev = item(app, "find.prev", "Find Previous")?;
+    let find_replace = item(app, "find.replace", "Find and Replace...")?;
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .item(&undo)
         .item(&redo)
@@ -287,31 +329,17 @@ fn build_menu(
         .item(&find_replace)
         .build()?;
 
-    let command_palette = MenuItemBuilder::with_id("command_palette", "Command Palette...")
-        .accelerator("CmdOrCtrl+K")
-        .build(app)?;
-    let toggle_sidebar = MenuItemBuilder::with_id("toggle_sidebar", "Toggle Sidebar")
-        .accelerator("CmdOrCtrl+B")
-        .build(app)?;
-    let toggle_tree_view = MenuItemBuilder::with_id("toggle_tree_view", "Tree View")
-        .accelerator("CmdOrCtrl+1")
-        .build(app)?;
-    let toggle_code_view = MenuItemBuilder::with_id("toggle_code_view", "Code View")
-        .accelerator("CmdOrCtrl+2")
-        .build(app)?;
-    let toggle_form_view = MenuItemBuilder::with_id("toggle_form_view", "Grid View")
-        .accelerator("CmdOrCtrl+3")
-        .build(app)?;
-    let toggle_graph_view = MenuItemBuilder::with_id("toggle_graph_view", "Graph View")
-        .accelerator("CmdOrCtrl+4")
-        .build(app)?;
-    let settings_appearance = MenuItemBuilder::with_id("settings_appearance", "Appearance")
-        .accelerator("CmdOrCtrl+,")
-        .build(app)?;
-    let settings_behavior = MenuItemBuilder::with_id("settings_behavior", "Behavior").build(app)?;
-    let settings_layout = MenuItemBuilder::with_id("settings_layout", "Layout").build(app)?;
-    let settings_data = MenuItemBuilder::with_id("settings_data", "Data").build(app)?;
-    let settings_about = MenuItemBuilder::with_id("settings_about", "About").build(app)?;
+    let command_palette = item(app, "palette.toggle", "Command Palette...")?;
+    let toggle_sidebar = item(app, "view.toggleSidebar", "Toggle Sidebar")?;
+    let toggle_tree_view = item(app, "view.tree", "Tree View")?;
+    let toggle_code_view = item(app, "view.code", "Code View")?;
+    let toggle_form_view = item(app, "view.grid", "Grid View")?;
+    let toggle_graph_view = item(app, "view.graph", "Graph View")?;
+    let settings_appearance = item(app, "nav.settings", "Appearance")?;
+    let settings_behavior = item(app, "nav.settings.behavior", "Behavior")?;
+    let settings_layout = item(app, "nav.settings.layout", "Layout")?;
+    let settings_data = item(app, "nav.settings.data", "Data")?;
+    let settings_about = item(app, "nav.settings.about", "About")?;
     let settings_menu = SubmenuBuilder::new(app, "Settings")
         .item(&settings_appearance)
         .item(&settings_behavior)
@@ -336,12 +364,8 @@ fn build_menu(
         )?)
         .build()?;
 
-    let validate_json_item = MenuItemBuilder::with_id("validate_json", "Validate JSON")
-        .accelerator("CmdOrCtrl+Shift+V")
-        .build(app)?;
-    let compare_files = MenuItemBuilder::with_id("compare_files", "Compare Files")
-        .accelerator("CmdOrCtrl+D")
-        .build(app)?;
+    let validate_json_item = item(app, "view.openSchemaPanel", "Validate JSON")?;
+    let compare_files = item(app, "compare.pick", "Compare Files")?;
 
     let tools_menu = SubmenuBuilder::new(app, "Tools")
         .item(&validate_json_item)
@@ -349,17 +373,19 @@ fn build_menu(
         .item(&compare_files)
         .build()?;
 
-    let keyboard_shortcuts = MenuItemBuilder::with_id("keyboard_shortcuts", "Keyboard Shortcuts")
-        .accelerator("CmdOrCtrl+/")
-        .build(app)?;
-    let view_website = MenuItemBuilder::with_id("view_website", "View Website").build(app)?;
-    let report_issue = MenuItemBuilder::with_id("report_issue", "Report Issue…").build(app)?;
-    let send_feedback = MenuItemBuilder::with_id("send_feedback", "Send Feedback…").build(app)?;
+    let whats_new = item(app, "help.whatsNew", "What's New")?;
+    let keyboard_shortcuts = item(app, "help.shortcuts", "Keyboard Shortcuts")?;
+    let view_website = item(app, "help.website", "View Website")?;
+    let join_discussions = item(app, "help.discussions", "Join Discussions…")?;
+    let report_issue = item(app, "help.reportIssue", "Report Issue…")?;
+    let send_feedback = item(app, "help.feedback", "Send Feedback…")?;
 
     #[cfg(not(target_os = "macos"))]
     let help_menu = SubmenuBuilder::new(app, "Help")
+        .item(&whats_new)
         .item(&keyboard_shortcuts)
         .item(&view_website)
+        .item(&join_discussions)
         .item(&report_issue)
         .item(&send_feedback)
         .separator()
@@ -369,8 +395,10 @@ fn build_menu(
 
     #[cfg(target_os = "macos")]
     let help_menu = SubmenuBuilder::new(app, "Help")
+        .item(&whats_new)
         .item(&keyboard_shortcuts)
         .item(&view_website)
+        .item(&join_discussions)
         .item(&report_issue)
         .item(&send_feedback)
         .build()?;
@@ -407,9 +435,21 @@ fn build_menu(
 
 #[tauri::command]
 #[specta::specta]
-fn drain_pending_files(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
+fn drain_pending_files(state: tauri::State<'_, AppState>) -> Result<Vec<PendingFile>, String> {
     let mut pending = state.pending_files.lock().map_err(|e| e.to_string())?;
     Ok(std::mem::take(&mut *pending))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn cli_wait_done(state: tauri::State<'_, AppState>, id: String, report: cli::TabReport) {
+    state.handoffs.release(&id, report);
+}
+
+#[tauri::command]
+#[specta::specta]
+fn cli_discard_piped(state: tauri::State<'_, AppState>, path: String) {
+    state.handoffs.discard_piped(&path);
 }
 
 #[tauri::command]
@@ -428,6 +468,32 @@ fn handle_menu_event(app: &tauri::AppHandle, event: MenuEvent) {
     let menu_id = event.id().as_ref();
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("menu-event", menu_id);
+    }
+}
+
+#[cfg(test)]
+mod runtime_tests {
+    use crate::doc::document::Document;
+    use crate::doc::export::ExportFormat;
+    use crate::doc::types::Path;
+
+    #[test]
+    fn a_thousand_deep_document_fits_on_the_runtime_threads() {
+        let text = format!("{}{{\"a\": 1}}{}", "[".repeat(999), "]".repeat(999));
+        super::doc_runtime().block_on(async move {
+            tokio::task::spawn_blocking(move || {
+                let doc = Document::from_text(&text, None).unwrap();
+                let root = doc.get_value(&Path::root()).unwrap();
+                doc.canonical_lines().unwrap();
+                for format in [ExportFormat::Json, ExportFormat::Yaml, ExportFormat::Xml] {
+                    doc.export(format).unwrap();
+                }
+                let never = crate::doc::jobs::CancelFlag::never();
+                crate::doc::diff::compute_diff(&root, &root, &never).unwrap();
+            })
+            .await
+            .unwrap();
+        });
     }
 }
 

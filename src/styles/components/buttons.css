@@ -2,12 +2,12 @@
 	background: transparent;
 	border: var(--rule-width) solid var(--rule);
 	color: var(--text-dim);
-	padding: 0.3rem 0.7rem;
+	padding: var(--space-xs) var(--space-sm);
 	font-size: var(--font-size-sm);
 }
 .btn:hover:not(:disabled) {
-	color: var(--accent);
-	border-color: var(--accent);
+	color: var(--text);
+	border-color: var(--rule-2);
 }
 .btn:disabled {
 	opacity: 0.5;
@@ -17,13 +17,18 @@
 
 .btn-primary {
 	background: var(--accent);
-	color: var(--bg);
+	color: var(--on-accent);
 	border-color: var(--accent);
-	padding: 0.3rem 0.9rem;
+	padding: var(--space-xs) var(--space-md);
 }
 .btn-primary:hover:not(:disabled) {
-	background: var(--bg);
-	color: var(--accent);
+	background: var(--accent-hover);
+	border-color: var(--accent-hover);
+	color: var(--on-accent);
+}
+.btn-primary:disabled {
+	background: transparent;
+	border-color: var(--rule);
 }
 
 .btn-danger {
@@ -41,25 +46,26 @@
 	border-color: transparent;
 }
 .btn-ghost:hover:not(:disabled) {
-	color: var(--accent);
+	color: var(--text);
+	background: var(--bg-elev-2);
 	border-color: transparent;
 }
 
 .btn-close {
 	background: transparent;
 	border: none;
-	color: var(--text-faint);
-	font-size: 14px;
-	padding: 0 0.4rem;
+	color: var(--text-dim);
+	font-size: var(--font-size-base);
+	padding: 0 var(--space-xs);
 }
 .btn-close:hover {
-	color: var(--accent);
+	color: var(--text);
 }
 
 .btn-active {
-	background: var(--accent);
-	color: var(--bg);
-	border-color: var(--accent);
+	background: var(--accent-soft);
+	color: var(--accent);
+	border-color: var(--accent-line);
 }
 
 .seg {
@@ -72,7 +78,7 @@
 	background: var(--bg-elev);
 	border: none;
 	border-right: var(--rule-width) solid var(--rule);
-	padding: 0.25rem 0.7rem;
+	padding: var(--space-xs) var(--space-sm);
 	font-size: var(--font-size-sm);
 	color: var(--text-dim);
 }
@@ -83,6 +89,6 @@
 	color: var(--text);
 }
 .seg > button.active {
-	background: var(--accent);
-	color: var(--bg);
+	background: var(--accent-soft);
+	color: var(--accent);
 }

@@ -7,6 +7,7 @@
 		type Theme,
 		type Density,
 	} from '$lib/shell/logic/theme';
+	import { Arm } from '$lib/util/arm.svelte';
 
 	$effect(() => {
 		void appearancePrefs.init();
@@ -116,6 +117,13 @@
 		await appearancePrefs.setFontFamily(f);
 	}
 
+	const resetArm = new Arm();
+
+	function restoreDefaults() {
+		customFont = '';
+		void appearancePrefs.reset();
+	}
+
 	async function onSizeChange(e: Event) {
 		const v = parseFloat((e.target as HTMLInputElement).value);
 		if (Number.isFinite(v)) await appearancePrefs.setFontSize(v);
@@ -124,14 +132,22 @@
 
 <div class="settings-panel">
 	<header class="settings-head">
-		<h2 class="settings-title">Appearance</h2>
+		<div class="head-row">
+			<h2 class="settings-title">Appearance</h2>
+			<button
+				class={resetArm.armed ? 'btn btn-danger' : 'btn btn-ghost'}
+				title="Resets the theme to Auto (follows your system), and font, size, and density to their defaults"
+				onclick={() => resetArm.press(restoreDefaults)}
+				>{resetArm.armed ? 'Click again to restore' : 'Restore defaults'}</button
+			>
+		</div>
 		<p class="hint text-sm dim">Persisted across launches · changes apply instantly.</p>
 	</header>
 
 	<section class="field">
-		<div class="label">theme</div>
+		<div class="field-label">theme</div>
 		<div class="field-control">
-			<div class="mode-toggle" role="group" aria-label="theme mode">
+			<div class="seg mode-toggle" role="group" aria-label="theme mode">
 				<button
 					class:active={mode === 'dark'}
 					aria-pressed={mode === 'dark'}
@@ -174,7 +190,7 @@
 	</section>
 
 	<section class="field">
-		<div class="label">monospace font</div>
+		<div class="field-label">monospace font</div>
 		<div class="field-control">
 			{#each FONT_GROUPS as g (g.title)}
 				<div class="font-group">
@@ -194,24 +210,26 @@
 					</div>
 				</div>
 			{/each}
-			<div class="font-custom">
-				<input
-					placeholder="Custom (any installed font)"
-					bind:value={customFont}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') applyCustomFont();
-					}}
-					aria-label="Custom font family"
-					spellcheck="false"
-				/>
-				<button onclick={applyCustomFont} disabled={!customFont.trim()}>Apply</button>
-			</div>
+			<input
+				class="font-custom"
+				placeholder="Custom (any installed font)"
+				bind:value={customFont}
+				onchange={applyCustomFont}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') applyCustomFont();
+				}}
+				style:font-family={customFont.trim()
+					? `'${customFont.trim()}', ui-monospace, monospace`
+					: null}
+				aria-label="Custom font family"
+				spellcheck="false"
+			/>
 			<div class="text-sm dim">Current: <span class="mono">{appearancePrefs.fontFamily}</span></div>
 		</div>
 	</section>
 
 	<section class="field">
-		<div class="label">font size</div>
+		<div class="field-label">font size</div>
 		<div class="field-control">
 			<div class="size-row">
 				<input
@@ -229,7 +247,7 @@
 	</section>
 
 	<section class="field">
-		<div class="label">density</div>
+		<div class="field-label">density</div>
 		<div class="field-control">
 			<div class="density-grid">
 				{#each DENSITY_OPTIONS as d (d.id)}
@@ -245,16 +263,15 @@
 			</div>
 		</div>
 	</section>
-
-	<section class="field">
-		<div class="label"></div>
-		<div class="field-control">
-			<button class="reset" onclick={() => appearancePrefs.reset()}>Restore defaults</button>
-		</div>
-	</section>
 </div>
 
 <style>
+	.head-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+	}
 	.hint {
 		margin: 0;
 	}
@@ -262,51 +279,23 @@
 		font-family: var(--font-mono);
 	}
 	.note {
-		margin-top: 0.5rem;
-	}
-
-	.label {
-		color: var(--text-faint);
-		text-transform: uppercase;
-		letter-spacing: var(--label-tracking);
-		font-size: var(--font-size-xs);
-		padding-top: 0.2rem;
+		margin-top: var(--space-sm);
 	}
 
 	.mode-toggle {
-		display: inline-flex;
-		width: fit-content;
-		border: var(--rule-width) solid var(--rule);
-		margin-bottom: 0.6rem;
-	}
-	.mode-toggle button {
-		font-size: var(--font-size-sm);
-		padding: 0.2rem 0.9rem;
-		background: var(--bg-elev);
-		border: none;
-		color: var(--text-dim);
-	}
-	.mode-toggle button + button {
-		border-left: var(--rule-width) solid var(--rule);
-	}
-	.mode-toggle button:hover {
-		color: var(--accent);
-	}
-	.mode-toggle button.active {
-		background: var(--accent);
-		color: var(--bg);
+		margin-bottom: var(--space-sm);
 	}
 
 	.theme-grid {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-sm);
 		flex-wrap: wrap;
 	}
 	.swatch {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
-		padding: 0.5rem 0.6rem;
+		gap: var(--space-xs);
+		padding: var(--space-sm);
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
 		color: var(--text);
@@ -322,12 +311,12 @@
 	}
 	.dots {
 		display: flex;
-		gap: 0.2rem;
+		gap: var(--space-2xs);
 	}
 	.dot {
 		width: 14px;
 		height: 14px;
-		border: var(--rule-width) solid rgba(255, 255, 255, 0.05);
+		border: var(--rule-width) solid var(--rule);
 	}
 	.label-l {
 		font-size: var(--font-size-sm);
@@ -335,16 +324,16 @@
 	}
 
 	.font-group + .font-group {
-		margin-top: 0.7rem;
+		margin-top: var(--space-sm);
 	}
 	.font-group-head {
 		display: flex;
 		align-items: baseline;
-		gap: 0.6rem;
-		margin-bottom: 0.3rem;
+		gap: var(--space-sm);
+		margin-bottom: var(--space-xs);
 	}
 	.font-group-title {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		text-transform: uppercase;
 		letter-spacing: var(--label-tracking);
 		font-size: var(--font-size-xs);
@@ -352,12 +341,12 @@
 
 	.font-grid {
 		display: flex;
-		gap: 0.3rem;
+		gap: var(--space-xs);
 		flex-wrap: wrap;
 	}
 	.font-pick {
 		font-size: var(--font-size-sm);
-		padding: 0.25rem 0.7rem;
+		padding: var(--space-xs) var(--space-sm);
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
 		color: var(--text);
@@ -366,29 +355,19 @@
 		border-color: var(--text-dim);
 	}
 	.font-pick.active {
-		color: var(--bg);
-		background: var(--accent);
+		color: var(--accent);
+		background: var(--accent-soft);
 		border-color: var(--accent);
 	}
 	.font-custom {
-		display: flex;
-		gap: 0.3rem;
-	}
-	.font-custom input {
-		flex: 1;
-		min-width: 0;
 		font-size: var(--font-size-sm);
-		padding: 0.25rem 0.5rem;
-	}
-	.font-custom button {
-		font-size: var(--font-size-sm);
-		padding: 0.25rem 0.7rem;
+		padding: var(--space-xs) var(--space-sm);
 	}
 
 	.size-row {
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
+		gap: var(--space-md);
 	}
 	.size-row input[type='range'] {
 		flex: 1;
@@ -406,14 +385,14 @@
 
 	.density-grid {
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		flex-wrap: wrap;
 	}
 	.density-pick {
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
-		padding: 0.5rem 0.8rem;
+		gap: var(--space-2xs);
+		padding: var(--space-sm) var(--space-md);
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
 		color: var(--text);
@@ -430,18 +409,5 @@
 	.density-label {
 		font-size: var(--font-size-sm);
 		letter-spacing: 0.04em;
-	}
-
-	.reset {
-		font-size: var(--font-size-sm);
-		padding: 0.3rem 0.8rem;
-		background: transparent;
-		color: var(--text-dim);
-		border: var(--rule-width) solid var(--rule);
-		align-self: flex-start;
-	}
-	.reset:hover {
-		color: var(--accent);
-		border-color: var(--accent);
 	}
 </style>

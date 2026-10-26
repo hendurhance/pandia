@@ -21,8 +21,7 @@ describe('computeInvalidMarks', () => {
 	it('returns empty when result is null', () => {
 		const m = computeInvalidMarks({
 			result: null,
-			validatedVersion: 0,
-			liveVersion: 0,
+			stale: false,
 			rows: [],
 		});
 		expect(m.size).toBe(0);
@@ -31,8 +30,7 @@ describe('computeInvalidMarks', () => {
 	it('returns empty when result is valid', () => {
 		const m = computeInvalidMarks({
 			result: { valid: true, errors: [] },
-			validatedVersion: 0,
-			liveVersion: 0,
+			stale: false,
 			rows: [],
 		});
 		expect(m.size).toBe(0);
@@ -41,8 +39,7 @@ describe('computeInvalidMarks', () => {
 	it('returns empty when there are no errors', () => {
 		const m = computeInvalidMarks({
 			result: { valid: false, errors: [] },
-			validatedVersion: 0,
-			liveVersion: 0,
+			stale: false,
 			rows: [],
 		});
 		expect(m.size).toBe(0);
@@ -57,8 +54,7 @@ describe('computeInvalidMarks', () => {
 		];
 		const m = computeInvalidMarks({
 			result: { valid: false, errors: [{ instancePath: '/a/b/c' }] },
-			validatedVersion: 1,
-			liveVersion: 1,
+			stale: false,
 			rows,
 		});
 		expect(m.get(pathKey(['a', 'b', 'c']))).toBe('error');
@@ -78,8 +74,7 @@ describe('computeInvalidMarks', () => {
 				valid: false,
 				errors: [{ instancePath: '/a' }, { instancePath: '/a/b' }],
 			},
-			validatedVersion: 0,
-			liveVersion: 0,
+			stale: false,
 			rows,
 		});
 		expect(m.get(pathKey(['a']))).toBe('error');
@@ -87,39 +82,26 @@ describe('computeInvalidMarks', () => {
 		expect(m.get(pathKey([]))).toBe('ancestor');
 	});
 
-	it('downgrades to stale-* when liveVersion > validatedVersion', () => {
+	it('dims the marks while the verdict is out of date', () => {
 		const rows: Row[] = [content([], 'object'), content(['x'], 'string')];
 		const m = computeInvalidMarks({
 			result: { valid: false, errors: [{ instancePath: '/x' }] },
-			validatedVersion: 5,
-			liveVersion: 9,
+			stale: true,
 			rows,
 		});
 		expect(m.get(pathKey(['x']))).toBe('stale-error');
 		expect(m.get(pathKey([]))).toBe('stale-ancestor');
 	});
 
-	it('does NOT downgrade when liveVersion equals validatedVersion', () => {
+	it('keeps full marks while the verdict is current', () => {
 		const rows: Row[] = [content([], 'object'), content(['x'], 'string')];
 		const m = computeInvalidMarks({
 			result: { valid: false, errors: [{ instancePath: '/x' }] },
-			validatedVersion: 5,
-			liveVersion: 5,
+			stale: false,
 			rows,
 		});
 		expect(m.get(pathKey(['x']))).toBe('error');
 		expect(m.get(pathKey([]))).toBe('ancestor');
-	});
-
-	it('does NOT downgrade when validatedVersion is null', () => {
-		const rows: Row[] = [content([], 'object'), content(['x'], 'string')];
-		const m = computeInvalidMarks({
-			result: { valid: false, errors: [{ instancePath: '/x' }] },
-			validatedVersion: null,
-			liveVersion: 5,
-			rows,
-		});
-		expect(m.get(pathKey(['x']))).toBe('error');
 	});
 
 	it('uses row kinds to resolve digit-keyed object paths', () => {
@@ -130,8 +112,7 @@ describe('computeInvalidMarks', () => {
 		];
 		const m = computeInvalidMarks({
 			result: { valid: false, errors: [{ instancePath: '/data/0' }] },
-			validatedVersion: 1,
-			liveVersion: 1,
+			stale: false,
 			rows,
 		});
 		const marked = Array.from(m.entries()).filter(([_, kind]) => kind === 'error');

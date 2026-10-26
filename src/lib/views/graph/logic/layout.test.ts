@@ -125,4 +125,17 @@ describe('layoutGraph', () => {
 		expect(xs[1]).toBeLessThan(xs[2] ?? NaN);
 		expect(out.edges).toHaveLength(2);
 	});
+
+	it('keeps a tall card centered on a short child below its previous sibling', () => {
+		const user0 = card('["users",0]', [leafRow('name'), leafRow('age')]);
+		const address = card('["users",1,"address"]', [leafRow('street'), leafRow('city')]);
+		const fields = Array.from({ length: 30 }, (_, i) => leafRow(`f${i}`));
+		const user1 = card('["users",1]', [...fields, containerRow('address', [address])]);
+		const out = layoutGraph(card('[]', [containerRow('users', [user0, user1])]));
+
+		const a = out.cards.find((c) => c.id === '["users",0]')!;
+		const b = out.cards.find((c) => c.id === '["users",1]')!;
+		expect(b.x).toBe(a.x);
+		expect(b.y).toBeGreaterThanOrEqual(a.y + a.h);
+	});
 });

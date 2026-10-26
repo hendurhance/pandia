@@ -85,7 +85,9 @@ export class GridFilterController {
 		sortDesc: this.sortDesc,
 		filterGroups: this.compiledGroups,
 		quick: this.debouncedQuickValue,
-		quickKeys: this.quickKeys,
+		// Only a quick search reads these; keeping them out otherwise lets new columns arrive
+		// without resetting the grid.
+		quickKeys: this.debouncedQuickValue.trim() ? this.quickKeys : [],
 		filtering: this.filtering,
 	}));
 

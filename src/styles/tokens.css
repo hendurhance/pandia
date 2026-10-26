@@ -18,6 +18,8 @@
 	--accent-line: rgba(255, 106, 58, 0.55);
 	--accent-fill: rgba(255, 106, 58, 0.22);
 	--accent-2: #e0a53c;
+	--accent-hover: #ff8058;
+	--on-accent: #1b1b1d;
 
 	--syntax-string: #e0a53c;
 	--syntax-number: #7fb069;
@@ -28,7 +30,16 @@
 
 	--success: #7fb069;
 	--warning: #e0a53c;
-	--danger: #e5484d;
+	--danger: #e65155;
+	--danger-hover: #ea6b6f;
+	--danger-soft: #372325;
+	--success-soft: #293028;
+	--warning-soft: #372e21;
+	--moved-soft: #2d263d;
+	--line-tint: rgba(230, 230, 233, 0.05);
+	--danger-tint: rgba(230, 81, 85, 0.18);
+	--success-tint: rgba(127, 176, 105, 0.18);
+	--warning-tint: rgba(224, 165, 60, 0.18);
 
 	--font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	--font-sans:
@@ -36,11 +47,23 @@
 	--font-size-base: 13px;
 	--font-size-sm: 11.5px;
 	--font-size-xs: 10.5px;
-	--line-height: 1.7;
+	--font-size-lg: 16px;
+	--font-size-title: 18px;
+	--line-height: 1.55;
 
-	--space-tight: 0.25rem;
-	--space-base: 0.5rem;
-	--space-loose: 1rem;
+	--density: 1;
+	--space-2xs: calc(2px * var(--density));
+	--space-xs: calc(4px * var(--density));
+	--space-sm: calc(8px * var(--density));
+	--space-md: calc(12px * var(--density));
+	--space-lg: calc(16px * var(--density));
+	--space-xl: calc(24px * var(--density));
+	--space-2xl: calc(32px * var(--density));
+	--space-3xl: calc(48px * var(--density));
+
+	--shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.35);
+	--shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.5);
+	--scrim: rgba(0, 0, 0, 0.5);
 
 	--label-tracking: 0.18em;
 	--rule-width: 1px;

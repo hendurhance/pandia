@@ -3,15 +3,16 @@ import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
 import type { ContentRow, Row } from '$lib/views/tree/logic/model';
 import type { ApplyResult, DocHandle, Op, Path } from '$lib/ipc/bindings';
-
 export interface EditState {
-	rowIndex: number;
+	path: Path;
 	field: 'key' | 'value';
 	buffer: string;
+	initial: string;
 }
 
 export interface DocEditDeps {
 	rows: () => Row[];
+	indexOf: (path: Path) => number;
 	handle: () => DocHandle | null;
 
 	apply: (op: Op) => Promise<ApplyResult | null>;
@@ -45,12 +46,17 @@ export class DocEditController {
 		return this.state !== null;
 	}
 
+	private rowAt(path: Path): ContentRow | null {
+		const row = this.deps.rows()[this.deps.indexOf(path)];
+		return row?.variant === 'content' ? row : null;
+	}
+
 	startKey = (rowIndex: number) => {
 		const row = this.deps.rows()[rowIndex];
 		if (row?.variant !== 'content') return;
 		if (typeof row.key !== 'string' || row.depth === 0) return;
 		this.deps.setError(null);
-		this.state = { rowIndex, field: 'key', buffer: row.key };
+		this.state = { path: row.path, field: 'key', buffer: row.key, initial: row.key };
 	};
 
 	startValue = async (rowIndex: number) => {
@@ -69,14 +75,15 @@ export class DocEditController {
 					this.deps.setError(describeError(e));
 					return;
 				}
-				if (typeof full !== 'string' || this.deps.rows()[rowIndex] !== row) return;
-				this.state = { rowIndex, field: 'value', buffer: full };
+				if (typeof full !== 'string' || this.rowAt(row.path) !== row) return;
+				this.state = { path: row.path, field: 'value', buffer: full, initial: full };
 				return;
 			}
-			this.state = { rowIndex, field: 'value', buffer: row.preview.replace(/^"|"$/g, '') };
+			const text = row.preview.replace(/^"|"$/g, '');
+			this.state = { path: row.path, field: 'value', buffer: text, initial: text };
 			return;
 		}
-		this.state = { rowIndex, field: 'value', buffer: row.preview };
+		this.state = { path: row.path, field: 'value', buffer: row.preview, initial: row.preview };
 	};
 
 	input = (text: string) => {
@@ -85,10 +92,10 @@ export class DocEditController {
 
 	commit = async () => {
 		if (!this.state) return;
-		const { rowIndex, field, buffer } = this.state;
-		const row = this.deps.rows()[rowIndex];
+		const { path, field, buffer, initial } = this.state;
+		const row = this.rowAt(path);
 		this.state = null;
-		if (row?.variant !== 'content') return;
+		if (!row || buffer === initial) return;
 
 		if (field === 'key') {
 			if (typeof row.key !== 'string') return;

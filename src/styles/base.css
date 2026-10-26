@@ -35,12 +35,17 @@ button {
 	color: inherit;
 	background: var(--bg-elev);
 	border: var(--rule-width) solid var(--rule);
-	padding: 0.35rem 0.7rem;
+	padding: var(--space-xs) var(--space-sm);
 	cursor: pointer;
 }
 
 button:hover {
-	color: var(--accent);
+	color: var(--text);
+}
+
+:focus-visible {
+	outline: var(--rule-width) solid var(--accent);
+	outline-offset: -1px;
 }
 button:disabled {
 	color: var(--text-faint);
@@ -54,7 +59,7 @@ select {
 	color: var(--text);
 	background: var(--bg);
 	border: var(--rule-width) solid var(--rule);
-	padding: 0.35rem 0.5rem;
+	padding: var(--space-xs) var(--space-sm);
 	width: 100%;
 }
 input:focus,
@@ -75,7 +80,7 @@ a {
 }
 
 .label {
-	color: var(--text-faint);
+	color: var(--text-dim);
 	text-transform: uppercase;
 	letter-spacing: var(--label-tracking);
 	font-size: var(--font-size-xs);
@@ -98,10 +103,10 @@ a {
 }
 
 .kbd {
-	padding: 0 4px;
+	padding: 0 var(--space-xs);
 	border: var(--rule-width) solid var(--rule-2);
 	color: var(--text-dim);
-	font-size: 10px;
+	font-size: var(--font-size-xs);
 }
 
 ::-webkit-scrollbar {

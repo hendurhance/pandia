@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { DocStatus } from '../logic/status';
 	import { updateCheck } from '$lib/shell/state/update-check.svelte';
-	import { fmtKbd } from '$lib/util/platform';
+	import { whatsNew } from '$lib/shell/state/whats-new.svelte';
+	import { shortcutLabel } from '$lib/shell/logic/shortcuts';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { MessageSquarePlus } from '@lucide/svelte';
 
@@ -9,9 +10,10 @@
 		status: DocStatus | null;
 		onPaletteOpen?: () => void;
 		onFeedback?: () => void;
+		onWhatsNew?: () => void;
 	}
 
-	let { status, onPaletteOpen, onFeedback }: Props = $props();
+	let { status, onPaletteOpen, onFeedback, onWhatsNew }: Props = $props();
 </script>
 
 <div class="statusbar">
@@ -32,6 +34,12 @@
 			<span class="val">{status.sizeDisplay ?? '—'}</span>
 			{#if status.lazy}<span class="kbd">lazy</span>{/if}
 		</div>
+		{#if status.rootCountDisplay}
+			<div class="sb-cell">
+				<span class="lbl">root</span>
+				<span class="val">{status.rootCountDisplay}</span>
+			</div>
+		{/if}
 		{#if status.validity}
 			{@const v = status.validity}
 			<div class="sb-cell" data-validity={v.ok ? 'valid' : 'invalid'}>
@@ -54,10 +62,20 @@
 
 	<div class="sb-spacer"></div>
 
+	{#if whatsNew.unseen.length > 0}
+		<button
+			class="sb-cell right update-cell"
+			onclick={() => onWhatsNew?.()}
+			title="See what changed in Pandia {whatsNew.running}"
+		>
+			<span class="val update-dot">what's new in {whatsNew.running}</span>
+		</button>
+	{/if}
+
 	{#if updateCheck.availableVersion}
 		<button
 			class="sb-cell right update-cell"
-			onclick={() => void updateCheck.promptAndInstall()}
+			onclick={() => updateCheck.openDialog()}
 			title="Pandia {updateCheck.availableVersion} is available — click to install"
 		>
 			<span class="val update-dot">update v{updateCheck.availableVersion}</span>
@@ -68,9 +86,9 @@
 		class="sb-cell right kbd-cell"
 		onclick={() => onPaletteOpen?.()}
 		disabled={!onPaletteOpen}
-		title={`Command palette (${fmtKbd('⌘K')})`}
+		title={`Command palette (${shortcutLabel('palette.toggle')})`}
 	>
-		<span class="kbd">{fmtKbd('⌘K')}</span><span class="cmd">Commands</span>
+		<span class="kbd">{shortcutLabel('palette.toggle')}</span><span class="cmd">Commands</span>
 	</button>
 
 	{#if onFeedback}
@@ -101,17 +119,17 @@
 	.sb-cell {
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
-		padding: 0 14px;
+		gap: var(--space-sm);
+		padding: 0 var(--space-lg);
 		border-right: var(--rule-width) solid var(--rule);
 		min-width: 0;
 	}
 
 	.lbl {
-		color: var(--text-faint);
+		color: var(--text-dim);
 		text-transform: uppercase;
 		letter-spacing: var(--label-tracking);
-		font-size: 9.5px;
+		font-size: var(--font-size-xs);
 	}
 	.val {
 		color: var(--text);
@@ -122,7 +140,7 @@
 		max-width: 40ch;
 	}
 	.sb-cell.path .val {
-		color: var(--accent-2);
+		color: var(--text);
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
@@ -136,7 +154,7 @@
 	}
 	.dot.bad::before {
 		content: '● ';
-		color: var(--accent);
+		color: var(--danger);
 	}
 
 	.sb-cell.editing .val {
@@ -160,16 +178,15 @@
 	}
 
 	.kbd {
-		padding: 0 5px;
-		color: var(--text-faint);
+		padding: 0 var(--space-xs);
+		color: var(--text-dim);
 		border: var(--rule-width) solid var(--rule-2);
-		font-size: 9.5px;
+		font-size: var(--font-size-xs);
 		letter-spacing: 0;
 	}
 
 	.sb-spacer {
 		flex: 1;
-		border-right: var(--rule-width) solid var(--rule);
 	}
 
 	.sb-cell.right {
@@ -188,8 +205,8 @@
 		color: var(--text);
 	}
 	.kbd-cell:hover .kbd {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
+		border-color: var(--text-dim);
 	}
 	.kbd-cell:disabled {
 		cursor: default;
@@ -199,10 +216,7 @@
 		text-transform: lowercase;
 	}
 	.feedback-cell {
-		gap: 6px;
-	}
-	.feedback-cell:hover {
-		color: var(--accent);
+		gap: var(--space-sm);
 	}
 
 	.update-cell {

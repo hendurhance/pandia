@@ -1,11 +1,11 @@
 import type { Update } from '@tauri-apps/plugin-updater';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { ask } from '@tauri-apps/plugin-dialog';
 import { loadPersisted, savePersisted, SETTINGS_FILE } from '$lib/util/persist';
 import { isObject } from '$lib/util/guards';
+import { UPDATE_FAILED } from '$lib/ipc/error-copy';
 
-const STORE_KEY = 'updater';
+export const UPDATER_KEY = 'updater';
 
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -23,16 +23,22 @@ function sanitize(raw: unknown): Persisted {
 }
 
 class UpdateCheck {
-	private update: Update | null = null;
 	private lastCheckAt = 0;
 	private dismissedVersion: string | null = null;
 	private loaded = false;
 
-	availableVersion: string | null = $state(null);
+	update: Update | null = $state.raw(null);
+	dialogOpen = $state(false);
+	installing = $state(false);
+	error: string | null = $state(null);
+
+	get availableVersion(): string | null {
+		return this.update?.version ?? null;
+	}
 
 	private async load(): Promise<void> {
 		if (this.loaded) return;
-		const p = sanitize(await loadPersisted(SETTINGS_FILE, STORE_KEY));
+		const p = sanitize(await loadPersisted(SETTINGS_FILE, UPDATER_KEY));
 		this.lastCheckAt = p.lastCheckAt;
 		this.dismissedVersion = p.dismissedVersion;
 		this.loaded = true;
@@ -49,35 +55,51 @@ class UpdateCheck {
 			if (!upd) return;
 			if (upd.version === this.dismissedVersion) return;
 			this.update = upd;
-			this.availableVersion = upd.version;
 		} catch {
 			// Endpoint unreachable / signature mismatch — stay silent.
 		}
 	}
 
-	async promptAndInstall(): Promise<void> {
-		if (!this.update || !this.availableVersion) return;
-		const yes = await ask(
-			`Pandia ${this.availableVersion} is available. Download and install now?`,
-			{ title: 'Update available' },
-		).catch(() => false);
-		if (yes) {
-			try {
-				await this.update.downloadAndInstall();
-				await relaunch();
-			} catch {
-				// Leave the pill so the user can retry.
-			}
-			return;
-		}
-		this.dismissedVersion = this.availableVersion;
-		this.availableVersion = null;
+	offer(update: Update): void {
+		this.update = update;
+		this.openDialog();
+	}
+
+	openDialog(): void {
+		this.error = null;
+		this.dialogOpen = true;
+	}
+
+	later(): void {
+		this.dialogOpen = false;
+	}
+
+	async skip(): Promise<void> {
+		if (!this.update) return;
+		await this.load();
+		this.dismissedVersion = this.update.version;
 		this.update = null;
+		this.dialogOpen = false;
 		await this.persist();
 	}
 
+	async install(): Promise<void> {
+		if (!this.update || this.installing) return;
+		this.installing = true;
+		this.error = null;
+		try {
+			await this.update.downloadAndInstall();
+			await relaunch();
+		} catch {
+			// Keep the update on offer so the user can retry.
+			this.error = UPDATE_FAILED;
+		} finally {
+			this.installing = false;
+		}
+	}
+
 	private async persist(): Promise<void> {
-		await savePersisted(SETTINGS_FILE, STORE_KEY, {
+		await savePersisted(SETTINGS_FILE, UPDATER_KEY, {
 			lastCheckAt: this.lastCheckAt,
 			dismissedVersion: this.dismissedVersion,
 		} satisfies Persisted);

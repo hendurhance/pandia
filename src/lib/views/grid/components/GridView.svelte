@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
+	import { ipc } from '$lib/ipc/client';
+	import { describeError } from '$lib/ipc/error-copy';
 	import {
 		computeColumnLayout,
 		columnWindow,
@@ -7,6 +9,8 @@
 		PX_PER_CH,
 	} from '../logic/grid-geometry';
 	import { cellClass, cellRender, cellTitle } from '../logic/grid-cell';
+	import { mayBeImage } from '$lib/views/shared/image-source';
+	import { imagePreview } from '$lib/views/shared/image-preview.svelte';
 	import { contentXFromClient, gapForX } from '../logic/column-reorder-math';
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import { GridDataController, ROW_HEIGHT } from '../state/grid-data.svelte';
@@ -54,10 +58,39 @@
 	const HEADER_HEIGHT = 26;
 	const COL_OVERSCAN = 4;
 
+	// The schema reads columns from a 1,000-row sample; a full scan adds keys that only other rows have.
+	let scannedColumns: ColumnSchema['columns'] = $state.raw([]);
+	$effect(() => {
+		const s = schema;
+		const h = handle;
+		const p = path;
+		scannedColumns = [];
+		if (s.sampled >= s.rowCount) return;
+		const jobId = crypto.randomUUID();
+		let cancelled = false;
+		void ipc.docScanColumns(h, p, jobId).then(
+			(all) => {
+				if (cancelled) return;
+				const known = new Set(s.columns.map((c) => c.key));
+				scannedColumns = all.filter((c) => !known.has(c.key));
+			},
+			(e) => {
+				if (!cancelled) onError(describeError(e));
+			},
+		);
+		return () => {
+			cancelled = true;
+			void ipc.cancelJob(jobId).catch(() => {});
+		};
+	});
+	const columns = $derived(
+		scannedColumns.length > 0 ? [...schema.columns, ...scannedColumns] : schema.columns,
+	);
+
 	const filter = new GridFilterController({
 		handle: () => handle,
 		path: () => path,
-		columns: () => schema.columns,
+		columns: () => columns,
 		onError: (msg) => onError(msg),
 	});
 
@@ -73,8 +106,8 @@
 
 	let colOrder: string[] = $state.raw([]);
 	const orderedColumns = $derived.by(() => {
-		if (colOrder.length === 0) return schema.columns;
-		const byKey = new Map(schema.columns.map((c) => [c.key, c]));
+		if (colOrder.length === 0) return columns;
+		const byKey = new Map(columns.map((c) => [c.key, c]));
 		const out: typeof schema.columns = [];
 		for (const k of colOrder) {
 			const c = byKey.get(k);
@@ -83,7 +116,7 @@
 				byKey.delete(k);
 			}
 		}
-		for (const c of schema.columns) if (byKey.has(c.key)) out.push(c);
+		for (const c of columns) if (byKey.has(c.key)) out.push(c);
 		return out;
 	});
 
@@ -97,7 +130,7 @@
 		colWidth = new Map(colWidth).set(key, w);
 	}
 	function autoFit(key: string) {
-		const col = schema.columns.find((c) => c.key === key);
+		const col = columns.find((c) => c.key === key);
 		if (!col) return;
 		const w = autoFitWidthPx(col, data.loadedColumnTexts(key), MIN_COL_PX, MAX_COL_PX);
 		colWidth = new Map(colWidth).set(key, w);
@@ -199,20 +232,22 @@
 		onError: (msg) => onError(msg),
 	});
 
+	const queryKey = $derived(JSON.stringify(filter.query));
+
 	const colWindow = $derived(
 		columnWindow(columnLayout, data.scroller.scrollLeft, data.scroller.viewportWidth, COL_OVERSCAN),
 	);
 
 	$effect(() => {
 		void data.chunks;
-		void filter.query;
+		void queryKey;
 		data.fetchVisible();
 	});
 
 	$effect(() => {
 		void handle;
 		void schema;
-		void filter.query;
+		void queryKey;
 		data.reset();
 		data.scroller.resetTop();
 	});
@@ -274,7 +309,7 @@
 	$effect(() => {
 		void handle;
 		void schema;
-		void filter.query;
+		void queryKey;
 		selection.reset();
 	});
 
@@ -294,32 +329,23 @@
 		fetching={data.fetching}
 		filteredTotal={data.filteredTotal}
 		rowCount={schema.rowCount}
-		colCount={schema.columns.length}
+		colCount={columns.length}
 		sortKey={filter.sortKey}
 		sortDesc={filter.sortDesc}
+		selectedCount={selection.selectedRows.size}
+		copied={selection.rowsCopy.done}
 		onClearColumnIn={filter.clearColumnIn}
 		onClearAll={filter.clearAll}
 		onAddGroup={filter.addGroup}
 		onRemoveGroup={filter.removeGroup}
 		onSetActiveGroup={filter.setActiveGroup}
+		onCopySelected={selection.copySelected}
+		onExtractSelected={selection.extractSelected}
+		onClearSelection={selection.clearSelection}
 	/>
 
 	{#if filter.sortError}
 		<div class="banner banner-err" role="status">filter unavailable: {filter.sortError}</div>
-	{/if}
-
-	{#if selection.selectedRows.size > 0}
-		<div class="sel-bar">
-			<span class="sel-count"
-				>{selection.selectedRows.size} row{selection.selectedRows.size === 1 ? '' : 's'} selected</span
-			>
-			<span class="grow"></span>
-			<button class="sel-btn" onclick={selection.copySelected}
-				>{selection.rowsCopy.done ? 'copied' : 'copy JSON'}</button
-			>
-			<button class="sel-btn" onclick={selection.extractSelected}>extract to tab ↗</button>
-			<button class="sel-btn" onclick={selection.clearSelection}>clear</button>
-		</div>
 	{/if}
 
 	<div class="top" style="height: {HEADER_HEIGHT}px;">
@@ -378,7 +404,7 @@
 						class="index-cell"
 						class:zebra={rowIdx % 2 === 1}
 						class:row-selected={selection.rowSelected(row?.index)}
-						style="top: {rowIdx * ROW_HEIGHT}px; height: {ROW_HEIGHT}px;"
+						style="top: {data.rowTop(rowIdx)}px; height: {ROW_HEIGHT}px;"
 						title="Click to select · shift-click for range"
 						onclick={(e) => row && selection.onIndexClick(e, rowIdx, row.index)}
 						>{row ? row.index : ''}</button
@@ -388,32 +414,35 @@
 		</div>
 
 		<div class="scroller" use:data.scroller.attach onscroll={() => filter.closeDropdown()}>
-			<div
-				class="content"
-				style="width: {columnLayout.total}px; height: {data.effectiveRowCount * ROW_HEIGHT}px;"
-			>
+			<div class="content" style="width: {columnLayout.total}px; height: {data.contentHeight}px;">
 				{#each data.visibleRows as rowIdx (rowIdx)}
 					<div
 						class="row"
 						class:zebra={rowIdx % 2 === 1}
 						class:row-selected={selection.rowSelected(data.getRow(rowIdx)?.index)}
-						style="top: {rowIdx *
-							ROW_HEIGHT}px; height: {ROW_HEIGHT}px; width: {columnLayout.total}px;"
+						style="top: {data.rowTop(
+							rowIdx,
+						)}px; height: {ROW_HEIGHT}px; width: {columnLayout.total}px;"
 					>
 						{#each orderedColumns as col, i (col.key)}
 							{#if i >= colWindow.start && i < colWindow.end}
 								{@const v = data.getCell(rowIdx, col.key)}
 								{@const text = cellRender(v)}
+								{@const image = typeof v === 'string' && mayBeImage(v)}
 								<div
 									class={cellClass(v)}
 									class:selected={selection.selected?.row === rowIdx &&
 										selection.selected?.col === col.key}
 									style="left: {columnLayout.offsets[i]}px; width: {columnLayout.widths[i]}px;"
-									title={cellTitle(v)}
+									title={image ? undefined : cellTitle(v)}
 									role="button"
 									tabindex="0"
 									onclick={() => selection.selectCell(rowIdx, col.key)}
 									onkeydown={(e) => selection.onCellKeydown(e, rowIdx, col.key)}
+									onpointerenter={image
+										? (e) => imagePreview.hoverStart(e.currentTarget, async () => v)
+										: undefined}
+									onpointerleave={image ? imagePreview.hoverEnd : undefined}
 								>
 									{#if text.includes('\n') || text.includes('\r')}
 										{@const parts = text.replace(/\r\n|\r/g, '\n').split('\n')}
@@ -481,36 +510,8 @@
 		min-height: 0;
 		min-width: 0;
 		font-family: var(--font-mono);
-		font-size: 13px;
+		font-size: var(--font-size-base);
 		color: var(--text);
-	}
-
-	.sel-bar {
-		flex: 0 0 auto;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.25rem 0.75rem;
-		background: var(--accent-soft);
-		border-bottom: 1px solid var(--accent-line);
-		font-size: 11.5px;
-	}
-	.sel-count {
-		color: var(--accent);
-		font-weight: 600;
-	}
-	.sel-btn {
-		background: transparent;
-		border: 1px solid var(--rule-2);
-		color: var(--text-dim);
-		font-size: 11px;
-		padding: 0.1rem 0.6ch;
-		cursor: pointer;
-		white-space: nowrap;
-	}
-	.sel-btn:hover {
-		color: var(--accent);
-		border-color: var(--accent);
 	}
 
 	.top {
@@ -524,8 +525,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: var(--text-faint);
-		font-size: 11px;
+		color: var(--text-dim);
+		font-size: var(--font-size-sm);
 		border-right: 1px solid var(--rule-2);
 	}
 	.header {
@@ -577,8 +578,8 @@
 		align-items: center;
 		justify-content: flex-end;
 		padding: 0 0.6ch;
-		color: var(--text-faint);
-		font-size: 11px;
+		color: var(--text-dim);
+		font-size: var(--font-size-sm);
 		font-variant-numeric: tabular-nums;
 		background: transparent;
 		border: none;
@@ -586,10 +587,10 @@
 		cursor: pointer;
 	}
 	.index-cell.zebra {
-		background: rgba(255, 255, 255, 0.025);
+		background: var(--bg-elev-2);
 	}
 	.index-cell:hover {
-		color: var(--text-dim);
+		color: var(--text);
 		background: var(--bg-elev-2);
 	}
 	.index-cell.row-selected {
@@ -613,14 +614,13 @@
 		left: 0;
 	}
 	.row.zebra {
-		background: rgba(255, 255, 255, 0.025);
+		background: var(--bg-elev);
 	}
 	.row:hover {
-		background: var(--accent-soft);
+		background: var(--bg-elev-2);
 	}
 	.row.row-selected {
 		background: var(--accent-soft);
-		box-shadow: inset 0 0 0 9999px var(--accent-soft);
 	}
 
 	.cell {

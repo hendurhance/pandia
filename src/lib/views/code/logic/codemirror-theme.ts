@@ -14,18 +14,18 @@ export const noirTheme = EditorView.theme(
 		'.cm-scroller': { fontFamily: 'var(--font-mono)' },
 		'.cm-content': {
 			caretColor: 'var(--accent)',
-			padding: '0.5rem 0',
+			padding: 'var(--space-sm) 0',
 		},
 		'.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
 		'.cm-gutters': {
 			backgroundColor: 'var(--bg-elev)',
-			color: 'var(--text-faint)',
+			color: 'var(--text-dim)',
 			borderRight: '1px solid var(--rule)',
 		},
-		'.cm-activeLine': { backgroundColor: 'var(--accent-soft)' },
+		'.cm-activeLine': { backgroundColor: 'var(--line-tint)' },
 		'.cm-activeLineGutter': {
-			backgroundColor: 'var(--accent-soft)',
-			color: 'var(--text-dim)',
+			backgroundColor: 'var(--bg-elev-2)',
+			color: 'var(--text)',
 		},
 		'&.cm-focused .cm-selectionBackground, ::selection': {
 			backgroundColor: 'var(--accent-fill)',
@@ -36,19 +36,19 @@ export const noirTheme = EditorView.theme(
 			outline: 'none',
 		},
 		'.cm-foldGutter .cm-gutterElement': {
-			color: 'var(--text-faint)',
+			color: 'var(--text-dim)',
 			cursor: 'pointer',
 			padding: '0 0.2em',
 		},
 		'.cm-foldGutter .cm-gutterElement:hover': {
-			color: 'var(--accent)',
+			color: 'var(--text)',
 		},
 		'.cm-foldPlaceholder': {
 			backgroundColor: 'var(--bg-elev)',
 			border: '1px solid var(--rule)',
 			color: 'var(--text-dim)',
-			padding: '0 0.4rem',
-			margin: '0 0.2rem',
+			padding: '0 var(--space-xs)',
+			margin: '0 var(--space-2xs)',
 		},
 		'.cm-searchMatch': { backgroundColor: 'var(--accent-soft)' },
 		'.cm-searchMatch-selected': {
@@ -57,15 +57,15 @@ export const noirTheme = EditorView.theme(
 		},
 		'.cm-lintRange-error': {
 			backgroundImage: 'none',
-			textDecoration: 'underline wavy var(--accent)',
+			textDecoration: 'underline wavy var(--danger)',
 		},
-		'.cm-lint-marker-error': { color: 'var(--accent)' },
+		'.cm-lint-marker-error': { color: 'var(--danger)' },
 		'.cm-tooltip.cm-tooltip-lint': {
 			backgroundColor: 'var(--bg-elev)',
 			border: 'var(--rule-width) solid var(--rule)',
 			color: 'var(--text)',
 		},
-		'.cm-diagnostic-error': { borderLeftColor: 'var(--accent)' },
+		'.cm-diagnostic-error': { borderLeftColor: 'var(--danger)' },
 	},
 	{ dark: true },
 );

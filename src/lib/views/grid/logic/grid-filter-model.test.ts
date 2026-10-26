@@ -72,9 +72,16 @@ describe('compileFilters', () => {
 		expect(compile('a', { min: '1075283027435454464' })).toEqual([
 			{ key: 'a', op: 'gte', value: '1075283027435454464' },
 		]);
-		expect(compile('a', { min: 'abc' })).toEqual([{ key: 'a', op: 'gte', value: 'null' }]);
+		expect(compile('a', { min: 'abc' })).toEqual([{ key: 'a', op: 'gte', value: '"abc"' }]);
 		expect(compile('a', { presence: 'empty' })).toEqual([{ key: 'a', op: 'isEmpty' }]);
 		expect(compile('a', { presence: 'notEmpty' })).toEqual([{ key: 'a', op: 'isNotEmpty' }]);
+	});
+
+	it('sends a bound typed as .5 or 05 as text, for the backend to read as a number', () => {
+		expect(compile('a', { min: '.5', max: '05' })).toEqual([
+			{ key: 'a', op: 'gte', value: '".5"' },
+			{ key: 'a', op: 'lte', value: '"05"' },
+		]);
 	});
 
 	it('returns an empty list for no filters', () => {

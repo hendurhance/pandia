@@ -25,13 +25,15 @@
 	interface Props {
 		leftHandle: DocHandle;
 		rightHandle: DocHandle;
+		leftVersion: number;
+		rightVersion: number;
 
 		activeHunk: number;
 
 		onMeta?: (meta: InlineMeta) => void;
 	}
 
-	let { leftHandle, rightHandle, activeHunk, onMeta }: Props = $props();
+	let { leftHandle, rightHandle, leftVersion, rightVersion, activeHunk, onMeta }: Props = $props();
 
 	let rows: UnifiedRow[] = $state.raw([]);
 	let anchors: number[] = $state.raw([]);
@@ -59,7 +61,7 @@
 	const startIndex = $derived(s.window.start);
 	const endIndex = $derived(s.window.end);
 	const visibleRows = $derived(rows.slice(startIndex, endIndex));
-	const totalHeight = $derived(s.totalHeight);
+	const contentHeight = $derived(s.contentHeight);
 
 	let maxTextLen = $state(0);
 
@@ -111,14 +113,17 @@
 	$effect(() => {
 		const l = leftHandle;
 		const r = rightHandle;
+		void leftVersion;
+		void rightVersion;
 		let cancelled = false;
+		const jobId = crypto.randomUUID();
 		loading = true;
 		error = null;
 		leftSource.reset();
 		rightSource.reset();
 		maxTextLen = 0;
 		void ipc
-			.docDiffLines(l, r, null)
+			.docDiffLines(l, r, jobId)
 			.then((d) => {
 				if (cancelled) return;
 				const computed = unifiedRows(d);
@@ -141,6 +146,7 @@
 			});
 		return () => {
 			cancelled = true;
+			void ipc.cancelJob(jobId).catch(() => {});
 		};
 	});
 
@@ -174,7 +180,7 @@
 	<div class="inline-scroller" use:s.attach>
 		<div
 			class="spacer"
-			style="height: {totalHeight}px; width: max(100%, calc({maxTextLen + 14}ch));"
+			style="height: {contentHeight}px; width: max(100%, calc({maxTextLen + 14}ch));"
 		>
 			{#each visibleRows as row, j (startIndex + j)}
 				{@const i = startIndex + j}
@@ -182,7 +188,7 @@
 					<button
 						class="row gap"
 						data-row={i}
-						style="top: {s.offsetAt(i)}px; height: {ROW_H}px;"
+						style="top: {s.offsetAt(i) - s.shift}px; height: {ROW_H}px;"
 						onclick={() => expandGap(i)}
 						title="Click to expand"
 					>
@@ -197,7 +203,7 @@
 						class="row"
 						data-kind={row.type}
 						data-row={i}
-						style="top: {s.offsetAt(i)}px; height: {ROW_H}px;"
+						style="top: {s.offsetAt(i) - s.shift}px; height: {ROW_H}px;"
 					>
 						<span class="ln">{row.leftNo ?? ''}</span>
 						<span class="ln">{row.rightNo ?? ''}</span>
@@ -245,7 +251,7 @@
 		width: 5ch;
 		padding: 0 0.5ch;
 		text-align: right;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		background: var(--bg-elev);
 		border-right: 1px solid var(--rule);
 		user-select: none;
@@ -265,22 +271,22 @@
 	}
 
 	.row[data-kind='add'] {
-		background: rgba(123, 166, 136, 0.14);
+		background: var(--success-soft);
 	}
 	.row[data-kind='add'] .sign {
 		color: var(--success);
 	}
 	.row[data-kind='del'] {
-		background: var(--accent-soft);
+		background: var(--danger-soft);
 	}
 	.row[data-kind='del'] .sign {
-		color: var(--accent);
+		color: var(--danger);
 	}
 	.row[data-kind='add'] .ln {
-		background: rgba(123, 166, 136, 0.12);
+		background: var(--success-soft);
 	}
 	.row[data-kind='del'] .ln {
-		background: var(--accent-soft);
+		background: var(--danger-soft);
 	}
 
 	.row.gap {
@@ -298,11 +304,11 @@
 		background: var(--bg-elev-2);
 	}
 	.row.gap:hover .gap-label {
-		color: var(--accent);
+		color: var(--text);
 	}
 	.gap-label {
-		padding: 0.1rem 1ch 0.1rem 11ch;
-		color: var(--text-faint);
+		padding: var(--space-2xs) 1ch var(--space-2xs) 11ch;
+		color: var(--text-dim);
 		font-size: var(--font-size-xs);
 		letter-spacing: 0.04em;
 		user-select: none;
@@ -324,7 +330,7 @@
 		color: var(--syntax-punct);
 	}
 	.tok-pending {
-		color: var(--text-ghost);
+		color: var(--text-faint);
 		letter-spacing: 0.15em;
 	}
 
@@ -333,7 +339,7 @@
 	}
 
 	.err {
-		color: var(--accent);
+		color: var(--danger);
 		font-size: var(--font-size-sm);
 	}
 </style>

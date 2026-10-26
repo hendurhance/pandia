@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 use super::document::Document;
-use super::types::{Column, ColumnSchema, GridUnsuitableReason, NodeKind, Path, PathSegment};
+use super::jobs::CancelFlag;
+use super::types::{
+    Column, ColumnSchema, DocResult, GridUnsuitableReason, NodeKind, Path, PathSegment,
+};
 
 const FRONT_SAMPLE: u32 = 200;
 const SPREAD_SAMPLE: u32 = 800;
@@ -33,8 +36,7 @@ pub fn sniff_columns(doc: &Document, path: &Path) -> super::types::DocResult<Col
     let sampled = indices.len() as u32;
 
     let mut object_count: u32 = 0;
-    let mut columns: Vec<ColumnAcc> = Vec::new();
-    let mut col_index: BTreeMap<String, usize> = BTreeMap::new();
+    let mut columns = Columns::default();
 
     for i in &indices {
         let mut elem_path = path.clone();
@@ -44,33 +46,7 @@ pub fn sniff_columns(doc: &Document, path: &Path) -> super::types::DocResult<Col
         if let Value::Object(map) = value {
             object_count += 1;
             for (k, v) in map.iter() {
-                let kind = value_kind(v);
-                let idx = match col_index.get(k) {
-                    Some(idx) => *idx,
-                    None => {
-                        let idx = columns.len();
-                        col_index.insert(k.clone(), idx);
-                        columns.push(ColumnAcc {
-                            key: k.clone(),
-                            kinds: Vec::new(),
-                            kind_counts: Vec::new(),
-                            count: 0,
-                            null_count: 0,
-                        });
-                        idx
-                    }
-                };
-                let acc = &mut columns[idx];
-                acc.count += 1;
-                if matches!(kind, NodeKind::Null) {
-                    acc.null_count += 1;
-                }
-                if let Some(pos) = acc.kinds.iter().position(|k| *k == kind) {
-                    acc.kind_counts[pos] += 1;
-                } else {
-                    acc.kinds.push(kind);
-                    acc.kind_counts.push(1);
-                }
+                columns.add(k, value_kind(v));
             }
         }
     }
@@ -86,7 +62,7 @@ pub fn sniff_columns(doc: &Document, path: &Path) -> super::types::DocResult<Col
         });
     }
 
-    if columns.is_empty() {
+    if columns.list.is_empty() {
         return Ok(ColumnSchema {
             grid_suitable: false,
             reason: Some(GridUnsuitableReason::TooDivergent),
@@ -96,19 +72,7 @@ pub fn sniff_columns(doc: &Document, path: &Path) -> super::types::DocResult<Col
         });
     }
 
-    let columns_out: Vec<Column> = columns
-        .into_iter()
-        .map(|acc| {
-            let dominant_kind = acc.dominant_kind();
-            Column {
-                key: acc.key,
-                kinds: acc.kinds,
-                dominant_kind,
-                presence: acc.count as f32 / sampled as f32,
-                nullable: acc.null_count > 0,
-            }
-        })
-        .collect();
+    let columns_out = columns.finish(sampled);
 
     let best_presence = columns_out
         .iter()
@@ -131,6 +95,12 @@ pub fn sniff_columns(doc: &Document, path: &Path) -> super::types::DocResult<Col
         sampled,
         columns: columns_out,
     })
+}
+
+pub fn scan_columns(doc: &Document, path: &Path, cancel: &CancelFlag) -> DocResult<Vec<Column>> {
+    let mut columns = Columns::default();
+    let rows = doc.for_each_row_field(path, cancel, &mut |key, kind| columns.add(key, kind))?;
+    Ok(columns.finish(rows))
 }
 
 fn empty_with(reason: GridUnsuitableReason, row_count: u32) -> ColumnSchema {
@@ -180,6 +150,59 @@ fn value_kind(v: &Value) -> NodeKind {
     }
 }
 
+#[derive(Default)]
+struct Columns {
+    list: Vec<ColumnAcc>,
+    index: BTreeMap<String, usize>,
+}
+
+impl Columns {
+    fn add(&mut self, key: &str, kind: NodeKind) {
+        let idx = match self.index.get(key) {
+            Some(idx) => *idx,
+            None => {
+                let idx = self.list.len();
+                self.index.insert(key.to_string(), idx);
+                self.list.push(ColumnAcc {
+                    key: key.to_string(),
+                    kinds: Vec::new(),
+                    kind_counts: Vec::new(),
+                    count: 0,
+                    null_count: 0,
+                });
+                idx
+            }
+        };
+        let acc = &mut self.list[idx];
+        acc.count += 1;
+        if matches!(kind, NodeKind::Null) {
+            acc.null_count += 1;
+        }
+        if let Some(pos) = acc.kinds.iter().position(|k| *k == kind) {
+            acc.kind_counts[pos] += 1;
+        } else {
+            acc.kinds.push(kind);
+            acc.kind_counts.push(1);
+        }
+    }
+
+    fn finish(self, rows: u32) -> Vec<Column> {
+        self.list
+            .into_iter()
+            .map(|acc| {
+                let dominant_kind = acc.dominant_kind();
+                Column {
+                    key: acc.key,
+                    kinds: acc.kinds,
+                    dominant_kind,
+                    presence: acc.count as f32 / rows as f32,
+                    nullable: acc.null_count > 0,
+                }
+            })
+            .collect()
+    }
+}
+
 struct ColumnAcc {
     key: String,
     kinds: Vec<NodeKind>,
@@ -190,15 +213,13 @@ struct ColumnAcc {
 
 impl ColumnAcc {
     fn dominant_kind(&self) -> NodeKind {
-        let mut best = 0usize;
-        let mut best_n = self.kind_counts[0];
-        for (i, n) in self.kind_counts.iter().enumerate().skip(1) {
-            if *n > best_n {
-                best_n = *n;
-                best = i;
+        let mut best: Option<(NodeKind, u32)> = None;
+        for (kind, n) in self.kinds.iter().zip(&self.kind_counts) {
+            if *kind != NodeKind::Null && best.is_none_or(|(_, best_n)| *n > best_n) {
+                best = Some((*kind, *n));
             }
         }
-        self.kinds[best]
+        best.map_or(NodeKind::Null, |(kind, _)| kind)
     }
 }
 
@@ -274,6 +295,18 @@ mod tests {
         assert!(email.nullable);
         assert!(email.kinds.contains(&NodeKind::Null));
         assert!(email.kinds.contains(&NodeKind::String));
+    }
+
+    #[test]
+    fn nulls_do_not_outvote_the_values_in_a_column() {
+        let d = doc(r#"[{"score": null}, {"score": null}, {"score": 3}]"#);
+        let score = &sniff_columns(&d, &Path::root()).unwrap().columns[0];
+        assert_eq!(score.dominant_kind, NodeKind::Number);
+        assert!(score.nullable);
+
+        let d = doc(r#"[{"x": null}, {"x": null}]"#);
+        let x = &sniff_columns(&d, &Path::root()).unwrap().columns[0];
+        assert_eq!(x.dominant_kind, NodeKind::Null);
     }
 
     #[test]
@@ -381,6 +414,42 @@ mod tests {
             keys.contains(&"b"),
             "spread sampling must surface late keys"
         );
+    }
+
+    #[test]
+    fn scan_finds_a_column_the_sample_misses() {
+        let mut text = String::from("[");
+        for i in 0..2000 {
+            if i > 0 {
+                text.push(',');
+            }
+            if i == 1002 {
+                text.push_str(r#"{"a": 1, "late": "x"}"#);
+            } else {
+                text.push_str(r#"{"a": 1}"#);
+            }
+        }
+        text.push(']');
+        let d = doc(&text);
+
+        let sampled = sniff_columns(&d, &Path::root()).unwrap();
+        assert!(!sampled.columns.iter().any(|c| c.key == "late"));
+
+        let all = scan_columns(&d, &Path::root(), &CancelFlag::never()).unwrap();
+        let late = all
+            .iter()
+            .find(|c| c.key == "late")
+            .expect("scan finds late");
+        assert_eq!(late.dominant_kind, NodeKind::String);
+        assert!((late.presence - 1.0 / 2000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn scan_stops_when_cancelled() {
+        let d = doc(r#"[{"a": 1}]"#);
+        let cancel = CancelFlag::default();
+        cancel.cancel();
+        assert!(scan_columns(&d, &Path::root(), &cancel).is_err());
     }
 
     #[test]

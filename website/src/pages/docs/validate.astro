@@ -15,6 +15,29 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   <strong>draft-07</strong> and <strong>2020-12</strong>, read from the schema's
   <code>$schema</code> declaration.</p>
 
+  <h2>Load a schema automatically</h2>
+  <p>Pandia fills the Schema panel for you when a schema is named in one of two places:</p>
+  <ul>
+    <li><strong>The command line</strong>, as <code>pandia config.json --schema ./config.schema.json</code>.
+    The schema can be a path or an https:// URL. A relative path is read from the folder you ran
+    the command in. See <a href="/docs/command-line">Command line</a> to install
+    <code>pandia</code>.</li>
+    <li><strong>The document</strong>, as a top-level <code>"$schema": "./config.schema.json"</code>.
+    A relative path is read from the document's folder.</li>
+  </ul>
+  <p>If both are set, <code>--schema</code> wins, and the Schema panel shows which document
+  reference it replaced. A schema that can't be loaded shows an error, and Pandia never falls back
+  to the other one.</p>
+  <p>Local schema files load straight away. When a document's <code>$schema</code> is a URL, Pandia
+  asks before downloading it, so opening a file never contacts a server on its own. Remote schemas
+  must use https:// unless you turn on <strong>Settings → Behavior → schemas over http</strong>. A
+  <code>$schema</code> that names a JSON Schema version on json-schema.org means the file is itself a
+  schema, so nothing is loaded.</p>
+  <p>If your schema sets <code>additionalProperties: false</code>, the document's own
+  <code>$schema</code> key fails validation. Add <code>"$schema": &lbrace; "type": "string" &rbrace;</code>
+  to the schema's <code>properties</code> to allow it. Pandia shows this hint when it happens.</p>
+  <p>A schema that uses <code>$ref</code> to point at other files can't load them yet.</p>
+
   <h2>Clickable errors</h2>
   <p>Each error shows the <strong>failing path</strong> and the <strong>reason</strong> it
   failed. Click an error to jump straight to that node in the document. The status bar shows

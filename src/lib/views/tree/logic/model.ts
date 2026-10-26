@@ -260,6 +260,7 @@ export type MenuAction =
 	| 'copy-path'
 	| 'paste'
 	| 'extract'
+	| 'extract-column'
 	| 'insert-before'
 	| 'insert-after'
 	| 'duplicate'

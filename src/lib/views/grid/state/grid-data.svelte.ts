@@ -5,6 +5,7 @@ import { IpcError } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
 import { PagedSource } from '$lib/views/shared/paged-source.svelte';
 import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
+import { MAX_SCROLL_HEIGHT, fixedWindow, scaledOffset } from '$lib/views/shared/scroll-math';
 import { UNLOADED, MISSING, cellText } from '../logic/grid-cell';
 
 export const ROW_HEIGHT = 24;
@@ -39,7 +40,7 @@ export interface GridDataDeps {
 }
 
 export class GridDataController {
-	private filterJobId: string | null = null;
+	private readonly filterJobIds = new Set<string>();
 
 	private readonly source = new PagedSource<GridRow>({
 		pageSize: CHUNK,
@@ -53,24 +54,27 @@ export class GridDataController {
 				value: decodeLossless(r.value),
 			});
 			if (q.filtering) {
-				if (!this.filterJobId) {
-					this.filterJobId = `grid-filter-${start}-${Math.random().toString(36).slice(2, 10)}`;
+				const jobId = crypto.randomUUID();
+				this.filterJobIds.add(jobId);
+				try {
+					const res = await ipc.docGetRowsFiltered(
+						handle,
+						path,
+						start,
+						end,
+						{
+							groups: q.filterGroups,
+							quick: q.quick.trim() || null,
+							quickKeys: q.quickKeys,
+							sortKey: q.sortKey,
+							descending: q.sortDesc,
+						},
+						jobId,
+					);
+					return { items: res.rows.map(decodeRow), total: res.total };
+				} finally {
+					this.filterJobIds.delete(jobId);
 				}
-				const res = await ipc.docGetRowsFiltered(
-					handle,
-					path,
-					start,
-					end,
-					{
-						groups: q.filterGroups,
-						quick: q.quick.trim() || null,
-						quickKeys: q.quickKeys,
-						sortKey: q.sortKey,
-						descending: q.sortDesc,
-					},
-					this.filterJobId,
-				);
-				return { items: res.rows.map(decodeRow), total: res.total };
 			}
 			if (q.sortKey) {
 				const hi = Math.min(end, this.deps.rowCount());
@@ -90,17 +94,14 @@ export class GridDataController {
 			}
 		},
 		onReset: () => {
-			if (this.filterJobId) {
-				void ipc.cancelJob(this.filterJobId);
-				this.filterJobId = null;
-			}
+			for (const id of this.filterJobIds) void ipc.cancelJob(id);
+			this.filterJobIds.clear();
 		},
 	});
 
 	readonly scroller = new WindowedScroller({
 		rowCount: () => this.effectiveRowCount,
 		rowHeight: ROW_HEIGHT,
-		overscan: ROW_OVERSCAN,
 	});
 
 	constructor(private deps: GridDataDeps) {}
@@ -121,12 +122,38 @@ export class GridDataController {
 		this.deps.query().filtering ? (this.filteredTotal ?? 0) : this.deps.rowCount(),
 	);
 
-	readonly visibleRows = $derived(
-		Array.from(
-			{ length: Math.max(0, this.scroller.window.end - this.scroller.window.start) },
-			(_, k) => this.scroller.window.start + k,
+	readonly contentHeight = $derived(
+		Math.min(this.effectiveRowCount * ROW_HEIGHT, MAX_SCROLL_HEIGHT),
+	);
+
+	private readonly offset = $derived(
+		scaledOffset(
+			this.scroller.scrollTop,
+			this.scroller.viewportHeight,
+			this.effectiveRowCount * ROW_HEIGHT,
 		),
 	);
+
+	private readonly shift = $derived(this.offset - this.scroller.scrollTop);
+
+	readonly window = $derived(
+		fixedWindow(
+			this.offset,
+			this.scroller.viewportHeight,
+			this.effectiveRowCount,
+			ROW_HEIGHT,
+			ROW_OVERSCAN,
+		),
+	);
+
+	readonly visibleRows = $derived(
+		Array.from(
+			{ length: Math.max(0, this.window.end - this.window.start) },
+			(_, k) => this.window.start + k,
+		),
+	);
+
+	rowTop = (rowIdx: number): number => rowIdx * ROW_HEIGHT - this.shift;
 
 	chunkStart = (i: number): number => this.source.pageStart(i);
 
@@ -137,7 +164,8 @@ export class GridDataController {
 		if (!row) return UNLOADED;
 		const v = row.value;
 		if (v === null || typeof v !== 'object') return MISSING;
-		return (v as Record<string, unknown>)[colKey] ?? MISSING;
+		const cell = (v as Record<string, unknown>)[colKey];
+		return cell === undefined ? MISSING : cell;
 	};
 
 	loadedColumnTexts = (colKey: string): string[] => {
@@ -155,7 +183,7 @@ export class GridDataController {
 	};
 
 	fetchVisible = () => {
-		const range = this.scroller.window;
+		const range = this.window;
 		this.source.ensureVisible(range.start, range.end);
 	};
 

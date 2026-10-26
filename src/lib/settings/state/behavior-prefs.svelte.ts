@@ -25,6 +25,8 @@ const store = definePrefs({
 		autoSaveIdleMs: intField(AUTO_SAVE_IDLE_DEFAULT, AUTO_SAVE_IDLE_MIN, AUTO_SAVE_IDLE_MAX),
 		warnLargeFileOpen: boolField(true),
 		restoreTabsOnLaunch: boolField(true),
+		allowHttpSchemas: boolField(false),
+		loadWebImages: boolField(false),
 	},
 });
 
@@ -35,4 +37,6 @@ export const behaviorPrefs = Object.assign(store, {
 	setAutoSaveIdleMs: (ms: number) => store.set('autoSaveIdleMs', ms),
 	setWarnLargeFileOpen: (on: boolean) => store.set('warnLargeFileOpen', on),
 	setRestoreTabsOnLaunch: (on: boolean) => store.set('restoreTabsOnLaunch', on),
+	setAllowHttpSchemas: (on: boolean) => store.set('allowHttpSchemas', on),
+	setLoadWebImages: (on: boolean) => store.set('loadWebImages', on),
 });

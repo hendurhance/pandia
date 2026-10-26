@@ -6,7 +6,7 @@
 		title: string;
 		message: string;
 		primaryLabel: string;
-		secondaryLabel: string;
+		secondaryLabel?: string;
 		cancelLabel?: string;
 		dangerPrimary?: boolean;
 		onPick: (choice: ConfirmChoice) => void;
@@ -28,16 +28,7 @@
 		const t = setTimeout(() => primaryBtn?.focus(), 0);
 		return () => clearTimeout(t);
 	});
-
-	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			onPick('primary');
-		}
-	}
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <Dialog onClose={() => onPick('cancel')}>
 	<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
@@ -47,7 +38,9 @@
 			<button class="btn" onclick={() => onPick('cancel')}
 				>{cancelLabel}<span class="hint">esc</span></button
 			>
-			<button class="btn" onclick={() => onPick('secondary')}>{secondaryLabel}</button>
+			{#if secondaryLabel}
+				<button class="btn" onclick={() => onPick('secondary')}>{secondaryLabel}</button>
+			{/if}
 			<button
 				bind:this={primaryBtn}
 				class="btn btn-primary"
@@ -66,9 +59,9 @@
 		max-width: 520px;
 		display: flex;
 		flex-direction: column;
-		gap: 0.7rem;
-		padding: 0.9rem 1rem;
-		box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+		gap: var(--space-sm);
+		padding: var(--space-md);
+		box-shadow: var(--shadow-modal);
 	}
 	.title {
 		color: var(--text);
@@ -79,19 +72,16 @@
 	.actions {
 		display: flex;
 		justify-content: flex-end;
-		gap: 0.4rem;
-		margin-top: 0.2rem;
+		gap: var(--space-xs);
+		margin-top: var(--space-2xs);
 	}
 	.hint {
-		color: var(--text-faint);
-		margin-left: 0.4rem;
+		color: var(--text-dim);
+		margin-left: var(--space-xs);
 	}
 	.btn-primary .hint {
-		color: var(--bg);
+		color: var(--on-accent);
 		opacity: 0.6;
-	}
-	.btn-primary:hover .hint {
-		color: var(--accent);
 	}
 	.btn-danger {
 		background: var(--danger, var(--accent));
@@ -99,7 +89,11 @@
 		color: var(--bg);
 	}
 	.btn-danger:hover {
-		background: var(--danger-hover, var(--accent-line));
-		border-color: var(--danger-hover, var(--accent-line));
+		background: var(--danger-hover);
+		border-color: var(--danger-hover);
+		color: var(--bg);
+	}
+	.btn-danger .hint {
+		color: var(--bg);
 	}
 </style>

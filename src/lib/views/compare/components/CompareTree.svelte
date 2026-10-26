@@ -8,6 +8,7 @@
 
 	interface Props {
 		handle: DocHandle;
+		version: number;
 
 		diff: Map<string, DiffKind>;
 
@@ -15,7 +16,7 @@
 
 		onScrollerReady?: (el: HTMLElement) => void;
 	}
-	let { handle, diff, activePath = null, onScrollerReady }: Props = $props();
+	let { handle, version, diff, activePath = null, onScrollerReady }: Props = $props();
 
 	const tree = new TreeRowsController({
 		handle: () => handle,
@@ -46,6 +47,7 @@
 
 	$effect(() => {
 		const h = handle;
+		void version;
 		let cancelled = false;
 		void (async () => {
 			let sum;

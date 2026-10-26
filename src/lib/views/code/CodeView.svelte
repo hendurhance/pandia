@@ -8,6 +8,7 @@
 		redo: () => boolean;
 
 		cmSearch: (query: string, caseSensitive: boolean) => number;
+		cmCount: (query: string, caseSensitive: boolean) => number;
 		cmFindNext: () => void;
 		cmFindPrev: () => void;
 
@@ -65,6 +66,7 @@
 
 	interface Props {
 		handle: DocHandle | null;
+		version?: number;
 		sourceSize: number;
 		highlights?: Highlight[];
 		activePath?: Path | null;
@@ -80,10 +82,13 @@
 		onReady?: (api: CodeViewApi | null) => void;
 
 		onParseState?: (state: { valid: boolean; message: string | null } | null) => void;
+
+		onOpenTree?: () => void;
 	}
 
 	let {
 		handle,
+		version,
 		sourceSize,
 		highlights = [],
 		activePath = null,
@@ -93,6 +98,7 @@
 		onDirtyChange,
 		onReady,
 		onParseState,
+		onOpenTree,
 	}: Props = $props();
 
 	const SIZE_CAP = 50 * 1024 * 1024;
@@ -103,8 +109,7 @@
 	let error: string | null = $state(null);
 
 	let editorView: EditorView | undefined;
-	// Canonical text and its offsets both come from Rust (docs/adr/0002) —
-	// ranges are fetched on demand per highlighted path, keyed by pathKey.
+
 	let offsetRanges = new Map<string, [number, number]>();
 	let offsetsInFlight = new Set<string>();
 
@@ -166,7 +171,7 @@
 		}
 		baseline = text;
 		parseError = null;
-		setDirty(false);
+		setDirty(editorView.state.doc.toString() !== text);
 		return true;
 	}
 
@@ -206,6 +211,8 @@
 			if (count > 0) cmFindNextCmd(editorView); // land on the first match
 			return count;
 		},
+		cmCount: (query, caseSensitive) =>
+			editorView ? countMatches(editorView, query, caseSensitive) : 0,
 		cmFindNext: () => {
 			if (editorView) cmFindNextCmd(editorView);
 		},
@@ -226,6 +233,7 @@
 	};
 
 	$effect(() => {
+		void version;
 		if (!container || tooBig || !handle) return;
 
 		let cancelled = false;
@@ -401,6 +409,9 @@
 			<div class="label">code view unavailable</div>
 			<p>this document is {fmtBytes(sourceSize)} — code view is capped at {fmtBytes(SIZE_CAP)}.</p>
 			<p class="dim text-sm">use tree view: it streams slices from Rust regardless of size.</p>
+			{#if onOpenTree}
+				<button class="btn btn-primary self-start" onclick={onOpenTree}>Open in Tree view</button>
+			{/if}
 		</div>
 	</div>
 {:else}
@@ -439,8 +450,8 @@
 		position: absolute;
 		top: 0.4rem;
 		right: 1rem;
-		font-size: 11px;
-		padding: 0.15rem 0.5rem;
+		font-size: var(--font-size-sm);
+		padding: var(--space-2xs) var(--space-sm);
 		background: var(--bg-elev);
 		border: 1px solid var(--rule);
 		pointer-events: none;
@@ -449,25 +460,25 @@
 		color: var(--text-dim);
 	}
 	.status.err {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--danger);
+		border-color: var(--danger);
 	}
 
 	.edit-bar {
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
-		padding: 0.3rem 1rem;
+		gap: var(--space-md);
+		padding: var(--space-xs) var(--space-md);
 		background: var(--bg-elev);
-		border-top: var(--rule-width) solid var(--accent);
+		border-top: var(--rule-width) solid var(--danger);
 		font-size: var(--font-size-sm);
-		color: var(--accent);
+		color: var(--danger);
 	}
 	.eb-msg {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-sm);
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -477,20 +488,20 @@
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
-		background: var(--accent);
+		background: var(--danger);
 		flex-shrink: 0;
 	}
 
 	.cm-wrap :global(.cm-diff-added) {
-		background: rgba(123, 166, 136, 0.18);
+		background: var(--success-tint);
 	}
 	.cm-wrap :global(.cm-diff-removed) {
-		background: var(--accent-fill);
+		background: var(--danger-tint);
 		text-decoration: line-through;
-		text-decoration-color: var(--accent-line);
+		text-decoration-color: var(--danger);
 	}
 	.cm-wrap :global(.cm-diff-changed) {
-		background: rgba(201, 162, 75, 0.18);
+		background: var(--warning-tint);
 	}
 	.cm-wrap :global(.cm-diff-active) {
 		outline: 1px solid var(--accent);

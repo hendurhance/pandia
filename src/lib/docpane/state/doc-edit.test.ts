@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { valueCommitOp, DocEditController } from './doc-edit.svelte';
 import { ipc } from '$lib/ipc/client';
 import { asLosslessText } from '$lib/ipc/wire';
-import type { ContentRow, Row } from '$lib/views/tree/logic/model';
+import { pathKey, type ContentRow, type Row } from '$lib/views/tree/logic/model';
 import type { Op } from '$lib/ipc/bindings';
 
 vi.mock('$lib/ipc/client', () => ({ ipc: { docGetValue: vi.fn() } }));
@@ -65,6 +65,7 @@ describe('DocEditController truncated-string open', () => {
 		const rows: Row[] = [stringRow(preview)];
 		const ctrl = new DocEditController({
 			rows: () => rows,
+			indexOf: () => 0,
 			handle: () => handle,
 			apply: async (op) => {
 				applied.push(op);
@@ -99,8 +100,11 @@ describe('DocEditController truncated-string open', () => {
 		await ctrl.startValue(0);
 		expect(ctrl.state?.buffer).toBe(FULL);
 
+		ctrl.input(`${FULL}!`);
 		await ctrl.commit();
-		expect(applied).toEqual([{ kind: 'setValueText', path: ['a'], text: JSON.stringify(FULL) }]);
+		expect(applied).toEqual([
+			{ kind: 'setValueText', path: ['a'], text: JSON.stringify(`${FULL}!`) },
+		]);
 	});
 
 	it('no handle means no editor for a truncated preview', async () => {
@@ -115,5 +119,56 @@ describe('DocEditController truncated-string open', () => {
 		await ctrl.startValue(0);
 		expect(ctrl.state?.buffer).toBe('hello');
 		expect(vi.mocked(ipc.docGetValue)).not.toHaveBeenCalled();
+	});
+
+	it('leaving an untouched string commits nothing, short or truncated', async () => {
+		const short = setup('"hello"');
+		await short.ctrl.startValue(0);
+		await short.ctrl.commit();
+		expect(short.applied).toEqual([]);
+
+		vi.mocked(ipc.docGetValue).mockResolvedValue(asLosslessText(JSON.stringify(FULL)));
+		const long = setup(TRUNCATED_PREVIEW);
+		await long.ctrl.startValue(0);
+		await long.ctrl.commit();
+		expect(long.applied).toEqual([]);
+	});
+});
+
+describe('DocEditController — rows that move while editing', () => {
+	function stringRow(path: ContentRow['path'], preview: string): ContentRow {
+		return {
+			variant: 'content',
+			path,
+			depth: path.length,
+			key: path[path.length - 1] ?? '',
+			kind: 'string',
+			preview,
+			childCount: null,
+			expanded: false,
+		};
+	}
+
+	it('commits to the row being edited after rows are inserted above it', async () => {
+		const applied: Op[] = [];
+		const rows: Row[] = [stringRow(['items', 0], '"x"'), stringRow(['title'], '"hello"')];
+		const ctrl = new DocEditController({
+			rows: () => rows,
+			indexOf: (path) =>
+				rows.findIndex((r) => r.variant === 'content' && pathKey(r.path) === pathKey(path)),
+			handle: () => 'h' as never,
+			apply: async (op) => {
+				applied.push(op);
+				return null;
+			},
+			setError: () => {},
+		});
+
+		await ctrl.startValue(1);
+		rows.splice(1, 0, stringRow(['items', 1], '"y"'), stringRow(['items', 2], '"z"'));
+		ctrl.input('bye');
+		await ctrl.commit();
+
+		expect(applied).toEqual([{ kind: 'setValueText', path: ['title'], text: '"bye"' }]);
 	});
 });

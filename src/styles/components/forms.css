@@ -1,49 +1,49 @@
 .settings-panel {
 	display: flex;
 	flex-direction: column;
-	gap: 1.2rem;
+	gap: var(--space-lg);
 	max-width: 720px;
 }
 .settings-head {
 	display: flex;
 	flex-direction: column;
-	gap: 0.2rem;
+	gap: var(--space-2xs);
 }
 .settings-title {
 	margin: 0;
-	font-size: 18px;
+	font-size: var(--font-size-title);
 	letter-spacing: var(--label-tracking);
 }
 
 .field {
 	display: grid;
 	grid-template-columns: 160px 1fr;
-	gap: 1.2rem;
+	gap: var(--space-lg);
 	align-items: start;
-	padding-bottom: 0.9rem;
+	padding-bottom: var(--space-md);
 	border-bottom: var(--rule-width) solid var(--rule);
 }
 .field:last-of-type {
 	border-bottom: none;
 }
 .field-label {
-	color: var(--text-faint);
+	color: var(--text);
 	text-transform: uppercase;
 	letter-spacing: var(--label-tracking);
 	font-size: var(--font-size-xs);
-	padding-top: 0.3rem;
+	padding-top: var(--space-xs);
 }
 .field-control {
 	display: flex;
 	flex-direction: column;
-	gap: 0.5rem;
+	gap: var(--space-sm);
 	min-width: 0;
 }
 
 .switch {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.5rem;
+	gap: var(--space-sm);
 	width: fit-content;
 	background: transparent;
 	border: none;
@@ -86,5 +86,5 @@
 	color: var(--text-dim);
 }
 .switch[aria-checked='true'] .switch-text {
-	color: var(--accent);
+	color: var(--text);
 }

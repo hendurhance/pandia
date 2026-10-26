@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { DocContext } from '$lib/shell/state/workspace.svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import type { DocHandle, TypegenLang } from '$lib/ipc/bindings';
@@ -8,14 +9,8 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import { Check, Copy } from '@lucide/svelte';
 
-	interface Context {
-		handle: DocHandle;
-		version: number;
-		sourceName: string | null;
-	}
-
 	interface Props {
-		context: Context | null;
+		context: DocContext | null;
 	}
 
 	let { context }: Props = $props();
@@ -24,9 +19,11 @@
 	let busy = $state(false);
 	let error: string | null = $state(null);
 	let seq = 0;
+	let outputHandle: DocHandle | null = null;
 	const copyFlag = new CopyFlag();
 
 	const lang = $derived(typegenPrefs.activeLang);
+	const langLabel = $derived(TYPEGEN_LANGS.find((l) => l.id === lang)?.label ?? lang);
 
 	function deriveTypeName(sourceName: string | null): string {
 		if (!sourceName) return 'Root';
@@ -48,6 +45,10 @@
 		const mySeq = ++seq;
 		busy = true;
 		error = null;
+		if (context.handle !== outputHandle) {
+			output = ''; // another tab's types; an edit to this tab keeps them until the new ones land
+			outputHandle = context.handle;
+		}
 		try {
 			const typeName = deriveTypeName(context.sourceName);
 			const text = await ipc.docGenerateTypes(context.handle, lang, typeName);
@@ -111,14 +112,21 @@
 		<div class="err-row notice text-xs">{error}</div>
 	{/if}
 
-	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-	<pre class="preview" tabindex="0" aria-label="generated types preview"><code>{output || ''}</code
-		></pre>
+	{#if !context}
+		<div class="empty dim text-xs">No document in this tab</div>
+	{:else if busy && !output}
+		<div class="empty dim text-xs">Generating {langLabel}…</div>
+	{:else}
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<pre class="preview" tabindex="0" aria-label="generated types preview"><code
+				>{output || ''}</code
+			></pre>
+	{/if}
 </div>
 
 <style>
 	.panel {
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		min-width: 0;
 		container-type: inline-size;
 	}
@@ -126,14 +134,14 @@
 	.bar {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		min-width: 0;
 		flex-shrink: 0;
 	}
 	.bar-right {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		margin-left: auto;
 		flex: 0 0 auto;
 	}
@@ -141,7 +149,7 @@
 	.lang-select {
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
-		padding: 0.15rem 0.3rem;
+		padding: var(--space-2xs) var(--space-xs);
 		background: var(--bg-elev);
 		color: var(--text);
 		border: var(--rule-width) solid var(--rule);
@@ -168,7 +176,7 @@
 	.status {
 		flex-shrink: 0;
 		text-align: right;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		text-transform: uppercase;
 		letter-spacing: var(--label-tracking);
 		font-variant-numeric: tabular-nums;
@@ -185,8 +193,8 @@
 	}
 
 	.icon {
-		font-size: 12px;
-		padding: 0.1rem 0.45rem;
+		font-size: var(--font-size-sm);
+		padding: var(--space-2xs) var(--space-xs);
 		min-width: 0;
 		flex-shrink: 0;
 		background: transparent;
@@ -194,8 +202,8 @@
 		color: var(--text-dim);
 	}
 	.icon:hover {
-		color: var(--accent);
-		border-color: var(--accent);
+		color: var(--text);
+		border-color: var(--rule-2);
 	}
 	.icon:disabled {
 		color: var(--text-faint);
@@ -211,11 +219,16 @@
 		flex-shrink: 0;
 	}
 
+	.empty {
+		padding: var(--space-sm) var(--space-2xs);
+		text-align: center;
+	}
+
 	.preview {
 		flex: 1;
 		min-height: 240px;
 		margin: 0;
-		padding: 0.5rem 0.6rem;
+		padding: var(--space-sm);
 		background: var(--bg-elev);
 		border: var(--rule-width) solid var(--rule);
 		font-family: var(--font-mono);

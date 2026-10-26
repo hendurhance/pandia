@@ -2,6 +2,7 @@ import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
 import type { DocHandle, Path, SearchHit } from '$lib/ipc/bindings';
+import { pathKey } from '$lib/views/tree/logic/model';
 
 const FIND_DEBOUNCE_MS = 160;
 
@@ -34,6 +35,7 @@ export class FindController {
 	error: string | null = $state(null);
 	replaceValue = $state('');
 	replaceStatus: string | null = $state(null);
+	replaceOpen = $state(false);
 	codeMatchCount = $state(0);
 	codeActiveIdx = $state(0);
 
@@ -77,6 +79,12 @@ export class FindController {
 		}
 		this.deps.switchToTree();
 		this.open = true;
+		this.syncActiveView();
+	};
+
+	openReplace = () => {
+		this.replaceOpen = true;
+		this.openFind();
 	};
 
 	close = () => {
@@ -123,7 +131,24 @@ export class FindController {
 		}, FIND_DEBOUNCE_MS);
 	};
 
-	runSearch = async (q: string) => {
+	refreshAfterEdit = () => {
+		if (!this.open || !this.query.trim()) {
+			this.hitsQuery = null; // reopening the bar searches the edited document
+			return;
+		}
+		if (this.deps.isCodeView()) {
+			const api = this.deps.codeApi();
+			if (api) {
+				this.codeMatchCount = api.cmCount(this.query.trim(), false);
+				this.codeActiveIdx = Math.min(Math.max(this.codeActiveIdx, 1), this.codeMatchCount);
+			}
+			this.hitsQuery = null; // the tree hits predate the edit
+			return;
+		}
+		void this.runSearch(this.query, true);
+	};
+
+	runSearch = async (q: string, keepActive = false) => {
 		const handle = this.deps.handle();
 		if (!handle) {
 			this.busy = false;
@@ -140,8 +165,18 @@ export class FindController {
 		try {
 			const hits = await ipc.docSearch(handle, { query: q, caseSensitive: false }, jobId);
 			if (seq !== this.seq) return; // a newer query started — drop stale.
+			const prev = this.hits[this.activeIdx];
 			this.hits = hits;
 			this.hitsQuery = q.trim();
+			if (keepActive) {
+				const same = prev
+					? hits.findIndex(
+							(h) => h.matchField === prev.matchField && pathKey(h.path) === pathKey(prev.path),
+						)
+					: -1;
+				this.activeIdx = same >= 0 ? same : Math.max(0, Math.min(this.activeIdx, hits.length - 1));
+				return;
+			}
 			this.activeIdx = 0;
 			if (hits.length > 0) await this.jumpToHit(0);
 		} catch (e) {
@@ -156,6 +191,7 @@ export class FindController {
 	};
 
 	cancel = () => {
+		if (this.timer != null) clearTimeout(this.timer);
 		const id = this.activeJobId;
 		this.activeJobId = null;
 		this.seq++; // make any in-flight resolve a stale response
@@ -229,7 +265,7 @@ export class FindController {
 	};
 
 	reset = () => {
-		if (this.activeJobId !== null) this.cancel();
+		this.cancel();
 		this.open = false;
 		this.query = '';
 		this.hits = [];

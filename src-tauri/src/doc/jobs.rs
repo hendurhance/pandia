@@ -31,12 +31,20 @@ pub struct JobRegistry {
 impl JobRegistry {
     pub fn register(&self, id: String) -> CancelFlag {
         let flag = CancelFlag::default();
-        self.inner.lock().insert(id, flag.clone());
+        if let Some(earlier) = self.inner.lock().insert(id, flag.clone()) {
+            earlier.cancel();
+        }
         flag
     }
 
-    pub fn unregister(&self, id: &str) {
-        self.inner.lock().remove(id);
+    pub fn unregister(&self, id: &str, flag: &CancelFlag) {
+        let mut jobs = self.inner.lock();
+        if jobs
+            .get(id)
+            .is_some_and(|f| Arc::ptr_eq(&f.cancelled, &flag.cancelled))
+        {
+            jobs.remove(id);
+        }
     }
 
     pub fn cancel(&self, id: &str) -> bool {
@@ -81,10 +89,29 @@ mod tests {
     fn unregister_removes_flag_from_future_cancels() {
         let reg = JobRegistry::default();
         let flag = reg.register("a".into());
-        reg.unregister("a");
+        reg.unregister("a", &flag);
         assert!(!reg.cancel("a"));
         flag.cancel();
         assert!(flag.is_cancelled());
+    }
+
+    #[test]
+    fn registering_a_live_id_again_cancels_the_earlier_job() {
+        let reg = JobRegistry::default();
+        let first = reg.register("a".into());
+        let second = reg.register("a".into());
+        assert!(first.is_cancelled());
+        assert!(!second.is_cancelled());
+    }
+
+    #[test]
+    fn an_earlier_job_finishing_leaves_the_later_one_cancellable() {
+        let reg = JobRegistry::default();
+        let first = reg.register("a".into());
+        let second = reg.register("a".into());
+        reg.unregister("a", &first);
+        assert!(reg.cancel("a"));
+        assert!(second.is_cancelled());
     }
 
     #[test]

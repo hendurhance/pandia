@@ -1,3 +1,5 @@
+use jsonschema::error::ValidationErrorKind;
+use jsonschema::ReferencingError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -25,6 +27,8 @@ pub enum SchemaCompileError {
     Parse(String),
     #[error("schema compile error: {0}")]
     Compile(String),
+    #[error("schema refers to {0}, which Pandia doesn't fetch")]
+    ExternalRef(String),
 }
 
 const DEFAULT_MAX_ERRORS: usize = 500;
@@ -36,8 +40,12 @@ pub fn validate(
     let schema_json: Value = serde_json::from_str(schema_text.trim())
         .map_err(|e| SchemaCompileError::Parse(e.to_string()))?;
 
-    let validator = jsonschema::validator_for(&schema_json)
-        .map_err(|e| SchemaCompileError::Compile(e.to_string()))?;
+    let validator = jsonschema::validator_for(&schema_json).map_err(|e| match &e.kind {
+        ValidationErrorKind::Referencing(ReferencingError::Unretrievable { uri, .. }) => {
+            SchemaCompileError::ExternalRef(uri.clone())
+        }
+        _ => SchemaCompileError::Compile(e.to_string()),
+    })?;
 
     let mut errors: Vec<SchemaError> = Vec::new();
     let mut total: u32 = 0;

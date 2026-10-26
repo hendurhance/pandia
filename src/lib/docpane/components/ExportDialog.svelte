@@ -158,24 +158,24 @@
 
 	.formats {
 		display: flex;
-		gap: 0.2rem;
+		gap: var(--space-2xs);
 	}
 	.fmt {
 		font-size: var(--font-size-xs);
-		padding: 0.15rem 0.5rem;
+		padding: var(--space-2xs) var(--space-sm);
 		background: var(--bg);
 		border: var(--rule-width) solid var(--rule);
 		color: var(--text-dim);
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: var(--label-tracking);
 	}
 	.fmt:hover {
 		color: var(--text);
 	}
 	.fmt.active {
-		color: var(--bg);
-		background: var(--accent);
-		border-color: var(--accent);
+		color: var(--accent);
+		background: var(--accent-soft);
+		border-color: var(--accent-line);
 	}
 
 	.preview-wrap {
@@ -187,7 +187,7 @@
 	.preview {
 		flex: 1;
 		margin: 0;
-		padding: 0.6rem 0.8rem;
+		padding: var(--space-sm) var(--space-md);
 		overflow: auto;
 		background: var(--bg);
 		font-size: var(--font-size-sm);
@@ -195,9 +195,9 @@
 		white-space: pre;
 	}
 	.state {
-		padding: 1rem;
+		padding: var(--space-md);
 	}
 	.err {
-		color: var(--accent);
+		color: var(--danger);
 	}
 </style>

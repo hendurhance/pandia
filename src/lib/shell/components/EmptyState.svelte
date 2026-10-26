@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { open as openDialog } from '@tauri-apps/plugin-dialog';
-	import type { Diagnosis, DetectKind, OpenSource } from '$lib/ipc/bindings';
-	import { ipc } from '$lib/ipc/client';
+	import type { Diagnosis, OpenSource } from '$lib/ipc/bindings';
 	import PasteDiagnostic from './PasteDiagnostic.svelte';
 	import { buildDemoSource } from '../logic/demo';
-	import { stem } from '$lib/util/path';
 	import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
 	import { fmtKbd } from '$lib/util/platform';
 	import { detectFormat, formatLabel } from '../logic/detect-format';
@@ -14,12 +12,14 @@
 	interface Props {
 		busy: boolean;
 		onOpenSource: (source: OpenSource) => Promise<boolean>;
+		onOpenFile: (path: string) => void;
 		diagnosis: Diagnosis | null;
 		onFixDiagnosis: (text: string) => void;
 		onDismissDiagnosis: () => void;
 	}
 
-	let { busy, onOpenSource, diagnosis, onFixDiagnosis, onDismissDiagnosis }: Props = $props();
+	let { busy, onOpenSource, onOpenFile, diagnosis, onFixDiagnosis, onDismissDiagnosis }: Props =
+		$props();
 
 	let pasteText = $state('');
 	const detected = $derived(detectFormat(pasteText));
@@ -32,28 +32,15 @@
 			filters: JSON_OPEN_FILTERS,
 		});
 		if (typeof picked !== 'string') return;
-		onOpenSource({ kind: 'file', path: picked });
+		onOpenFile(picked);
 	}
 
 	async function openFromText(text: string, baseName: string) {
-		let source: OpenSource = { kind: 'text', text, name: baseName };
-		try {
-			const r = await ipc.docDetectAndConvert(text);
-			if (r.error == null) {
-				source = { kind: 'text', text: r.json, name: renameForDetect(baseName, r.kind) };
-			}
-		} catch {}
-
-		if (await onOpenSource(source)) {
+		if (await onOpenSource({ kind: 'text', text, name: baseName })) {
 			pasteText = '';
 			return;
 		}
 		pasteText = text;
-	}
-
-	function renameForDetect(base: string, kind: DetectKind): string {
-		if (kind === 'json' || kind === 'unknown') return base;
-		return `${stem(base)}.json`;
 	}
 
 	function onPasteCapture(e: ClipboardEvent) {
@@ -78,7 +65,7 @@
 	}
 
 	function onClickRecent(path: string) {
-		onOpenSource({ kind: 'file', path });
+		onOpenFile(path);
 	}
 </script>
 
@@ -133,12 +120,12 @@
 		display: grid;
 		place-items: start center;
 		overflow-y: auto;
-		padding: 2.5rem 1rem 4rem;
+		padding: var(--space-2xl) var(--space-md) var(--space-3xl);
 	}
 	.inner {
 		display: flex;
 		flex-direction: column;
-		gap: 1.4rem;
+		gap: var(--space-lg);
 		width: 100%;
 		max-width: 560px;
 	}
@@ -146,22 +133,22 @@
 	.brand {
 		display: flex;
 		align-items: baseline;
-		gap: 0.8rem;
+		gap: var(--space-md);
 	}
 	.title {
-		font-size: 18px;
+		font-size: var(--font-size-title);
 		letter-spacing: var(--label-tracking);
 	}
 
 	.block {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 	}
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-sm);
 		flex-wrap: wrap;
 	}
 
@@ -194,20 +181,19 @@
 		position: absolute;
 		top: 6px;
 		right: 8px;
-		padding: 1px 6px;
-		font-size: 10px;
-		letter-spacing: 0.08em;
+		padding: 1px var(--space-sm);
+		font-size: var(--font-size-xs);
+		letter-spacing: var(--label-tracking);
 		text-transform: uppercase;
 		color: var(--accent);
 		background: var(--accent-soft);
 		border: 1px solid var(--accent-line);
-		border-radius: 3px;
 		pointer-events: none;
 	}
 
 	.demo-row {
 		display: flex;
 		justify-content: center;
-		padding-top: 0.4rem;
+		padding-top: var(--space-xs);
 	}
 </style>

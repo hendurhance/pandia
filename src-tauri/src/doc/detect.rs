@@ -20,6 +20,7 @@ pub struct DetectResult {
 }
 
 pub fn detect_and_convert(text: &str) -> DetectResult {
+    let text = text.trim_start_matches('\u{feff}');
     let trimmed = text.trim_start();
     if trimmed.is_empty() {
         return DetectResult {
@@ -195,7 +196,7 @@ fn convert_xml(text: &str) -> DetectResult {
                     let v = attr
                         .unescape_value()
                         .map(|v| v.into_owned())
-                        .unwrap_or_default();
+                        .unwrap_or_else(|_| String::from_utf8_lossy(&attr.value).into_owned());
                     attrs.insert(k, Value::String(v));
                 }
                 stack.push((name, attrs, String::new()));
@@ -219,7 +220,7 @@ fn convert_xml(text: &str) -> DetectResult {
                     let v = attr
                         .unescape_value()
                         .map(|v| v.into_owned())
-                        .unwrap_or_default();
+                        .unwrap_or_else(|_| String::from_utf8_lossy(&attr.value).into_owned());
                     attrs.insert(k, Value::String(v));
                 }
                 let value = into_value(attrs, String::new());
@@ -230,7 +231,10 @@ fn convert_xml(text: &str) -> DetectResult {
                 }
             }
             Ok(Event::Text(t)) => {
-                let txt = t.unescape().map(|v| v.into_owned()).unwrap_or_default();
+                let txt = t
+                    .unescape()
+                    .map(|v| v.into_owned())
+                    .unwrap_or_else(|_| String::from_utf8_lossy(&t).into_owned());
                 if let Some(top) = stack.last_mut() {
                     top.2.push_str(&txt);
                 }
@@ -334,6 +338,10 @@ fn infer_cell(s: &str) -> serde_json::Value {
     if t.eq_ignore_ascii_case("null") {
         return serde_json::Value::Null;
     }
+    let digits = t.strip_prefix('-').unwrap_or(t);
+    if digits.len() > 1 && digits.starts_with('0') && digits.as_bytes()[1].is_ascii_digit() {
+        return serde_json::Value::String(s.to_string());
+    }
     if let Ok(n) = t.parse::<i64>() {
         return serde_json::json!(n);
     }
@@ -373,6 +381,7 @@ fn convert_curl(text: &str) -> DetectResult {
     let mut method: Option<String> = None;
     let mut headers: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     let mut body: Option<String> = None;
+    let mut bare: Vec<String> = Vec::new();
 
     while let Some(tok) = iter.next() {
         match tok.as_str() {
@@ -391,7 +400,7 @@ fn convert_curl(text: &str) -> DetectResult {
                     }
                 }
             }
-            "-d" | "--data" | "--data-raw" | "--data-binary" => {
+            "-d" | "--data" | "--data-raw" | "--data-binary" | "--json" => {
                 if let Some(v) = iter.next() {
                     body = Some(v);
                 }
@@ -405,12 +414,17 @@ fn convert_curl(text: &str) -> DetectResult {
             | "--cookie" | "-b" | "--cookie-jar" | "-c" => {
                 let _ = iter.next();
             }
-            other if !other.starts_with('-') && url.is_none() => {
-                url = Some(other.to_string());
-            }
+            other if !other.starts_with('-') => bare.push(other.to_string()),
             _ => {}
         }
     }
+
+    let url = url.or_else(|| {
+        bare.iter()
+            .find(|t| t.contains("://"))
+            .or(bare.first())
+            .cloned()
+    });
 
     let final_method = method.unwrap_or_else(|| {
         if body.is_some() {
@@ -581,6 +595,35 @@ mod tests {
     }
 
     #[test]
+    fn csv_keeps_leading_zeros() {
+        let v = assert_json(&detect_and_convert("zip,code\n00501,0\n0.5,-007\n").json);
+        assert_eq!(
+            v,
+            serde_json::json!([{"zip": "00501", "code": 0}, {"zip": 0.5, "code": "-007"}])
+        );
+    }
+
+    #[test]
+    fn curl_option_values_are_not_taken_as_the_url() {
+        for (cmd, method) in [
+            ("curl -m 30 https://x.dev/a", "GET"),
+            ("curl --connect-timeout 5 'https://x.dev/a'", "GET"),
+            ("curl -H 'Accept: x' https://x.dev/a", "GET"),
+            ("curl -X POST https://x.dev/a", "POST"),
+        ] {
+            let v = assert_json(&detect_and_convert(cmd).json);
+            assert_eq!(v["url"], "https://x.dev/a", "{cmd}");
+            assert_eq!(v["method"], method, "{cmd}");
+        }
+        let v = assert_json(&detect_and_convert(r#"curl --json '{"a":1}' https://x.dev/a"#).json);
+        assert_eq!(v["url"], "https://x.dev/a");
+        assert_eq!(v["method"], "POST");
+        assert_eq!(v["body"], serde_json::json!({"a": 1}));
+        let bare = assert_json(&detect_and_convert("curl example.com/api").json);
+        assert_eq!(bare["url"], "example.com/api");
+    }
+
+    #[test]
     fn curl_get_simple() {
         let r = detect_and_convert("curl https://example.com/data.json");
         assert_eq!(r.kind, DetectKind::Curl);
@@ -630,6 +673,37 @@ mod tests {
     fn guess_xml_with_prolog() {
         let kind = guess(r#"<?xml version="1.0"?><root>x</root>"#);
         assert_eq!(kind, DetectKind::Xml);
+    }
+
+    #[test]
+    fn xml_unknown_entities_keep_their_text() {
+        let r = detect_and_convert(
+            r#"<r><p>Price &euro; 5</p><q a="x &nbsp; y">ok &nbsp; z</q><e b="&copy;"/></r>"#,
+        );
+        let v = assert_json(&r.json);
+        assert_eq!(v["r"]["p"], "Price &euro; 5");
+        assert_eq!(v["r"]["q"]["#text"], "ok &nbsp; z");
+        assert_eq!(v["r"]["q"]["@a"], "x &nbsp; y");
+        assert_eq!(v["r"]["e"]["@b"], "&copy;");
+    }
+
+    #[test]
+    fn a_byte_order_mark_before_json_is_still_json() {
+        let r =
+            detect_and_convert("\u{feff}{\"id\":1,\"n\":\"a\"}\n{\"id\":2,\"n\":\"b\"}\n{\"id\":3");
+        assert_eq!(r.kind, DetectKind::Json);
+    }
+
+    #[test]
+    fn a_byte_order_mark_is_not_part_of_the_converted_data() {
+        let csv = assert_json(&detect_and_convert("\u{feff}id,name\n1,a\n").json);
+        assert_eq!(csv, serde_json::json!([{ "id": 1, "name": "a" }]));
+        let yaml = assert_json(&detect_and_convert("\u{feff}id: 1\nname: a\n").json);
+        assert_eq!(yaml, serde_json::json!({ "id": 1, "name": "a" }));
+        let xml = assert_json(&detect_and_convert("\u{feff}<r><id>1</id></r>").json);
+        assert_eq!(xml, serde_json::json!({ "r": { "id": "1" } }));
+        let curl = assert_json(&detect_and_convert("\u{feff}curl https://example.com").json);
+        assert_eq!(curl["url"], "https://example.com");
     }
 
     #[test]

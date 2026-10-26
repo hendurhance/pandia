@@ -7,6 +7,7 @@
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
 	import { commandUsage } from '$lib/palette/state/command-store.svelte';
 	import NativeContextMenu from '$lib/ui/NativeContextMenu.svelte';
+	import ImagePreviewCard from '$lib/views/shared/ImagePreviewCard.svelte';
 
 	let { children } = $props();
 
@@ -30,6 +31,7 @@
 </main>
 
 <NativeContextMenu />
+<ImagePreviewCard />
 
 <style>
 	main {

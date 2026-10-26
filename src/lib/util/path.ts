@@ -120,6 +120,11 @@ export function basename(path: string): string {
 	return slash >= 0 ? path.slice(slash + 1) : path;
 }
 
+export function dirname(path: string): string {
+	const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+	return slash >= 0 ? path.slice(0, slash) : '';
+}
+
 const ELLIPSIS = '…';
 
 export function truncatePathMiddle(path: string, budget: number): string {
@@ -168,5 +173,7 @@ function middleCut(s: string, width: number): string {
 }
 
 export function stem(path: string): string {
-	return basename(path).replace(/\.[^.]+$/, '');
+	const name = basename(path);
+	const dot = name.lastIndexOf('.');
+	return dot > 0 ? name.slice(0, dot) : name;
 }

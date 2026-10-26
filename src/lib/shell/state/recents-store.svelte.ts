@@ -49,9 +49,8 @@ class RecentsStore extends PersistedStore {
 		const pinned = existing?.pinned ?? false; // preserve pin across re-opens
 		const filtered = this.list.filter((e) => e.path !== path);
 		const next = [{ path, name: display, openedAt: now, size, pinned }, ...filtered];
-		const pinnedCount = next.filter((e) => e.pinned).length;
-		const cap = Math.max(MAX_ENTRIES, pinnedCount);
-		this.list = next.slice(0, cap);
+		const evicted = new Set(next.filter((e) => !e.pinned).slice(MAX_ENTRIES));
+		this.list = next.filter((e) => !evicted.has(e));
 		void this.persist();
 	}
 

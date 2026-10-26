@@ -32,6 +32,8 @@ pub struct History {
     budget_bytes: usize,
     undo_bytes: usize,
     redo_bytes: usize,
+    evicted: u64,
+    saved: Option<u64>,
 }
 
 impl History {
@@ -47,10 +49,31 @@ impl History {
             budget_bytes,
             undo_bytes: 0,
             redo_bytes: 0,
+            evicted: 0,
+            saved: Some(0),
         }
     }
 
+    fn position(&self) -> u64 {
+        self.evicted + self.undo.len() as u64
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.saved = Some(self.position());
+    }
+
+    pub fn forget_saved(&mut self) {
+        self.saved = None;
+    }
+
+    pub fn at_saved(&self) -> bool {
+        self.saved == Some(self.position())
+    }
+
     pub fn record(&mut self, forward: Op, inverse: Op) {
+        if self.saved.is_some_and(|s| s > self.position()) {
+            self.saved = None;
+        }
         self.redo.clear();
         self.redo_bytes = 0;
         self.push_undo((forward, inverse));
@@ -109,7 +132,10 @@ impl History {
             || (self.undo.len() > 1 && self.undo_bytes > self.budget_bytes)
         {
             match self.undo.pop_front() {
-                Some(e) => self.undo_bytes -= e.bytes,
+                Some(e) => {
+                    self.undo_bytes -= e.bytes;
+                    self.evicted += 1;
+                }
                 None => break,
             }
         }
@@ -228,6 +254,19 @@ mod tests {
         h.record(op(3), op(-3));
         assert_eq!(h.undo_len(), 1, "byte budget keeps only the newest entry");
         assert_eq!(h.pop_undo().unwrap().0, op(3), "and it is the most recent");
+    }
+
+    #[test]
+    fn a_saved_state_lost_to_eviction_is_never_reported() {
+        let mut h = History::new(2);
+        h.record(op(1), op(-1));
+        h.record(op(2), op(-2));
+        h.record(op(3), op(-3));
+        while h.pop_undo().is_some() {}
+        assert!(
+            !h.at_saved(),
+            "undoing everything left stops after the first edit"
+        );
     }
 
     #[test]

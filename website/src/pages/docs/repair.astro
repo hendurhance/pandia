@@ -18,15 +18,30 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
     <li><strong>Comments</strong> — both <code>//</code> line and <code>/* */</code> block.</li>
     <li><strong>Non-JSON literals</strong> — <code>NaN</code>, <code>Infinity</code> and
     <code>undefined</code> become <code>null</code>.</li>
-    <li><strong>BOM and CRLF</strong> — byte-order marks and Windows line endings.</li>
+    <li><strong>Byte-order marks</strong> at the start of the file.</li>
     <li><strong>JSONP / parenthesis wrappers</strong> — strips the callback or paren wrapping.</li>
-    <li><strong>Missing brackets and unterminated strings</strong> — closes what was left open.</li>
-    <li><strong>Bad escape sequences</strong> inside strings.</li>
+    <li><strong>Missing brackets and unterminated strings</strong> — closes what was left open. A
+    key at the very end with no value is dropped.</li>
+    <li><strong>Line breaks and stray backslashes</strong> inside strings are escaped, so the text
+    reads the same.</li>
+    <li><strong>Cut-off JSON Lines</strong> — records on separate lines whose last one was cut off
+    are joined into an array.</li>
   </ul>
 
+  <h2>What it never changes</h2>
+  <p>Repair changes only structure: brackets, commas, quotes and comments. The text inside a string
+  is never touched, so a URL, an apostrophe or a <code>//</code> inside a value comes through as it
+  is. The one exception is a broken character escape, such as half of an emoji
+  (<code>\ud83d</code>), which no JSON reader can load: it becomes <code>�</code>, and the banner
+  says so.</p>
+
   <h2>When it runs</h2>
-  <p>Pandia's parser is strict by design. If your input fails the strict parser, run
-  <strong>Repair</strong> to coerce it into valid JSON, then open it as normal.</p>
+  <p>When a file or paste isn't valid JSON, Pandia first reads it as JSONC or JSON5, then converts
+  YAML, XML, CSV or a cURL command. If that fails and <strong>Settings → Behavior →
+  auto-repair</strong> is on, it repairs the text, up to 200 MB. A banner above the document lists
+  what changed in plain words.</p>
+  <p>A repaired document opens as a copy named <code>name.repaired.json</code>, so Save asks where to
+  keep it. The broken original is only replaced if you choose to save over it.</p>
 
   <h2>Example</h2>
   <p>Before — malformed input, with a comment, a single-quoted string, an unquoted key, and a

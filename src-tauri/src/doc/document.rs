@@ -6,21 +6,23 @@ use std::sync::Arc;
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sonic_rs::FastStr;
 
+use super::atomic;
 use super::backend::DocumentBackend;
 use super::eager::{cmp_cell, replace_in_value};
-use super::export::{export as export_value, ExportFormat};
+use super::export::{export as export_value, ExportError, ExportFormat};
 use super::format::{self, InputFormat};
 use super::grid_filter::{row_passes, GridFilter};
 use super::history::History;
-use super::lazy::LazyDoc;
+use super::lazy::{parse_json, LazyDoc};
 use super::ops::{Op, OpDescription, OpOutcome};
 use super::schema_validate::{
     validate as schema_validate_value, SchemaCompileError, SchemaValidationResult,
 };
 use super::search::{SearchHit, SearchOptions};
 use super::typegen::TypegenLang;
-use super::types::{DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
+use super::types::{DocError, DocResult, FileOp, NodeKind, NodeView, Path, PathSegment};
 use super::wire::LosslessText;
 
 const LAZY_THRESHOLD_BYTES: u64 = 10 * 1024 * 1024;
@@ -60,6 +62,7 @@ pub struct Document {
     filter_cache: parking_lot::Mutex<Option<FilterCache>>,
     quick_text_cache: parking_lot::Mutex<HashMap<(Path, String), QuickTextColumn>>,
     canon_cache: parking_lot::Mutex<Option<CanonCache>>,
+    save_lock: Arc<parking_lot::Mutex<()>>,
 }
 
 #[derive(Debug)]
@@ -158,6 +161,23 @@ pub struct SaveResult {
     pub version: u64,
 }
 
+pub struct PendingSave {
+    target: String,
+    text: String,
+    version: u64,
+    hash: blake3::Hash,
+}
+
+impl PendingSave {
+    pub fn write(&self) -> DocResult<()> {
+        let target = FsPath::new(&self.target);
+        atomic::write_atomic(target, |w| {
+            std::io::Write::write_all(w, self.text.as_bytes())
+        })
+        .map_err(|e| DocError::file(FileOp::Save, target, e))
+    }
+}
+
 impl Document {
     fn ensure_within_max(size: u64) -> DocResult<()> {
         if size > MAX_DOC_BYTES {
@@ -169,27 +189,29 @@ impl Document {
         Ok(())
     }
 
-    fn parse(text: &str) -> DocResult<DocumentImpl> {
+    fn parse(text: &FastStr) -> DocResult<DocumentImpl> {
         if text.len() as u64 >= LAZY_THRESHOLD_BYTES {
-            return Ok(DocumentImpl::Lazy(LazyDoc::new(text)?));
+            return Ok(DocumentImpl::Lazy(LazyDoc::new(text.clone())?));
         }
-        serde_json::from_str(text)
-            .map(DocumentImpl::Eager)
-            .map_err(|e| DocError::Parse(e.to_string()))
+        parse_json(text).map(DocumentImpl::Eager)
     }
 
     pub fn from_text(text: &str, source_path: Option<String>) -> DocResult<Self> {
+        Self::from_source(FastStr::new(text), source_path)
+    }
+
+    pub fn from_source(text: FastStr, source_path: Option<String>) -> DocResult<Self> {
         Self::ensure_within_max(text.len() as u64)?;
 
-        let (inner, size, recovery_note, comments_stripped) = match Self::parse(text) {
+        let (inner, size, recovery_note, comments_stripped) = match Self::parse(&text) {
             Ok(inner) => (inner, text.len() as u64, None, false),
             Err(strict) => {
                 let hint = source_path.as_deref().and_then(format::hint_from_path);
-                let r = format::recover(text, hint).ok_or(strict)?;
+                let r = format::recover(&text, hint).ok_or(strict)?;
                 Self::ensure_within_max(r.json.len() as u64)?;
                 let size = r.json.len() as u64;
                 (
-                    Self::parse(&r.json)?,
+                    Self::parse(&FastStr::from_string(r.json))?,
                     size,
                     r.note.map(str::to_string),
                     r.comments_stripped,
@@ -213,6 +235,7 @@ impl Document {
             filter_cache: parking_lot::Mutex::new(None),
             quick_text_cache: parking_lot::Mutex::new(HashMap::new()),
             canon_cache: parking_lot::Mutex::new(None),
+            save_lock: Arc::default(),
         };
         doc.saved_hash = doc.compute_content_hash();
         Ok(doc)
@@ -263,17 +286,25 @@ impl Document {
         if self.version == self.saved_version {
             return false;
         }
+
         if self.source_size > LAZY_THRESHOLD_BYTES {
-            return true;
+            return !self.history.at_saved();
         }
         self.current_hash() != self.saved_hash
     }
 
+    pub fn read_text_file(path: &FsPath) -> DocResult<String> {
+        let size = std::fs::metadata(path)
+            .map_err(|e| DocError::file(FileOp::Open, path, e))?
+            .len();
+        Self::ensure_within_max(size)?;
+        std::fs::read_to_string(path).map_err(|e| DocError::file(FileOp::Open, path, e))
+    }
+
+    #[cfg(test)]
     pub fn from_file<P: AsRef<FsPath>>(path: P) -> DocResult<Self> {
         let p = path.as_ref();
-        let size = std::fs::metadata(p)?.len();
-        Self::ensure_within_max(size)?;
-        let text = std::fs::read_to_string(p)?;
+        let text = Self::read_text_file(p)?;
         let path_str = p.to_string_lossy().into_owned();
         let mut doc = Self::from_text(&text, Some(path_str.clone()))?;
         doc.file_path = Some(path_str);
@@ -308,22 +339,23 @@ impl Document {
     }
 
     pub fn export_to_file(&self, format: ExportFormat, path: &str) -> DocResult<()> {
-        let file = std::fs::File::create(path)?;
-        let mut w = std::io::BufWriter::new(file);
+        let target = FsPath::new(path);
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
                 let pretty = matches!(format, ExportFormat::Json);
-                self.backend()
-                    .write_json(pretty, &mut w)
-                    .map_err(|e| DocError::Export(e.to_string()))?;
+                atomic::write_atomic(target, |w| {
+                    self.backend().write_json(pretty, w).map_err(|e| match e {
+                        ExportError::Io(e) => e,
+                        e => std::io::Error::other(e),
+                    })
+                })
             }
             _ => {
                 let full = self.export(format)?;
-                std::io::Write::write_all(&mut w, full.as_bytes())?;
+                atomic::write_atomic(target, |w| std::io::Write::write_all(w, full.as_bytes()))
             }
         }
-        std::io::Write::flush(&mut w)?;
-        Ok(())
+        .map_err(|e| DocError::file(FileOp::Export, target, e))
     }
 
     pub fn export_preview(
@@ -357,16 +389,22 @@ impl Document {
         self.backend().serialize_pretty()
     }
 
-    pub fn set_file_path(&mut self, path: String) {
-        self.file_path = Some(path.clone());
-        self.source_path = Some(path);
-    }
-
     fn serialize_ndjson(&self) -> Option<String> {
         self.backend().serialize_ndjson()
     }
 
+    #[cfg(test)]
     pub fn save(&mut self, path: Option<String>) -> DocResult<SaveResult> {
+        let pending = self.prepare_save(path)?;
+        pending.write()?;
+        Ok(self.finish_save(&pending))
+    }
+
+    pub fn save_lock(&self) -> Arc<parking_lot::Mutex<()>> {
+        Arc::clone(&self.save_lock)
+    }
+
+    pub fn prepare_save(&self, path: Option<String>) -> DocResult<PendingSave> {
         let target = path
             .or_else(|| self.file_path.clone())
             .ok_or_else(|| DocError::Edit("no file path — use Save As".into()))?;
@@ -377,18 +415,51 @@ impl Document {
             },
             _ => self.serialize()?,
         };
-        std::fs::write(&target, text)?;
+        Ok(PendingSave {
+            target,
+            text,
+            version: self.version,
+            hash: self.current_hash(),
+        })
+    }
+
+    pub fn finish_save(&mut self, saved: &PendingSave) -> SaveResult {
         self.comments_stripped = false;
-        self.file_path = Some(target.clone());
-        self.source_path = Some(target.clone());
+        self.file_path = Some(saved.target.clone());
+        self.source_path = Some(saved.target.clone());
+        self.source_size = saved.text.len() as u64;
+        self.saved_version = saved.version;
+        self.saved_hash = saved.hash;
+        if self.version == saved.version {
+            self.history.mark_saved();
+        } else {
+            self.history.forget_saved();
+        }
+        SaveResult {
+            path: saved.target.clone(),
+            version: saved.version,
+        }
+    }
+
+    pub fn save_copy(&mut self, target: &str) -> DocResult<()> {
+        use std::io::Write;
+        let text = self.serialize()?;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(target)
+            .and_then(|mut file| file.write_all(text.as_bytes()))
+            .map_err(|e| DocError::file(FileOp::Save, FsPath::new(target), e))?;
+        self.mark_saved();
+        Ok(())
+    }
+
+    fn mark_saved(&mut self) {
+        self.history.mark_saved();
         self.saved_version = self.version;
         let saved_hash = self.compute_content_hash();
         self.saved_hash = saved_hash;
         *self.hash_cache.lock() = Some((self.version, saved_hash));
-        Ok(SaveResult {
-            path: target,
-            version: self.version,
-        })
     }
 
     pub fn get_slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
@@ -404,9 +475,6 @@ impl Document {
     }
 
     pub fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>> {
-        if path.is_root() {
-            return Ok(self.summary().root_child_count);
-        }
         self.backend().child_count_at(path)
     }
 
@@ -500,6 +568,15 @@ impl Document {
 
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
         self.backend().column_cells(path, key)
+    }
+
+    pub fn for_each_row_field(
+        &self,
+        path: &Path,
+        cancel: &crate::doc::jobs::CancelFlag,
+        f: &mut dyn FnMut(&str, NodeKind),
+    ) -> DocResult<u32> {
+        self.backend().for_each_row_field(path, cancel, f)
     }
 
     fn compute_column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
@@ -739,6 +816,20 @@ impl Document {
         Ok(out)
     }
 
+    pub fn get_column(&self, path: &Path, key: &str) -> DocResult<Vec<Value>> {
+        if path.is_root() && self.source_size > GET_VALUE_ROOT_LIMIT {
+            return Err(DocError::TooLarge {
+                actual: self.source_size,
+                limit: GET_VALUE_ROOT_LIMIT,
+            });
+        }
+        Ok(self
+            .column_cells(path, key)?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
     pub fn get_value(&self, path: &Path) -> DocResult<Value> {
         if path.is_root() && self.source_size > GET_VALUE_ROOT_LIMIT {
             return Err(DocError::TooLarge {
@@ -910,6 +1001,7 @@ impl Document {
         result.map_err(|e| match e {
             SchemaCompileError::Parse(s) => DocError::Schema(format!("not valid JSON: {s}")),
             SchemaCompileError::Compile(s) => DocError::Schema(format!("compile error: {s}")),
+            SchemaCompileError::ExternalRef(uri) => DocError::SchemaExternalRef(uri),
         })
     }
 
@@ -921,14 +1013,10 @@ impl Document {
                     limit: EDIT_SIZE_LIMIT,
                 });
             }
-            let placeholder = DocumentImpl::Eager(Value::Null);
-            let old = std::mem::replace(&mut self.inner, placeholder);
-            let lazy = match old {
-                DocumentImpl::Lazy(l) => l,
-                _ => unreachable!("checked above"),
+            let DocumentImpl::Lazy(lazy) = &self.inner else {
+                unreachable!("checked above")
             };
-            let value: Value =
-                serde_json::from_str(lazy.source()).map_err(|e| DocError::Parse(e.to_string()))?;
+            let value: Value = parse_json(lazy.source())?;
             self.inner = DocumentImpl::Eager(value);
         }
         match &mut self.inner {
@@ -1184,6 +1272,123 @@ mod tests {
         }
     }
 
+    fn large_doc_file(name: &str) -> (String, Document) {
+        let path = temp_path(name);
+        let pad = "x".repeat(LAZY_THRESHOLD_BYTES as usize);
+        std::fs::write(&path, format!(r#"{{"pad": "{pad}", "a": 1}}"#)).unwrap();
+        let d = Document::from_file(&path).unwrap();
+        assert!(d.summary().lazy);
+        (path, d)
+    }
+
+    fn set_a(v: i64) -> Op {
+        Op::SetValue {
+            path: Path(vec![PathSegment::Key("a".into())]),
+            value: serde_json::json!(v),
+        }
+    }
+
+    #[test]
+    fn undo_to_the_saved_state_clears_dirty_on_a_large_doc() {
+        let (path, mut d) = large_doc_file("large-undo.json");
+
+        d.apply(&set_a(2)).unwrap();
+        d.undo().unwrap();
+        assert!(!d.summary().dirty, "undo back to the opened content");
+
+        d.apply(&set_a(3)).unwrap();
+        d.save(None).unwrap();
+        d.apply(&set_a(4)).unwrap();
+        d.undo().unwrap();
+        assert!(!d.summary().dirty, "undo back to the saved content");
+        d.undo().unwrap();
+        assert!(d.summary().dirty, "one step before the save");
+        d.redo().unwrap();
+        assert!(!d.summary().dirty, "redo forward to the saved content");
+
+        d.undo().unwrap();
+        d.apply(&set_a(5)).unwrap();
+        assert!(
+            d.summary().dirty,
+            "a new edit drops the saved state from redo"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn an_edit_during_a_large_save_keeps_the_doc_dirty() {
+        let (path, mut d) = large_doc_file("large-race.json");
+        d.apply(&set_a(2)).unwrap();
+
+        let pending = d.prepare_save(None).unwrap();
+        d.apply(&set_a(3)).unwrap();
+        pending.write().unwrap();
+        d.finish_save(&pending);
+        assert!(d.summary().dirty, "the file has the earlier content");
+        d.undo().unwrap();
+        d.undo().unwrap();
+        assert!(d.summary().dirty, "the opened content is no longer on disk");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn save_updates_source_size_to_the_written_bytes() {
+        let path = temp_path("size.json");
+        std::fs::write(&path, r#"{"a":1}"#).unwrap();
+        let mut d = Document::from_file(&path).unwrap();
+
+        d.save(None).unwrap();
+        assert_eq!(
+            d.summary().source_size,
+            std::fs::metadata(&path).unwrap().len()
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_schema_ref_to_another_address_names_that_address() {
+        let d = doc(r#"{"a": 1}"#);
+        for uri in ["https://example.com/s.json", "file:///tmp/s.json"] {
+            let err = d
+                .validate_schema(&format!(r#"{{"$ref": "{uri}"}}"#))
+                .unwrap_err();
+            let wire = crate::doc::types::WireError::from(err);
+            assert_eq!(wire.kind, crate::doc::types::ErrorKind::SchemaExternalRef);
+            assert_eq!(wire.detail.as_deref(), Some(uri));
+        }
+    }
+
+    #[test]
+    fn save_copy_sends_edits_to_a_reply_file_without_adopting_it() {
+        let mut d = Document::from_text(r#"{"a": 1}"#, Some("stdin".into())).unwrap();
+        d.apply(&Op::SetValue {
+            path: Path::root(),
+            value: serde_json::json!({ "a": 2 }),
+        })
+        .unwrap();
+        let reply =
+            std::env::temp_dir().join(format!("pandia-reply-copy-{}.json", std::process::id()));
+        std::fs::write(&reply, "").unwrap();
+
+        d.save_copy(&reply.to_string_lossy()).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&reply).unwrap()).unwrap();
+        assert_eq!(written, serde_json::json!({ "a": 2 }));
+        let s = d.summary();
+        assert!(!s.dirty, "sent edits count as saved");
+        assert!(!s.file_backed, "the tab stays an unsaved stdin document");
+        assert_eq!(s.source_path.as_deref(), Some("stdin"));
+
+        std::fs::remove_file(&reply).unwrap();
+        assert!(
+            d.save_copy(&reply.to_string_lossy()).is_err(),
+            "a missing reply file is not recreated with default permissions"
+        );
+    }
+
     #[test]
     fn save_writes_edits_and_clears_dirty() {
         let mut d = doc(r#"{"a": 1}"#);
@@ -1305,20 +1510,6 @@ mod tests {
     }
 
     #[test]
-    fn set_file_path_makes_doc_file_backed() {
-        let mut d = Document::from_text(r#"{"a": 1}"#, Some("orig.json".into())).unwrap();
-        assert!(!d.summary().file_backed);
-        d.set_file_path("/tmp/whatever.json".into());
-        assert!(d.summary().file_backed, "re-attached path → file-backed");
-        d.apply(&Op::SetValue {
-            path: Path::root(),
-            value: serde_json::json!({ "a": 2 }),
-        })
-        .unwrap();
-        assert!(d.summary().dirty);
-    }
-
-    #[test]
     fn small_doc_uses_eager_path() {
         let d = doc(r#"{"a": 1, "b": 2}"#);
         assert!(matches!(d.inner, DocumentImpl::Eager(_)));
@@ -1334,6 +1525,73 @@ mod tests {
         let s = d.summary();
         assert!(s.lazy);
         assert_eq!(s.root_kind, NodeKind::Object);
+    }
+
+    #[test]
+    fn a_lazy_doc_keeps_the_text_it_was_given_rather_than_a_copy() {
+        let pad = "x".repeat(11 * 1024 * 1024);
+        let text = FastStr::from_string(format!(r#"{{"pad": "{pad}"}}"#));
+        let d = Document::from_source(text.clone(), None).unwrap();
+        let DocumentImpl::Lazy(lazy) = &d.inner else {
+            panic!("expected the lazy backend");
+        };
+        assert_eq!(lazy.source().as_ptr(), text.as_ptr());
+    }
+
+    fn nested_doc(depth: usize, pad: usize) -> String {
+        format!(
+            r#"{{"pad":"{}","n":{}{{"leaf":"stale","leaf":"needle"}}{}"#,
+            "x".repeat(pad),
+            r#"{"n":"#.repeat(depth - 2),
+            "}".repeat(depth - 1)
+        )
+    }
+
+    #[test]
+    fn a_thousand_deep_doc_works_on_a_worker_sized_stack() {
+        let stack = if cfg!(debug_assertions) { 256 } else { 2 } * 1024 * 1024;
+        std::thread::Builder::new()
+            .stack_size(stack)
+            .spawn(|| {
+                for pad in [0, 11 * 1024 * 1024] {
+                    let mut d = doc(&nested_doc(1000, pad));
+                    assert_eq!(d.summary().lazy, pad > 0);
+                    let opts = SearchOptions {
+                        query: "needle".into(),
+                        case_sensitive: true,
+                        max_results: None,
+                    };
+                    let never = crate::doc::jobs::CancelFlag::never();
+                    assert_eq!(d.search(&opts, &never).unwrap().len(), 1);
+                    d.generate_types(TypegenLang::Typescript, "Root").unwrap();
+
+                    let mut leaf = Path(vec![PathSegment::Key("n".into()); 999]);
+                    leaf.push(PathSegment::Key("leaf".into()));
+                    d.apply(&Op::SetValue {
+                        path: leaf.clone(),
+                        value: serde_json::json!("edited"),
+                    })
+                    .unwrap();
+                    assert_eq!(d.get_value(&leaf).unwrap(), serde_json::json!("edited"));
+                    drop(d);
+
+                    let err = Document::from_text(&nested_doc(1001, pad), None).unwrap_err();
+                    assert!(matches!(err, DocError::TooDeep { limit: 1000 }), "{err:?}");
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn child_count_at_root_counts_every_key_of_a_lazy_object() {
+        let pad = "x".repeat(100);
+        let keys = 120_000;
+        let body: Vec<String> = (0..keys).map(|i| format!(r#""k{i}": "{pad}""#)).collect();
+        let d = doc(&format!("{{{}}}", body.join(",")));
+        assert!(d.summary().lazy);
+        assert_eq!(d.child_count_at(&Path::root()).unwrap(), Some(keys));
     }
 
     #[test]
@@ -1576,6 +1834,67 @@ mod tests {
     }
 
     #[test]
+    fn grid_sees_every_row_of_a_large_nested_array_in_a_lazy_doc() {
+        let row = r#"{"id": 1, "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}"#;
+        let n = 1000;
+        let text = format!(
+            r#"{{"rows": [{}], "pad": "{}"}}"#,
+            vec![row; n].join(","),
+            "x".repeat(11 * 1024 * 1024)
+        );
+        assert!(n * row.len() > 64 * 1024);
+        let d = doc(&text);
+        assert!(d.summary().lazy);
+
+        let rows = Path(vec![PathSegment::Key("rows".into())]);
+        let schema = super::super::schema::sniff_columns(&d, &rows).unwrap();
+        assert_eq!(schema.row_count, n as u32);
+        assert!(schema.grid_suitable);
+        assert_eq!(d.get_rows(&rows, 0..3).unwrap().len(), 3);
+    }
+
+    #[test]
+    #[ignore = "perf probe; run with --release --ignored"]
+    fn perf_grid_on_a_large_nested_array() {
+        use std::fmt::Write;
+        use std::time::Instant;
+        let n = 500_000u32;
+        let note = "x".repeat(120);
+        let mut text = String::from(r#"{"meta":{"v":1},"rows":["#);
+        for i in 0..n {
+            if i > 0 {
+                text.push(',');
+            }
+            write!(
+                text,
+                r#"{{"id":{i},"name":"user {i}","score":{i}.5,"active":true,"tags":["a","b"],"note":"{note}"}}"#
+            )
+            .unwrap();
+        }
+        text.push_str("]}");
+        let d = doc(&text);
+        eprintln!(
+            "[perf] {} MB, lazy={}",
+            text.len() / 1_000_000,
+            d.summary().lazy
+        );
+        let rows = Path(vec![PathSegment::Key("rows".into())]);
+
+        let t = Instant::now();
+        assert!(
+            super::super::schema::sniff_columns(&d, &rows)
+                .unwrap()
+                .grid_suitable
+        );
+        eprintln!("[perf] sniff columns: {:?}", t.elapsed());
+        for range in [0..100, 250_000..250_100, n - 100..n] {
+            let t = Instant::now();
+            assert_eq!(d.get_rows(&rows, range.clone()).unwrap().len(), 100);
+            eprintln!("[perf] rows {range:?}: {:?}", t.elapsed());
+        }
+    }
+
+    #[test]
     fn apply_set_value_bumps_version_and_returns_inverse() {
         let mut d = doc(r#"{"a": 1}"#);
         assert_eq!(d.version, 0);
@@ -1615,6 +1934,26 @@ mod tests {
         d.undo().unwrap().expect("undo available");
         assert_eq!(d.get_value(&Path::root()).unwrap(), initial);
         assert_eq!(d.version, 2);
+    }
+
+    #[test]
+    fn a_failed_edit_leaves_a_lazy_doc_as_it_was() {
+        let pad = "x".repeat(11 * 1024 * 1024);
+        let json = format!(r#"{{"emoji": "\ud83d", "pad": "{}"}}"#, pad);
+        let mut d = doc(&json);
+        assert!(matches!(d.inner, DocumentImpl::Lazy(_)));
+
+        let op = super::super::ops::Op::InsertKey {
+            path: Path::root(),
+            key: "added".into(),
+            value: serde_json::json!(true),
+            position: None,
+        };
+        assert!(d.apply(&op).is_err());
+
+        assert!(matches!(d.inner, DocumentImpl::Lazy(_)));
+        assert_eq!(d.summary().root_kind, NodeKind::Object);
+        assert_eq!(d.get_slice(&Path::root(), 0..10).unwrap().len(), 2);
     }
 
     #[test]
@@ -2050,6 +2389,71 @@ mod tests {
     }
 
     #[test]
+    fn get_column_plucks_key_and_skips_items_without_it() {
+        let d = doc(r#"[
+                {"info": {"name": "Linh"}},
+                {"other": 1},
+                42,
+                {"info": null},
+                {"info": {"name": "David"}}
+            ]"#);
+        let vals = d.get_column(&Path::root(), "info").unwrap();
+        assert_eq!(
+            vals,
+            vec![
+                serde_json::json!({"name": "Linh"}),
+                serde_json::Value::Null,
+                serde_json::json!({"name": "David"}),
+            ]
+        );
+    }
+
+    #[test]
+    fn file_errors_carry_operation_path_and_problem() {
+        use crate::doc::types::{FileOp, IoProblem, WireError};
+
+        let dir = std::env::temp_dir().join(format!("pandia-io-{}", std::process::id()));
+        let missing = dir.join("missing.json");
+        let io = WireError::from(Document::from_file(&missing).unwrap_err())
+            .io
+            .expect("file errors carry io context");
+        assert_eq!(io.problem, IoProblem::Missing);
+        assert_eq!(io.op, Some(FileOp::Open));
+        assert_eq!(io.file.as_deref(), Some(missing.to_str().unwrap()));
+
+        let target = dir.join("no-such-folder").join("out.json");
+        let mut d = doc(r#"{"a":1}"#);
+        let err = d
+            .save(Some(target.to_string_lossy().into_owned()))
+            .unwrap_err();
+        let io = WireError::from(err).io.unwrap();
+        assert_eq!(
+            (io.problem, io.op),
+            (IoProblem::Missing, Some(FileOp::Save))
+        );
+
+        std::fs::create_dir_all(&dir).unwrap();
+        let binary = dir.join("binary.json");
+        std::fs::write(&binary, [0xff, 0xfe, 0x00, 0x7b]).unwrap();
+        let io = WireError::from(Document::from_file(&binary).unwrap_err())
+            .io
+            .unwrap();
+        assert_eq!(
+            (io.problem, io.op),
+            (IoProblem::NotText, Some(FileOp::Open))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn get_column_root_rejected_when_too_large() {
+        let mut d = doc(r#"[{"a": 1}]"#);
+        d.source_size = 210 * 1024 * 1024;
+        let err = d.get_column(&Path::root(), "a").unwrap_err();
+        assert!(matches!(err, DocError::TooLarge { .. }));
+    }
+
+    #[test]
     fn column_values_keep_lossless_number_tokens() {
         let d = doc(r#"[
                 {"id": 123456789012345678},
@@ -2066,6 +2470,17 @@ mod tests {
         assert_eq!(big.count, 2);
 
         assert!(cv.values.iter().any(|v| v.value.as_str() == "\"x\""));
+    }
+
+    #[test]
+    fn replace_all_never_renames_a_key_onto_another_key() {
+        for text in [r#"{"foo":1,"baz":2}"#, r#"{"baz":2,"foo":1}"#] {
+            let mut d = doc(text);
+            let r = d.replace_all("foo", "baz", false).unwrap();
+            assert_eq!(r.count, 0, "{text}");
+            let v = d.get_value(&Path::root()).unwrap();
+            assert_eq!(v, serde_json::json!({"foo": 1, "baz": 2}), "{text}");
+        }
     }
 
     #[test]
@@ -2096,6 +2511,16 @@ mod tests {
         let r3 = d3.replace_all("zzz", "y", false).unwrap();
         assert_eq!(r3.count, 0);
         assert!(r3.applied.is_none());
+    }
+
+    #[test]
+    fn a_failed_export_leaves_the_existing_file_untouched() {
+        let d = doc(r#"{"not": "an array of objects"}"#);
+        let path = temp_path("export-keep.csv");
+        std::fs::write(&path, "id,name\n1,kept\n").unwrap();
+        assert!(d.export_to_file(ExportFormat::Csv, &path).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "id,name\n1,kept\n");
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

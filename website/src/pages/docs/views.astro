@@ -21,13 +21,17 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   <p>The default and primary view: a virtualized, indented <code>key: value</code> outline. Because
   rows are virtualized and streamed in slices, the Tree handles huge files without lag.</p>
   <ul>
-    <li><strong>Carets</strong> — expandable rows show an orange caret; click a row to select it and
-    toggle it open or closed.</li>
+    <li><strong>Carets</strong> — expandable rows show a caret, orange on the selected row; click a row
+    to select it and toggle it open or closed.</li>
     <li><strong>Type-count chips</strong> — a collapsed container shows a chip like <code>&#123;3 props&#125;</code>
     or <code>[5 items]</code>, so you know what is inside without expanding it.</li>
     <li><strong>Kind-coloured values</strong> — strings, numbers, booleans and <code>null</code> each get
     their own hue, while <em>keys stay uncoloured</em>. A bare URL value renders as an underlined link
     you can open in the system browser.</li>
+    <li><strong>Image previews</strong> — hover an image value to see it. Embedded
+    <code>data:image</code> values preview straight away; for an https:// image link Pandia asks
+    first, because loading it contacts that server. Turn on <strong>Settings → Behavior → image
+    previews from the web</strong> to skip the question.</li>
     <li><strong>Indent guides</strong> — vertical guides mark each depth level and brighten on hover.</li>
     <li><strong>Drag to reorder</strong> — grab a row's drag grip to move it; an orange drop-line shows
     where it will land.</li>
@@ -45,8 +49,8 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   <ul>
     <li><strong>Gutters</strong> — a line-number gutter and a fold gutter; folded ranges collapse to a
     placeholder chip.</li>
-    <li><strong>Orange cursor and active line</strong> — the caret and the active line are tinted with
-    the accent.</li>
+    <li><strong>Orange cursor and active line</strong> — the caret is orange and the active line gets a
+    subtle band.</li>
     <li><strong>Live lint</strong> — invalid JSON is underlined as you type.</li>
     <li><strong>Search highlighting</strong> — matches from the find bar are highlighted, with the
     current match outlined.</li>
@@ -68,6 +72,8 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
     strings, booleans and <code>null</code> are coloured by kind; and odd rows carry a faint stripe.</li>
     <li><strong>Cell inspector</strong> — select a cell and a panel at the bottom shows its full value,
     pretty-printed for objects and arrays.</li>
+    <li><strong>Image previews</strong> — hover a cell holding an image link or embedded image to see
+    it, with the same rules as the Tree.</li>
   </ul>
   <p>The Grid is available when the document is an array of objects; otherwise it explains why it can't
   be shown.</p>
@@ -76,7 +82,8 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   <p>A left-to-right node diagram drawn on a dot grid. Each object or array becomes a card; expanding a
   row spawns the child cards it points to.</p>
   <ul>
-    <li><strong>Cards</strong> — every card has a header and kind-coloured <code>key: value</code> rows.</li>
+    <li><strong>Cards</strong> — every card has a header and <code>key: value</code> rows, with values
+    coloured by kind.</li>
     <li><strong>Expand/collapse ports</strong> — expandable rows carry a circular port on their right
     edge; click it to grow or fold that branch.</li>
     <li><strong>Floating dock</strong> — a bottom dock holds fit-to-view, zoom, expand-all and a settings

@@ -92,12 +92,21 @@ pub(crate) fn replace_in_value(v: &mut Value, re: &Regex, repl: &str, count: &mu
         }
         Value::Object(map) => {
             let entries: Vec<(String, Value)> = std::mem::take(map).into_iter().collect();
+            let original: std::collections::HashSet<String> =
+                if entries.iter().any(|(k, _)| re.is_match(k)) {
+                    entries.iter().map(|(k, _)| k.clone()).collect()
+                } else {
+                    Default::default()
+                };
             for (k, mut val) in entries {
                 replace_in_value(&mut val, re, repl, count);
                 let kc = re.find_iter(&k).count() as u32;
                 let key = if kc > 0 {
                     let candidate = re.replace_all(&k, regex::NoExpand(repl)).into_owned();
-                    if candidate != k && !map.contains_key(&candidate) {
+                    if candidate != k
+                        && !map.contains_key(&candidate)
+                        && !original.contains(&candidate)
+                    {
                         *count += kc;
                         candidate
                     } else {
@@ -195,6 +204,28 @@ impl super::backend::DocumentBackend for Value {
             Ok(Value::Array(arr)) => Ok(arr.iter().map(|el| cell(el, key).cloned()).collect()),
             _ => Ok(Vec::new()),
         }
+    }
+
+    fn for_each_row_field(
+        &self,
+        path: &Path,
+        cancel: &super::jobs::CancelFlag,
+        f: &mut dyn FnMut(&str, NodeKind),
+    ) -> DocResult<u32> {
+        let Ok(Value::Array(arr)) = resolve_eager(self, path) else {
+            return Ok(0);
+        };
+        for (i, el) in arr.iter().enumerate() {
+            if i % 4096 == 0 && cancel.is_cancelled() {
+                return Err(DocError::Cancelled);
+            }
+            if let Value::Object(map) = el {
+                for (k, v) in map {
+                    f(k, kind_and_child_count_eager(v).0);
+                }
+            }
+        }
+        Ok(arr.len() as u32)
     }
 
     fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {

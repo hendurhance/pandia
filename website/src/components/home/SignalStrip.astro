@@ -1,6 +1,45 @@
 ---
+const usedBy = [
+  { name: 'Airbus', slug: 'airbus' },
+  { name: 'ServiceNow', slug: 'servicenow' },
+  { name: 'Grab', slug: 'grab' },
+  { name: 'Bloomberg', slug: 'bloomberg' },
+  { name: 'Tencent', slug: 'tencent' },
+  { name: 'Rostelecom', slug: 'rostelecom' },
+  { name: 'Tiflux', slug: 'tiflux' },
+  { name: 'Homebox', slug: 'homebox' },
+  { name: 'Nucleus Security', slug: 'nucleus-security' },
+  { name: 'Revenue.io', slug: 'revenue-io' },
+];
+
+const svgs = import.meta.glob<string>('../../assets/logos/*.svg', { query: '?raw', import: 'default', eager: true });
+
+// Same visual area for every logo, so wide wordmarks and compact marks weigh the same.
+const AREA = 1900;
+const sized = usedBy.map(({ name, slug }) => {
+  const svg = svgs[`../../assets/logos/${slug}.svg`];
+  const [, , w, h] = svg.match(/viewBox="([^"]+)"/)![1].trim().split(/[\s,]+/).map(Number);
+  const height = Math.min(30, Math.max(14, Math.sqrt((AREA * h) / w)));
+  return { name, svg, ratio: w / h, width: (height * w) / h };
+});
+// On narrower screens each logo shrinks to its share of one row, with about a fifth kept for spacing.
+const rowWidth = sized.reduce((sum, l) => sum + l.width, 0) * 1.22;
+const logos = sized.map((l) => ({
+  ...l,
+  style: `--w:${l.width.toFixed(1)}px;--share:${(l.width / rowWidth).toFixed(4)};--ratio:${l.ratio.toFixed(3)}`,
+}));
 ---
 <section class="proof">
+  <div class="usedby">
+    <p class="usedby-label">Used by engineers at</p>
+    <ul class="usedby-list">
+      {logos.map((l) => (
+        <li>
+          <span class="usedby-logo" role="img" aria-label={l.name} style={l.style} set:html={l.svg} />
+        </li>
+      ))}
+    </ul>
+  </div>
   <div class="proof-in">
     <div class="proof-cell"><span class="pv">Open source</span><span class="pl">Apache-2.0 license</span></div>
     <div class="proof-cell"><span class="pv">3 platforms</span><span class="pl">macOS · Windows · Linux</span></div>
@@ -14,6 +53,23 @@
     border-top: 1px solid var(--page-rule); border-bottom: 1px solid var(--page-rule);
     background: var(--page-bg-2);
   }
+  .pandia-page .usedby {
+    max-width: var(--maxw); margin: 0 auto; padding: 28px 32px 30px;
+    border-bottom: 1px solid var(--page-rule); container-type: inline-size;
+  }
+  .pandia-page .usedby-label {
+    margin: 0 0 22px; text-align: center;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-faint);
+  }
+  .pandia-page .usedby-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .pandia-page .usedby-logo {
+    display: block; width: min(var(--w), var(--share) * 100cqw); aspect-ratio: var(--ratio);
+    color: var(--page-faint);
+  }
+  .pandia-page .usedby-logo svg { display: block; width: 100%; height: 100%; }
   .pandia-page .proof-in {
     max-width: var(--maxw); margin: 0 auto;
     display: grid; grid-template-columns: repeat(4, 1fr);
@@ -32,11 +88,17 @@
   }
 
   @media (max-width: 940px) {
+    .pandia-page .usedby-list { display: grid; grid-template-columns: repeat(5, 1fr); row-gap: 26px; }
+    .pandia-page .usedby-list li { display: flex; justify-content: center; }
+    .pandia-page .usedby-logo { width: min(var(--w), 100%); }
     .pandia-page .proof-in { grid-template-columns: 1fr 1fr; }
     .pandia-page .proof-cell:nth-child(2) { border-right: 0; }
     .pandia-page .proof-cell:nth-child(1), .pandia-page .proof-cell:nth-child(2) { border-bottom: 1px solid var(--page-rule); }
   }
   @media (max-width: 560px) {
+    .pandia-page .usedby { padding: 24px 16px 26px; }
+    .pandia-page .usedby-list { grid-template-columns: repeat(2, 1fr); }
+    .pandia-page .usedby-logo { width: min(calc(var(--w) * 0.85), 100%); }
     .pandia-page .proof-cell { padding: 18px 16px; }
     .pandia-page .proof-cell .pv { font-size: 19px; }
     .pandia-page .proof-cell .pl { letter-spacing: 0.08em; }

@@ -4,7 +4,8 @@
 		SCHEMA_DEBOUNCE_IMMEDIATE,
 		SCHEMA_DEBOUNCE_MANUAL,
 	} from './state/behavior-prefs.svelte';
-	import { fmtKbd } from '$lib/util/platform';
+	import { shortcutLabel } from '$lib/shell/logic/shortcuts';
+	import TerminalCommandField from './TerminalCommandField.svelte';
 
 	$effect(() => {
 		void behaviorPrefs.init();
@@ -55,6 +56,44 @@
 				{:else}
 					Re-validates {activeDebounce} ms after you stop editing.
 				{/if}
+			</div>
+		</div>
+	</section>
+
+	<section class="field">
+		<div class="field-label">schemas over http</div>
+		<div class="field-control">
+			<button
+				class="switch"
+				role="switch"
+				aria-checked={behaviorPrefs.allowHttpSchemas}
+				onclick={() => behaviorPrefs.setAllowHttpSchemas(!behaviorPrefs.allowHttpSchemas)}
+			>
+				<span class="switch-knob"></span>
+				<span class="switch-text">{behaviorPrefs.allowHttpSchemas ? 'on' : 'off'}</span>
+			</button>
+			<div class="text-sm dim">
+				Allow a schema from <code>--schema</code> or a document's <code>$schema</code> to load from an
+				http:// URL. Off keeps remote schemas to https:// only.
+			</div>
+		</div>
+	</section>
+
+	<section class="field">
+		<div class="field-label">image previews from the web</div>
+		<div class="field-control">
+			<button
+				class="switch"
+				role="switch"
+				aria-checked={behaviorPrefs.loadWebImages}
+				onclick={() => behaviorPrefs.setLoadWebImages(!behaviorPrefs.loadWebImages)}
+			>
+				<span class="switch-knob"></span>
+				<span class="switch-text">{behaviorPrefs.loadWebImages ? 'on' : 'off'}</span>
+			</button>
+			<div class="text-sm dim">
+				Hovering an https:// image link shows a preview without asking. Off asks first, because
+				loading an image contacts the server it lives on. Embedded images always preview.
 			</div>
 		</div>
 	</section>
@@ -112,6 +151,7 @@
 			<div class="text-sm dim">
 				When a document fails to parse — pasted, dropped, opened from disk, or fetched — attempt
 				JSON repair (trailing commas, unterminated strings, comments, …) before showing an error.
+				The repaired document opens as a copy, so the original is only replaced if you save over it.
 			</div>
 		</div>
 	</section>
@@ -129,8 +169,8 @@
 				<span class="switch-text">{behaviorPrefs.autoSaveOnIdle ? 'on' : 'off'}</span>
 			</button>
 			<div class="text-sm dim">
-				Save file-backed documents automatically after a brief pause in typing. When off, {fmtKbd(
-					'⌘S',
+				Save file-backed documents automatically after a brief pause in typing. When off, {shortcutLabel(
+					'doc.save',
 				)} saves manually and closing an unsaved tab prompts to save.
 			</div>
 			{#if behaviorPrefs.autoSaveOnIdle}
@@ -149,4 +189,6 @@
 			{/if}
 		</div>
 	</section>
+
+	<TerminalCommandField />
 </div>

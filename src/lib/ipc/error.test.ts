@@ -23,6 +23,12 @@ describe('toIpcError', () => {
 		expect((e as IpcError).kind).toBe('notFound');
 		expect(String(e)).toBe('document not found');
 	});
+	it('carries file-error context across the boundary', () => {
+		const io = { problem: 'missing', op: 'open', file: '/tmp/a.json' } as const;
+		const e = toIpcError({ kind: 'io', message: 'io error', io });
+		expect(e instanceof IpcError && e.io).toEqual(io);
+	});
+
 	it('passes non-wire rejections through unchanged', () => {
 		const err = new Error('boom');
 		expect(toIpcError(err)).toBe(err);

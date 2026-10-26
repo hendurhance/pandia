@@ -1,17 +1,11 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
-	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import { ipc } from '$lib/ipc/client';
+	import { decodeLossless } from '$lib/ipc/wire';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type {
-		ColumnSchema,
-		DocHandle,
-		NodeKind,
-		OpenSource,
-		Path,
-		TypegenLang,
-	} from '$lib/ipc/bindings';
-	import type { MenuAction } from '$lib/views/tree/logic/model';
+	import type { ColumnSchema, NodeKind, OpenSource, Path, TypegenLang } from '$lib/ipc/bindings';
+	import { rootRow, type MenuAction } from '$lib/views/tree/logic/model';
+	import { chipText } from '$lib/views/tree/logic/row-format';
 	import TreeView from '$lib/views/tree/components/TreeView.svelte';
 	import Breadcrumb from '$lib/views/tree/components/Breadcrumb.svelte';
 	import CodeView, { type CodeViewApi } from '$lib/views/code/CodeView.svelte';
@@ -35,12 +29,13 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import { Check, X } from '@lucide/svelte';
 	import { fmtBytes } from '$lib/util/format';
-	import { fmtKbd } from '$lib/util/platform';
+	import { shortcutLabel } from '$lib/shell/logic/shortcuts';
 	import { createDocPaneCommands } from '../logic/doc-pane-commands';
-	import { handleDocMenuEvent } from '../logic/doc-menu-events';
 	import { DocumentSession } from '../state/document-session.svelte';
 	import type { DocPaneActions } from '../logic/doc-actions';
-	import { schemaStore } from '$lib/panels/state/schema-store.svelte';
+	import { lastResult, schemaSessions } from '$lib/panels/state/schema-store.svelte';
+	import { autoloadSchema } from '$lib/panels/state/schema-autoload';
+	import type { DocContext, TabSlot } from '$lib/shell/state/workspace.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import type { DocStatus } from '$lib/shell/logic/status';
 	import EmptyState from '$lib/shell/components/EmptyState.svelte';
@@ -49,44 +44,30 @@
 
 	interface Props {
 		tabId: string;
+		slot: TabSlot;
 		isActive: boolean;
-		onLabelChange: (label: string, sourceName: string | null) => void;
-		onStatusChange: (status: DocStatus | null) => void;
 		pendingOpen?: OpenSource | null;
 		onOpened?: () => void;
 
 		onOpenInNewTab?: (source: OpenSource, opts?: { focus?: boolean }) => void;
 
-		onContextChange?: (
-			ctx: {
-				handle: DocHandle;
-				version: number;
-				sourceName: string | null;
-				fileBacked: boolean;
-				save: (opts?: { silent?: boolean }) => Promise<boolean>;
-			} | null,
-		) => void;
 		paneBus?: PaneCommandBus | null;
-		isHandleAlive?: (h: DocHandle) => boolean;
-
-		confirmLargeFile?: (path: string) => Promise<boolean>;
 
 		confirmCommentLoss?: (name: string) => Promise<'save' | 'saveAs' | 'cancel'>;
+
+		confirmSchemaFetch?: (host: string) => Promise<boolean>;
 	}
 
 	let {
 		tabId,
+		slot,
 		isActive,
-		onLabelChange,
-		onStatusChange,
 		pendingOpen = null,
 		onOpened = () => {},
 		onOpenInNewTab = () => {},
-		onContextChange = () => {},
 		paneBus = null,
-		isHandleAlive = () => true,
-		confirmLargeFile,
 		confirmCommentLoss,
+		confirmSchemaFetch = () => Promise.resolve(false),
 	}: Props = $props();
 
 	function tabLabelFor(name: string | null): string {
@@ -129,8 +110,7 @@
 	const doc = new DocumentSession({
 		isActive: () => isActive,
 		onOpenInNewTab: (source) => onOpenInNewTab(source),
-		isHandleAlive: (h) => isHandleAlive(h),
-		confirmLargeFile: (p) => (confirmLargeFile ? confirmLargeFile(p) : Promise.resolve(true)),
+		isHandleAlive: (h) => slot.isHandleAlive(h),
 		confirmCommentLoss: (n) =>
 			confirmCommentLoss ? confirmCommentLoss(n) : Promise.resolve('save' as const),
 		code: { api: () => codeApi, dirty: () => codeDirty },
@@ -163,16 +143,25 @@
 	let exportOpen = $state(false);
 
 	$effect(() => {
-		if (nav.selectedPath !== null && nav.selectedIndex === -1) {
+		void tree.rows;
+		const path = nav.selectedPath;
+		if (path !== null && !session.refreshing && tree.contentRowIdx(path) === -1) {
 			nav.select(null);
 		}
 	});
 
+	const schema = $derived(schemaSessions.for(tabId));
+
+	$effect(() => {
+		const handle = session.handle;
+		const version = session.summary?.version;
+		if (handle && version !== undefined) schema.documentChanged(handle, version);
+	});
+
 	const invalidMarks = $derived(
 		computeInvalidMarks({
-			result: schemaStore.get(tabId).result,
-			validatedVersion: schemaStore.get(tabId).validatedVersion,
-			liveVersion: session.summary?.version ?? null,
+			result: lastResult(schema.verdict),
+			stale: schema.verdict.kind === 'checking' || schema.verdict.kind === 'stale',
 			rows: tree.rows,
 		}),
 	);
@@ -200,7 +189,9 @@
 			if (doc.viewMode === 'code' && codeApi) codeApi.redo();
 			else void session.redo();
 		},
-		close: session.reset,
+		close: async () => {
+			if (await slot.resolveUnsaved()) await session.reset();
+		},
 		goToPath: nav.goToPath,
 		onExpandAll,
 		onCollapseAll,
@@ -216,38 +207,20 @@
 		exitCompare: compare.exit,
 	};
 
-	$effect(() => {
-		let unlisten: UnlistenFn | null = null;
-		let cancelled = false;
-		listen<string>('menu-event', (e) => {
-			if (isActive) handleDocMenuEvent(e.payload, actions);
-		}).then((fn) => {
-			if (cancelled) fn();
-			else unlisten = fn;
-		});
-		return () => {
-			cancelled = true;
-			unlisten?.();
-		};
-	});
-
-	$effect(() => {
-		onLabelChange(tabLabelFor(session.sourceName), session.sourceName);
-	});
-
-	$effect(() => {
-		if (session.handle && session.summary) {
-			onContextChange({
-				handle: session.handle,
-				version: session.summary.version,
-				sourceName: session.sourceName,
-				fileBacked: session.summary.fileBacked,
-				save: (opts) => session.save(opts),
-			});
-		} else {
-			onContextChange(null);
-		}
-	});
+	const contextHandle = $derived(session.handle);
+	const contextVersion = $derived(session.summary?.version ?? null);
+	const contextFileBacked = $derived(session.summary?.fileBacked ?? false);
+	const context = $derived.by<DocContext | null>(() =>
+		contextHandle && contextVersion !== null
+			? {
+					handle: contextHandle,
+					version: contextVersion,
+					sourceName: session.sourceName,
+					fileBacked: contextFileBacked,
+					save: (opts) => session.save(opts),
+				}
+			: null,
+	);
 
 	const status = $derived.by<DocStatus | null>(() => {
 		const s = session.summary;
@@ -261,20 +234,34 @@
 				? (gridSelected?.kind ?? null)
 				: kindAtSelection(tree.rows, tree.contentRowIdx, activePath, s.rootKind),
 			sizeDisplay: fmtBytes(s.sourceSize),
+			rootCountDisplay: chipText(rootRow(s.rootKind, s.rootChildCount)),
 			lazy: s.lazy,
 			validity: validityFromView({
 				viewMode: doc.viewMode,
 				codeValid,
-				schemaResult: schemaStore.get(tabId).result,
+				schemaResult: lastResult(schema.verdict),
 			}),
 			editing: edit.active,
 			dirty: doc.isDirty,
 		};
 	});
 
-	$effect(() => {
-		onStatusChange(status);
-	});
+	$effect(() =>
+		slot.register({
+			get label() {
+				return tabLabelFor(session.sourceName);
+			},
+			get sourceName() {
+				return session.sourceName;
+			},
+			get status() {
+				return status;
+			},
+			get context() {
+				return context;
+			},
+		}),
+	);
 
 	$effect(() => {
 		if (!isActive) return;
@@ -310,13 +297,61 @@
 	});
 
 	$effect(() => {
+		session.handoff = slot.handoff;
+	});
+
+	$effect(() => {
 		const p = pendingOpen;
 		if (!p) return;
 		void (async () => {
-			await session.loadFromSource(p);
+			const opened = await session.loadFromSource(p);
 			onOpened();
+			const s = session.summary;
+			const handoff = slot.handoff;
+			const instructions = handoff?.takeInstructions() ?? null;
+			if (!opened || !session.handle || !s) {
+				handoff?.failed(doc.error ?? "The file didn't open.");
+				return;
+			}
+			handoff?.opened();
+			if (instructions?.compareWith) {
+				void compare.start({ kind: 'path', path: instructions.compareWith });
+			}
+			await loadDocSchema(instructions?.schema ?? null);
 		})();
 	});
+
+	function loadDocSchema(cliSchema: string | null): Promise<void> {
+		const s = session.summary;
+		if (!session.handle || !s) return Promise.resolve();
+		return autoloadSchema(
+			{
+				tabId,
+				handle: session.handle,
+				version: s.version,
+				path: s.sourcePath,
+				rootIsObject: s.rootKind === 'object',
+				cliSchema,
+			},
+			confirmSchemaFetch,
+		);
+	}
+
+	async function openInPlace(opening: Promise<boolean>): Promise<boolean> {
+		const opened = await opening;
+		if (opened) void loadDocSchema(null);
+		return opened;
+	}
+
+	async function readString(path: Path): Promise<string | null> {
+		if (!session.handle) return null;
+		try {
+			const value = decodeLossless(await ipc.docGetValue(session.handle, path));
+			return typeof value === 'string' ? value : null;
+		} catch {
+			return null;
+		}
+	}
 
 	function onRowMenu(rowIndex: number, x: number, y: number) {
 		const row = tree.rows[rowIndex];
@@ -339,11 +374,17 @@
 		menuState = null;
 	}
 
-	async function onMenuAction(action: MenuAction) {
-		const row = menuState ? tree.rows[menuState.rowIndex] : null;
+	async function onRowAction(rowIndex: number, action: MenuAction) {
+		const row = tree.rows[rowIndex];
 		if (row?.variant !== 'content') return;
-		await menuAction(action, menuState!.rowIndex, row);
+		await menuAction(action, rowIndex, row);
 	}
+
+	async function onMenuAction(action: MenuAction) {
+		if (menuState) await onRowAction(menuState.rowIndex, action);
+	}
+
+	const openTree = () => void doc.switchView('tree');
 
 	async function onExpandAll() {
 		if (expandAllDisabled) return;
@@ -363,13 +404,13 @@
 					class="vm"
 					class:active={doc.viewMode === 'tree'}
 					onclick={() => void doc.switchView('tree')}
-					title={`tree view (${fmtKbd('⌘1')})`}>Tree</button
+					title={`tree view (${shortcutLabel('view.tree')})`}>Tree</button
 				>
 				<button
 					class="vm"
 					class:active={doc.viewMode === 'code'}
 					onclick={() => void doc.switchView('code')}
-					title={`code view (${fmtKbd('⌘2')})`}>Code</button
+					title={`code view (${shortcutLabel('view.code')})`}>Code</button
 				>
 				<button
 					class="vm"
@@ -377,8 +418,8 @@
 					class:available={gridSchema?.gridSuitable && doc.viewMode !== 'grid'}
 					onclick={() => void doc.switchView('grid')}
 					title={gridSchema?.gridSuitable
-						? `grid view (${fmtKbd('⌘3')}) · this document looks like a grid`
-						: `grid view (${fmtKbd('⌘3')})`}
+						? `grid view (${shortcutLabel('view.grid')}) · this document looks like a grid`
+						: `grid view (${shortcutLabel('view.grid')})`}
 					>Grid{#if gridSchema?.gridSuitable && doc.viewMode !== 'grid'}<span
 							class="vm-dot"
 							aria-hidden="true"
@@ -388,7 +429,7 @@
 					class="vm"
 					class:active={doc.viewMode === 'graph'}
 					onclick={() => void doc.switchView('graph')}
-					title={`graph view (${fmtKbd('⌘4')})`}>Graph</button
+					title={`graph view (${shortcutLabel('view.graph')})`}>Graph</button
 				>
 				{#if doc.viewMode === 'compare'}
 					<button class="vm active" onclick={compare.exit} title="exit compare">Compare</button>
@@ -403,6 +444,19 @@
 			<span class="err-text">{doc.error}</span>
 			<button class="err-dismiss" onclick={() => (doc.error = null)} aria-label="dismiss error"
 				><Icon icon={X} size="sm" /></button
+			>
+		</div>
+	{/if}
+
+	{#if slot.handoff?.waiting && session.handle}
+		<div class="banner banner-info">
+			<span class="info-head">a terminal is waiting</span>
+			<span class="info-list"
+				><span class="info-item"
+					>{slot.handoff?.repliesToTerminal
+						? `Save (${shortcutLabel('doc.save')}) to send this back, then close the tab. Closing without saving sends nothing.`
+						: 'Close this tab when you are done.'}</span
+				></span
 			>
 		</div>
 	{/if}
@@ -425,16 +479,10 @@
 
 	{#if session.repairInfo && !doc.error}
 		<div class="banner banner-info">
-			<span class="info-head"
-				>repaired
-				{#if session.repairInfo.wasUnescaped}
-					· unescaped{/if}
-				{#if session.repairInfo.cleanedUp}
-					· cleaned{/if}
-			</span>
-			{#if session.repairInfo.warnings.length > 0}
+			<span class="info-head">{session.repairInfo.title}</span>
+			{#if session.repairInfo.notes.length > 0}
 				<span class="info-list">
-					{#each session.repairInfo.warnings as w, i (i)}
+					{#each session.repairInfo.notes as w, i (i)}
 						<span class="info-item">{w}</span>
 					{/each}
 					{#if session.repairInfo.more > 0}
@@ -451,9 +499,10 @@
 	{#if !session.summary}
 		<EmptyState
 			busy={doc.busy}
-			onOpenSource={session.loadFromSource}
+			onOpenSource={(source) => openInPlace(session.loadFromSource(source))}
+			onOpenFile={(path) => onOpenInNewTab({ kind: 'file', path })}
 			diagnosis={session.diagnosis}
-			onFixDiagnosis={(t) => void session.applyDiagnosisFix(t)}
+			onFixDiagnosis={(t) => void openInPlace(session.applyDiagnosisFix(t))}
 			onDismissDiagnosis={() => (session.diagnosis = null)}
 		/>
 	{:else if doc.viewMode === 'tree'}
@@ -470,6 +519,7 @@
 		<div class="tree-pane">
 			<TreeView
 				rows={tree.rows}
+				{readString}
 				selectedIndex={nav.selectedIndex}
 				onToggle={tree.toggleAt}
 				onSelect={nav.selectRow}
@@ -477,6 +527,7 @@
 				onMaterializeGap={tree.materializeGap}
 				onReorder={(dragged, gap) => void nodeActions.reorderTo(dragged, gap)}
 				{onRowMenu}
+				{onRowAction}
 				scrollRequest={nav.scrollRequest}
 				editing={edit.state}
 				onEditInput={edit.input}
@@ -501,6 +552,8 @@
 				onReplaceChange={(v) => (find.replaceValue = v)}
 				onReplaceAll={find.replaceAll}
 				replaceStatus={find.replaceStatus}
+				replaceOpen={find.replaceOpen}
+				onToggleReplace={() => (find.replaceOpen = !find.replaceOpen)}
 			/>
 		</div>
 	{:else if doc.viewMode === 'compare' && session.handle && compare.handle && session.summary && compare.summary}
@@ -511,6 +564,8 @@
 			rightSourceSize={compare.summary.sourceSize}
 			leftName={session.sourceName ?? 'left'}
 			rightName={compare.sourceName ?? 'right'}
+			leftVersion={session.summary.version}
+			rightVersion={slot.versionOf(compare.handle) ?? compare.summary.version}
 			staleSource={compare.staleSource}
 			onExit={() => void compare.exit()}
 		/>
@@ -524,6 +579,7 @@
 				onDirtyChange={(d) => (codeDirty = d)}
 				onReady={(a) => (codeApi = a)}
 				onParseState={(st) => (codeValid = st)}
+				onOpenTree={openTree}
 			/>
 			<FindBar
 				open={find.open}
@@ -539,11 +595,14 @@
 				onReplaceChange={(v) => (find.replaceValue = v)}
 				onReplaceAll={find.replaceAll}
 				replaceStatus={find.replaceStatus}
+				replaceOpen={find.replaceOpen}
+				onToggleReplace={() => (find.replaceOpen = !find.replaceOpen)}
 			/>
 		</div>
 	{:else if doc.viewMode === 'graph' && session.handle}
 		<GraphView
 			handle={session.handle}
+			version={session.summary.version}
 			rootKind={session.summary.rootKind}
 			rootChildCount={session.summary.rootChildCount}
 			sourcePath={session.summary.sourcePath}
@@ -570,7 +629,7 @@
 				}}
 			/>
 		{:else}
-			<GridEmpty schema={gridSchema} rootKind={session.summary.rootKind} />
+			<GridEmpty schema={gridSchema} rootKind={session.summary.rootKind} onOpenTree={openTree} />
 		{/if}
 	{:else}
 		<div class="empty-state">
@@ -631,11 +690,11 @@
 	.vm {
 		display: inline-flex;
 		align-items: center;
-		padding: 0 14px;
+		padding: 0 var(--space-lg);
 		font-size: var(--font-size-xs);
-		letter-spacing: 0.16em;
+		letter-spacing: var(--label-tracking);
 		text-transform: uppercase;
-		color: var(--text-faint);
+		color: var(--text-dim);
 		background: transparent;
 		border: none;
 		border-right: var(--rule-width) solid var(--rule);
@@ -644,7 +703,7 @@
 		white-space: nowrap;
 	}
 	.vm:hover {
-		color: var(--text-dim);
+		color: var(--text);
 	}
 	.vm.active {
 		color: var(--text);
@@ -664,14 +723,10 @@
 		width: 5px;
 		height: 5px;
 		background: var(--accent);
-		margin-left: 8px;
+		margin-left: var(--space-sm);
 	}
 	.canvas-spacer {
 		flex: 1;
-	}
-
-	.dim:hover {
-		color: var(--accent);
 	}
 
 	.err-text {
@@ -682,10 +737,10 @@
 		flex-shrink: 0;
 		background: transparent;
 		border: none;
-		color: var(--accent);
-		font-size: 14px;
+		color: var(--text-dim);
+		font-size: var(--font-size-base);
 		line-height: 1;
-		padding: 0 0.3rem;
+		padding: 0 var(--space-xs);
 		cursor: pointer;
 	}
 	.err-dismiss:hover {
@@ -693,7 +748,7 @@
 	}
 
 	.info-head {
-		color: var(--accent-2);
+		color: var(--text-dim);
 		text-transform: uppercase;
 		letter-spacing: var(--label-tracking);
 		font-size: var(--font-size-xs);
@@ -701,7 +756,7 @@
 	}
 	.info-list {
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--space-xs);
 		flex-wrap: wrap;
 		min-width: 0;
 	}
@@ -713,27 +768,27 @@
 	}
 	.info-item::after {
 		content: '·';
-		margin-left: 0.4rem;
+		margin-left: var(--space-xs);
 		color: var(--text-faint);
 	}
 	.info-item:last-child::after {
 		content: '';
 	}
 	.info-more {
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 	.info-dismiss {
 		margin-left: auto;
 		flex-shrink: 0;
 		background: transparent;
 		border: none;
-		padding: 0 0.5rem;
-		color: var(--text-faint);
-		font-size: 14px;
+		padding: 0 var(--space-sm);
+		color: var(--text-dim);
+		font-size: var(--font-size-base);
 		cursor: pointer;
 	}
 	.info-dismiss:hover {
-		color: var(--accent);
+		color: var(--text);
 	}
 
 	.tree-pane {

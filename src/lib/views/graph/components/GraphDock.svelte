@@ -165,12 +165,12 @@
 		transform: translateX(-50%);
 		display: flex;
 		align-items: center;
-		gap: 0.15rem;
-		padding: 0.3rem 0.4rem;
+		gap: var(--space-2xs);
+		padding: var(--space-xs);
 		background: var(--bg-elev-2);
 		border: 1px solid var(--rule-2);
 		border-radius: 10px;
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+		box-shadow: var(--shadow-pop);
 		z-index: 2;
 	}
 	.dock-btn {
@@ -190,11 +190,6 @@
 	}
 	.dock-btn:hover:not(:disabled) {
 		color: var(--text);
-		background: var(--bg-elev-3);
-	}
-	.dock-btn:focus-visible {
-		outline: none;
-		color: var(--accent);
 		background: var(--bg-elev-3);
 	}
 	.dock-btn.on {
@@ -221,12 +216,12 @@
 		width: 1px;
 		height: 18px;
 		background: var(--rule-2);
-		margin: 0 0.2rem;
+		margin: 0 var(--space-2xs);
 	}
 	.dock-zoom {
 		min-width: 4ch;
 		text-align: center;
-		font-size: 11px;
+		font-size: var(--font-size-sm);
 		color: var(--text-dim);
 		font-variant-numeric: tabular-nums;
 	}
