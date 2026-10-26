@@ -30,7 +30,8 @@ const REPORT_EXAMPLE = `{
   <code>pandia --help</code>.</p>
   <ul>
     <li><strong>macOS</strong> creates <code>/usr/local/bin/pandia</code>. macOS may ask for your
-    password. If you installed Pandia with Homebrew, the command is already there.</li>
+    password. Homebrew installs the command with the app; if <code>pandia</code> isn't found after a
+    Homebrew install, run <code>brew reinstall --cask pandia</code> once.</li>
     <li><strong>Windows</strong> creates <code>pandia.cmd</code> in Pandia's data folder and adds
     that folder to your user PATH.</li>
     <li><strong>Linux</strong> creates <code>~/.local/bin/pandia</code>. If your shell can't find it,
@@ -73,9 +74,10 @@ const REPORT_EXAMPLE = `{
   <p>With <code>--wait</code>, piped input becomes a review step for a script or an AI agent. A
   bar in the tab says a terminal is waiting. Edit the JSON, press <strong>Save</strong>
   (<kbd>⌘S</kbd>) to send it back, then close the tab. The command prints the saved JSON.</p>
-  <pre><code><span class="k">cat</span> draft.json | <span class="k">pandia</span> --wait - --schema config.schema.json > config.json</code></pre>
+  <pre><code><span class="k">cat</span> draft.json | <span class="k">pandia</span> --wait - --schema config.schema.json > config.next.json && <span class="k">mv</span> config.next.json config.json</code></pre>
   <p>Closing the tab without saving sends nothing and exits with 3, so <code>&&</code> stops the
-  rest of the script.</p>
+  rest of the script. Write to a new file as above: <code>></code> empties its target as soon as the
+  command starts, so redirecting straight into <code>config.json</code> would leave it empty.</p>
 
   <h2>Get a report your script can read</h2>
   <p>Add <code>--json</code> to <code>--wait</code> and the command prints one JSON report when the

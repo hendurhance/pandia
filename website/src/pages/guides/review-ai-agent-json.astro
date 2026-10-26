@@ -1,0 +1,168 @@
+---
+import GuideLayout from '../../layouts/GuideLayout.astro';
+import { guidesBySlug } from '../../data/guides';
+
+const g = guidesBySlug['review-ai-agent-json'];
+const path = `/guides/${g.slug}`;
+
+const REPORT = `{
+  "exitCode": 1,
+  "files": [
+    {
+      "path": "/work/config.json",
+      "opened": true,
+      "saved": true,
+      "valid": false,
+      "errorCount": 1,
+      "errors": [{ "pointer": "/retries", "message": "\\"3\\" is not of type \\"integer\\"" }],
+      "problem": null
+    }
+  ]
+}`;
+
+const AGENT_NOTE = `## JSON review
+Before writing a JSON file, hand it to me in Pandia:
+  cat draft.json | pandia --wait - > draft.reviewed.json && mv draft.reviewed.json <target>
+The command waits until I close the tab. Exit 3 means I closed it without
+saving: stop and ask me what to change. If a schema exists, add --schema <path>.`;
+
+const faqItems = [
+  {
+    q: 'Does my JSON leave my machine?',
+    a: 'No. Pandia runs locally and opens what the agent pipes in from a temporary file that only your user account can read. The file is deleted when you close the tab.',
+  },
+  {
+    q: 'Which AI agents does this work with?',
+    a: 'Any agent that can run a shell command: Claude Code, Cursor, Codex CLI, Aider and others. They all call the same pandia command.',
+  },
+  {
+    q: 'What happens if I close the tab without saving?',
+    a: 'Nothing is sent back. The command prints nothing and exits with code 3, so a script or agent that checks the exit code stops instead of writing an empty file.',
+  },
+  {
+    q: 'Can the agent fix schema errors on its own?',
+    a: 'Yes. With --json, the command prints a report that lists each schema error with a JSON Pointer to the bad value, which the agent can read, fix and run again.',
+  },
+];
+---
+<GuideLayout
+  title={g.title}
+  description={g.description}
+  path={path}
+  heading={g.cardTitle}
+  datePublished={g.datePublished}
+  faqItems={faqItems}
+>
+  <h1>Review JSON from AI agents before it lands</h1>
+  <p class="lead">Coding agents write config files, fixtures and API payloads in seconds. Here's how to check
+  that JSON in Pandia before it reaches your project, with the agent waiting for your answer.</p>
+
+  <p>An agent that writes JSON is fast and usually right. When it's wrong, the mistake is small and easy to
+  miss: a number written as a string, a key that doesn't exist, a field from last year's API. Reading 400 lines
+  of JSON in a chat window is not a review. You want the data in a proper viewer, checked against a schema, and
+  a way to fix it before the agent moves on.</p>
+  <p>The <code>pandia</code> command does that. The agent hands the JSON to Pandia and waits. You read it in the
+  Tree, Grid or Code view, fix what's wrong, and press Save. The agent gets your corrected JSON back. Nothing
+  leaves your machine.</p>
+
+  <h2>Set up the command</h2>
+  <ol>
+    <li><a href="/download">Download Pandia</a> and open it.</li>
+    <li>Open <strong>Settings → Behavior → terminal command</strong> and click
+    <strong>Install pandia command</strong>.</li>
+    <li>In a new terminal, run <code>pandia --help</code> to check it works.</li>
+  </ol>
+  <p>The agent runs commands in your terminal, so once <code>pandia</code> works there, it works for the agent.
+  See the <a href="/docs/command-line">command-line docs</a> for every option.</p>
+
+  <h2>1. Review JSON before it's written</h2>
+  <p>Ask the agent to pipe its draft into Pandia instead of writing the file directly:</p>
+  <pre><code><span class="k">cat</span> draft.json | <span class="k">pandia</span> --wait - > config.next.json && <span class="k">mv</span> config.next.json config.json</code></pre>
+  <p>Pandia opens the draft in a tab named <strong>stdin</strong>, with a bar saying a terminal is waiting.
+  Edit anything you like, press <strong>Save</strong> (<kbd>⌘S</kbd>) to send it back, then close the tab. The
+  command prints the JSON you saved, and <code>mv</code> puts it in place.</p>
+  <p>If you close the tab without saving, nothing is sent back and the command exits with code 3, so
+  <code>&&</code> stops before <code>mv</code>. That's why the command writes to <code>config.next.json</code>
+  first: <code>></code> empties its target as soon as the command starts, so redirecting straight into
+  <code>config.json</code> would leave it blank.</p>
+
+  <h2>2. Check it against a schema</h2>
+  <p>If the file has a JSON Schema, add <code>--schema</code>. The Schema panel shows every error while you
+  review, and the exit code tells the agent whether the result passed:</p>
+  <pre><code><span class="k">cat</span> draft.json | <span class="k">pandia</span> --wait - --schema config.schema.json \
+  > config.next.json && <span class="k">mv</span> config.next.json config.json</code></pre>
+  <p>A document with a top-level <code>$schema</code> loads its schema on its own; <code>--schema</code> wins
+  when both are present. Exit codes with <code>--wait</code>:</p>
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0</td><td>You closed the tabs and the Schema panel showed no errors.</td></tr>
+      <tr><td>1</td><td>The Schema panel showed errors, a file didn't open, or Pandia quit before you closed the tabs.</td></tr>
+      <tr><td>2</td><td>The command was mistyped.</td></tr>
+      <tr><td>3</td><td>Piped input was closed without saving, so nothing was sent back.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Let the agent read the result</h2>
+  <p>Add <code>--json</code> and the command prints one JSON report when you close the tabs, instead of the
+  document. The agent can read it, fix each error and ask you again:</p>
+  <pre><code><span class="k">pandia</span> --wait --json config.json --schema config.schema.json</code></pre>
+  <pre><code>{REPORT}</code></pre>
+  <p>Each error names its location as a JSON Pointer, so <code>/retries</code> tells the agent exactly which
+  value to change. <code>valid</code> is <code>null</code> when no schema ran, and <code>problem</code> says
+  why a file didn't open.</p>
+
+  <h2>4. Review changes to an existing file</h2>
+  <p>When the agent edits a file you already have, ask it to write the new version next to the old one and
+  open both in Compare:</p>
+  <pre><code><span class="k">pandia</span> --wait --diff config.json config.new.json</code></pre>
+  <p>Compare matches the two documents by structure, not by line. Keys in a different order are not a change,
+  and an array item that moved shows as one move, not as hundreds of changed lines. Close the tab when you're
+  done, and tell the agent whether to keep the new version.</p>
+
+  <h2>5. Work with files too big for the agent</h2>
+  <p>A multi-gigabyte log export or API dump doesn't fit in an agent's context. Pandia
+  <a href="/guides/open-large-json-file">opens it instantly</a>, so you can do the looking:</p>
+  <ol>
+    <li>Open it with <code>pandia events.json</code>.</li>
+    <li>Find what matters in the Tree, or filter the array in the Grid.</li>
+    <li>Right-click a value and choose <strong>Copy → Path</strong> for its exact location, such as
+    <code>$.items[3].status</code>, or <strong>Copy → Value</strong> for its JSON.</li>
+    <li>Paste just that into the agent instead of the whole file.</li>
+  </ol>
+
+  <h2>Tell your agent to do this every time</h2>
+  <p>Most agents read a project instructions file, such as <code>AGENTS.md</code> or <code>CLAUDE.md</code>. Add
+  a short note there so the agent asks for review on its own:</p>
+  <pre><code>{AGENT_NOTE}</code></pre>
+  <p>The command waits until you close the tab, which can take minutes. If your agent stops commands that run
+  long, raise its time limit for this one.</p>
+
+  <h2>Chat review or Pandia review</h2>
+  <table>
+    <thead>
+      <tr><th>Task</th><th>Reading it in the chat</th><th>Reviewing in Pandia</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Spot a wrong type or missing field</td><td>By eye</td><td>Schema panel lists each one</td></tr>
+      <tr><td>Fix a value before it's written</td><td>Ask the agent again</td><td>Edit it and press Save</td></tr>
+      <tr><td>See what changed in an existing file</td><td>A text diff</td><td>A structural Compare</td></tr>
+      <tr><td>Files over a few MB</td><td>Too big to paste</td><td>Opens any size</td></tr>
+      <tr><td>Data stays on your machine</td><td>Depends on the agent</td><td>Yes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Frequently asked questions</h2>
+  {faqItems.map((f) => (
+    <>
+      <h3>{f.q}</h3>
+      <p>{f.a}</p>
+    </>
+  ))}
+
+  <p class="lp-related">Related: <a href="/docs/command-line">command-line docs</a> ·
+  <a href="/docs/validate">validate against a schema</a> ·
+  <a href="/guides/open-large-json-file">open a large JSON file</a> · <a href="/download">download Pandia</a>.</p>
+</GuideLayout>
