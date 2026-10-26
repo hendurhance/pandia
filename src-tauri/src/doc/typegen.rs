@@ -666,7 +666,9 @@ fn kotlin_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "Any?",
         PrimitiveKind::Bool => "Boolean",
-        PrimitiveKind::Integer | PrimitiveKind::Unsigned => "Long",
+        PrimitiveKind::Integer => "Long",
+        // kotlinx.serialization decodes ULong over its full range; it has no BigInteger serializer.
+        PrimitiveKind::Unsigned => "ULong",
         PrimitiveKind::Float => "Double",
         PrimitiveKind::String => "String",
         PrimitiveKind::Any => "Any",
@@ -915,7 +917,9 @@ fn php_type<'a>(
                         classes,
                         seen,
                     );
-                    let ty = if v.optional && ty != "mixed" {
+                    let ty = if v.optional && ty.contains('|') {
+                        format!("{ty}|null")
+                    } else if v.optional && ty != "mixed" {
                         format!("?{ty}")
                     } else {
                         ty
@@ -937,7 +941,9 @@ fn php_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "mixed",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer | PrimitiveKind::Unsigned => "int",
+        PrimitiveKind::Integer => "int",
+        // json_decode returns a float for integers above PHP_INT_MAX.
+        PrimitiveKind::Unsigned => "int|float",
         PrimitiveKind::Float => "float",
         PrimitiveKind::String => "string",
         PrimitiveKind::Any => "mixed",
@@ -1316,7 +1322,9 @@ fn dart_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null | PrimitiveKind::Any => "dynamic",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer | PrimitiveKind::Unsigned => "int",
+        PrimitiveKind::Integer => "int",
+        // On the VM, jsonDecode returns a double for integers that don't fit a 64-bit int.
+        PrimitiveKind::Unsigned => "num",
         PrimitiveKind::Float => "double",
         PrimitiveKind::String => "String",
     }
@@ -2205,6 +2213,20 @@ mod tests {
             "{java}"
         );
         assert!(java.contains("    private BigInteger id;"), "{java}");
+        let kotlin = gen(&v, TypegenLang::Kotlin);
+        assert!(kotlin.contains("    val id: ULong,"), "{kotlin}");
+        assert!(kotlin.contains("    val n: Long"), "{kotlin}");
+        let php = gen(&v, TypegenLang::Php);
+        assert!(php.contains("        public int|float $id,"), "{php}");
+        assert!(php.contains("        public int $n"), "{php}");
+        let dart = gen(&v, TypegenLang::Dart);
+        assert!(dart.contains("  final num id;"), "{dart}");
+        assert!(dart.contains("id: json['id'] as num,"), "{dart}");
+        assert!(dart.contains("  final int n;"), "{dart}");
+        let sometimes: Value =
+            serde_json::from_str(r#"[{"id": 18446744073709551615}, {}]"#).unwrap();
+        let php = gen(&sometimes, TypegenLang::Php);
+        assert!(php.contains("public int|float|null $id = null"), "{php}");
         let mixed: Value =
             serde_json::from_str(r#"[{"id": 1}, {"id": 18446744073709551615}]"#).unwrap();
         assert!(

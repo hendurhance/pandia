@@ -186,14 +186,18 @@ export class DocSessionController {
 		} catch {}
 	};
 
-	private afterMutation = async (result: ApplyResult) => {
+	reloadAfter = async (affectedPaths: Path[]) => {
 		this.refreshing = true;
 		try {
 			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(result.affectedPaths);
+			await this.deps.tree.refetchAfterOp(affectedPaths);
 		} finally {
 			this.refreshing = false;
 		}
+	};
+
+	private afterMutation = async (result: ApplyResult) => {
+		await this.reloadAfter(result.affectedPaths);
 		this.deps.find.refreshAfterEdit();
 	};
 

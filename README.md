@@ -155,7 +155,7 @@ Linux bundles are GPG-signed; the public key is published with each release.
 | `⌘⇧]` / `⌘⇧[` | Next / previous tab |
 | `⌘F` | Find |
 | `⌘G` / `⌘⇧G` | Find next / previous |
-| `⌘H` | Find and replace |
+| `⌘⌥F` | Find and replace (`Ctrl+H` on Windows and Linux) |
 | `⌘D` | Compare against tab or file |
 | `⌘B` | Toggle sidebar |
 | `⌘S` / `⌘⇧S` | Save / Save As |

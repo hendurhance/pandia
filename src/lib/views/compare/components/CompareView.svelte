@@ -363,7 +363,9 @@
 						version={leftVersion}
 						sourceSize={leftSourceSize}
 						highlights={leftHighlights}
-						activePath={activeEntry ? leftPathOf(activeEntry) : null}
+						activePath={activeEntry && activeEntry.kind !== 'added'
+							? leftPathOf(activeEntry)
+							: null}
 						onScrollerReady={(el) => bindPane('left', el)}
 					/>
 				</div>
@@ -380,7 +382,7 @@
 						version={rightVersion}
 						sourceSize={rightSourceSize}
 						highlights={rightHighlights}
-						{activePath}
+						activePath={activeEntry?.kind === 'removed' ? null : activePath}
 						onScrollerReady={(el) => bindPane('right', el)}
 					/>
 				</div>

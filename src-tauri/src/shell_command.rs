@@ -26,9 +26,10 @@ mod platform {
     const HOMEBREW_LINK: &str = "/opt/homebrew/bin/pandia";
 
     pub fn status(_: &tauri::AppHandle) -> ShellCommand {
+        let exe = super::app_executable().ok();
         let found = [LINK, HOMEBREW_LINK]
             .into_iter()
-            .find(|link| Path::new(link).exists());
+            .find(|link| super::is_installed(Path::new(link), exe.as_deref()));
         ShellCommand {
             installed: found.is_some(),
             location: found.unwrap_or(LINK).into(),
@@ -88,7 +89,9 @@ mod platform {
     pub fn status(_: &tauri::AppHandle) -> ShellCommand {
         let link = link();
         ShellCommand {
-            installed: link.as_ref().is_some_and(|l| l.exists()),
+            installed: link
+                .as_ref()
+                .is_some_and(|l| super::is_installed(l, super::app_executable().ok().as_deref())),
             location: link.map_or("~/.local/bin/pandia".into(), |l| {
                 l.to_string_lossy().into_owned()
             }),
@@ -210,13 +213,23 @@ fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
+// Nothing there, a dangling link, or a link to this app's executable.
 #[cfg(not(windows))]
-fn ensure_replaceable(link: &std::path::Path, exe: &std::path::Path) -> Result<(), String> {
-    let ours = match std::fs::read_link(link) {
+fn is_replaceable(link: &std::path::Path, exe: &std::path::Path) -> bool {
+    match std::fs::read_link(link) {
         Ok(target) => target == exe || !link.exists(),
         Err(_) => link.symlink_metadata().is_err(),
-    };
-    if ours {
+    }
+}
+
+#[cfg(not(windows))]
+fn is_installed(link: &std::path::Path, exe: Option<&std::path::Path>) -> bool {
+    link.exists() && exe.is_some_and(|exe| is_replaceable(link, exe))
+}
+
+#[cfg(not(windows))]
+fn ensure_replaceable(link: &std::path::Path, exe: &std::path::Path) -> Result<(), String> {
+    if is_replaceable(link, exe) {
         return Ok(());
     }
     Err(format!(
@@ -291,6 +304,36 @@ mod tests {
         let err = ensure_replaceable(&theirs, &exe).unwrap_err();
         assert!(err.starts_with(&theirs.display().to_string()), "{err}");
         assert!(ensure_replaceable(&other, &exe).is_err(), "a program file");
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn only_pandias_own_link_counts_as_installed() {
+        use std::os::unix::fs::symlink;
+        let dir = std::env::temp_dir().join(format!("pandia-installed-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let exe = dir.join("Pandia");
+        let other = dir.join("other-tool");
+        std::fs::write(&exe, "").unwrap();
+        std::fs::write(&other, "").unwrap();
+        let link = |name: &str, target: &std::path::Path| {
+            let path = dir.join(name);
+            symlink(target, &path).unwrap();
+            path
+        };
+
+        let ours = link("ours", &exe);
+        assert!(is_installed(&ours, Some(&exe)));
+        assert!(!is_installed(&ours, None), "own executable unknown");
+        assert!(!is_installed(&link("theirs", &other), Some(&exe)));
+        assert!(!is_installed(&other, Some(&exe)), "a program file");
+        assert!(!is_installed(
+            &link("moved", &dir.join("Old.app")),
+            Some(&exe)
+        ));
+        assert!(!is_installed(&dir.join("missing"), Some(&exe)));
 
         std::fs::remove_dir_all(&dir).unwrap();
     }

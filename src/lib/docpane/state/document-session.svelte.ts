@@ -88,10 +88,7 @@ export class DocumentSession {
 			codeApi: () => deps.code.api(),
 			openGraphSearch: () => deps.graphApi()?.openSearch(),
 			navigateToHit: (path) => this.nav.navigateTo(path),
-			afterReplace: async (affectedPaths) => {
-				await this.session.refreshSummary();
-				await this.tree.refetchAfterOp(affectedPaths);
-			},
+			afterReplace: (affectedPaths) => this.session.reloadAfter(affectedPaths),
 		});
 
 		this.compare = new CompareController({

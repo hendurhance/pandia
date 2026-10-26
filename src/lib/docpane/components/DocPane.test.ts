@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { flushSync } from 'svelte';
-import { fireEvent, render } from '@testing-library/svelte';
+import { fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
 import { Workspace, type PaneView, type TabSlot } from '$lib/shell/state/workspace.svelte';
@@ -20,6 +20,8 @@ vi.mock('$lib/ipc/client', () => ({
 		docCanonicalOffsets: vi.fn(async () => []),
 		docGetSlice: vi.fn(async () => []),
 		docUndo: vi.fn(),
+		docSearch: vi.fn(async () => []),
+		docReplace: vi.fn(),
 		docGetValue: vi.fn(async () => '"/w/order.schema.json"'),
 		readSchemaFile: vi.fn(async () => '{"type":"object"}'),
 		docValidateSchema: vi.fn(async () => ({
@@ -209,6 +211,79 @@ describe('DocPane', () => {
 		items.childCount = 1;
 		children.splice(1);
 		paneBus.dispatch('tab-sel', { kind: 'history', delta: -1 });
+		await vi.waitFor(() => expect(view?.status?.pathDisplay).toBeNull());
+	});
+
+	it('keeps the selection inside a container that Replace All reloads, until the row is gone', async () => {
+		const summary = {
+			rootKind: 'object' as const,
+			rootChildCount: 1,
+			sourcePath: '/w/list.json',
+			sourceSize: 20,
+			lazy: false,
+			version: 1,
+			dirty: false,
+			fileBacked: true,
+			recoveryNote: null,
+			commentsStripped: false,
+		};
+		vi.mocked(ipc.docOpen).mockResolvedValue({
+			kind: 'opened',
+			handle: 'L' as never,
+			summary,
+			notes: { convertedFrom: null, repairs: [] },
+		});
+		vi.mocked(ipc.docSummary).mockResolvedValue({ ...summary, version: 2 });
+		const items: NodeView = { key: 'items', kind: 'array', preview: '', childCount: 3 };
+		const children: NodeView[] = [0, 1, 2].map((i) => ({
+			key: i,
+			kind: 'number',
+			preview: String(i),
+			childCount: null,
+		}));
+		let release!: () => void;
+		let slow = false;
+		vi.mocked(ipc.docGetSlice).mockImplementation(async (_h, path) => {
+			if (path.length === 0) return [items];
+			if (slow) await new Promise<void>((r) => (release = r));
+			return children;
+		});
+		let view: PaneView | undefined;
+		const paneBus = new PaneCommandBus();
+		const { container } = render(DocPane, {
+			props: {
+				tabId: 'tab-repl',
+				slot: { ...slot, register: (v: PaneView) => ((view = v), () => {}) } as TabSlot,
+				isActive: false,
+				pendingOpen: { kind: 'file', path: '/w/list.json' },
+				paneBus,
+			},
+		});
+		await vi.waitFor(() => expect(view?.status).toBeTruthy());
+		paneBus.dispatch('tab-repl', { kind: 'navigate', path: ['items', 1] });
+		await vi.waitFor(() => expect(view?.status?.pathDisplay).toBe('$.items[1]'));
+
+		slow = true;
+		vi.mocked(ipc.docReplace).mockResolvedValue({
+			count: 1,
+			applied: { version: 2, affectedPaths: [['items']] },
+		});
+		const pane = within(container);
+		await fireEvent.click(pane.getByTitle(/^Search/));
+		await fireEvent.input(pane.getByLabelText('search query'), { target: { value: '1' } });
+		await fireEvent.click(pane.getByLabelText('show replace'));
+		await fireEvent.click(pane.getByLabelText('Replace all'));
+		await vi.waitFor(() => expect(release).toBeDefined());
+		await new Promise((r) => setTimeout(r, 50)); // a frame paints before the children arrive
+		release();
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(view?.status?.pathDisplay).toBe('$.items[1]');
+
+		slow = false;
+		items.childCount = 1;
+		children.splice(1);
+		await fireEvent.click(pane.getByLabelText('Replace all'));
 		await vi.waitFor(() => expect(view?.status?.pathDisplay).toBeNull());
 	});
 });

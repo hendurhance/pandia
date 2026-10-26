@@ -102,6 +102,28 @@ describe('CompareView — side-by-side', () => {
 		await vi.waitFor(() => expect(previews()).toEqual(['"b"', '"x"']));
 	});
 
+	it('outlines an added entry only in the right pane', async () => {
+		texts = { L: '["a","b","c"]', R: '["a","x","b","c"]' };
+		entries = [entry({ path: [1], kind: 'added', rightPreview: '"x"' })];
+		const { container } = render(CompareView, { props });
+
+		await vi.waitFor(() =>
+			expect(pane(container, 1).querySelector('.cm-diff-active')?.textContent).toBe('"x"'),
+		);
+		expect(pane(container, 0).querySelector('.cm-diff-active')).toBeNull();
+	});
+
+	it('outlines a removed entry only in the left pane', async () => {
+		texts = { L: '["a","b","c"]', R: '["a","c"]' };
+		entries = [entry({ path: [1], kind: 'removed', leftPreview: '"b"' })];
+		const { container } = render(CompareView, { props });
+
+		await vi.waitFor(() =>
+			expect(pane(container, 0).querySelector('.cm-diff-active')?.textContent).toBe('"b"'),
+		);
+		expect(pane(container, 1).querySelector('.cm-diff-active')).toBeNull();
+	});
+
 	it('keeps the selected entry when the diff recomputes', async () => {
 		texts = { L: '["a","b","c"]', R: '["a","x","y"]' };
 		entries = [entry({ path: [1], kind: 'changed' }), entry({ path: [2], kind: 'changed' })];

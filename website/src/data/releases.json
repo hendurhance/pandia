@@ -1,7 +1,7 @@
 [
 	{
 		"version": "1.0.8",
-		"date": "October 21, 2026",
+		"date": "October 26, 2026",
 		"tag": "Stable",
 		"tagKind": "stable",
 		"groups": [
@@ -71,7 +71,7 @@
 					},
 					{
 						"title": "Generated types compile in more cases",
-						"detail": "Keys like `type` or `class` no longer break Rust, Python, Java or Kotlin. Java compiles as one file, IDs above the 64-bit signed limit get `u64`, `uint64` or `BigInteger`, PHP no longer writes the invalid `?mixed`, and Python dataclasses import with optional fields in any order."
+						"detail": "Keys like `type` or `class` no longer break Rust, Python, Java or Kotlin. Java compiles as one file, IDs above the 64-bit signed limit get a type that holds them in every language, such as `u64`, `BigInteger`, `ULong`, `int|float` or `num`, PHP no longer writes the invalid `?mixed`, and Python dataclasses import with optional fields in any order."
 					},
 					{
 						"title": "CSV keeps your data as it is",

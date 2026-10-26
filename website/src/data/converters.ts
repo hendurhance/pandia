@@ -40,9 +40,9 @@ export const converters: Converter[] = [
     inputJson: TYPE_INPUT,
     outputLang: 'TypeScript',
     output: `export interface Root {
+  active: boolean;
   id: number;
   name: string;
-  active: boolean;
   tags: string[];
 }`,
     intro: 'Pandia turns a JSON document into an idiomatic <code>export interface</code> hierarchy. It samples the data and infers the shape: fields that are missing in some objects become optional, and <code>null</code> values become nullable — so the types match the data you actually have.',
@@ -63,20 +63,22 @@ export const converters: Converter[] = [
     kind: 'type',
     name: 'Go',
     title: 'JSON to Go — Generate Go Structs from JSON',
-    description: 'Convert JSON to Go structs with matching JSON tags and idiomatic casing. Runs on your machine. No upload, no size limit. Free and open source.',
-    sub: 'Generate Go structs — complete with `json:"…"` tags — from any JSON document. Idiomatic casing and inferred optionals, with nothing uploaded.',
+    description: 'Convert JSON to Go structs with exported fields and matching JSON tags. Runs on your machine. No upload, no size limit. Free and open source.',
+    sub: 'Generate Go structs — complete with `json:"…"` tags — from any JSON document. Exported field names and inferred optionals, with nothing uploaded.',
     inputJson: TYPE_INPUT,
     outputLang: 'Go',
-    output: `type Root struct {
-	ID     int      \`json:"id"\`
-	Name   string   \`json:"name"\`
-	Active bool     \`json:"active"\`
-	Tags   []string \`json:"tags"\`
+    output: `package types
+
+type Root struct {
+    Active bool \`json:"active"\`
+    Id int64 \`json:"id"\`
+    Name string \`json:"name"\`
+    Tags []string \`json:"tags"\`
 }`,
-    intro: 'Pandia turns a JSON document into Go <code>struct</code> definitions with the matching <code>json:"…"</code> tags. Field names are converted to idiomatic exported Go casing (and common initialisms like <code>ID</code> are preserved) while the tags keep the original JSON keys.',
+    intro: 'Pandia turns a JSON document into Go <code>struct</code> definitions with the matching <code>json:"…"</code> tags. Field names are converted to exported Go casing (<code>id</code> becomes <code>Id</code>) while the tags keep the original JSON keys.',
     bullets: [
       'Exported <code>struct</code> fields with correct <code>json:"…"</code> tags.',
-      'Idiomatic Go casing, with initialisms like <code>ID</code> and <code>URL</code> preserved.',
+      'Exported <code>PascalCase</code> field names, with the original keys kept in the tags.',
       'Nested objects and arrays become named structs and slices.',
       'Deterministic output — no options to tweak.',
     ],
@@ -97,11 +99,11 @@ export const converters: Converter[] = [
     outputLang: 'Rust',
     output: `use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Root {
+    pub active: bool,
     pub id: i64,
     pub name: String,
-    pub active: bool,
     pub tags: Vec<String>,
 }`,
     intro: 'Pandia turns a JSON document into Rust <code>struct</code> definitions that derive <code>Serialize</code> and <code>Deserialize</code>. Fields use idiomatic <code>snake_case</code>, optional fields become <code>Option&lt;T&gt;</code>, and arrays become <code>Vec&lt;T&gt;</code> — ready to drop into a serde project.',
@@ -126,13 +128,16 @@ pub struct Root {
     sub: 'Generate typed Python <code>@dataclass</code> definitions from any JSON document. Inferred optionals, idiomatic snake_case, nothing uploaded.',
     inputJson: TYPE_INPUT,
     outputLang: 'Python',
-    output: `from dataclasses import dataclass
+    output: `from __future__ import annotations
+from dataclasses import dataclass
+from typing import Any, Optional
+
 
 @dataclass
 class Root:
+    active: bool
     id: int
     name: str
-    active: bool
     tags: list[str]`,
     intro: 'Pandia turns a JSON document into Python <code>@dataclass</code> definitions with type hints. Field names use <code>snake_case</code>, optional fields are inferred, and nested structures become their own dataclasses.',
     bullets: [
@@ -156,15 +161,14 @@ class Root:
     sub: 'Generate a <code>z.object(...)</code> schema from any JSON document, with an inferred TypeScript type for free. Runs locally, nothing uploaded.',
     inputJson: TYPE_INPUT,
     outputLang: 'TypeScript',
-    output: `import { z } from "zod";
+    output: `import { z } from 'zod';
 
 export const Root = z.object({
-  id: z.number(),
-  name: z.string(),
   active: z.boolean(),
+  id: z.number().int(),
+  name: z.string(),
   tags: z.array(z.string()),
 });
-
 export type Root = z.infer<typeof Root>;`,
     intro: 'Pandia turns a JSON document into a Zod <code>z.object(...)</code> schema you can use for runtime validation — plus a <code>z.infer</code> type alias so you get a static TypeScript type from the same source of truth.',
     bullets: [
@@ -189,9 +193,9 @@ export type Root = z.infer<typeof Root>;`,
     inputJson: TYPE_INPUT,
     outputLang: 'Kotlin',
     output: `data class Root(
+    val active: Boolean,
     val id: Long,
     val name: String,
-    val active: Boolean,
     val tags: List<String>
 )`,
     intro: 'Pandia turns a JSON document into Kotlin <code>data class</code> declarations. Integer values map to <code>Long</code>, fields missing from some objects become nullable (<code>?</code>), and nested objects and arrays become their own named classes — ready to drop into a Kotlin or Android project.',
@@ -262,9 +266,9 @@ declare(strict_types=1);
 final readonly class Root
 {
     public function __construct(
+        public bool $active,
         public int $id,
         public string $name,
-        public bool $active,
         public array $tags
     ) {}
 }`,
@@ -345,12 +349,28 @@ final readonly class Root
   "title": "Root",
   "type": "object",
   "properties": {
-    "id": { "type": "integer" },
-    "name": { "type": "string" },
-    "active": { "type": "boolean" },
-    "tags": { "type": "array", "items": { "type": "string" } }
+    "active": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
-  "required": ["id", "name", "active", "tags"]
+  "required": [
+    "active",
+    "id",
+    "name",
+    "tags"
+  ]
 }`,
     intro: 'Pandia infers a <strong>JSON Schema</strong> (draft 2020-12) from a sample document. It walks the data, assigns a <code>type</code> to every field, lists non-null keys under <code>required</code>, and detects string <strong>formats</strong> like <code>date</code>, <code>date-time</code>, <code>email</code> and <code>uri</code> — a schema you can validate against straight away.',
     bullets: [
@@ -427,7 +447,8 @@ tags:
     sub: 'Turn any JSON document into XML — and import XML back into a JSON tree. All on your machine, with no size limit on opening.',
     inputJson: TYPE_INPUT,
     outputLang: 'XML',
-    output: `<root>
+    output: `<?xml version="1.0" encoding="UTF-8"?>
+<root>
   <id>42</id>
   <name>Ada</name>
   <active>true</active>
