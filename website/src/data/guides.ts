@@ -9,6 +9,16 @@ export interface Guide {
 
 export const guides: Guide[] = [
   {
+    slug: 'review-ai-agent-json',
+    cardTitle: 'Review JSON an AI agent writes',
+    title: 'Review JSON from AI Agents Before It Lands',
+    description:
+      'Let Claude Code, Cursor or any coding agent hand you its JSON for review before it reaches your config. Validate it against a schema and send it back, all on your machine.',
+    blurb:
+      'Agents write config, fixtures and payloads fast, and sometimes wrong. Here is how to put a review step between the agent and your files with the pandia command, on your own machine.',
+    datePublished: '2026-10-26',
+  },
+  {
     slug: 'open-large-json-file',
     cardTitle: 'How to open a large JSON file',
     title: 'Open a Large JSON File on Windows, Mac & Linux',
