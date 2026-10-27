@@ -21,6 +21,10 @@ export const faqs: FaqItem[] = [
     a: "Yes — ten targets: <code>TypeScript</code>, <code>Rust</code>, <code>Go</code>, <code>Kotlin</code>, <code>Python</code>, <code>PHP</code>, <code>Java</code>, <code>Dart</code>, <code>Zod</code> and <code>JSON Schema (2020-12)</code>. Optional fields are inferred from the data; generation is deliberately not configurable.",
   },
   {
+    q: 'Can AI coding agents use Pandia?',
+    a: 'Yes. Any agent that can run a terminal command, such as Claude Code, Cursor or Codex CLI, can hand its JSON to Pandia with the <code>pandia</code> command and wait while you review it. You check it against a schema, fix it and press Save, and the agent gets back what you saved. Everything stays on your machine. See <a href="/guides/review-ai-agent-json">reviewing JSON from AI agents</a>.',
+  },
+  {
     q: 'Does it have a query language like jq or JMESPath?',
     a: "No. Pandia doesn't ship a query language. Instead you navigate the tree, run substring find &amp; replace, and use the Grid's column filters (13 operators, OR-of-AND groups) and sorting to slice arrays of objects.",
   },
