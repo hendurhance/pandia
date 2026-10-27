@@ -1,0 +1,14 @@
+name: Redeploy website
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the Vercel deploy hook
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: curl -fsS -X POST "$HOOK" > /dev/null

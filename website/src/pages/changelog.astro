@@ -2,8 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/home/Nav.astro';
 import Footer from '../components/home/Footer.astro';
-import { REPO, RELEASES } from '../data/site';
-import { releases } from '../data/releases';
+import { REPO, RELEASES, publishedReleases } from '../data/site';
 
 function inline(md: string): string {
   const esc = md
@@ -43,7 +42,7 @@ function inline(md: string): string {
 
       <section class="block cl-list">
         <div class="wrap">
-          {releases.map((r) => (
+          {publishedReleases.map((r) => (
             <article class="cl-rel">
               <div class="cl-meta">
                 <div class="cl-ver">v{r.version}</div>
