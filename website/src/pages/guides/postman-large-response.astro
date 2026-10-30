@@ -1,0 +1,113 @@
+---
+import GuideLayout from '../../layouts/GuideLayout.astro';
+import { guidesBySlug } from '../../data/guides';
+
+const g = guidesBySlug['postman-large-response'];
+const path = `/guides/${g.slug}`;
+const POSTMAN_FAQ = 'https://learning.postman.com/help/faqs/sending-requests/im-experiencing-a-long-response-time';
+
+const faqItems = [
+  {
+    q: 'Why does Postman say "Maximum response size reached"?',
+    a: 'Postman renders responses up to 50 MB by default. Larger responses hit that limit, and above about 100 MB Postman itself recommends Send and Download, which saves the response to a file instead of rendering it.',
+  },
+  {
+    q: 'Can I just raise Postman’s response size limit?',
+    a: 'You can raise it in Postman’s settings, but Postman warns that rendering responses over 100 MB can be slow or crash the app. Saving the response and opening it in a viewer built for large JSON avoids that.',
+  },
+  {
+    q: 'Does Pandia replace Postman?',
+    a: 'No. Keep Postman for building and sending requests, collections and auth. Use Pandia to read, search, validate and compare the JSON that comes back, at any size.',
+  },
+  {
+    q: 'Is the response uploaded anywhere?',
+    a: 'No. Pandia is a desktop app and opens the file on your machine. Nothing is sent to a server.',
+  },
+];
+---
+<GuideLayout
+  title={g.title}
+  description={g.description}
+  path={path}
+  heading={g.cardTitle}
+  datePublished={g.datePublished}
+  faqItems={faqItems}
+>
+  <h1>Postman response too large? Open it in Pandia</h1>
+  <p class="lead">Postman is built for sending requests, not for reading a 300 MB response. Here's how to save
+  a big response and open it in Pandia, where it loads instantly whatever the size.</p>
+
+  <p>Ask an API for a full export and Postman starts to struggle. The response pane slows down, the app stops
+  responding, or you get "Maximum response size reached". That isn't a bug in your request. Postman renders
+  responses up to <strong>50 MB</strong> by default, and for anything over <strong>100 MB</strong> its own
+  documentation tells you to save the response to a file instead
+  (<a href={POSTMAN_FAQ}>Postman's guidance</a>).</p>
+  <p>Saving it is the easy part. Reading it is where Pandia comes in.</p>
+
+  <h2>Save the response with Send and Download</h2>
+  <ol>
+    <li>Set up the request in Postman as usual.</li>
+    <li>Open the dropdown next to <strong>Send</strong> and choose <strong>Send and Download</strong>.</li>
+    <li>Postman sends the request and saves the response as a file instead of rendering it.</li>
+  </ol>
+
+  <h2>Open it in Pandia</h2>
+  <ol>
+    <li><a href="/download">Download Pandia</a> for Mac, Windows or Linux.</li>
+    <li>Drag the saved file into Pandia, or run <code>pandia response.json</code> if you've installed the
+    <a href="/docs/command-line">terminal command</a>.</li>
+    <li>The file opens immediately. At 10 MB and up Pandia loads only the part on screen, so a multi-gigabyte
+    response opens without freezing.</li>
+  </ol>
+  <p>From there you get what Postman's response pane can't give you on a large file:</p>
+  <ul>
+    <li><strong>A tree you can navigate</strong>, with counts on every array and object.</li>
+    <li><strong>A spreadsheet-style Grid</strong> for arrays of objects, with column filters and sorting.</li>
+    <li><strong>Search across the whole response</strong>, not just what's rendered.</li>
+    <li><strong>Schema validation</strong> against your API's JSON Schema, with each error linked to its value.</li>
+    <li><strong>Types</strong> generated from the response for TypeScript, Go, Rust and seven more languages.</li>
+  </ul>
+
+  <h2>Smaller responses: copy and paste</h2>
+  <p>For everyday responses you don't need a file. Copy the response body in Postman and paste it into
+  Pandia's start screen; it loads as soon as you paste.</p>
+
+  <h2>Compare two responses</h2>
+  <p>Save a response from each environment, or from before and after a change, and open both in Compare:</p>
+  <pre><code><span class="k">pandia</span> --diff staging.json production.json</code></pre>
+  <p>Compare matches the two documents by structure, not by line, so keys in a different order don't count as
+  changes and you see only the fields that really differ.</p>
+
+  <h2>Simple GET requests without Postman</h2>
+  <p>For a quick look at a JSON endpoint, Pandia's start screen can fetch a URL directly, with the headers you
+  add (for example an <code>Authorization</code> header). Pasting a cURL command, such as the code snippet
+  Postman exports, turns it into a JSON description of the request, so you can check its URL, method, headers
+  and body.</p>
+
+  <h2>Postman or Pandia</h2>
+  <table>
+    <thead>
+      <tr><th>Task</th><th>Postman</th><th>Pandia</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Build and send requests</td><td>Best</td><td>Simple GET only</td></tr>
+      <tr><td>Collections, environments, auth</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Read a response over 50 MB</td><td>Save it to a file</td><td>Opens any size</td></tr>
+      <tr><td>Filter an array of objects</td><td>Not as a table</td><td>Grid with column filters</td></tr>
+      <tr><td>Compare two responses side by side</td><td>Not built in</td><td>Structural Compare</td></tr>
+    </tbody>
+  </table>
+  <p>Keep Postman for the request. Open the response in Pandia when it gets big.</p>
+
+  <h2>Frequently asked questions</h2>
+  {faqItems.map((f) => (
+    <>
+      <h3>{f.q}</h3>
+      <p>{f.a}</p>
+    </>
+  ))}
+
+  <p class="lp-related">Related: <a href="/guides/open-large-json-file">open a large JSON file</a> ·
+  <a href="/guides/vscode-large-json">VS Code and large JSON</a> ·
+  <a href="/large-json-viewer">large JSON file viewer</a> · <a href="/download">download Pandia</a>.</p>
+</GuideLayout>

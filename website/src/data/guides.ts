@@ -9,6 +9,16 @@ export interface Guide {
 
 export const guides: Guide[] = [
   {
+    slug: 'postman-large-response',
+    cardTitle: 'Postman response too large?',
+    title: 'Postman Response Too Large? Open It in Pandia',
+    description:
+      'Postman says "Maximum response size reached" or freezes on a big JSON response? Save it with Send and Download and open it in Pandia at any size. Free and offline.',
+    blurb:
+      'Postman renders responses up to 50 MB by default and recommends Send and Download above 100 MB. Here is how to save a big response and read, search and compare it in Pandia.',
+    datePublished: '2026-10-30',
+  },
+  {
     slug: 'review-ai-agent-json',
     cardTitle: 'Review JSON an AI agent writes',
     title: 'Review JSON from AI Agents Before It Lands',

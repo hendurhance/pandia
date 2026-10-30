@@ -32,6 +32,7 @@ Options:
   --wait               return after you close the opened tabs
   --json               with --wait, print a JSON report of what happened
   -h, --help           show this help
+  -v, --version        show the version
   --                   treat every name after it as a file, like: pandia -- -data.json
 
 Exit codes with --wait:
@@ -107,6 +108,7 @@ struct Request {
     wait: bool,
     json: bool,
     help: bool,
+    version: bool,
     stdin_file: Option<String>,
     wait_id: Option<String>,
     reply_file: Option<String>,
@@ -133,6 +135,7 @@ fn parse(args: impl IntoIterator<Item = String>) -> Request {
                 }
             }
             "-h" | "--help" => req.help = true,
+            "-v" | "-V" | "--version" => req.version = true,
             "--wait" => req.wait = true,
             "--json" => req.json = true,
             "--schema" => match inline.or_else(|| args.next()) {
@@ -308,10 +311,18 @@ fn finish_wait(marker: Option<std::fs::File>, files: Vec<TabReport>) {
     }
 }
 
+fn version_line() -> String {
+    format!("pandia {}\n", env!("CARGO_PKG_VERSION"))
+}
+
 pub(crate) fn launch(args: Vec<String>, identifier: &str) -> i32 {
     let req = parse(args.iter().cloned());
     if req.help {
         print!("{USAGE}");
+        return 0;
+    }
+    if req.version {
+        print!("{}", version_line());
         return 0;
     }
     if let Some(problem) = req.problems.first() {
@@ -701,6 +712,19 @@ mod tests {
         assert_eq!(
             parse(args(&["--verbose"])).problems,
             ["--verbose isn't a Pandia option. Run pandia --help to see the options."]
+        );
+    }
+
+    #[test]
+    fn version_flags_ask_for_the_version() {
+        for flag in ["--version", "-V", "-v"] {
+            let req = parse(args(&[flag]));
+            assert!(req.version, "{flag}");
+            assert!(req.problems.is_empty(), "{flag}: {:?}", req.problems);
+        }
+        assert_eq!(
+            version_line(),
+            format!("pandia {}\n", env!("CARGO_PKG_VERSION"))
         );
     }
 
