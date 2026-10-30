@@ -1,5 +1,12 @@
 import { IpcError } from './error';
-import { EDIT_SIZE_LIMIT, type FileOp, type IoProblem, type OpenFailure } from './bindings';
+import {
+	EDIT_SIZE_LIMIT,
+	type FileOp,
+	type IoProblem,
+	type OpenFailure,
+	type Refusal,
+	type RequestProblem,
+} from './bindings';
 import { fmtBytes } from '$lib/util/format';
 import { basename, pathToString } from '$lib/util/path';
 
@@ -33,6 +40,46 @@ export function describeUrlFetchFailure(url: string): string {
 		// not a parseable URL: name what the user typed
 	}
 	return `Couldn't reach ${host}. Check the URL and your connection.`;
+}
+
+export function describeRefusal(r: Refusal): string {
+	switch (r.reason) {
+		case 'noUrl':
+			return "This cURL command has no URL, so there's nothing to send.";
+		case 'insecure':
+			return `Pandia won't send this: ${r.option} turns off certificate checks. Remove ${r.option} to send it.`;
+		case 'readsFile':
+			return `Pandia can't send this: ${r.option} reads from a file. Put the content in the command instead.`;
+		case 'noPassword':
+			return "Pandia can't send this: -u has no password, and Pandia can't ask for one. Use -u user:password.";
+		case 'unsupported':
+			return `Pandia can't send this: it doesn't support ${r.option}. Remove ${r.option} to send the rest.`;
+	}
+}
+
+function describeRequestProblem(p: RequestProblem): string {
+	switch (p.problem) {
+		case 'refused':
+			return describeRefusal(p.refusal);
+		case 'badUrl':
+			return `${p.url} isn't a web address Pandia can send to. Use an http:// or https:// URL.`;
+		case 'unreachable':
+			return `Couldn't reach ${p.host}. Check the URL and your connection.`;
+		case 'timedOut':
+			return `${p.host} didn't answer in time. Try again later.`;
+		case 'tls':
+			return `Couldn't make a secure connection to ${p.host}. Its certificate may be invalid or expired.`;
+		case 'interrupted':
+			return `The connection to ${p.host} dropped before the response finished. Try again.`;
+		case 'tooLarge':
+			return `The response is larger than ${fmtBytes(p.limit)}, the most Pandia can open.`;
+		case 'notData':
+			return p.contentType
+				? `The server sent ${p.contentType} (status ${p.status}), not JSON, YAML, XML or CSV.`
+				: `The server sent something that isn't text (status ${p.status}), so there's nothing to open.`;
+		case 'empty':
+			return `The server sent an empty response (status ${p.status}).`;
+	}
 }
 
 export const UPDATE_FAILED =
@@ -79,6 +126,8 @@ function describeIpc(e: IpcError): string {
 			return describeIo(e);
 		case 'cancelled':
 			return 'Cancelled.';
+		case 'request':
+			return e.request ? describeRequestProblem(e.request) : INTERNAL;
 		default:
 			return e.message.trim() ? sentence(e.message.trim()) : FALLBACK;
 	}

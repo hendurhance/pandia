@@ -65,7 +65,7 @@ pub fn infer(value: &Value) -> TypeShape {
         Value::String(_) => TypeShape::Primitive(PrimitiveKind::String),
         Value::Array(items) => {
             if items.is_empty() {
-                TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any)))
+                TypeShape::Array(Box::new(TypeShape::Unknown))
             } else {
                 let limit = items.len().min(ARRAY_SAMPLE_CAP);
                 let mut acc = infer(&items[0]);
@@ -1628,6 +1628,24 @@ mod tests {
             "missing optional 'b': {}",
             s
         );
+    }
+
+    #[test]
+    fn an_empty_array_in_one_item_does_not_hide_the_element_type() {
+        let s = gen(
+            &json!([{"tags": ["a"]}, {"tags": []}]),
+            TypegenLang::Typescript,
+        );
+        assert!(s.contains("tags: string[]"), "{s}");
+        let lone = gen(&json!({"tags": []}), TypegenLang::Typescript);
+        assert!(lone.contains("tags: unknown[]"), "{lone}");
+        let lazy = super::super::lazy::LazyDoc::new(sonic_rs::FastStr::new(
+            r#"[{"tags": []}, {"tags": ["a"]}]"#,
+        ))
+        .unwrap()
+        .infer_shape();
+        let s = generate_from_shape(&lazy, TypegenLang::Typescript, "Root");
+        assert!(s.contains("tags: string[]"), "{s}");
     }
 
     #[test]

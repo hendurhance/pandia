@@ -5,6 +5,17 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 static NEXT_TEMP: AtomicU32 = AtomicU32::new(0);
 
+pub fn create_private(path: &Path) -> io::Result<File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
 pub fn write_atomic(
     path: &Path,
     write: impl FnOnce(&mut BufWriter<File>) -> io::Result<()>,

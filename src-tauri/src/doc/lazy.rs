@@ -768,7 +768,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
         JsonType::String => TypeShape::Primitive(PrimitiveKind::String),
         JsonType::Array => {
             let Some(iter) = lv.clone().into_array_iter() else {
-                return TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any)));
+                return TypeShape::Array(Box::new(TypeShape::Unknown));
             };
             let mut acc: Option<TypeShape> = None;
             for entry in iter.take(ARRAY_SAMPLE_CAP) {
@@ -780,7 +780,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                 });
             }
             match acc {
-                None => TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any))),
+                None => TypeShape::Array(Box::new(TypeShape::Unknown)),
                 Some(a) => TypeShape::Array(Box::new(a)),
             }
         }

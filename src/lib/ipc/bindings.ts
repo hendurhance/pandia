@@ -37,6 +37,8 @@ export const commands = {
 	docCanonicalOffsets: (handle: DocHandle, paths: Path[]) => __TAURI_INVOKE<(CanonicalRange | null)[]>("doc_canonical_offsets", { handle, paths }),
 	docSearch: (handle: DocHandle, opts: SearchOptions, jobId: string | null) => __TAURI_INVOKE<SearchHit[]>("doc_search", { handle, opts, jobId }),
 	cancelJob: (jobId: string) => __TAURI_INVOKE<boolean>("cancel_job", { jobId }),
+	curlPreview: (text: string) => __TAURI_INVOKE<CurlPreview>("curl_preview", { text }),
+	curlSend: (text: string, jobId: string, options: OpenOptions) => __TAURI_INVOKE<SentRequest>("curl_send", { text, jobId, options }),
 	docReplace: (handle: DocHandle, query: string, replacement: string, caseSensitive: boolean) => __TAURI_INVOKE<ReplaceResult>("doc_replace", { handle, query, replacement, caseSensitive }),
 	docValidateSchema: (handle: DocHandle, schema: string) => __TAURI_INVOKE<SchemaValidationResult>("doc_validate_schema", { handle, schema }),
 	readSchemaFile: (path: string) => __TAURI_INVOKE<string>("read_schema_file", { path }),
@@ -113,6 +115,15 @@ export type ColumnValues = {
 	capped: boolean,
 };
 
+export type CurlPreview = {
+	method: string,
+	url: string | null,
+	headerNames: string[],
+	bodyBytes: number | null,
+	sendsOnPaste: boolean,
+	refusal: Refusal | null,
+};
+
 export type DetectKind = "json" | "yaml" | "xml" | "csv" | "curl" | "unknown";
 
 export type Diagnosis = {
@@ -149,7 +160,7 @@ export type DiffKind = "added" | "removed" | "changed" | "moved";
 
 export type DocHandle = string;
 
-export type ErrorKind = "notFound" | "invalidPath" | "tooLarge" | "rangeTooLarge" | "tooDeep" | "parse" | "edit" | "schema" | "schemaExternalRef" | "export" | "io" | "cancelled";
+export type ErrorKind = "notFound" | "invalidPath" | "tooLarge" | "rangeTooLarge" | "tooDeep" | "parse" | "edit" | "schema" | "schemaExternalRef" | "export" | "io" | "cancelled" | "request";
 
 export type ExportFormat = "json" | "json-min" | "yaml" | "csv" | "xml";
 
@@ -275,6 +286,8 @@ export type RecentFile = {
 	name: string,
 };
 
+export type Refusal = { reason: "noUrl" } | { reason: "insecure"; option: string } | { reason: "readsFile"; option: string } | { reason: "noPassword" } | { reason: "unsupported"; option: string };
+
 export type ReplaceResult = {
 	count: number,
 	applied: ApplyResult | null,
@@ -283,6 +296,15 @@ export type ReplaceResult = {
 export type ReportError = {
 	pointer: string,
 	message: string,
+};
+
+export type RequestProblem = { problem: "refused"; refusal: Refusal } | { problem: "badUrl"; url: string } | { problem: "unreachable"; host: string } | { problem: "timedOut"; host: string } | { problem: "tls"; host: string } | { problem: "interrupted"; host: string } | { problem: "tooLarge"; limit: number } | { problem: "notData"; contentType: string; status: number } | { problem: "empty"; status: number };
+
+export type ResponseInfo = {
+	method: string,
+	url: string,
+	status: number,
+	statusText: string,
 };
 
 export type RowJson = {
@@ -319,6 +341,11 @@ export type SearchOptions = {
 	query: string,
 	caseSensitive?: boolean,
 	maxResults?: number | null,
+};
+
+export type SentRequest = {
+	outcome: OpenOutcome,
+	response: ResponseInfo,
 };
 
 export type ShellCommand = {
@@ -360,5 +387,6 @@ export type WireError = {
 	actual: number | null,
 	limit: number | null,
 	io: IoInfo | null,
+	request: RequestProblem | null,
 };
 

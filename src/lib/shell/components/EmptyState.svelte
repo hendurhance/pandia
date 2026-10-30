@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { open as openDialog } from '@tauri-apps/plugin-dialog';
-	import type { Diagnosis, OpenSource } from '$lib/ipc/bindings';
+	import type { CurlPreview, Diagnosis, OpenSource } from '$lib/ipc/bindings';
+	import { ipc } from '$lib/ipc/client';
+	import { describeRefusal } from '$lib/ipc/error-copy';
+	import { fmtBytes } from '$lib/util/format';
 	import PasteDiagnostic from './PasteDiagnostic.svelte';
 	import { buildDemoSource } from '../logic/demo';
 	import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
@@ -12,18 +15,30 @@
 	interface Props {
 		busy: boolean;
 		onOpenSource: (source: OpenSource) => Promise<boolean>;
+		onSendRequest: (curl: string, jobId: string) => Promise<boolean>;
 		onOpenFile: (path: string) => void;
 		diagnosis: Diagnosis | null;
 		onFixDiagnosis: (text: string) => void;
 		onDismissDiagnosis: () => void;
 	}
 
-	let { busy, onOpenSource, onOpenFile, diagnosis, onFixDiagnosis, onDismissDiagnosis }: Props =
-		$props();
+	let {
+		busy,
+		onOpenSource,
+		onSendRequest,
+		onOpenFile,
+		diagnosis,
+		onFixDiagnosis,
+		onDismissDiagnosis,
+	}: Props = $props();
 
 	let pasteText = $state('');
 	const detected = $derived(detectFormat(pasteText));
 	const detectedLabel = $derived(formatLabel(detected));
+
+	let request = $state<{ text: string; preview: CurlPreview } | null>(null);
+	let sendingJob = $state<string | null>(null);
+	const shownRequest = $derived(request?.text === pasteText.trim() ? request : null);
 
 	async function onPickFile() {
 		const picked = await openDialog({
@@ -43,12 +58,50 @@
 		pasteText = text;
 	}
 
+	async function loadTyped(text: string) {
+		if (detectFormat(text) !== 'curl') return openFromText(text, 'pasted.json');
+		let preview: CurlPreview;
+		try {
+			preview = await ipc.curlPreview(text);
+		} catch {
+			// The command doesn't parse; opening it as text reports why.
+			return openFromText(text, 'pasted.json');
+		}
+		request = { text, preview };
+		if (preview.sendsOnPaste) await sendRequest(text);
+	}
+
+	let waitedSeconds = $state(0);
+	$effect(() => {
+		if (!sendingJob) return;
+		waitedSeconds = 0;
+		const timer = setInterval(() => waitedSeconds++, 1000);
+		return () => clearInterval(timer);
+	});
+
+	async function sendRequest(text: string) {
+		const jobId = crypto.randomUUID();
+		sendingJob = jobId;
+		try {
+			if (await onSendRequest(text, jobId)) {
+				pasteText = '';
+				request = null;
+			}
+		} finally {
+			if (sendingJob === jobId) sendingJob = null;
+		}
+	}
+
+	function cancelSend() {
+		if (sendingJob) void ipc.cancelJob(sendingJob).catch(() => {});
+	}
+
 	function onPasteCapture(e: ClipboardEvent) {
 		const text = e.clipboardData?.getData('text');
 		if (text && text.trim()) {
 			e.preventDefault();
 			pasteText = text.trim();
-			void openFromText(text.trim(), 'pasted.json');
+			void loadTyped(text.trim());
 		}
 	}
 
@@ -56,7 +109,7 @@
 		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
 			e.preventDefault();
 			const t = pasteText.trim();
-			if (t) void openFromText(t, 'pasted.json');
+			if (t) void loadTyped(t);
 		}
 	}
 
@@ -95,6 +148,53 @@
 					</span>
 				{/if}
 			</div>
+			{#if shownRequest && sendingJob}
+				{@const p = shownRequest.preview}
+				<div class="request">
+					<div class="request-line">
+						<span class="sending-dot" aria-hidden="true">●</span>
+						<span class="method">{p.method}</span>
+						<span class="url">{p.url}</span>
+					</div>
+					<div class="request-row">
+						<span class="dim text-sm" aria-live="polite"
+							>Waiting for the response{waitedSeconds > 0 ? ` · ${waitedSeconds}s` : ''}</span
+						>
+						<button class="btn" onclick={cancelSend}>Cancel</button>
+					</div>
+				</div>
+			{:else if shownRequest}
+				{@const p = shownRequest.preview}
+				<div class="request">
+					<div class="request-line">
+						<span class="method">{p.method}</span>
+						<span class="url">{p.url ?? 'no URL'}</span>
+					</div>
+					{#if p.headerNames.length > 0}
+						<div class="dim text-sm">Headers: {p.headerNames.join(', ')} (values hidden)</div>
+					{/if}
+					{#if p.bodyBytes !== null}
+						<div class="dim text-sm">Body: {fmtBytes(p.bodyBytes)}</div>
+					{/if}
+					{#if p.refusal}
+						<div class="notice notice-warn">{describeRefusal(p.refusal)}</div>
+					{/if}
+					<div class="request-row">
+						{#if !p.refusal}
+							<button
+								class="btn btn-primary"
+								onclick={() => sendRequest(shownRequest.text)}
+								disabled={busy}>Send {p.method} request</button
+							>
+						{/if}
+						<button
+							class="btn"
+							onclick={() => openFromText(shownRequest.text, 'pasted.json')}
+							disabled={busy}>Open the request as JSON</button
+						>
+					</div>
+				</div>
+			{/if}
 			{#if diagnosis}
 				<PasteDiagnostic {diagnosis} {busy} onFix={onFixDiagnosis} onDismiss={onDismissDiagnosis} />
 			{/if}
@@ -189,6 +289,39 @@
 		background: var(--accent-soft);
 		border: 1px solid var(--accent-line);
 		pointer-events: none;
+	}
+
+	.request {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+		padding: var(--space-sm);
+		border: var(--rule-width) solid var(--rule);
+	}
+	.request-line {
+		display: flex;
+		gap: var(--space-sm);
+		min-width: 0;
+	}
+	.method {
+		color: var(--accent);
+		flex-shrink: 0;
+	}
+	.sending-dot {
+		color: var(--accent);
+		flex-shrink: 0;
+		animation: pulse 1.4s ease-in-out infinite;
+	}
+	.url {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.request-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding-top: var(--space-2xs);
 	}
 
 	.demo-row {

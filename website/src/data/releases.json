@@ -1,5 +1,34 @@
 [
 	{
+		"version": "1.0.9",
+		"date": "Unreleased",
+		"tag": "Stable",
+		"tagKind": "stable",
+		"groups": [
+			{
+				"label": "New",
+				"items": [
+					{
+						"title": "Paste a cURL command and get the response",
+						"detail": "Copy a request as cURL from Postman or your browser and paste it into the start screen. A GET is sent straight away and the response opens in a new tab, at any size; for POST and other methods Pandia shows the request first and waits for your click. Options Pandia cannot honour, such as `-k`, are refused by name. “Open the request as JSON” still shows the request itself."
+					},
+					{
+						"title": "Answer in the terminal, without a window",
+						"detail": "Eight new commands print their answer and exit, so scripts and AI agents can use them on files of any size: `pandia get` prints the value at a path, `shape` sketches the structure, and `validate`, `diff`, `search`, `types`, `convert` and `repair` do what the app does. Exit codes work like `diff` and `grep`. See [Command line](/docs/command-line)."
+					},
+					{
+						"title": "Types from arrays that are sometimes empty",
+						"detail": "When one item has `\"tags\": []` and another has `\"tags\": [\"a\"]`, the Types panel now generates `string[]` instead of `unknown[]`."
+					},
+					{
+						"title": "Check the version from the terminal",
+						"detail": "`pandia --version` (or `-v`) prints the installed version."
+					}
+				]
+			}
+		]
+	},
+	{
 		"version": "1.0.8",
 		"date": "October 26, 2026",
 		"tag": "Stable",

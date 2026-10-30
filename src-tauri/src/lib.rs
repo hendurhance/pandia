@@ -1,6 +1,7 @@
 mod cli;
 mod commands;
 pub(crate) mod doc;
+mod headless;
 mod shell_command;
 mod shortcuts;
 
@@ -49,6 +50,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_canonical_offsets,
             commands::doc_search,
             commands::cancel_job,
+            commands::curl_preview,
+            commands::curl_send,
             commands::doc_replace,
             commands::doc_validate_schema,
             commands::read_schema_file,

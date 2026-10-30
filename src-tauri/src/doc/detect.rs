@@ -354,155 +354,18 @@ fn infer_cell(s: &str) -> serde_json::Value {
 }
 
 fn convert_curl(text: &str) -> DetectResult {
-    let tokens = match tokenize_shell(text.trim()) {
-        Ok(t) => t,
-        Err(e) => {
-            return DetectResult {
-                kind: DetectKind::Curl,
-                json: text.to_string(),
-                error: Some(format!("curl tokenize failed: {e}")),
-            };
-        }
-    };
-
-    let mut iter = tokens.into_iter();
-    match iter.next() {
-        Some(first) if first.eq_ignore_ascii_case("curl") => {}
-        _ => {
-            return DetectResult {
-                kind: DetectKind::Curl,
-                json: text.to_string(),
-                error: Some("curl tokens must start with `curl`".to_string()),
-            };
-        }
+    match super::curl::parse(text) {
+        Ok(req) => DetectResult {
+            kind: DetectKind::Curl,
+            json: serde_json::to_string_pretty(&req.describe()).unwrap_or_default(),
+            error: None,
+        },
+        Err(e) => DetectResult {
+            kind: DetectKind::Curl,
+            json: text.to_string(),
+            error: Some(e),
+        },
     }
-
-    let mut url: Option<String> = None;
-    let mut method: Option<String> = None;
-    let mut headers: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-    let mut body: Option<String> = None;
-    let mut bare: Vec<String> = Vec::new();
-
-    while let Some(tok) = iter.next() {
-        match tok.as_str() {
-            "-X" | "--request" => {
-                if let Some(v) = iter.next() {
-                    method = Some(v);
-                }
-            }
-            "-H" | "--header" => {
-                if let Some(v) = iter.next() {
-                    if let Some((k, val)) = v.split_once(':') {
-                        headers.insert(
-                            k.trim().to_string(),
-                            serde_json::Value::String(val.trim().to_string()),
-                        );
-                    }
-                }
-            }
-            "-d" | "--data" | "--data-raw" | "--data-binary" | "--json" => {
-                if let Some(v) = iter.next() {
-                    body = Some(v);
-                }
-            }
-            "--url" => {
-                if let Some(v) = iter.next() {
-                    url = Some(v);
-                }
-            }
-            "-A" | "--user-agent" | "-e" | "--referer" | "-u" | "--user" | "-o" | "--output"
-            | "--cookie" | "-b" | "--cookie-jar" | "-c" => {
-                let _ = iter.next();
-            }
-            other if !other.starts_with('-') => bare.push(other.to_string()),
-            _ => {}
-        }
-    }
-
-    let url = url.or_else(|| {
-        bare.iter()
-            .find(|t| t.contains("://"))
-            .or(bare.first())
-            .cloned()
-    });
-
-    let final_method = method.unwrap_or_else(|| {
-        if body.is_some() {
-            "POST".to_string()
-        } else {
-            "GET".to_string()
-        }
-    });
-
-    let body_value: serde_json::Value = match body {
-        None => serde_json::Value::Null,
-        Some(b) => serde_json::from_str(&b).unwrap_or(serde_json::Value::String(b)),
-    };
-
-    let mut obj = serde_json::Map::new();
-    obj.insert(
-        "url".into(),
-        url.map(serde_json::Value::String)
-            .unwrap_or(serde_json::Value::Null),
-    );
-    obj.insert("method".into(), serde_json::Value::String(final_method));
-    obj.insert("headers".into(), serde_json::Value::Object(headers));
-    obj.insert("body".into(), body_value);
-
-    DetectResult {
-        kind: DetectKind::Curl,
-        json: serde_json::to_string_pretty(&serde_json::Value::Object(obj)).unwrap_or_default(),
-        error: None,
-    }
-}
-
-fn tokenize_shell(s: &str) -> Result<Vec<String>, String> {
-    let mut out = Vec::new();
-    let mut buf = String::new();
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut chars = s.chars().peekable();
-    let mut has_token = false;
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' if !in_single => {
-                if matches!(chars.peek(), Some('\n')) {
-                    chars.next();
-                    continue;
-                }
-                if let Some(&next) = chars.peek() {
-                    chars.next();
-                    buf.push(next);
-                    has_token = true;
-                }
-            }
-            '\'' if !in_double => {
-                in_single = !in_single;
-                has_token = true;
-            }
-            '"' if !in_single => {
-                in_double = !in_double;
-                has_token = true;
-            }
-            c if c.is_whitespace() && !in_single && !in_double => {
-                if has_token {
-                    out.push(std::mem::take(&mut buf));
-                    has_token = false;
-                }
-            }
-            c => {
-                buf.push(c);
-                has_token = true;
-            }
-        }
-    }
-    if in_single || in_double {
-        return Err("unterminated quote".to_string());
-    }
-    if has_token {
-        out.push(buf);
-    }
-    Ok(out)
 }
 
 #[cfg(test)]

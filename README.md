@@ -85,7 +85,7 @@ Inline JSON Schema validation against **draft-07** and **2020-12**. Debounce is 
 
 ### Work from the terminal
 
-Install the `pandia` command from **Settings → Behavior** (Homebrew adds it for you). `pandia data.json` opens a tab in the running window, `curl … | pandia -` opens piped input, `pandia --diff a.json b.json` opens Compare, and `--wait` makes it usable as `git difftool` or in scripts, exiting 1 when the schema fails. For scripts and AI agents, `… | pandia --wait - > out.json` turns Pandia into a review step: save to send the edited JSON back, and `--json` prints a report with each schema error as a JSON Pointer.
+Install the `pandia` command from **Settings → Behavior** (Homebrew adds it for you). `pandia data.json` opens a tab in the running window, `curl … | pandia -` opens piped input, `pandia --diff a.json b.json` opens Compare, and `--wait` makes it usable as `git difftool` or in scripts, exiting 1 when the schema fails. For scripts and AI agents, `… | pandia --wait - > out.json` turns Pandia into a review step: save to send the edited JSON back, and `--json` prints a report with each schema error as a JSON Pointer. Commands like `pandia get data.json '$.items[0]'`, `pandia shape`, `validate`, `diff`, `search`, `types`, `convert` and `repair` print their answer and exit without opening a window, on files of any size.
 
 ### Privacy-first by design
 

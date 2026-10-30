@@ -477,6 +477,25 @@
 		</div>
 	{/if}
 
+	{#if session.response && !doc.error}
+		{@const r = session.response}
+		<div class="banner banner-info">
+			<span class="info-head">response from</span>
+			<span class="info-list">
+				<span class="info-item">{r.method} {r.url}</span>
+				<span class="info-item" class:info-bad={r.status >= 400}>{r.status} {r.statusText}</span>
+			</span>
+			<button
+				class="info-action"
+				onclick={() => onOpenInNewTab({ kind: 'text', text: r.curl, name: 'request.json' })}
+				>Open the request as JSON</button
+			>
+			<button class="info-dismiss" onclick={() => (session.response = null)} aria-label="dismiss"
+				><Icon icon={X} size="sm" /></button
+			>
+		</div>
+	{/if}
+
 	{#if session.repairInfo && !doc.error}
 		<div class="banner banner-info">
 			<span class="info-head">{session.repairInfo.title}</span>
@@ -500,6 +519,7 @@
 		<EmptyState
 			busy={doc.busy}
 			onOpenSource={(source) => openInPlace(session.loadFromSource(source))}
+			onSendRequest={(curl, jobId) => openInPlace(session.loadFromRequest(curl, jobId))}
 			onOpenFile={(path) => onOpenInNewTab({ kind: 'file', path })}
 			diagnosis={session.diagnosis}
 			onFixDiagnosis={(t) => void openInPlace(session.applyDiagnosisFix(t))}
@@ -776,6 +796,26 @@
 	}
 	.info-more {
 		color: var(--text-dim);
+	}
+	.info-item.info-bad {
+		color: var(--danger);
+	}
+	.info-action {
+		margin-left: auto;
+		flex-shrink: 0;
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text-dim);
+		text-decoration: underline dotted;
+		text-underline-offset: 2px;
+		cursor: pointer;
+	}
+	.info-action:hover {
+		color: var(--accent);
+	}
+	.info-action + .info-dismiss {
+		margin-left: 0;
 	}
 	.info-dismiss {
 		margin-left: auto;
