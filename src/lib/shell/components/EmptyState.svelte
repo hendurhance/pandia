@@ -133,6 +133,7 @@
 				<!-- svelte-ignore a11y_autofocus -->
 				<textarea
 					class="paste"
+					class:has-chip={detectedLabel}
 					bind:value={pasteText}
 					onpaste={onPasteCapture}
 					onkeydown={onPasteKeydown}
@@ -275,6 +276,10 @@
 	.paste {
 		min-height: 120px;
 		resize: vertical;
+	}
+	/* Keeps a long unbroken line, like a token, from running under the format chip. */
+	.paste.has-chip {
+		padding-right: calc(8px + 5.5em + var(--space-sm));
 	}
 
 	.detect-chip {

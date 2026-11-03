@@ -25,8 +25,11 @@ function withDetail(lead: string, detail: string | undefined): string {
 	return detail ? sentence(`${lead}: ${detail}`) : sentence(lead);
 }
 
-export function describeOpenFailure(f: Pick<OpenFailure, 'detail' | 'tooLargeToFix'>): string {
-	const base = withDetail("This isn't valid JSON", f.detail);
+export function describeOpenFailure(
+	f: Pick<OpenFailure, 'detail' | 'tooLargeToFix'>,
+	lead = "This isn't valid JSON",
+): string {
+	const base = withDetail(lead, f.detail);
 	return f.tooLargeToFix
 		? `${base} It's over ${fmtBytes(EDIT_SIZE_LIMIT)}, so Pandia can't repair or convert it automatically.`
 		: base;

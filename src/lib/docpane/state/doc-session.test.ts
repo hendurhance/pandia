@@ -14,6 +14,7 @@ vi.mock('$lib/ipc/client', () => ({
 		docRedo: vi.fn(),
 		docSummary: vi.fn(),
 		docOpen: vi.fn(),
+		curlSend: vi.fn(),
 		docClose: vi.fn(async () => true),
 	},
 }));
@@ -224,6 +225,28 @@ describe('DocSessionController — opening a source', () => {
 		);
 		expect(session.diagnosis).toEqual(diagnosis);
 		expect(session.handle).toBeNull();
+	});
+
+	it('names the HTTP status when a response is not valid JSON', async () => {
+		const { session, deps } = fresh();
+		vi.mocked(ipc.curlSend).mockResolvedValue({
+			outcome: {
+				kind: 'failed',
+				detail: 'EOF at line 1 column 12',
+				tooLargeToFix: false,
+				diagnosis: { title: 'Cut off', detail: 'x', excerpt: null, fix: null },
+			},
+			response: {
+				method: 'GET',
+				url: 'https://api.example.com/users',
+				status: 502,
+				statusText: 'Bad Gateway',
+			},
+		});
+		expect(await session.loadFromRequest('curl https://api.example.com/users', 'job')).toBe(false);
+		expect(deps.setError).toHaveBeenLastCalledWith(
+			"The server answered 502 Bad Gateway, and its response isn't valid JSON: EOF at line 1 column 12.",
+		);
 	});
 
 	it('keeps the file name when the suggested fix for a failed open is applied', async () => {

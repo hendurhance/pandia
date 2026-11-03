@@ -61,7 +61,8 @@ Usage: pandia shape <file> [path]
 
 Prints what the document holds without printing the data: its kind, item count and a
 sketch of its types, like {\"id\": \"integer\", \"tags\": [\"string\"], \"email?\": \"string\"}.
-A key ending in ? is missing from some items. Arrays are sampled, so a huge file is fast.
+A key ending in ? is missing from some items, and \"string | null\" is sometimes null.
+Arrays are sampled, so a huge file is fast.
 ",
         values: &[],
         switches: &[],
@@ -179,7 +180,6 @@ impl Answer {
     }
 }
 
-/// Runs a headless command and returns its exit code, or None when `args` doesn't name one.
 pub(crate) fn run(args: &[String]) -> Option<i32> {
     let answer = answer(args, &mut std::io::stdin().lock())?;
     print!("{}", answer.stdout);
@@ -254,7 +254,6 @@ impl Args {
         Ok(out)
     }
 
-    /// The positional arguments, when there are between `min` and `N` of them.
     fn files<const N: usize>(&self, min: usize) -> Result<[Option<&str>; N], String> {
         let n = self.positional.len();
         if n < min || n > N {
@@ -340,7 +339,6 @@ fn open_arg(arg: &str, stdin: &mut dyn Read) -> Result<(Document, String), Strin
     open(read_input(arg, stdin)?)
 }
 
-/// Plain words for the errors reading a document can hit; the rest keep the engine's text.
 fn describe(e: &DocError, name: &str) -> String {
     use std::io::ErrorKind;
     match e {
@@ -377,8 +375,6 @@ fn size(bytes: u64) -> String {
     }
 }
 
-/// `$.items[0]` or a JSON Pointer. A pointer's `/0` is an index only where the value is an
-/// array, so it is resolved against the document one step at a time.
 fn resolve(doc: &Document, arg: &str) -> Result<Path, String> {
     let Some(pointer) = arg.strip_prefix('/') else {
         return arg.parse::<Path>().map_err(|e| {
@@ -397,7 +393,6 @@ fn resolve(doc: &Document, arg: &str) -> Result<Path, String> {
     Ok(path)
 }
 
-/// Why `path` isn't in the document, named at the first step that doesn't exist.
 fn explain_missing(doc: &Document, path: &Path) -> String {
     let mut at = Path::root();
     for seg in &path.0 {
@@ -470,7 +465,7 @@ fn shape(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {
     } else {
         typegen::infer(&doc.get_value(&path).map_err(|e| describe(&e, &name))?)
     };
-    // A large file doesn't count its root object's keys up front; the sketch has read them all.
+
     let count = match (&shape, count) {
         (TypeShape::Object(props), None) if kind == NodeKind::Object => Some(props.len() as u32),
         _ => count,
@@ -488,8 +483,6 @@ fn shape(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {
     Ok(Answer::json(0, &out))
 }
 
-/// A type sketch an agent can read at a glance: `["string"]` is an array of strings, and a
-/// key ending in `?` is missing from some of the objects sampled.
 fn sketch(shape: &TypeShape) -> Value {
     match shape {
         TypeShape::Primitive(p) => match p {
@@ -511,7 +504,11 @@ fn sketch(shape: &TypeShape) -> Value {
                     } else {
                         k.clone()
                     };
-                    (key, sketch(&p.shape))
+                    let value = match sketch(&p.shape) {
+                        Value::String(ty) if p.nullable => format!("{ty} | null").into(),
+                        other => other,
+                    };
+                    (key, value)
                 })
                 .collect(),
         ),
@@ -525,7 +522,7 @@ fn validate(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {
     };
     let schema = args.required("--schema", "pandia validate data.json --schema schema.json")?;
     let schema_text = read_schema(schema)?;
-    // Compiling against null first reports a broken schema before a large file is read.
+
     schema_validate::validate(&Value::Null, &schema_text).map_err(|e| match e {
         SchemaCompileError::Parse(detail) => {
             format!("The schema {schema} can't be used: it isn't valid JSON: {detail}.")
@@ -892,6 +889,18 @@ mod tests {
             (json!("array"), json!(2))
         );
         assert!(out.get("bytes").is_none());
+    }
+
+    #[test]
+    fn shape_shows_a_field_that_is_sometimes_null() {
+        let a = run_with(
+            &["shape", "-"],
+            r#"[{"email":"a@x.dev","n":1},{"email":null,"n":2}]"#,
+        );
+        assert_eq!(
+            stdout_json(&a)["shape"],
+            json!([{"email": "string | null", "n": "integer"}])
+        );
     }
 
     #[test]

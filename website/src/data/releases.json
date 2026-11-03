@@ -17,8 +17,8 @@
 						"detail": "Eight new commands print their answer and exit, so scripts and AI agents can use them on files of any size: `pandia get` prints the value at a path, `shape` sketches the structure, and `validate`, `diff`, `search`, `types`, `convert` and `repair` do what the app does. Exit codes work like `diff` and `grep`. See [Command line](/docs/command-line)."
 					},
 					{
-						"title": "Types from arrays that are sometimes empty",
-						"detail": "When one item has `\"tags\": []` and another has `\"tags\": [\"a\"]`, the Types panel now generates `string[]` instead of `unknown[]`."
+						"title": "Types for fields that are sometimes null or empty",
+						"detail": "A field that is a string in one item and `null` in another now becomes `string | null` in TypeScript, `Option<String>` in Rust and the nullable form in every other language, instead of `unknown`. An array that is empty in some items keeps its item type too."
 					},
 					{
 						"title": "Check the version from the terminal",

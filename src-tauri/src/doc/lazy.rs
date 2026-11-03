@@ -794,6 +794,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                         ObjectProp {
                             shape: infer_lazy(&child),
                             optional: false,
+                            nullable: false,
                         },
                     );
                 }

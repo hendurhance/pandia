@@ -46,7 +46,10 @@ pub enum PrimitiveKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObjectProp {
     pub shape: TypeShape,
+    /// Missing from some of the objects sampled.
     pub optional: bool,
+    /// `null` in some objects and `shape` in others.
+    pub nullable: bool,
 }
 
 pub fn infer(value: &Value) -> TypeShape {
@@ -83,6 +86,7 @@ pub fn infer(value: &Value) -> TypeShape {
                     ObjectProp {
                         shape: infer(v),
                         optional: false,
+                        nullable: false,
                     },
                 );
             }
@@ -124,11 +128,13 @@ pub(crate) fn merge(a: TypeShape, b: TypeShape) -> TypeShape {
                 let b = p2.get(&k);
                 match (a, b) {
                     (Some(a), Some(b)) => {
+                        let (shape, saw_null) = merge_nullable(a.shape.clone(), b.shape.clone());
                         out.insert(
                             k,
                             ObjectProp {
-                                shape: merge(a.shape.clone(), b.shape.clone()),
+                                shape,
                                 optional: a.optional || b.optional,
+                                nullable: a.nullable || b.nullable || saw_null,
                             },
                         );
                     }
@@ -138,6 +144,7 @@ pub(crate) fn merge(a: TypeShape, b: TypeShape) -> TypeShape {
                             ObjectProp {
                                 shape: only.shape.clone(),
                                 optional: true,
+                                nullable: only.nullable,
                             },
                         );
                     }
@@ -147,6 +154,16 @@ pub(crate) fn merge(a: TypeShape, b: TypeShape) -> TypeShape {
             Object(out)
         }
         _ => Primitive(PrimitiveKind::Any),
+    }
+}
+
+/// A field that is `null` in one object and a string in another is a nullable string, not Any.
+fn merge_nullable(a: TypeShape, b: TypeShape) -> (TypeShape, bool) {
+    const NULL: TypeShape = TypeShape::Primitive(PrimitiveKind::Null);
+    match (a, b) {
+        (NULL, NULL) => (NULL, false),
+        (NULL, other) | (other, NULL) => (other, true),
+        (a, b) => (merge(a, b), false),
     }
 }
 
@@ -343,6 +360,11 @@ fn ts_type<'a>(
                         seen,
                     );
                     let q = if v.optional { "?" } else { "" };
+                    let ty = if v.nullable {
+                        format!("{ty} | null")
+                    } else {
+                        ty
+                    };
                     let _ = writeln!(body, "  {prop_name}{q}: {ty};");
                 }
                 body.push('}');
@@ -450,7 +472,7 @@ fn rust_type<'a>(
                         structs,
                         seen,
                     );
-                    let ty = if v.optional {
+                    let ty = if v.optional || v.nullable {
                         format!("Option<{ty}>")
                     } else {
                         ty
@@ -528,7 +550,11 @@ fn go_type<'a>(
                         structs,
                         seen,
                     );
-                    let ty = if v.optional { format!("*{ty}") } else { ty };
+                    let ty = if v.optional || v.nullable {
+                        format!("*{ty}")
+                    } else {
+                        ty
+                    };
 
                     let options = if v.optional {
                         ",omitempty"
@@ -649,7 +675,11 @@ fn kotlin_type<'a>(
                         classes,
                         seen,
                     );
-                    let ty = if v.optional { format!("{ty}?") } else { ty };
+                    let ty = if v.optional || v.nullable {
+                        format!("{ty}?")
+                    } else {
+                        ty
+                    };
                     let comma = if i + 1 < entries.len() { "," } else { "" };
                     let _ = writeln!(body, "    val {prop_name}: {ty}{comma}");
                 }
@@ -742,6 +772,8 @@ fn python_type<'a>(
                         );
                         let ty = if v.optional {
                             format!("Optional[{ty}] = None")
+                        } else if v.nullable {
+                            format!("Optional[{ty}]")
                         } else {
                             ty
                         };
@@ -917,9 +949,10 @@ fn php_type<'a>(
                         classes,
                         seen,
                     );
-                    let ty = if v.optional && ty.contains('|') {
+                    let maybe_null = v.optional || v.nullable;
+                    let ty = if maybe_null && ty.contains('|') {
                         format!("{ty}|null")
-                    } else if v.optional && ty != "mixed" {
+                    } else if maybe_null && ty != "mixed" {
                         format!("?{ty}")
                     } else {
                         ty
@@ -1159,6 +1192,11 @@ fn zod_schema(shape: &TypeShape, _name: &str) -> String {
             for (k, v) in props {
                 let key = ts_prop_name(k);
                 let inner = zod_schema(&v.shape, k);
+                let inner = if v.nullable {
+                    format!("{inner}.nullable()")
+                } else {
+                    inner
+                };
                 let inner = if v.optional {
                     format!("{inner}.optional()")
                 } else {
@@ -1262,10 +1300,11 @@ fn dart_class<'a>(
         taken.push(field.clone());
         let hint = to_pascal_case(&sanitize_ident(key, true));
         let ty = dart_type(&prop.shape, &hint, class_name, classes, seen);
-        let ty = if prop.optional { format!("{ty}?") } else { ty };
+        let maybe_null = prop.optional || prop.nullable;
+        let ty = if maybe_null { format!("{ty}?") } else { ty };
         let src = format!("json[{}]", dart_string_lit(key));
-        let from = dart_from_json(&prop.shape, &hint, class_name, &src, prop.optional, seen);
-        let to = dart_to_json(&prop.shape, &field, prop.optional);
+        let from = dart_from_json(&prop.shape, &hint, class_name, &src, maybe_null, seen);
+        let to = dart_to_json(&prop.shape, &field, maybe_null);
         fields.push((field, ty, from, to, prop.optional));
     }
 
@@ -1536,8 +1575,18 @@ fn json_schema_of(shape: &TypeShape, samples: &[&Value]) -> Value {
             let mut properties = serde_json::Map::new();
             let mut required: Vec<Value> = Vec::new();
             for (k, prop) in props {
-                let values: Vec<&Value> = samples.iter().filter_map(|v| v.get(k)).collect();
-                properties.insert(k.clone(), json_schema_of(&prop.shape, &values));
+                let values: Vec<&Value> = samples
+                    .iter()
+                    .filter_map(|v| v.get(k))
+                    .filter(|v| !v.is_null())
+                    .collect();
+                let mut schema = json_schema_of(&prop.shape, &values);
+                if prop.nullable {
+                    if let Some(ty @ Value::String(_)) = schema.get_mut("type") {
+                        *ty = Value::Array(vec![ty.take(), Value::String("null".into())]);
+                    }
+                }
+                properties.insert(k.clone(), schema);
                 if !prop.optional && prop.shape != TypeShape::Primitive(PrimitiveKind::Null) {
                     required.push(Value::String(k.clone()));
                 }
@@ -1646,6 +1695,80 @@ mod tests {
         .infer_shape();
         let s = generate_from_shape(&lazy, TypegenLang::Typescript, "Root");
         assert!(s.contains("tags: string[]"), "{s}");
+    }
+
+    #[test]
+    fn a_field_that_is_sometimes_null_keeps_its_type() {
+        let data = json!([
+            {"email": "a@x.dev", "age": 3, "home": {"city": "Oslo"}},
+            {"email": null, "age": null, "home": null}
+        ]);
+        let has = |lang: TypegenLang, want: &[&str]| {
+            let s = gen(&data, lang);
+            for w in want {
+                assert!(s.contains(w), "{lang:?} is missing {w:?}:\n{s}");
+            }
+        };
+        has(
+            TypegenLang::Typescript,
+            &[
+                "email: string | null;",
+                "age: number | null;",
+                "home: Home | null;",
+            ],
+        );
+        has(
+            TypegenLang::Rust,
+            &[
+                "pub email: Option<String>,",
+                "pub age: Option<i64>,",
+                "pub home: Option<Home>,",
+            ],
+        );
+        has(
+            TypegenLang::Go,
+            &[
+                "Email *string `json:\"email\"`",
+                "Age *int64 `json:\"age\"`",
+            ],
+        );
+        has(
+            TypegenLang::Kotlin,
+            &["val email: String?", "val age: Long?"],
+        );
+        has(
+            TypegenLang::Python,
+            &["email: Optional[str]\n", "age: Optional[int]\n"],
+        );
+        has(
+            TypegenLang::Php,
+            &["public ?string $email,", "public ?int $age,"],
+        );
+        has(
+            TypegenLang::Zod,
+            &[
+                "email: z.string().nullable(),",
+                "age: z.number().int().nullable(),",
+            ],
+        );
+        has(
+            TypegenLang::Dart,
+            &["final String? email;", "required this.email,"],
+        );
+        let schema: Value = serde_json::from_str(&gen(&data, TypegenLang::JsonSchema)).unwrap();
+        let props = &schema["items"]["properties"];
+        assert_eq!(
+            props["email"]["type"],
+            json!(["string", "null"]),
+            "{schema}"
+        );
+        assert_eq!(props["home"]["type"], json!(["object", "null"]), "{schema}");
+
+        let null_first = gen(
+            &json!([{"email": null}, {"email": "a@x.dev"}]),
+            TypegenLang::Typescript,
+        );
+        assert!(null_first.contains("email: string | null;"), "{null_first}");
     }
 
     #[test]
