@@ -10,7 +10,7 @@
 				"items": [
 					{
 						"title": "Paste a cURL command and get the response",
-						"detail": "Copy a request as cURL from Postman or your browser and paste it into the start screen. A GET is sent straight away and the response opens in a new tab, at any size; for POST and other methods Pandia shows the request first and waits for your click. Options Pandia cannot honour, such as `-k`, are refused by name. “Open the request as JSON” still shows the request itself."
+						"detail": "Copy a request as cURL from Postman or your browser and paste it into the start screen. A GET is sent straight away and the response opens in that tab, at any size; for POST and other methods Pandia shows the request first and waits for your click. Options Pandia cannot honour, such as `-k`, are refused by name. “Open the request as JSON” still shows the request itself."
 					},
 					{
 						"title": "Answer in the terminal, without a window",
@@ -23,6 +23,39 @@
 					{
 						"title": "Check the version from the terminal",
 						"detail": "`pandia --version` (or `-v`) prints the installed version."
+					}
+				]
+			},
+			{
+				"label": "Fixed",
+				"items": [
+					{
+						"title": "`--schema` and `--diff` work when the command starts Pandia",
+						"detail": "`pandia config.json --schema config.schema.json` loaded the schema only when Pandia was already open, and `pandia --diff a.json b.json` opened Compare only then too. When the same command started Pandia, the file opened without them. Thanks to [@bastiankistner](https://github.com/hendurhance/pandia/issues/27) for the report."
+					},
+					{
+						"title": "Restored work is kept until you save it",
+						"detail": "Unsaved work restored after an unexpected close now opens as unsaved, so closing it asks first, and its backup stays until the tab has loaded. Undoing back to the saved state no longer leaves a backup that is offered again on the next launch."
+					},
+					{
+						"title": "Edits land on the node you chose",
+						"detail": "Paste after a cut no longer removes a different value when another edit moved things in between. The row menu acts on the row you opened it on, even if rows above it finish loading meanwhile. Quick undos no longer leave rows that are gone."
+					},
+					{
+						"title": "Schemas stay with the right document",
+						"detail": "A file opened into a tab no longer inherits the previous file's schema. A relative `$schema` in a repaired or converted copy is read from the original's folder. Two documents that each ask to download a schema both get asked. A schema file that starts with a byte-order mark loads."
+					},
+					{
+						"title": "Startup uses your saved settings",
+						"detail": "A file opened as Pandia starts now follows your saved settings, such as the large file warning, instead of the defaults."
+					},
+					{
+						"title": "Code view and string edits do what the keys say",
+						"detail": "Typing in Code view no longer changes the document by itself after a pause: nothing changes until ⌘⏎, and Esc reverts. Crash backups still keep what you typed. In the Tree, ⏎ commits a one-line string, ⇧⏎ adds a line break, and ⌘⏎ commits a multi-line string."
+					},
+					{
+						"title": "Smaller fixes",
+						"detail": "Code view find and replace treats `\\n` as plain text. The Open dialog accepts YAML, XML and CSV. A slow URL fetch no longer replaces a document you opened while it ran, and a cURL response isn't dropped when a file arrives while it loads. History steps show the right text in Code view. Grid filter checklists show current values."
 					}
 				]
 			}

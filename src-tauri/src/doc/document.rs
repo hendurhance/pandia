@@ -462,6 +462,12 @@ impl Document {
         *self.hash_cache.lock() = Some((self.version, saved_hash));
     }
 
+    pub fn mark_unsaved(&mut self) {
+        self.history.forget_saved();
+        self.saved_version = u64::MAX;
+        self.saved_hash = blake3::Hash::from_bytes([0u8; 32]);
+    }
+
     pub fn get_slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
         self.backend().slice(path, range)
     }

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 	import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
@@ -182,10 +183,12 @@
 
 	async function restoreOne(rec: BackupRecord) {
 		const name = rec.displayName ?? 'recovered.json';
-		const outcome = await workspace.open({ kind: 'text', text: rec.content, name });
+		const outcome = await workspace.open({ kind: 'text', text: rec.content, name, unsaved: true });
 		if (outcome.kind !== 'opened') return;
-		void ipc.docBackupClear(rec.docId).catch(() => {});
 		recovery = recovery.filter((r) => r.docId !== rec.docId);
+		void workspace.whenOpened(outcome.tabId).then((opened) => {
+			if (opened) void ipc.docBackupClear(rec.docId).catch(() => {});
+		});
 	}
 
 	async function restoreAll() {
@@ -211,16 +214,20 @@
 	$effect(() => {
 		let unlisten: (() => void) | null = null;
 		let cancelled = false;
+		let closing = false;
 		const win = getCurrentWebviewWindow();
 		void win
 			.onCloseRequested(async (event) => {
 				event.preventDefault();
+				if (closing) return;
+				closing = true;
 				let shouldClose = true;
 				try {
 					await workspace.snapshot();
 					shouldClose = await workspace.closeAll();
 				} finally {
 					if (shouldClose) await win.destroy();
+					closing = false;
 				}
 			})
 			.then((u) => {
@@ -361,7 +368,7 @@
 			if (cancelled) fn();
 			else unlisten = fn;
 		});
-		void workspace.restore(drainPendingFiles());
+		untrack(() => void workspace.restore(drainPendingFiles()));
 		return () => {
 			cancelled = true;
 			unlisten?.();
@@ -387,6 +394,25 @@
 			cancelled = true;
 			unlisten?.();
 		};
+	});
+
+	$effect(() => {
+		let timer: ReturnType<typeof setInterval> | undefined;
+		void ipc
+			.e2eEnabled()
+			.then((on) => {
+				if (!on) return;
+				timer = setInterval(async () => {
+					for (const line of await ipc.e2eTakeActions()) {
+						const { run } = JSON.parse(line) as { run?: string };
+						if (!run) continue;
+						commandRegistry.run(run);
+						void ipc.e2eRecord(JSON.stringify({ event: 'ran', id: run }));
+					}
+				}, 300);
+			})
+			.catch(() => {});
+		return () => clearInterval(timer);
 	});
 
 	function onWindowKeydown(e: KeyboardEvent) {
@@ -502,15 +528,17 @@
 	{/if}
 
 	{#if confirm.state}
-		<ConfirmDialog
-			title={confirm.state.title}
-			message={confirm.state.message}
-			primaryLabel={confirm.state.primaryLabel}
-			secondaryLabel={confirm.state.secondaryLabel}
-			cancelLabel={confirm.state.cancelLabel}
-			dangerPrimary={confirm.state.dangerPrimary}
-			onPick={confirm.pick}
-		/>
+		{#key confirm.state}
+			<ConfirmDialog
+				title={confirm.state.title}
+				message={confirm.state.message}
+				primaryLabel={confirm.state.primaryLabel}
+				secondaryLabel={confirm.state.secondaryLabel}
+				cancelLabel={confirm.state.cancelLabel}
+				dangerPrimary={confirm.state.dangerPrimary}
+				onPick={confirm.pick}
+			/>
+		{/key}
 	{/if}
 
 	{#if comparePickerOpen}

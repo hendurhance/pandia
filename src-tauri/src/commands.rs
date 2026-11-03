@@ -47,9 +47,18 @@ where
 #[derive(Debug, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum OpenSource {
-    File { path: String },
-    Text { text: String, name: Option<String> },
-    Piped { path: String },
+    File {
+        path: String,
+    },
+    Text {
+        text: String,
+        name: Option<String>,
+        #[serde(default)]
+        unsaved: bool,
+    },
+    Piped {
+        path: String,
+    },
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -81,8 +90,9 @@ fn open_with_fix_limit(
     options: OpenOptions,
     fix_limit: u64,
 ) -> DocResult<OpenOutcome> {
+    let unsaved = matches!(source, OpenSource::Text { unsaved: true, .. });
     let (text, name, file_path) = read_source(source)?;
-    open_text(store, text, name, file_path, options, fix_limit)
+    open_text(store, text, name, file_path, options, fix_limit, unsaved)
 }
 
 fn open_text(
@@ -92,10 +102,16 @@ fn open_text(
     file_path: Option<String>,
     options: OpenOptions,
     fix_limit: u64,
+    unsaved: bool,
 ) -> DocResult<OpenOutcome> {
     Ok(
         match load_text(text, name, file_path, options, fix_limit)? {
-            Loaded::Opened(doc, notes) => opened(store, *doc, notes),
+            Loaded::Opened(mut doc, notes) => {
+                if unsaved {
+                    doc.mark_unsaved();
+                }
+                opened(store, *doc, notes)
+            }
             Loaded::Failed(failure) => OpenOutcome::Failed(failure),
         },
     )
@@ -117,7 +133,7 @@ fn read_source(source: OpenSource) -> DocResult<(String, Option<String>, Option<
             let text = Document::read_text_file(std::path::Path::new(&path))?;
             Ok((text, Some(path.clone()), Some(path)))
         }
-        OpenSource::Text { text, name } => Ok((text, name, None)),
+        OpenSource::Text { text, name, .. } => Ok((text, name, None)),
         OpenSource::Piped { path } => {
             let file = std::path::Path::new(&path);
             if !crate::cli::is_stdin_handoff(&path) {
@@ -202,7 +218,15 @@ fn open_response(
     if text.trim().is_empty() {
         return Err(DocError::Request(RequestProblem::Empty { status }));
     }
-    open_text(store, text, Some(name), None, options, EDIT_SIZE_LIMIT)
+    open_text(
+        store,
+        text,
+        Some(name),
+        None,
+        options,
+        EDIT_SIZE_LIMIT,
+        false,
+    )
 }
 
 fn diff_docs(
@@ -863,6 +887,24 @@ pub async fn doc_backup(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn doc_backup_text(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+    display_name: Option<String>,
+    text: String,
+) -> Result<(), WireError> {
+    let store = state.inner().clone();
+    run_blocking(move || {
+        let source_path = store.read(handle, |doc| Ok(doc.summary().source_path))?;
+        backup::write(&app, &handle.to_string(), source_path, display_name, text)?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn doc_backup_clear(app: tauri::AppHandle, doc_id: String) -> Result<(), WireError> {
     backup::clear(&app, &doc_id).map_err(WireError::from)
 }
@@ -1026,8 +1068,17 @@ mod tests {
             panic!("expected to convert");
         };
         assert_eq!(doc.notes.converted_from, Some(DetectKind::Yaml));
-        assert_eq!(doc.summary.source_path.as_deref(), Some("data.json"));
+        copy_in_original_folder(&doc, "data.json");
         assert!(!doc.summary.file_backed);
+    }
+
+    fn copy_in_original_folder(doc: &OpenedDoc, copy: &str) {
+        let source = std::path::Path::new(doc.summary.source_path.as_deref().unwrap());
+        assert_eq!(source.file_name().unwrap(), copy);
+        let folder = source.parent().unwrap();
+        assert!(folder.is_absolute(), "{source:?}");
+        let folder_name = folder.file_name().unwrap().to_string_lossy();
+        assert!(folder_name.starts_with("pandia-open-"), "{source:?}");
     }
 
     #[test]
@@ -1036,10 +1087,7 @@ mod tests {
         let OpenOutcome::Opened(doc) = open_file(&store, "cut.json", CUT_OFF, true) else {
             panic!("expected to repair");
         };
-        assert_eq!(
-            doc.summary.source_path.as_deref(),
-            Some("cut.repaired.json")
-        );
+        copy_in_original_folder(&doc, "cut.repaired.json");
         assert!(
             !doc.summary.file_backed,
             "Save must not default to the broken original"
@@ -1084,6 +1132,7 @@ mod tests {
             let source = OpenSource::Text {
                 text: text.into(),
                 name: None,
+                unsaved: false,
             };
             let outcome =
                 open_with_fix_limit(&store, source, OpenOptions { repair: true }, 10).unwrap();
@@ -1155,6 +1204,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 2}"#.into(),
                 name: Some("test.json".into()),
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1167,6 +1217,49 @@ mod tests {
         let json = serde_json::to_value(&result).unwrap();
         assert!(json.get("handle").is_some());
         assert!(json.get("summary").is_some());
+    }
+
+    #[test]
+    fn recovered_work_opens_unsaved() {
+        let store = DocStore::new();
+        let open = |text: String, unsaved: bool| {
+            doc_open_inner(
+                &store,
+                OpenSource::Text {
+                    text,
+                    name: Some("/w/notes.json".into()),
+                    unsaved,
+                },
+            )
+            .unwrap()
+        };
+        let small = r#"{"draft": "unsaved words"}"#.to_string();
+        assert!(
+            !open(small.clone(), false).summary.dirty,
+            "a paste opens clean"
+        );
+        let recovered = open(small, true);
+        assert!(recovered.summary.dirty, "recovered work opens unsaved");
+        assert!(!recovered.summary.file_backed);
+
+        let large = format!(r#"{{"pad": "{}"}}"#, "x".repeat(11 * 1024 * 1024));
+        let lazy = open(large, true).summary;
+        assert!(
+            lazy.lazy && lazy.dirty,
+            "large recovered work opens unsaved too"
+        );
+
+        let target =
+            std::env::temp_dir().join(format!("pandia-recovered-{}.json", std::process::id()));
+        doc_save_inner(
+            &store,
+            recovered.handle,
+            Some(target.to_string_lossy().into_owned()),
+        )
+        .unwrap();
+        std::fs::remove_file(&target).unwrap();
+        let saved = store.read(recovered.handle, |d| Ok(d.summary())).unwrap();
+        assert!(!saved.dirty, "saving it somewhere makes it clean");
     }
 
     #[test]
@@ -1216,6 +1309,7 @@ mod tests {
             OpenSource::Text {
                 text: "{not json".into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap_err();
@@ -1231,6 +1325,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1247,6 +1342,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"events": [10, 20, 30]}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1276,6 +1372,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": {"b": 42}}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1293,6 +1390,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 123456789012345678}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1320,6 +1418,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 2}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1328,6 +1427,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 99, "c": 3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1343,6 +1443,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1358,6 +1459,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1373,6 +1475,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 2}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1381,6 +1484,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 99, "c": 3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1402,6 +1506,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1419,6 +1524,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1434,6 +1540,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":[1,2,3],"c":{"d":"x"}}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1442,6 +1549,7 @@ mod tests {
             OpenSource::Text {
                 text: "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2,\n    3\n  ],\n  \"c\": {\n    \"d\": \"x\"\n  }\n}".into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1459,6 +1567,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":2,"c":3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1467,6 +1576,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":99,"c":3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1492,6 +1602,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":2,"c":3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1500,6 +1611,7 @@ mod tests {
             OpenSource::Text {
                 text: "{\n  \"a\": 1,\n  \"b\": 99,\n  \"c\": 3\n}".into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1523,6 +1635,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1.5}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1531,6 +1644,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1.50}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1554,6 +1668,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 1075283027435454464}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1562,6 +1677,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 1075283027435454465}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1610,6 +1726,7 @@ mod tests {
             OpenSource::Text {
                 text: left_text,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1618,6 +1735,7 @@ mod tests {
             OpenSource::Text {
                 text: right_text,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1671,6 +1789,7 @@ mod tests {
             OpenSource::Text {
                 text: minified,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1679,6 +1798,7 @@ mod tests {
             OpenSource::Text {
                 text: pretty,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1698,6 +1818,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1706,6 +1827,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 2}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1902,6 +2024,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 123456789012345678}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1919,6 +2042,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1934,6 +2058,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1959,6 +2084,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"[{"a":1},{"a":2},{"a":3}]"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1977,6 +2103,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"[{"id":1,"name":"a"},{"id":2,"name":"b"}]"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();

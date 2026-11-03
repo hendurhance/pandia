@@ -15,6 +15,7 @@
 	let urlBusy = $state(false);
 	let urlError: string | null = $state(null);
 	let urlAbort: AbortController | null = null;
+	$effect(() => () => urlAbort?.abort());
 	let showHeaders = $state(false);
 	let headersText = $state('');
 
@@ -38,6 +39,7 @@
 				return;
 			}
 			const text = await r.text();
+			if (ctrl.signal.aborted) return;
 			onLoad(text, url);
 		} catch {
 			// The HTTP plugin rejects with raw reqwest text, and a cancel isn't an AbortError.

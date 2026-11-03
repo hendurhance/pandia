@@ -37,6 +37,9 @@ export const commands = {
 	docCanonicalOffsets: (handle: DocHandle, paths: Path[]) => __TAURI_INVOKE<(CanonicalRange | null)[]>("doc_canonical_offsets", { handle, paths }),
 	docSearch: (handle: DocHandle, opts: SearchOptions, jobId: string | null) => __TAURI_INVOKE<SearchHit[]>("doc_search", { handle, opts, jobId }),
 	cancelJob: (jobId: string) => __TAURI_INVOKE<boolean>("cancel_job", { jobId }),
+	e2eRecord: (event: string) => __TAURI_INVOKE<void>("e2e_record", { event }),
+	e2eEnabled: () => __TAURI_INVOKE<boolean>("e2e_enabled"),
+	e2eTakeActions: () => __TAURI_INVOKE<string[]>("e2e_take_actions"),
 	curlPreview: (text: string) => __TAURI_INVOKE<CurlPreview>("curl_preview", { text }),
 	curlSend: (text: string, jobId: string, options: OpenOptions) => __TAURI_INVOKE<SentRequest>("curl_send", { text, jobId, options }),
 	docReplace: (handle: DocHandle, query: string, replacement: string, caseSensitive: boolean) => __TAURI_INVOKE<ReplaceResult>("doc_replace", { handle, query, replacement, caseSensitive }),
@@ -46,6 +49,7 @@ export const commands = {
 	docHistory: (handle: DocHandle) => __TAURI_INVOKE<HistoryView>("doc_history", { handle }),
 	docSave: (handle: DocHandle, path: string | null) => __TAURI_INVOKE<SaveResult>("doc_save", { handle, path }),
 	docBackup: (handle: DocHandle, displayName: string | null) => __TAURI_INVOKE<boolean>("doc_backup", { handle, displayName }),
+	docBackupText: (handle: DocHandle, displayName: string | null, text: string) => __TAURI_INVOKE<null>("doc_backup_text", { handle, displayName, text }),
 	docBackupClear: (docId: string) => __TAURI_INVOKE<null>("doc_backup_clear", { docId }),
 	docBackupScan: () => __TAURI_INVOKE<BackupRecord[]>("doc_backup_scan"),
 	docExport: (handle: DocHandle, format: ExportFormat) => __TAURI_INVOKE<string>("doc_export", { handle, format }),
@@ -260,7 +264,7 @@ export type OpenOutcome = {
 	kind: "failed",
 } & OpenFailure;
 
-export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null } | { kind: "piped"; path: string };
+export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null; unsaved?: boolean } | { kind: "piped"; path: string };
 
 export type OpenedDoc = {
 	handle: DocHandle,

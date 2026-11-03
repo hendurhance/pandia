@@ -25,6 +25,7 @@ export interface PaneView {
 	readonly sourceName: string | null;
 	readonly status: DocStatus | null;
 	readonly context: DocContext | null;
+	readonly busy?: boolean;
 }
 
 export interface WorkspacePrompts {
@@ -77,6 +78,8 @@ export class Workspace {
 
 	private views: Record<string, PaneView> = $state.raw({});
 	private slots: Record<string, TabSlot> = {};
+	private openWaiters: Record<string, ((opened: boolean) => void)[]> = {};
+	private closing: Record<string, Promise<boolean>> = {};
 	private idCounter = 1;
 	private restored = false;
 
@@ -156,16 +159,25 @@ export class Workspace {
 	clearPendingOpen = (id: string) => {
 		if (this.pendingOpens[id] == null) return;
 		this.pendingOpens = { ...this.pendingOpens, [id]: null };
+		this.settleOpen(id, !!this.views[id]?.context);
 	};
 
-	close = async (id: string): Promise<boolean> => {
+	whenOpened(tabId: string): Promise<boolean> {
+		if (this.pendingOpens[tabId] == null) return Promise.resolve(!!this.views[tabId]?.context);
+		return new Promise((resolve) => (this.openWaiters[tabId] ??= []).push(resolve));
+	}
+
+	close = (id: string): Promise<boolean> =>
+		(this.closing[id] ??= this.closeOnce(id).finally(() => delete this.closing[id]));
+
+	private async closeOnce(id: string): Promise<boolean> {
 		const tab = this.tabs.find((t) => t.id === id);
 		if (!tab) return false;
 		if (!(await this.resolveUnsaved([id]))) return false;
 		await tab.handoff?.settle(id);
 		this.remove(id);
 		return true;
-	};
+	}
 
 	async closeAll(): Promise<boolean> {
 		if (!(await this.resolveUnsaved(this.tabs.map((t) => t.id)))) return false;
@@ -235,6 +247,7 @@ export class Workspace {
 	};
 
 	private async mayOpen(path: string): Promise<boolean> {
+		await behaviorPrefs.init();
 		if (!behaviorPrefs.warnLargeFileOpen) return true;
 		let bytes = 0;
 		try {
@@ -287,6 +300,7 @@ export class Workspace {
 		delete this.slots[id];
 		const { [id]: __, ...pending } = this.pendingOpens;
 		this.pendingOpens = pending;
+		this.settleOpen(id, false);
 		const next = this.tabs.filter((t) => t.id !== id);
 		if (next.length === 0) {
 			const fresh: TabRecord = { id: this.newId(), handoff: null };
@@ -301,6 +315,12 @@ export class Workspace {
 		}
 	}
 
+	private settleOpen(id: string, opened: boolean): void {
+		const waiters = this.openWaiters[id] ?? [];
+		delete this.openWaiters[id];
+		for (const resolve of waiters) resolve(opened);
+	}
+
 	private isEmpty(id: string): boolean {
 		return (this.views[id]?.status ?? null) == null;
 	}
@@ -308,6 +328,7 @@ export class Workspace {
 	private reusable(id: string): boolean {
 		return (
 			this.isEmpty(id) &&
+			!this.views[id]?.busy &&
 			this.pendingOpens[id] == null &&
 			!this.tabs.find((t) => t.id === id)?.handoff?.owes
 		);

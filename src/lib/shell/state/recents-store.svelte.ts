@@ -36,37 +36,44 @@ function sanitize(raw: unknown): RecentFile[] {
 
 class RecentsStore extends PersistedStore {
 	list: RecentFile[] = $state([]);
+	private early: ((list: RecentFile[]) => RecentFile[])[] = [];
 
 	protected async load(): Promise<void> {
 		const raw = await loadPersisted<RecentFile[]>(STORE_FILE, STORE_KEY);
-		this.list = sanitize(raw);
+		const early = this.early.splice(0);
+		this.list = early.reduce((list, change) => change(list), sanitize(raw));
+		if (early.length > 0) void this.persist();
 	}
 
 	add(path: string, name?: string, size?: number): void {
 		const now = new Date().toISOString();
 		const display = name ?? basename(path);
-		const existing = this.list.find((e) => e.path === path);
-		const pinned = existing?.pinned ?? false; // preserve pin across re-opens
-		const filtered = this.list.filter((e) => e.path !== path);
-		const next = [{ path, name: display, openedAt: now, size, pinned }, ...filtered];
-		const evicted = new Set(next.filter((e) => !e.pinned).slice(MAX_ENTRIES));
-		this.list = next.filter((e) => !evicted.has(e));
-		void this.persist();
+		this.change((list) => {
+			const existing = list.find((e) => e.path === path);
+			const pinned = existing?.pinned ?? false; // preserve pin across re-opens
+			const filtered = list.filter((e) => e.path !== path);
+			const next = [{ path, name: display, openedAt: now, size, pinned }, ...filtered];
+			const evicted = new Set(next.filter((e) => !e.pinned).slice(MAX_ENTRIES));
+			return next.filter((e) => !evicted.has(e));
+		});
 	}
 
 	remove(path: string): void {
-		this.list = this.list.filter((e) => e.path !== path);
-		void this.persist();
+		this.change((list) => list.filter((e) => e.path !== path));
 	}
 
 	clear(): void {
-		this.list = this.list.filter((e) => e.pinned);
-		void this.persist();
+		this.change((list) => list.filter((e) => e.pinned));
 	}
 
 	togglePin(path: string): void {
-		this.list = this.list.map((e) => (e.path === path ? { ...e, pinned: !e.pinned } : e));
-		void this.persist();
+		this.change((list) => list.map((e) => (e.path === path ? { ...e, pinned: !e.pinned } : e)));
+	}
+
+	private change(apply: (list: RecentFile[]) => RecentFile[]): void {
+		this.list = apply(this.list);
+		if (this.loaded) void this.persist();
+		else this.early.push(apply);
 	}
 
 	private persist(): Promise<void> {

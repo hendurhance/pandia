@@ -263,10 +263,16 @@ export class TreeRowsController {
 		}
 	};
 
-	refetchAfterOp = async (affectedPaths: Path[]) => {
-		for (const path of affectedPaths) {
-			await this.refreshPath(path);
-		}
+	private lastRefetch: Promise<void> = Promise.resolve();
+
+	refetchAfterOp = (affectedPaths: Path[]): Promise<void> => {
+		const run = this.lastRefetch.then(async () => {
+			for (const path of affectedPaths) {
+				await this.refreshPath(path);
+			}
+		});
+		this.lastRefetch = run.catch(() => {});
+		return run;
 	};
 
 	private async refreshPath(path: Path) {

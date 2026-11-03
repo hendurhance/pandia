@@ -4,6 +4,8 @@
 
 		revert: () => void;
 
+		text: () => string;
+
 		undo: () => boolean;
 		redo: () => boolean;
 
@@ -199,12 +201,15 @@
 	const api: CodeViewApi = {
 		flush: () => commit(),
 		revert,
+		text: () => editorView?.state.doc.toString() ?? baseline,
 		undo: () => (editorView ? undo(editorView) : false),
 		redo: () => (editorView ? redo(editorView) : false),
 		cmSearch: (query, caseSensitive) => {
 			if (!editorView) return 0;
 			editorView.dispatch({
-				effects: setSearchQuery.of(new SearchQuery({ search: query, caseSensitive })),
+				effects: setSearchQuery.of(
+					new SearchQuery({ search: query, caseSensitive, literal: true }),
+				),
 			});
 			if (!query) return 0;
 			const count = countMatches(editorView, query, caseSensitive);
@@ -223,7 +228,7 @@
 			if (!editorView || !query) return 0;
 			editorView.dispatch({
 				effects: setSearchQuery.of(
-					new SearchQuery({ search: query, replace: replacement, caseSensitive }),
+					new SearchQuery({ search: query, replace: replacement, caseSensitive, literal: true }),
 				),
 			});
 			const count = countMatches(editorView, query, caseSensitive);

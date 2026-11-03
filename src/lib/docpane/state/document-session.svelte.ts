@@ -191,17 +191,27 @@ export class DocumentSession {
 			handle: () => this.session.handle,
 			sourceName: () => this.session.sourceName,
 			isDirty: () => this.isDirty,
-			codeDirty: () => this.deps.code.dirty(),
-			flushCodeBuffer: () => this.deps.code.api()?.flush() ?? Promise.resolve(true),
+			uncommittedText: () =>
+				this.deps.code.dirty() ? (this.deps.code.api()?.text() ?? null) : null,
 		});
+		let backedUp = false;
+		const flush = () => {
+			backedUp = true;
+			return backup.flush();
+		};
 
 		$effect(() => {
 			const h = this.session.handle;
 			void this.session.summary?.version;
 			void this.deps.code.dirty();
-			if (!h || !this.isDirty) return;
+			if (!h) return;
+			if (!this.isDirty) {
+				if (backedUp) this.session.clearBackup();
+				backedUp = false;
+				return;
+			}
 			if (this.backupTimer) clearTimeout(this.backupTimer);
-			this.backupTimer = setTimeout(() => void backup.flush(), BACKUP_IDLE_MS);
+			this.backupTimer = setTimeout(() => void flush(), BACKUP_IDLE_MS);
 			return () => {
 				if (this.backupTimer) clearTimeout(this.backupTimer);
 			};
@@ -210,13 +220,13 @@ export class DocumentSession {
 		let prevActive = false;
 		$effect(() => {
 			const nowActive = this.deps.isActive();
-			if (prevActive && !nowActive && this.isDirty) void backup.flush();
+			if (prevActive && !nowActive && this.isDirty) void flush();
 			prevActive = nowActive;
 		});
 
 		$effect(() => {
 			const onBlur = () => {
-				if (this.isDirty) void backup.flush();
+				if (this.isDirty) void flush();
 			};
 			window.addEventListener('blur', onBlur);
 			return () => window.removeEventListener('blur', onBlur);

@@ -37,8 +37,9 @@ pub fn validate(
     instance: &Value,
     schema_text: &str,
 ) -> Result<SchemaValidationResult, SchemaCompileError> {
-    let schema_json: Value = serde_json::from_str(schema_text.trim())
-        .map_err(|e| SchemaCompileError::Parse(e.to_string()))?;
+    let schema_json: Value =
+        serde_json::from_str(schema_text.trim_start_matches('\u{feff}').trim())
+            .map_err(|e| SchemaCompileError::Parse(e.to_string()))?;
 
     let validator = jsonschema::validator_for(&schema_json).map_err(|e| match &e.kind {
         ValidationErrorKind::Referencing(ReferencingError::Unretrievable { uri, .. }) => {
@@ -173,6 +174,13 @@ mod tests {
         let s = schema(r#"{"type": "not-a-real-type"}"#);
         let err = validate(&json!({}), &s).unwrap_err();
         assert!(matches!(err, SchemaCompileError::Compile(_)));
+    }
+
+    #[test]
+    fn a_schema_saved_with_a_byte_order_mark_still_parses() {
+        let s = schema("\u{feff}{\"type\": \"object\", \"required\": [\"id\"]}");
+        let r = validate(&json!({}), &s).unwrap();
+        assert_eq!(r.error_count, 1);
     }
 
     #[test]

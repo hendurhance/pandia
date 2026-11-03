@@ -92,8 +92,16 @@ pub fn load_text(
 }
 
 pub fn copy_name(name: Option<&str>, suffix: &str) -> String {
-    let stem = name
-        .and_then(|n| std::path::Path::new(n).file_stem())
+    let original = name.map(std::path::Path::new);
+    let stem = original
+        .and_then(|p| p.file_stem())
         .map_or_else(|| "untitled".into(), |s| s.to_string_lossy().into_owned());
-    format!("{stem}.{suffix}")
+    let copy = format!("{stem}.{suffix}");
+    match original
+        .and_then(|p| p.parent())
+        .filter(|d| d.is_absolute())
+    {
+        Some(folder) => folder.join(copy).to_string_lossy().into_owned(),
+        None => copy,
+    }
 }

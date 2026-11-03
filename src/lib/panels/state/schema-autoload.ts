@@ -29,7 +29,11 @@ export async function autoloadSchema(
 ): Promise<void> {
 	const docRef = doc.rootIsObject ? await readDocSchemaRef(doc.handle) : null;
 	const plan = planSchema({ cliRef: doc.cliSchema, docRef, docPath: doc.path });
-	if (plan.kind === 'none') return;
+	if (plan.kind === 'none') {
+		const previous = schemaSessions.existing(doc.tabId);
+		if (previous?.origin) previous.clear();
+		return;
+	}
 
 	const origin: SchemaOrigin = {
 		from: plan.from,
@@ -43,13 +47,16 @@ export async function autoloadSchema(
 	if (plan.target.kind === 'url' && !plan.target.secure && !behaviorPrefs.allowHttpSchemas) {
 		return schema.fail(HTTP_BLOCKED, origin, () => autoloadSchema(doc, confirmRemote));
 	}
+	const before = { text: schema.text, origin: schema.origin };
+	const edited = () => schema.text !== before.text || schema.origin !== before.origin;
 	let text: string | null;
 	try {
 		text = await readTarget(plan.target, plan.from, confirmRemote);
 	} catch (e) {
-		return schema.fail(describeError(e), origin);
+		if (!edited()) schema.fail(describeError(e), origin);
+		return;
 	}
-	await schema.load(text ?? '', origin);
+	if (!edited()) await schema.load(text ?? '', origin);
 }
 
 async function readDocSchemaRef(handle: DocHandle): Promise<string | null> {

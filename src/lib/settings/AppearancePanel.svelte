@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { appearancePrefs, FONT_SIZE_MIN, FONT_SIZE_MAX } from './state/appearance-prefs.svelte';
 	import {
 		THEMES,
@@ -10,7 +11,7 @@
 	import { Arm } from '$lib/util/arm.svelte';
 
 	$effect(() => {
-		void appearancePrefs.init();
+		untrack(() => void appearancePrefs.init());
 	});
 
 	type Mode = 'dark' | 'light' | 'auto';

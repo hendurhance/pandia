@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { pathToString, parsePath, parseJsonPointer, stem, truncatePathMiddle } from './path';
+import {
+	isAbsolutePath,
+	pathToString,
+	parsePath,
+	parseJsonPointer,
+	stem,
+	truncatePathMiddle,
+} from './path';
 
 describe('pathToString', () => {
 	it('renders the root path as $', () => {
@@ -153,5 +160,16 @@ describe('stem', () => {
 
 	it('keeps the whole name of a dotfile with no extension', () => {
 		expect(stem('/Users/me/.prettierrc')).toBe('.prettierrc');
+	});
+});
+
+describe('isAbsolutePath', () => {
+	it('accepts Unix, Windows drive and UNC paths, not bare names or URLs', () => {
+		expect(
+			['/w/a.json', 'C:\\w\\a.json', 'C:/w/a.json', '\\\\srv\\share\\a.json'].map(isAbsolutePath),
+		).toEqual([true, true, true, true]);
+		expect(
+			['pasted.json', 'stdin', 'https://x.dev/a.json', 'w/a.json'].map(isAbsolutePath),
+		).toEqual([false, false, false, false]);
 	});
 });
