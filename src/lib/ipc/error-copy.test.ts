@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { IpcError, type IpcErrorKind } from './error';
-import { describeError, describeOpenFailure } from './error-copy';
-import type { FileOp, IoProblem } from './bindings';
+import { describeError, describeOpenFailure, describeRefusal } from './error-copy';
+import type { FileOp, IoProblem, RequestProblem } from './bindings';
 
 describe('describeError — backend kinds', () => {
 	it('tooLarge formats sizes as human bytes and states the honest fix', () => {
@@ -190,6 +190,41 @@ describe('describeOpenFailure', () => {
 		);
 		expect(describeOpenFailure({ detail: 'EOF at line 4 column 0', tooLargeToFix: true })).toBe(
 			"This isn't valid JSON: EOF at line 4 column 0. It's over 200.0 MiB, so Pandia can't repair or convert it automatically.",
+		);
+	});
+});
+
+describe('describeError — sending a cURL command', () => {
+	const failed = (request: RequestProblem) =>
+		describeError(new IpcError('request', 'request failed', { request }));
+
+	it('names the host, the cause and the fix', () => {
+		expect(failed({ problem: 'unreachable', host: 'api.example.com' })).toBe(
+			"Couldn't reach api.example.com. Check the URL and your connection.",
+		);
+		expect(failed({ problem: 'timedOut', host: 'api.example.com' })).toBe(
+			"api.example.com didn't answer in time. Try again later.",
+		);
+		expect(failed({ problem: 'tls', host: 'api.example.com' })).toBe(
+			"Couldn't make a secure connection to api.example.com. Its certificate may be invalid or expired.",
+		);
+		expect(failed({ problem: 'tooLarge', limit: 2147483648 })).toBe(
+			'The response is larger than 2.00 GiB, the most Pandia can open.',
+		);
+		expect(failed({ problem: 'notData', contentType: 'text/html', status: 500 })).toBe(
+			'The server sent text/html (status 500), not JSON, YAML, XML or CSV.',
+		);
+		expect(failed({ problem: 'empty', status: 204 })).toBe(
+			'The server sent an empty response (status 204).',
+		);
+	});
+
+	it('says which option stopped the command from being sent', () => {
+		expect(failed({ problem: 'refused', refusal: { reason: 'insecure', option: '-k' } })).toBe(
+			"Pandia won't send this: -k turns off certificate checks. Remove -k to send it.",
+		);
+		expect(describeRefusal({ reason: 'unsupported', option: '-F' })).toBe(
+			"Pandia can't send this: it doesn't support -F. Remove -F to send the rest.",
 		);
 	});
 });

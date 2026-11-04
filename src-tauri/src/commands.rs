@@ -1,20 +1,18 @@
 use serde::{Deserialize, Serialize};
-use sonic_rs::FastStr;
 
 use crate::doc::backup::{self, BackupRecord};
-use crate::doc::detect::{detect_and_convert, DetectKind};
-use crate::doc::diagnose::{diagnose, Diagnosis};
+use crate::doc::curl::{self, CurlPreview, RequestProblem};
 use crate::doc::diff::{compute_diff, DiffEntry};
 use crate::doc::document::{
     ApplyResult, ColumnValues, Document, HistoryView, ReplaceResult, SaveResult, SortedRow,
-    Summary, EDIT_SIZE_LIMIT,
+    Summary, EDIT_SIZE_LIMIT, MAX_DOC_BYTES,
 };
 use crate::doc::export::{ExportFormat, ExportPreview};
 use crate::doc::grid_filter::{self, FilterOp};
 use crate::doc::lazy::parse_json;
 use crate::doc::linediff::{compute_line_diff, line_slice, LineDiffResult, LINE_FETCH_MAX};
+use crate::doc::open::{load_text, Loaded, OpenFailure, OpenNotes, OpenOptions};
 use crate::doc::ops::Op;
-use crate::doc::repair::repair;
 use crate::doc::schema::sniff_columns;
 use crate::doc::schema_validate::SchemaValidationResult;
 use crate::doc::search::{SearchHit, SearchOptions};
@@ -41,6 +39,7 @@ where
             actual: None,
             limit: None,
             io: None,
+            request: None,
         }),
     }
 }
@@ -48,22 +47,18 @@ where
 #[derive(Debug, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum OpenSource {
-    File { path: String },
-    Text { text: String, name: Option<String> },
-    Piped { path: String },
-}
-
-#[derive(Debug, Default, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenOptions {
-    pub repair: bool,
-}
-
-#[derive(Debug, Default, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenNotes {
-    pub converted_from: Option<DetectKind>,
-    pub repairs: Vec<String>,
+    File {
+        path: String,
+    },
+    Text {
+        text: String,
+        name: Option<String>,
+        #[serde(default)]
+        unsaved: bool,
+    },
+    Piped {
+        path: String,
+    },
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -72,14 +67,6 @@ pub struct OpenedDoc {
     pub handle: DocHandle,
     pub summary: Summary,
     pub notes: OpenNotes,
-}
-
-#[derive(Debug, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenFailure {
-    pub detail: String,
-    pub too_large_to_fix: bool,
-    pub diagnosis: Diagnosis,
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -103,56 +90,31 @@ fn open_with_fix_limit(
     options: OpenOptions,
     fix_limit: u64,
 ) -> DocResult<OpenOutcome> {
+    let unsaved = matches!(source, OpenSource::Text { unsaved: true, .. });
     let (text, name, file_path) = read_source(source)?;
-    let text = FastStr::from_string(text);
-    let detail = match Document::from_source(text.clone(), name.clone()) {
-        Ok(mut doc) => {
-            doc.file_path = file_path;
-            return Ok(opened(store, doc, OpenNotes::default()));
-        }
-        Err(DocError::Parse(detail)) => detail,
-        Err(e) => return Err(e),
-    };
+    open_text(store, text, name, file_path, options, fix_limit, unsaved)
+}
 
-    let fixable = text.len() as u64 <= fix_limit;
-    let starts_like_json = matches!(
-        text.trim_start_matches('\u{feff}')
-            .trim_start()
-            .chars()
-            .next(),
-        Some('{' | '[')
-    );
-    if fixable && !starts_like_json {
-        let detected = detect_and_convert(&text);
-        if detected.error.is_none()
-            && !matches!(detected.kind, DetectKind::Json | DetectKind::Unknown)
-        {
-            let doc =
-                Document::from_text(&detected.json, Some(copy_name(name.as_deref(), "json")))?;
-            let notes = OpenNotes {
-                converted_from: Some(detected.kind),
-                ..OpenNotes::default()
-            };
-            return Ok(opened(store, doc, notes));
-        }
-    }
-    if fixable && options.repair {
-        if let Some(repaired) = repair(&text) {
-            let name = copy_name(name.as_deref(), "repaired.json");
-            if let Ok(doc) = Document::from_text(&repaired.json, Some(name)) {
-                let notes = OpenNotes {
-                    repairs: repaired.notes,
-                    ..OpenNotes::default()
-                };
-                return Ok(opened(store, doc, notes));
+fn open_text(
+    store: &DocStore,
+    text: String,
+    name: Option<String>,
+    file_path: Option<String>,
+    options: OpenOptions,
+    fix_limit: u64,
+    unsaved: bool,
+) -> DocResult<OpenOutcome> {
+    Ok(
+        match load_text(text, name, file_path, options, fix_limit)? {
+            Loaded::Opened(mut doc, notes) => {
+                if unsaved {
+                    doc.mark_unsaved();
+                }
+                opened(store, *doc, notes)
             }
-        }
-    }
-    Ok(OpenOutcome::Failed(OpenFailure {
-        detail,
-        too_large_to_fix: !fixable,
-        diagnosis: diagnose(&text, fixable),
-    }))
+            Loaded::Failed(failure) => OpenOutcome::Failed(failure),
+        },
+    )
 }
 
 fn opened(store: &DocStore, doc: Document, notes: OpenNotes) -> OpenOutcome {
@@ -171,7 +133,7 @@ fn read_source(source: OpenSource) -> DocResult<(String, Option<String>, Option<
             let text = Document::read_text_file(std::path::Path::new(&path))?;
             Ok((text, Some(path.clone()), Some(path)))
         }
-        OpenSource::Text { text, name } => Ok((text, name, None)),
+        OpenSource::Text { text, name, .. } => Ok((text, name, None)),
         OpenSource::Piped { path } => {
             let file = std::path::Path::new(&path);
             if !crate::cli::is_stdin_handoff(&path) {
@@ -187,11 +149,84 @@ fn read_source(source: OpenSource) -> DocResult<(String, Option<String>, Option<
     }
 }
 
-fn copy_name(name: Option<&str>, suffix: &str) -> String {
-    let stem = name
-        .and_then(|n| std::path::Path::new(n).file_stem())
-        .map_or_else(|| "untitled".into(), |s| s.to_string_lossy().into_owned());
-    format!("{stem}.{suffix}")
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseInfo {
+    pub method: String,
+    pub url: String,
+    pub status: u16,
+    pub status_text: String,
+}
+
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SentRequest {
+    pub outcome: OpenOutcome,
+    pub response: ResponseInfo,
+}
+
+async fn curl_send_inner(
+    store: Arc<DocStore>,
+    text: String,
+    cancel: crate::doc::jobs::CancelFlag,
+    options: OpenOptions,
+) -> Result<SentRequest, WireError> {
+    let req = curl::parse(&text).map_err(DocError::Parse)?;
+    let sent = curl::send(&req, &cancel, MAX_DOC_BYTES).await?;
+    let response = ResponseInfo {
+        method: req.method.clone(),
+        url: req.url.clone().unwrap_or_default(),
+        status: sent.status,
+        status_text: sent.status_text.clone(),
+    };
+    let name = req.tab_name();
+    let head = req.method == "HEAD";
+    let outcome = run_blocking(move || open_response(&store, sent, head, name, options)).await?;
+    Ok(SentRequest { outcome, response })
+}
+
+fn open_response(
+    store: &DocStore,
+    sent: curl::Sent,
+    head: bool,
+    name: String,
+    options: OpenOptions,
+) -> DocResult<OpenOutcome> {
+    let status = sent.status;
+    let text = if head {
+        serde_json::to_string_pretty(&sent.headers).unwrap_or_default()
+    } else {
+        match Document::read_text_file(sent.file.path()) {
+            Err(DocError::Io { source, .. })
+                if source.kind() == std::io::ErrorKind::InvalidData =>
+            {
+                let content_type = sent
+                    .headers
+                    .get("content-type")
+                    .and_then(|v| v.as_str())
+                    .map(curl::media_type)
+                    .unwrap_or_default();
+                return Err(DocError::Request(RequestProblem::NotData {
+                    content_type,
+                    status,
+                }));
+            }
+            read => read?,
+        }
+    };
+    drop(sent);
+    if text.trim().is_empty() {
+        return Err(DocError::Request(RequestProblem::Empty { status }));
+    }
+    open_text(
+        store,
+        text,
+        Some(name),
+        None,
+        options,
+        EDIT_SIZE_LIMIT,
+        false,
+    )
 }
 
 fn diff_docs(
@@ -756,6 +791,27 @@ pub async fn cancel_job(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn curl_preview(text: String) -> Result<CurlPreview, WireError> {
+    Ok(curl::parse(&text).map_err(DocError::Parse)?.preview())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn curl_send(
+    state: tauri::State<'_, Arc<DocStore>>,
+    jobs: tauri::State<'_, Arc<crate::doc::jobs::JobRegistry>>,
+    text: String,
+    job_id: String,
+    options: OpenOptions,
+) -> Result<SentRequest, WireError> {
+    let cancel = jobs.register(job_id.clone());
+    let result = curl_send_inner(state.inner().clone(), text, cancel.clone(), options).await;
+    jobs.unregister(&job_id, &cancel);
+    result
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn doc_history(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -825,6 +881,24 @@ pub async fn doc_backup(
             content,
         )?;
         Ok(true)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn doc_backup_text(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+    display_name: Option<String>,
+    text: String,
+) -> Result<(), WireError> {
+    let store = state.inner().clone();
+    run_blocking(move || {
+        let source_path = store.read(handle, |doc| Ok(doc.summary().source_path))?;
+        backup::write(&app, &handle.to_string(), source_path, display_name, text)?;
+        Ok(())
     })
     .await
 }
@@ -936,6 +1010,8 @@ pub async fn doc_generate_types(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::doc::curl::tests::{reply, serve_once};
+    use crate::doc::detect::DetectKind;
     use crate::doc::types::{NodeKind, PathSegment};
 
     fn doc_open_inner(store: &DocStore, source: OpenSource) -> DocResult<OpenedDoc> {
@@ -992,8 +1068,17 @@ mod tests {
             panic!("expected to convert");
         };
         assert_eq!(doc.notes.converted_from, Some(DetectKind::Yaml));
-        assert_eq!(doc.summary.source_path.as_deref(), Some("data.json"));
+        copy_in_original_folder(&doc, "data.json");
         assert!(!doc.summary.file_backed);
+    }
+
+    fn copy_in_original_folder(doc: &OpenedDoc, copy: &str) {
+        let source = std::path::Path::new(doc.summary.source_path.as_deref().unwrap());
+        assert_eq!(source.file_name().unwrap(), copy);
+        let folder = source.parent().unwrap();
+        assert!(folder.is_absolute(), "{source:?}");
+        let folder_name = folder.file_name().unwrap().to_string_lossy();
+        assert!(folder_name.starts_with("pandia-open-"), "{source:?}");
     }
 
     #[test]
@@ -1002,10 +1087,7 @@ mod tests {
         let OpenOutcome::Opened(doc) = open_file(&store, "cut.json", CUT_OFF, true) else {
             panic!("expected to repair");
         };
-        assert_eq!(
-            doc.summary.source_path.as_deref(),
-            Some("cut.repaired.json")
-        );
+        copy_in_original_folder(&doc, "cut.repaired.json");
         assert!(
             !doc.summary.file_backed,
             "Save must not default to the broken original"
@@ -1050,6 +1132,7 @@ mod tests {
             let source = OpenSource::Text {
                 text: text.into(),
                 name: None,
+                unsaved: false,
             };
             let outcome =
                 open_with_fix_limit(&store, source, OpenOptions { repair: true }, 10).unwrap();
@@ -1121,6 +1204,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 2}"#.into(),
                 name: Some("test.json".into()),
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1133,6 +1217,49 @@ mod tests {
         let json = serde_json::to_value(&result).unwrap();
         assert!(json.get("handle").is_some());
         assert!(json.get("summary").is_some());
+    }
+
+    #[test]
+    fn recovered_work_opens_unsaved() {
+        let store = DocStore::new();
+        let open = |text: String, unsaved: bool| {
+            doc_open_inner(
+                &store,
+                OpenSource::Text {
+                    text,
+                    name: Some("/w/notes.json".into()),
+                    unsaved,
+                },
+            )
+            .unwrap()
+        };
+        let small = r#"{"draft": "unsaved words"}"#.to_string();
+        assert!(
+            !open(small.clone(), false).summary.dirty,
+            "a paste opens clean"
+        );
+        let recovered = open(small, true);
+        assert!(recovered.summary.dirty, "recovered work opens unsaved");
+        assert!(!recovered.summary.file_backed);
+
+        let large = format!(r#"{{"pad": "{}"}}"#, "x".repeat(11 * 1024 * 1024));
+        let lazy = open(large, true).summary;
+        assert!(
+            lazy.lazy && lazy.dirty,
+            "large recovered work opens unsaved too"
+        );
+
+        let target =
+            std::env::temp_dir().join(format!("pandia-recovered-{}.json", std::process::id()));
+        doc_save_inner(
+            &store,
+            recovered.handle,
+            Some(target.to_string_lossy().into_owned()),
+        )
+        .unwrap();
+        std::fs::remove_file(&target).unwrap();
+        let saved = store.read(recovered.handle, |d| Ok(d.summary())).unwrap();
+        assert!(!saved.dirty, "saving it somewhere makes it clean");
     }
 
     #[test]
@@ -1182,6 +1309,7 @@ mod tests {
             OpenSource::Text {
                 text: "{not json".into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap_err();
@@ -1197,6 +1325,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1213,6 +1342,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"events": [10, 20, 30]}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1242,6 +1372,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": {"b": 42}}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1259,6 +1390,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 123456789012345678}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1286,6 +1418,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 2}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1294,6 +1427,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 99, "c": 3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1309,6 +1443,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1324,6 +1459,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1339,6 +1475,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 2}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1347,6 +1484,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1, "b": 99, "c": 3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1368,6 +1506,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1385,6 +1524,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1400,6 +1540,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":[1,2,3],"c":{"d":"x"}}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1408,6 +1549,7 @@ mod tests {
             OpenSource::Text {
                 text: "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2,\n    3\n  ],\n  \"c\": {\n    \"d\": \"x\"\n  }\n}".into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1425,6 +1567,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":2,"c":3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1433,6 +1576,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":99,"c":3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1458,6 +1602,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a":1,"b":2,"c":3}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1466,6 +1611,7 @@ mod tests {
             OpenSource::Text {
                 text: "{\n  \"a\": 1,\n  \"b\": 99,\n  \"c\": 3\n}".into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1489,6 +1635,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1.5}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1497,6 +1644,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1.50}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1520,6 +1668,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 1075283027435454464}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1528,6 +1677,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 1075283027435454465}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1576,6 +1726,7 @@ mod tests {
             OpenSource::Text {
                 text: left_text,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1584,6 +1735,7 @@ mod tests {
             OpenSource::Text {
                 text: right_text,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1637,6 +1789,7 @@ mod tests {
             OpenSource::Text {
                 text: minified,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1645,6 +1798,7 @@ mod tests {
             OpenSource::Text {
                 text: pretty,
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1664,6 +1818,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1672,6 +1827,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 2}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1868,6 +2024,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"id": 123456789012345678}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1885,6 +2042,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1900,6 +2058,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"{"a": 1}"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1925,6 +2084,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"[{"a":1},{"a":2},{"a":3}]"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1943,6 +2103,7 @@ mod tests {
             OpenSource::Text {
                 text: r#"[{"id":1,"name":"a"},{"id":2,"name":"b"}]"#.into(),
                 name: None,
+                unsaved: false,
             },
         )
         .unwrap();
@@ -1972,5 +2133,104 @@ mod tests {
         let text_form: OpenSource =
             serde_json::from_str(r#"{"kind": "text", "text": "{}", "name": null}"#).unwrap();
         assert!(matches!(text_form, OpenSource::Text { .. }));
+    }
+
+    async fn send(store: &Arc<DocStore>, cmd: String) -> Result<SentRequest, WireError> {
+        let cancel = crate::doc::jobs::CancelFlag::never();
+        curl_send_inner(store.clone(), cmd, cancel, OpenOptions::default()).await
+    }
+
+    fn opened_doc(sent: SentRequest) -> OpenedDoc {
+        match sent.outcome {
+            OpenOutcome::Opened(doc) => doc,
+            OpenOutcome::Failed(f) => panic!("expected to open: {}", f.detail),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_error_response_still_opens_its_body_with_the_status() {
+        let (url, _got) = serve_once(Some(reply(
+            "404 Not Found",
+            "application/json",
+            r#"{"error":"no such user"}"#,
+        )));
+        let store = Arc::new(DocStore::new());
+        let sent = send(&store, format!("curl {url}/users/9")).await.unwrap();
+        assert_eq!(sent.response.status, 404);
+        assert_eq!(sent.response.status_text, "Not Found");
+        assert_eq!(sent.response.method, "GET");
+        assert_eq!(sent.response.url, format!("{url}/users/9"));
+        let doc = opened_doc(sent);
+        assert_eq!(doc.summary.source_path.as_deref(), Some("users-9.json"));
+        assert!(!doc.summary.file_backed);
+        let body = store
+            .read(doc.handle, |d| d.get_value(&Path::root()))
+            .unwrap();
+        assert_eq!(body, serde_json::json!({"error": "no such user"}));
+    }
+
+    #[tokio::test]
+    async fn a_large_response_opens_lazily_like_a_large_file() {
+        let body = format!("[{}0]", "1234567,".repeat(1_400_000));
+        let (url, _got) = serve_once(Some(reply("200 OK", "application/json", &body)));
+        let doc = opened_doc(
+            send(&Arc::new(DocStore::new()), format!("curl {url}"))
+                .await
+                .unwrap(),
+        );
+        assert!(doc.summary.lazy);
+        assert_eq!(doc.summary.root_child_count, Some(1_400_001));
+    }
+
+    #[tokio::test]
+    async fn an_xml_response_is_converted_like_pasted_xml() {
+        let (url, _got) = serve_once(Some(reply("200 OK", "application/xml", "<r><a>1</a></r>")));
+        let doc = opened_doc(
+            send(&Arc::new(DocStore::new()), format!("curl {url}/feed"))
+                .await
+                .unwrap(),
+        );
+        assert_eq!(doc.notes.converted_from, Some(DetectKind::Xml));
+        assert_eq!(doc.summary.source_path.as_deref(), Some("feed.json"));
+    }
+
+    #[tokio::test]
+    async fn a_head_request_opens_the_response_headers() {
+        let (url, got) = serve_once(Some(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-Rate-Limit: 9\r\nContent-Length: 2\r\n\r\n".to_vec(),
+        ));
+        let store = Arc::new(DocStore::new());
+        let doc = opened_doc(send(&store, format!("curl -I {url}")).await.unwrap());
+        assert!(got.recv().unwrap().starts_with("HEAD / HTTP/1.1"));
+        let headers = store
+            .read(doc.handle, |d| d.get_value(&Path::root()))
+            .unwrap();
+        assert_eq!(headers["x-rate-limit"], "9");
+    }
+
+    #[tokio::test]
+    async fn an_empty_or_binary_body_is_a_plain_request_problem() {
+        let (url, _got) = serve_once(Some(reply("204 No Content", "application/json", "")));
+        let err = send(&Arc::new(DocStore::new()), format!("curl {url}"))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(
+                err.request.as_deref(),
+                Some(RequestProblem::Empty { status: 204 })
+            ),
+            "{err:?}"
+        );
+
+        let mut binary = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 4\r\n\r\n".to_vec();
+        binary.extend_from_slice(&[0xff, 0xfe, 0x00, 0x81]);
+        let (url, _got) = serve_once(Some(binary));
+        let err = send(&Arc::new(DocStore::new()), format!("curl {url}"))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err.request.as_deref(), Some(RequestProblem::NotData { content_type, status: 200 }) if content_type == "application/octet-stream"),
+            "{err:?}"
+        );
     }
 }

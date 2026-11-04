@@ -120,6 +120,10 @@ export function basename(path: string): string {
 	return slash >= 0 ? path.slice(slash + 1) : path;
 }
 
+export function isAbsolutePath(path: string): boolean {
+	return path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path);
+}
+
 export function dirname(path: string): string {
 	const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
 	return slash >= 0 ? path.slice(0, slash) : '';

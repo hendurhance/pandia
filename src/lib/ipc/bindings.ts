@@ -37,6 +37,11 @@ export const commands = {
 	docCanonicalOffsets: (handle: DocHandle, paths: Path[]) => __TAURI_INVOKE<(CanonicalRange | null)[]>("doc_canonical_offsets", { handle, paths }),
 	docSearch: (handle: DocHandle, opts: SearchOptions, jobId: string | null) => __TAURI_INVOKE<SearchHit[]>("doc_search", { handle, opts, jobId }),
 	cancelJob: (jobId: string) => __TAURI_INVOKE<boolean>("cancel_job", { jobId }),
+	e2eRecord: (event: string) => __TAURI_INVOKE<void>("e2e_record", { event }),
+	e2eEnabled: () => __TAURI_INVOKE<boolean>("e2e_enabled"),
+	e2eTakeActions: () => __TAURI_INVOKE<string[]>("e2e_take_actions"),
+	curlPreview: (text: string) => __TAURI_INVOKE<CurlPreview>("curl_preview", { text }),
+	curlSend: (text: string, jobId: string, options: OpenOptions) => __TAURI_INVOKE<SentRequest>("curl_send", { text, jobId, options }),
 	docReplace: (handle: DocHandle, query: string, replacement: string, caseSensitive: boolean) => __TAURI_INVOKE<ReplaceResult>("doc_replace", { handle, query, replacement, caseSensitive }),
 	docValidateSchema: (handle: DocHandle, schema: string) => __TAURI_INVOKE<SchemaValidationResult>("doc_validate_schema", { handle, schema }),
 	readSchemaFile: (path: string) => __TAURI_INVOKE<string>("read_schema_file", { path }),
@@ -44,6 +49,7 @@ export const commands = {
 	docHistory: (handle: DocHandle) => __TAURI_INVOKE<HistoryView>("doc_history", { handle }),
 	docSave: (handle: DocHandle, path: string | null) => __TAURI_INVOKE<SaveResult>("doc_save", { handle, path }),
 	docBackup: (handle: DocHandle, displayName: string | null) => __TAURI_INVOKE<boolean>("doc_backup", { handle, displayName }),
+	docBackupText: (handle: DocHandle, displayName: string | null, text: string) => __TAURI_INVOKE<null>("doc_backup_text", { handle, displayName, text }),
 	docBackupClear: (docId: string) => __TAURI_INVOKE<null>("doc_backup_clear", { docId }),
 	docBackupScan: () => __TAURI_INVOKE<BackupRecord[]>("doc_backup_scan"),
 	docExport: (handle: DocHandle, format: ExportFormat) => __TAURI_INVOKE<string>("doc_export", { handle, format }),
@@ -66,7 +72,7 @@ export const LINE_FETCH_MAX = 5000 as const;
 
 export const MAX_DOC_BYTES = 2147483648 as const;
 
-export const SHORTCUTS = [{"command":"tab.new","key":"T","shift":false,"alt":false,"platform":"all"},{"command":"doc.new","key":"N","shift":false,"alt":false,"platform":"all"},{"command":"doc.openFile","key":"O","shift":false,"alt":false,"platform":"all"},{"command":"doc.save","key":"S","shift":false,"alt":false,"platform":"all"},{"command":"doc.saveAs","key":"S","shift":true,"alt":false,"platform":"all"},{"command":"doc.export","key":"E","shift":false,"alt":false,"platform":"all"},{"command":"tab.next","key":"]","shift":true,"alt":false,"platform":"all"},{"command":"tab.prev","key":"[","shift":true,"alt":false,"platform":"all"},{"command":"tab.close","key":"W","shift":false,"alt":false,"platform":"all"},{"command":"doc.undo","key":"Z","shift":false,"alt":false,"platform":"all"},{"command":"doc.redo","key":"Z","shift":true,"alt":false,"platform":"all"},{"command":"find.open","key":"F","shift":false,"alt":false,"platform":"all"},{"command":"find.next","key":"G","shift":false,"alt":false,"platform":"all"},{"command":"find.prev","key":"G","shift":true,"alt":false,"platform":"all"},{"command":"find.replace","key":"F","shift":false,"alt":true,"platform":"mac"},{"command":"find.replace","key":"H","shift":false,"alt":false,"platform":"notMac"},{"command":"palette.toggle","key":"K","shift":false,"alt":false,"platform":"all"},{"command":"view.toggleSidebar","key":"B","shift":false,"alt":false,"platform":"all"},{"command":"view.tree","key":"1","shift":false,"alt":false,"platform":"all"},{"command":"view.code","key":"2","shift":false,"alt":false,"platform":"all"},{"command":"view.grid","key":"3","shift":false,"alt":false,"platform":"all"},{"command":"view.graph","key":"4","shift":false,"alt":false,"platform":"all"},{"command":"nav.settings","key":",","shift":false,"alt":false,"platform":"all"},{"command":"view.openSchemaPanel","key":"V","shift":true,"alt":false,"platform":"all"},{"command":"compare.pick","key":"D","shift":false,"alt":false,"platform":"all"},{"command":"help.shortcuts","key":"/","shift":false,"alt":false,"platform":"all"}] as const;
+export const SHORTCUTS = [{"command":"tab.new","key":"T","shift":false,"alt":false,"platform":"all"},{"command":"doc.new","key":"N","shift":false,"alt":false,"platform":"all"},{"command":"doc.openFile","key":"O","shift":false,"alt":false,"platform":"all"},{"command":"doc.save","key":"S","shift":false,"alt":false,"platform":"all"},{"command":"doc.saveAs","key":"S","shift":true,"alt":false,"platform":"all"},{"command":"doc.export","key":"E","shift":false,"alt":false,"platform":"all"},{"command":"tab.next","key":"]","shift":true,"alt":false,"platform":"all"},{"command":"tab.prev","key":"[","shift":true,"alt":false,"platform":"all"},{"command":"tab.close","key":"W","shift":false,"alt":false,"platform":"all"},{"command":"doc.undo","key":"Z","shift":false,"alt":false,"platform":"all"},{"command":"doc.redo","key":"Z","shift":true,"alt":false,"platform":"all"},{"command":"find.open","key":"F","shift":false,"alt":false,"platform":"all"},{"command":"find.next","key":"G","shift":false,"alt":false,"platform":"all"},{"command":"find.prev","key":"G","shift":true,"alt":false,"platform":"all"},{"command":"find.replace","key":"F","shift":false,"alt":true,"platform":"mac"},{"command":"find.replace","key":"H","shift":false,"alt":false,"platform":"notMac"},{"command":"palette.toggle","key":"K","shift":false,"alt":false,"platform":"all"},{"command":"view.toggleSidebar","key":"B","shift":false,"alt":false,"platform":"all"},{"command":"view.tree","key":"1","shift":false,"alt":false,"platform":"all"},{"command":"view.code","key":"2","shift":false,"alt":false,"platform":"all"},{"command":"view.grid","key":"3","shift":false,"alt":false,"platform":"all"},{"command":"view.graph","key":"4","shift":false,"alt":false,"platform":"all"},{"command":"nav.settings","key":",","shift":false,"alt":false,"platform":"all"},{"command":"view.openSchemaPanel","key":"V","shift":true,"alt":false,"platform":"all"},{"command":"compare.pick","key":"D","shift":false,"alt":false,"platform":"all"},{"command":"help.shortcuts","key":"/","shift":false,"alt":false,"platform":"all"},{"command":"app.quit","key":"Q","shift":false,"alt":false,"platform":"mac"}] as const;
 
 /* Types */
 export type ApplyResult = {
@@ -113,6 +119,15 @@ export type ColumnValues = {
 	capped: boolean,
 };
 
+export type CurlPreview = {
+	method: string,
+	url: string | null,
+	headerNames: string[],
+	bodyBytes: number | null,
+	sendsOnPaste: boolean,
+	refusal: Refusal | null,
+};
+
 export type DetectKind = "json" | "yaml" | "xml" | "csv" | "curl" | "unknown";
 
 export type Diagnosis = {
@@ -149,7 +164,7 @@ export type DiffKind = "added" | "removed" | "changed" | "moved";
 
 export type DocHandle = string;
 
-export type ErrorKind = "notFound" | "invalidPath" | "tooLarge" | "rangeTooLarge" | "tooDeep" | "parse" | "edit" | "schema" | "schemaExternalRef" | "export" | "io" | "cancelled";
+export type ErrorKind = "notFound" | "invalidPath" | "tooLarge" | "rangeTooLarge" | "tooDeep" | "parse" | "edit" | "schema" | "schemaExternalRef" | "export" | "io" | "cancelled" | "request";
 
 export type ExportFormat = "json" | "json-min" | "yaml" | "csv" | "xml";
 
@@ -249,7 +264,7 @@ export type OpenOutcome = {
 	kind: "failed",
 } & OpenFailure;
 
-export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null } | { kind: "piped"; path: string };
+export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null; unsaved?: boolean } | { kind: "piped"; path: string };
 
 export type OpenedDoc = {
 	handle: DocHandle,
@@ -275,6 +290,8 @@ export type RecentFile = {
 	name: string,
 };
 
+export type Refusal = { reason: "noUrl" } | { reason: "insecure"; option: string } | { reason: "readsFile"; option: string } | { reason: "noPassword" } | { reason: "unsupported"; option: string };
+
 export type ReplaceResult = {
 	count: number,
 	applied: ApplyResult | null,
@@ -283,6 +300,15 @@ export type ReplaceResult = {
 export type ReportError = {
 	pointer: string,
 	message: string,
+};
+
+export type RequestProblem = { problem: "refused"; refusal: Refusal } | { problem: "badUrl"; url: string } | { problem: "unreachable"; host: string } | { problem: "timedOut"; host: string } | { problem: "tls"; host: string } | { problem: "interrupted"; host: string } | { problem: "tooLarge"; limit: number } | { problem: "notData"; contentType: string; status: number } | { problem: "empty"; status: number };
+
+export type ResponseInfo = {
+	method: string,
+	url: string,
+	status: number,
+	statusText: string,
 };
 
 export type RowJson = {
@@ -319,6 +345,11 @@ export type SearchOptions = {
 	query: string,
 	caseSensitive?: boolean,
 	maxResults?: number | null,
+};
+
+export type SentRequest = {
+	outcome: OpenOutcome,
+	response: ResponseInfo,
 };
 
 export type ShellCommand = {
@@ -360,5 +391,6 @@ export type WireError = {
 	actual: number | null,
 	limit: number | null,
 	io: IoInfo | null,
+	request: RequestProblem | null,
 };
 

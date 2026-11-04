@@ -21,7 +21,7 @@ use super::schema_validate::{
     validate as schema_validate_value, SchemaCompileError, SchemaValidationResult,
 };
 use super::search::{SearchHit, SearchOptions};
-use super::typegen::TypegenLang;
+use super::typegen::{self, TypeShape, TypegenLang};
 use super::types::{DocError, DocResult, FileOp, NodeKind, NodeView, Path, PathSegment};
 use super::wire::LosslessText;
 
@@ -460,6 +460,12 @@ impl Document {
         let saved_hash = self.compute_content_hash();
         self.saved_hash = saved_hash;
         *self.hash_cache.lock() = Some((self.version, saved_hash));
+    }
+
+    pub fn mark_unsaved(&mut self) {
+        self.history.forget_saved();
+        self.saved_version = u64::MAX;
+        self.saved_hash = blake3::Hash::from_bytes([0u8; 32]);
     }
 
     pub fn get_slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
@@ -984,6 +990,13 @@ impl Document {
             count,
             applied: Some(applied),
         })
+    }
+
+    pub fn infer_shape(&self) -> TypeShape {
+        match &self.inner {
+            DocumentImpl::Eager(v) => typegen::infer(v),
+            DocumentImpl::Lazy(d) => d.infer_shape(),
+        }
     }
 
     pub fn generate_types(&self, lang: TypegenLang, type_name: &str) -> DocResult<String> {

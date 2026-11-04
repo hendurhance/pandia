@@ -91,6 +91,7 @@ export class FindController {
 		if (this.activeJobId !== null || this.busy) this.cancel();
 		this.open = false;
 		this.error = null;
+		if (this.deps.isCodeView()) this.deps.codeApi()?.cmSearch('', false);
 	};
 
 	syncActiveView = () => {

@@ -7,10 +7,12 @@ import type {
 	DetectKind,
 	DocHandle,
 	Op,
+	OpenFailure,
 	OpenNotes,
 	OpenOutcome,
 	OpenSource,
 	Path,
+	ResponseInfo,
 	Summary,
 } from '$lib/ipc/bindings';
 import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
@@ -33,7 +35,6 @@ const FORMAT_NAMES: Record<DetectKind, string> = {
 	unknown: 'another format',
 };
 
-/** What Pandia changed so a document could be opened, shown in a banner above it. */
 export interface RepairInfo {
 	title: string;
 	notes: string[];
@@ -50,6 +51,11 @@ function repairInfoFrom(notes: OpenNotes): RepairInfo | null {
 		notes: notes.repairs.slice(0, MAX_NOTES),
 		more: Math.max(0, notes.repairs.length - MAX_NOTES),
 	};
+}
+
+/** The request a tab's document came back from, shown in a banner above it. */
+export interface SentResponse extends ResponseInfo {
+	curl: string;
 }
 
 export interface DocSessionDeps {
@@ -81,6 +87,7 @@ export class DocSessionController {
 	sourceName: string | null = $state(null);
 
 	repairInfo: RepairInfo | null = $state(null);
+	response: SentResponse | null = $state(null);
 	diagnosis: Diagnosis | null = $state(null);
 	refreshing = $state(false);
 
@@ -92,7 +99,10 @@ export class DocSessionController {
 
 	constructor(private deps: DocSessionDeps) {}
 
-	private load = async (opener: () => Promise<OpenOutcome>): Promise<boolean> => {
+	private load = async (
+		opener: () => Promise<OpenOutcome>,
+		describeFailure: (f: OpenFailure) => string = describeOpenFailure,
+	): Promise<boolean> => {
 		const seq = ++this.loadSeq;
 		this.deps.setBusy(true);
 		this.deps.setError(null);
@@ -104,7 +114,7 @@ export class DocSessionController {
 				return false;
 			}
 			if (outcome.kind === 'failed') {
-				this.deps.setError(describeOpenFailure(outcome));
+				this.deps.setError(describeFailure(outcome));
 				this.diagnosis = outcome.diagnosis;
 				return false;
 			}
@@ -145,6 +155,32 @@ export class DocSessionController {
 		return true;
 	};
 
+	loadFromRequest = async (curl: string, jobId: string): Promise<boolean> => {
+		await this.deps.applyDefaultView(null);
+		await behaviorPrefs.init();
+		const repair = behaviorPrefs.autoRepairOnOpen;
+		let response: ResponseInfo | undefined;
+		const opened = await this.load(
+			async () => {
+				const sent = await ipc.curlSend(curl, jobId, { repair });
+				response = sent.response;
+				return sent.outcome;
+			},
+			(f) =>
+				describeOpenFailure(
+					f,
+					`The server answered ${response?.status} ${response?.statusText}, and its response isn't valid JSON`,
+				),
+		);
+		if (!opened || !response) {
+			this.failedName = 'response.json';
+			return false;
+		}
+		this.response = { ...response, curl };
+		await this.deps.applyDefaultView(this.summary);
+		return true;
+	};
+
 	applyDiagnosisFix = async (text: string): Promise<boolean> => {
 		this.diagnosis = null;
 		return this.loadFromSource({ kind: 'text', text, name: this.failedName ?? 'pasted.json' });
@@ -164,6 +200,7 @@ export class DocSessionController {
 		this.summary = null;
 		this.sourceName = null;
 		this.repairInfo = null;
+		this.response = null;
 		this.diagnosis = null;
 		this.deps.tree.setRows([]);
 		this.deps.setSelectedPath(null);

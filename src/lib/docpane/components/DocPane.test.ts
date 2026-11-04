@@ -12,6 +12,7 @@ import DocPane from './DocPane.svelte';
 
 vi.mock('$lib/ipc/client', () => ({
 	ipc: {
+		e2eRecord: vi.fn(async () => {}),
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
 		docDiff: vi.fn(async () => []),

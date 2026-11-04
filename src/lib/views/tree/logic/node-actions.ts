@@ -358,6 +358,12 @@ export function createNodeActions(deps: NodeActionDeps) {
 			}
 
 			if (isCutPaste) {
+				const now = await ipc.docGetValue(handle, source).catch(() => null);
+				if (now !== cut.text) {
+					deps.setCutMark(null);
+					deps.flash('pasted a copy · the cut value had moved, so it was left in place');
+					return;
+				}
 				const sourceParent = source.slice(0, -1);
 				const sourceKey = source[source.length - 1];
 				if (typeof sourceKey === 'number') {

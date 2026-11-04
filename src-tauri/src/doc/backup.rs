@@ -55,11 +55,31 @@ fn sanitize_doc_id(doc_id: &str) -> String {
 }
 
 fn backup_path(app: &AppHandle, doc_id: &str) -> std::io::Result<PathBuf> {
-    Ok(backup_dir(app)?.join(format!("{}.json", sanitize_doc_id(doc_id))))
+    backup_path_in(&backup_dir(app)?, doc_id)
+}
+
+fn backup_path_in(dir: &std::path::Path, doc_id: &str) -> std::io::Result<PathBuf> {
+    Ok(dir.join(format!("{}.json", sanitize_doc_id(doc_id))))
 }
 
 pub fn write(
     app: &AppHandle,
+    doc_id: &str,
+    original_path: Option<String>,
+    display_name: Option<String>,
+    content: String,
+) -> std::io::Result<()> {
+    write_in(
+        &backup_dir(app)?,
+        doc_id,
+        original_path,
+        display_name,
+        content,
+    )
+}
+
+fn write_in(
+    dir: &std::path::Path,
     doc_id: &str,
     original_path: Option<String>,
     display_name: Option<String>,
@@ -77,7 +97,7 @@ pub fn write(
         content,
     };
     let json = serde_json::to_string(&rec).map_err(|e| std::io::Error::other(e.to_string()))?;
-    write_private(&backup_path(app, doc_id)?, &json)
+    write_private(&backup_path_in(dir, doc_id)?, &json)
 }
 
 pub fn clear(app: &AppHandle, doc_id: &str) -> std::io::Result<()> {
@@ -163,6 +183,36 @@ mod tests {
         assert_eq!(mode(&dir), 0o700);
         assert_eq!(mode(&old), 0o600);
         assert_eq!(mode(&new), 0o600);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn a_code_view_backup_keeps_the_uncommitted_text_as_typed() {
+        let root = std::env::temp_dir().join(format!("pandia-backup-text-{}", std::process::id()));
+        let dir = private_dir(root.join("backups")).unwrap();
+        let typed = "{\n  \"a\": 2,\n";
+
+        write_in(
+            &dir,
+            "7",
+            Some("/w/c.json".into()),
+            Some("c.json".into()),
+            typed.into(),
+        )
+        .unwrap();
+
+        let file = backup_path_in(&dir, "7").unwrap();
+        let rec: BackupRecord =
+            serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(rec.content, typed);
+        assert_eq!(rec.original_path.as_deref(), Some("/w/c.json"));
+        assert_eq!(rec.display_name.as_deref(), Some("c.json"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
         std::fs::remove_dir_all(&root).unwrap();
     }
 

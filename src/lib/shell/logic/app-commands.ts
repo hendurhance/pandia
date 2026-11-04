@@ -23,6 +23,7 @@ export interface ShellCommandDeps {
 	togglePalette: () => void;
 	clearRecents: () => void;
 	showAbout: () => Promise<void> | void;
+	quit: () => void;
 	checkForUpdates: () => Promise<void> | void;
 	openWebsite: () => void;
 	openDiscussions: () => void;
@@ -163,6 +164,12 @@ export function buildShellCommands(deps: ShellCommandDeps): Command[] {
 			label: 'Send Feedback…',
 			category: 'Help',
 			run: deps.openFeedback,
+		},
+		{
+			id: 'app.quit',
+			label: 'Quit Pandia',
+			category: 'Help',
+			run: () => deps.quit(),
 		},
 		{
 			id: 'app.about',

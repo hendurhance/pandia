@@ -1,6 +1,10 @@
 mod cli;
 mod commands;
 pub(crate) mod doc;
+mod e2e;
+mod headless;
+#[cfg(target_os = "macos")]
+mod macos_quit;
 mod shell_command;
 mod shortcuts;
 
@@ -49,6 +53,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_canonical_offsets,
             commands::doc_search,
             commands::cancel_job,
+            e2e::e2e_record,
+            e2e::e2e_enabled,
+            e2e::e2e_take_actions,
+            commands::curl_preview,
+            commands::curl_send,
             commands::doc_replace,
             commands::doc_validate_schema,
             commands::read_schema_file,
@@ -56,6 +65,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_history,
             commands::doc_save,
             commands::doc_backup,
+            commands::doc_backup_text,
             commands::doc_backup_clear,
             commands::doc_backup_scan,
             commands::doc_export,
@@ -108,14 +118,16 @@ fn emit_file_open(app: &AppHandle, paths: Vec<String>) {
 
     queue_files(
         app,
+        "macos-open",
         supported_paths.into_iter().map(PendingFile::file).collect(),
     );
 }
 
-fn queue_files(app: &AppHandle, files: Vec<PendingFile>) {
+fn queue_files(app: &AppHandle, origin: &str, files: Vec<PendingFile>) {
     if files.is_empty() {
         return;
     }
+    e2e::record(&serde_json::json!({ "event": "queued", "origin": origin, "files": files }));
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut pending) = state.pending_files.lock() {
             pending.extend(files);
@@ -166,7 +178,7 @@ pub fn run() {
                 std::path::Path::new(&cwd),
                 &app.state::<AppState>().handoffs,
             );
-            queue_files(app, files);
+            queue_files(app, "forwarded", files);
             focus_main_window(app);
         }))
         .plugin(tauri_plugin_fs::init())
@@ -186,9 +198,11 @@ pub fn run() {
         .invoke_handler(specta_builder().invoke_handler())
         .setup(move |app| {
             cli::hold_instance(&app.config().identifier);
+            #[cfg(target_os = "macos")]
+            macos_quit::ask_before_quit(app.handle());
             let cwd = std::env::current_dir().unwrap_or_default();
             let files = cli::pending_from(args, &cwd, &app.state::<AppState>().handoffs);
-            queue_files(app.handle(), files);
+            queue_files(app.handle(), "launch", files);
 
             let menu = build_menu(app.handle(), &[])?;
             app.set_menu(menu)?;
@@ -251,7 +265,7 @@ fn build_menu(
         .item(&PredefinedMenuItem::hide_others(app, Some("Hide Others"))?)
         .item(&PredefinedMenuItem::show_all(app, Some("Show All"))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Pandia"))?)
+        .item(&item(app, "app.quit", "Quit Pandia")?)
         .build()?;
 
     let new_file = item(app, "doc.new", "New File")?;
@@ -302,9 +316,7 @@ fn build_menu(
         .item(&close_tab);
 
     #[cfg(not(target_os = "macos"))]
-    let file_menu = file_menu
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?);
+    let file_menu = file_menu.separator().item(&item(app, "app.quit", "Exit")?);
 
     let file_menu = file_menu.build()?;
 

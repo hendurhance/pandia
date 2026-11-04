@@ -80,6 +80,7 @@ pub const SHORTCUTS: &[Shortcut] = &[
     cmd("view.openSchemaPanel", "V").shift(),
     cmd("compare.pick", "D"),
     cmd("help.shortcuts", "/"),
+    cmd("app.quit", "Q").only(Platform::Mac),
 ];
 
 pub fn accelerator(command: &str) -> Option<String> {

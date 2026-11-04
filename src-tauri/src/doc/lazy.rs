@@ -768,7 +768,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
         JsonType::String => TypeShape::Primitive(PrimitiveKind::String),
         JsonType::Array => {
             let Some(iter) = lv.clone().into_array_iter() else {
-                return TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any)));
+                return TypeShape::Array(Box::new(TypeShape::Unknown));
             };
             let mut acc: Option<TypeShape> = None;
             for entry in iter.take(ARRAY_SAMPLE_CAP) {
@@ -780,7 +780,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                 });
             }
             match acc {
-                None => TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any))),
+                None => TypeShape::Array(Box::new(TypeShape::Unknown)),
                 Some(a) => TypeShape::Array(Box::new(a)),
             }
         }
@@ -794,6 +794,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                         ObjectProp {
                             shape: infer_lazy(&child),
                             optional: false,
+                            nullable: false,
                         },
                     );
                 }
@@ -918,6 +919,14 @@ impl super::backend::DocumentBackend for LazyDoc {
     ) -> DocResult<String> {
         match lang {
             super::typegen::TypegenLang::JsonSchema => {
+                let size = self.source.len() as u64;
+                let limit = super::document::EDIT_SIZE_LIMIT;
+                if size > limit {
+                    return Err(DocError::TooLarge {
+                        actual: size,
+                        limit,
+                    });
+                }
                 let v = LazyDoc::get_value(self, &Path::root())?;
                 Ok(super::typegen::generate(&v, lang, type_name))
             }
@@ -1018,6 +1027,24 @@ mod tests {
 
     fn doc(s: &str) -> LazyDoc {
         LazyDoc::new(FastStr::new(s)).expect("valid JSON in test")
+    }
+
+    #[test]
+    fn json_schema_types_refuse_a_document_over_the_whole_document_limit() {
+        use super::super::backend::DocumentBackend;
+        use super::super::document::EDIT_SIZE_LIMIT;
+        use super::super::typegen::TypegenLang;
+        let limit = EDIT_SIZE_LIMIT as usize;
+        let big = doc(&format!("[{}0]", " ".repeat(limit)));
+        match big.generate_types(TypegenLang::JsonSchema, "Root") {
+            Err(DocError::TooLarge { limit: l, .. }) => assert_eq!(l, EDIT_SIZE_LIMIT),
+            other => panic!("expected TooLarge, got {:?}", other.map(|s| s.len())),
+        }
+        let small = doc("[1, 2]");
+        assert!(small
+            .generate_types(TypegenLang::JsonSchema, "Root")
+            .unwrap()
+            .contains("2020-12"));
     }
 
     #[test]

@@ -1,5 +1,83 @@
 [
 	{
+		"version": "1.0.9",
+		"date": "Unreleased",
+		"tag": "Stable",
+		"tagKind": "stable",
+		"groups": [
+			{
+				"label": "New",
+				"items": [
+					{
+						"title": "Paste a cURL command and get the response",
+						"detail": "Copy a request as cURL from Postman or your browser and paste it into the start screen. A GET is sent straight away and the response opens in that tab, at any size; for POST and other methods Pandia shows the request first and waits for your click. Options Pandia cannot honour, such as `-k`, are refused by name. “Open the request as JSON” still shows the request itself."
+					},
+					{
+						"title": "Edit cells in the Grid",
+						"detail": "Double-click a Grid cell, or press ⏎ or F2, to edit it in place. ⏎ saves and moves down, Tab saves and moves right, and Esc cancels. Typing into an empty cell adds the key to that row. See [Views](/docs/views)."
+					},
+					{
+						"title": "Answer in the terminal, without a window",
+						"detail": "Eight new commands print their answer and exit, so scripts and AI agents can use them on files of any size: `pandia get` prints the value at a path, `shape` sketches the structure, and `validate`, `diff`, `search`, `types`, `convert` and `repair` do what the app does. Exit codes work like `diff` and `grep`. See [Command line](/docs/command-line)."
+					},
+					{
+						"title": "Types for fields that are sometimes null or empty",
+						"detail": "A field that is a string in one item and `null` in another now becomes `string | null` in TypeScript, `Option<String>` in Rust and the nullable form in every other language, instead of `unknown`. An array that is empty in some items keeps its item type too."
+					},
+					{
+						"title": "Check the version from the terminal",
+						"detail": "`pandia --version` (or `-v`) prints the installed version."
+					}
+				]
+			},
+			{
+				"label": "Fixed",
+				"items": [
+					{
+						"title": "`--schema` and `--diff` work when the command starts Pandia",
+						"detail": "`pandia config.json --schema config.schema.json` loaded the schema only when Pandia was already open, and `pandia --diff a.json b.json` opened Compare only then too. When the same command started Pandia, the file opened without them. Thanks to [@bastiankistner](https://github.com/hendurhance/pandia/issues/27) for the report."
+					},
+					{
+						"title": "Restored work is kept until you save it",
+						"detail": "Unsaved work restored after an unexpected close now opens as unsaved, so closing it asks first, and its backup stays until the tab has loaded. Undoing back to the saved state no longer leaves a backup that is offered again on the next launch."
+					},
+					{
+						"title": "Edits land on the node you chose",
+						"detail": "Paste after a cut no longer removes a different value when another edit moved things in between. The row menu acts on the row you opened it on, even if rows above it finish loading meanwhile. Quick undos no longer leave rows that are gone."
+					},
+					{
+						"title": "Schemas stay with the right document",
+						"detail": "A file opened into a tab no longer inherits the previous file's schema. A relative `$schema` in a repaired or converted copy is read from the original's folder. Two documents that each ask to download a schema both get asked. A schema file that starts with a byte-order mark loads."
+					},
+					{
+						"title": "Startup uses your saved settings",
+						"detail": "A file opened as Pandia starts now follows your saved settings, such as the large file warning, instead of the defaults."
+					},
+					{
+						"title": "Code view and string edits do what the keys say",
+						"detail": "Typing in Code view no longer changes the document by itself after a pause: nothing changes until ⌘⏎, and Esc reverts. Crash backups still keep what you typed. In the Tree, ⏎ commits a one-line string, ⇧⏎ adds a line break, and ⌘⏎ commits a multi-line string."
+					},
+					{
+						"title": "Quitting asks about unsaved changes",
+						"detail": "\u2318Q, File \u2192 Exit, Quit from the Dock and logging out now ask about unsaved changes, the same as closing the window. Before, they quit straight away."
+					},
+					{
+						"title": "A value that isn't valid stays in its editor",
+						"detail": "Typing something that isn't a valid number, boolean or null into a Tree value now keeps the editor open with your text and the reason, instead of discarding what you typed."
+					},
+					{
+						"title": "Code view highlights every match",
+						"detail": "Find in Code view now marks every match, with the current one stronger, and clears the marks when you close the find bar."
+					},
+					{
+						"title": "Smaller fixes",
+						"detail": "Code view find and replace treats `\\n` as plain text. The Open dialog accepts YAML, XML and CSV. A slow URL fetch no longer replaces a document you opened while it ran, and a cURL response isn't dropped when a file arrives while it loads. History steps show the right text in Code view. Grid filter checklists show current values."
+					}
+				]
+			}
+		]
+	},
+	{
 		"version": "1.0.8",
 		"date": "October 26, 2026",
 		"tag": "Stable",

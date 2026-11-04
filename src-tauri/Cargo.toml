@@ -14,7 +14,7 @@ tauri-plugin-fs = "2.5"
 tauri-plugin-dialog = "2.7"
 tauri-plugin-shell = "2.2"
 tauri-plugin-store = "2.4"
-tauri-plugin-http = "2"
+tauri-plugin-http = { version = "2", features = ["gzip", "brotli", "deflate", "zstd"] }
 tauri-plugin-updater = "2.10"
 tauri-plugin-process = "2"
 tauri-plugin-clipboard-manager = "~2.3"
@@ -59,3 +59,6 @@ similar = "3.2.0"
 name = "json_linediff"
 path = "benches/json_linediff/main.rs"
 harness = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"

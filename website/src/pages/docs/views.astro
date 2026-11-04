@@ -70,6 +70,12 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
     <li><strong>Quick-filter bar</strong> — a single input filters rows across the whole table.</li>
     <li><strong>Zebra rows and kind-coloured cells</strong> — numbers are green and right-aligned;
     strings, booleans and <code>null</code> are coloured by kind; and odd rows carry a faint stripe.</li>
+    <li><strong>Edit in place</strong> — double-click a cell, or select it and press <kbd>⏎</kbd> or
+    <kbd>F2</kbd>. <kbd>⏎</kbd> saves and moves down, <kbd>Tab</kbd> saves and moves right, and
+    <kbd>Esc</kbd> cancels. Typing into an empty cell adds that key to the row; text that is valid JSON,
+    such as <code>42</code>, <code>true</code> or <code>"42"</code>, is saved as typed, and anything
+    else is saved as text. Objects, arrays and multi-line strings open in the Tree instead. Every edit
+    is one undo step, and a sorted or filtered grid updates straight away.</li>
     <li><strong>Cell inspector</strong> — select a cell and a panel at the bottom shows its full value,
     pretty-printed for objects and arrays.</li>
     <li><strong>Image previews</strong> — hover a cell holding an image link or embedded image to see

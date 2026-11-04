@@ -18,7 +18,7 @@
 	import FindBar from '$lib/find/components/FindBar.svelte';
 	import ExportDialog from '$lib/docpane/components/ExportDialog.svelte';
 	import PromptDialog from '$lib/ui/PromptDialog.svelte';
-	import { pathToString, basename, stem, truncatePathMiddle } from '$lib/util/path';
+	import { pathToString, basename, isAbsolutePath, stem, truncatePathMiddle } from '$lib/util/path';
 	import { computeInvalidMarks } from '../logic/invalid-marks';
 	import { kindAtSelection, validityFromView } from '../logic/status-derivation';
 	import {
@@ -30,10 +30,12 @@
 	import { Check, X } from '@lucide/svelte';
 	import { fmtBytes } from '$lib/util/format';
 	import { shortcutLabel } from '$lib/shell/logic/shortcuts';
+	import { fmtKbd } from '$lib/util/platform';
 	import { createDocPaneCommands } from '../logic/doc-pane-commands';
 	import { DocumentSession } from '../state/document-session.svelte';
 	import type { DocPaneActions } from '../logic/doc-actions';
 	import { lastResult, schemaSessions } from '$lib/panels/state/schema-store.svelte';
+	import type { HandoffInstructions } from '$lib/shell/state/handoff';
 	import { autoloadSchema } from '$lib/panels/state/schema-autoload';
 	import type { DocContext, TabSlot } from '$lib/shell/state/workspace.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
@@ -88,7 +90,7 @@
 		}
 	});
 
-	let menuState: { x: number; y: number; rowIndex: number } | null = $state(null);
+	let menuState: { x: number; y: number; path: Path } | null = $state(null);
 
 	let graphApi = $state<GraphViewApi | null>(null);
 
@@ -135,10 +137,28 @@
 		return paneBus.subscribe(tabId, (cmd) => {
 			if (!session.handle) return;
 			if (cmd.kind === 'navigate') void nav.navigateTo(cmd.path);
-			else if (cmd.kind === 'history') void session.runHistory(cmd.delta);
+			else if (cmd.kind === 'history') void stepHistory(cmd.delta);
 			else void compare.start(cmd.target);
 		});
 	});
+
+	let codeEpoch = $state(0);
+
+	async function stepHistory(delta: number) {
+		let steps = delta;
+		if (codeApi && codeDirty) {
+			if (delta > 0) {
+				doc.error = `Your Code view edits aren't committed. Commit them (${fmtKbd('⌘⏎')}) or revert them (Esc), then redo. Committing clears the steps you can redo.`;
+				return;
+			}
+			const before = session.summary?.version;
+			if (!(await codeApi.flush())) return;
+			if (session.summary?.version !== before) steps -= 1;
+		}
+		await session.runHistory(steps);
+		if (codeDirty) codeApi?.revert();
+		codeEpoch += 1;
+	}
 
 	let exportOpen = $state(false);
 
@@ -260,6 +280,9 @@
 			get context() {
 				return context;
 			},
+			get busy() {
+				return doc.busy;
+			},
 		}),
 	);
 
@@ -303,23 +326,52 @@
 	$effect(() => {
 		const p = pendingOpen;
 		if (!p) return;
-		void (async () => {
-			const opened = await session.loadFromSource(p);
-			onOpened();
-			const s = session.summary;
-			const handoff = slot.handoff;
-			const instructions = handoff?.takeInstructions() ?? null;
-			if (!opened || !session.handle || !s) {
-				handoff?.failed(doc.error ?? "The file didn't open.");
-				return;
-			}
-			handoff?.opened();
-			if (instructions?.compareWith) {
-				void compare.start({ kind: 'path', path: instructions.compareWith });
-			}
-			await loadDocSchema(instructions?.schema ?? null);
-		})();
+		untrack(() => void openPending(p));
 	});
+
+	let failedLaunch: { instructions: HandoffInstructions | null } | null = null;
+
+	async function openPending(p: OpenSource) {
+		const opened = await session.loadFromSource(p);
+		onOpened();
+		const s = session.summary;
+		const handoff = slot.handoff;
+		const instructions = handoff?.takeInstructions() ?? null;
+		if (!opened || !session.handle || !s) {
+			failedLaunch = { instructions };
+			handoff?.failed(doc.error ?? "The file didn't open.");
+			recordTab(p, instructions);
+			return;
+		}
+		failedLaunch = null;
+		handoff?.opened();
+		const comparing = instructions?.compareWith
+			? compare.start({ kind: 'path', path: instructions.compareWith })
+			: null;
+		await loadDocSchema(instructions?.schema ?? null);
+		await comparing;
+		recordTab(p, instructions);
+	}
+
+	function recordTab(source: OpenSource, instructions: HandoffInstructions | null) {
+		const verdict = schema.verdict;
+		const event = {
+			event: 'tab-ready',
+			source: source.kind === 'text' ? null : source.path,
+			piped: source.kind === 'piped',
+			name: session.sourceName,
+			opened: session.handle !== null,
+			error: doc.error,
+			cliSchema: instructions?.schema ?? null,
+			schemaFrom: schema.origin?.from ?? null,
+			schemaRef: schema.origin?.ref ?? null,
+			verdict: verdict.kind,
+			valid: lastResult(verdict)?.valid ?? null,
+			errorCount: lastResult(verdict)?.errorCount ?? null,
+			comparingWith: compare.active ? compare.sourceName : null,
+		};
+		void ipc.e2eRecord(JSON.stringify(event)).catch(() => {});
+	}
 
 	function loadDocSchema(cliSchema: string | null): Promise<void> {
 		const s = session.summary;
@@ -329,7 +381,7 @@
 				tabId,
 				handle: session.handle,
 				version: s.version,
-				path: s.sourcePath,
+				path: s.sourcePath && isAbsolutePath(s.sourcePath) ? s.sourcePath : null,
 				rootIsObject: s.rootKind === 'object',
 				cliSchema,
 			},
@@ -337,10 +389,22 @@
 		);
 	}
 
-	async function openInPlace(opening: Promise<boolean>): Promise<boolean> {
-		const opened = await opening;
-		if (opened) void loadDocSchema(null);
-		return opened;
+	async function openInPlace(
+		opening: Promise<boolean>,
+		launch: { instructions: HandoffInstructions | null } | null = null,
+	): Promise<boolean> {
+		failedLaunch = null;
+		if (!(await opening)) return false;
+		if (launch) slot.handoff?.opened();
+		const compareWith = launch?.instructions?.compareWith;
+		if (compareWith) void compare.start({ kind: 'path', path: compareWith });
+		void loadDocSchema(launch?.instructions?.schema ?? null);
+		return true;
+	}
+
+	function repairAndLoad(text: string) {
+		const launch = failedLaunch;
+		void openInPlace(session.applyDiagnosisFix(text), launch);
 	}
 
 	async function readString(path: Path): Promise<string | null> {
@@ -356,18 +420,22 @@
 	function onRowMenu(rowIndex: number, x: number, y: number) {
 		const row = tree.rows[rowIndex];
 		if (row?.variant !== 'content') return;
-		menuState = { x, y, rowIndex };
+		menuState = { x, y, path: row.path };
 	}
 
-	const menuMoveBounds = $derived.by(() => {
-		const r = menuState ? tree.rows[menuState.rowIndex] : null;
-		if (r?.variant !== 'content') return { up: false, down: false };
-		return nodeActions.moveBounds(r);
+	const menuRowIdx = $derived.by(() => {
+		void tree.rows;
+		return menuState ? tree.contentRowIdx(menuState.path) : -1;
 	});
 
-	const menuRow = $derived.by(() => {
-		if (!menuState) return null;
-		return tree.rows[menuState.rowIndex] ?? null;
+	const menuRow = $derived(menuRowIdx >= 0 ? (tree.rows[menuRowIdx] ?? null) : null);
+
+	const menuMoveBounds = $derived(
+		menuRow?.variant === 'content' ? nodeActions.moveBounds(menuRow) : { up: false, down: false },
+	);
+
+	$effect(() => {
+		if (menuState && !session.refreshing && menuRowIdx === -1) menuState = null;
 	});
 
 	function onMenuClose() {
@@ -381,7 +449,13 @@
 	}
 
 	async function onMenuAction(action: MenuAction) {
-		if (menuState) await onRowAction(menuState.rowIndex, action);
+		if (!menuState) return;
+		const idx = tree.contentRowIdx(menuState.path);
+		if (idx === -1) {
+			menuState = null;
+			return;
+		}
+		await onRowAction(idx, action);
 	}
 
 	const openTree = () => void doc.switchView('tree');
@@ -477,6 +551,25 @@
 		</div>
 	{/if}
 
+	{#if session.response && !doc.error}
+		{@const r = session.response}
+		<div class="banner banner-info">
+			<span class="info-head">response from</span>
+			<span class="info-list">
+				<span class="info-item">{r.method} {r.url}</span>
+				<span class="info-item" class:info-bad={r.status >= 400}>{r.status} {r.statusText}</span>
+			</span>
+			<button
+				class="info-action"
+				onclick={() => onOpenInNewTab({ kind: 'text', text: r.curl, name: 'request.json' })}
+				>Open the request as JSON</button
+			>
+			<button class="info-dismiss" onclick={() => (session.response = null)} aria-label="dismiss"
+				><Icon icon={X} size="sm" /></button
+			>
+		</div>
+	{/if}
+
 	{#if session.repairInfo && !doc.error}
 		<div class="banner banner-info">
 			<span class="info-head">{session.repairInfo.title}</span>
@@ -500,9 +593,10 @@
 		<EmptyState
 			busy={doc.busy}
 			onOpenSource={(source) => openInPlace(session.loadFromSource(source))}
+			onSendRequest={(curl, jobId) => openInPlace(session.loadFromRequest(curl, jobId))}
 			onOpenFile={(path) => onOpenInNewTab({ kind: 'file', path })}
 			diagnosis={session.diagnosis}
-			onFixDiagnosis={(t) => void openInPlace(session.applyDiagnosisFix(t))}
+			onFixDiagnosis={repairAndLoad}
 			onDismissDiagnosis={() => (session.diagnosis = null)}
 		/>
 	{:else if doc.viewMode === 'tree'}
@@ -571,16 +665,18 @@
 		/>
 	{:else if doc.viewMode === 'code'}
 		<div class="code-pane">
-			<CodeView
-				handle={session.handle}
-				sourceSize={session.summary.sourceSize}
-				editable
-				onCommit={async (text) => (await session.commitText(text)) !== null}
-				onDirtyChange={(d) => (codeDirty = d)}
-				onReady={(a) => (codeApi = a)}
-				onParseState={(st) => (codeValid = st)}
-				onOpenTree={openTree}
-			/>
+			{#key codeEpoch}
+				<CodeView
+					handle={session.handle}
+					sourceSize={session.summary.sourceSize}
+					editable
+					onCommit={async (text) => (await session.commitText(text)) !== null}
+					onDirtyChange={(d) => (codeDirty = d)}
+					onReady={(a) => (codeApi = a)}
+					onParseState={(st) => (codeValid = st)}
+					onOpenTree={openTree}
+				/>
+			{/key}
 			<FindBar
 				open={find.open}
 				query={find.query}
@@ -618,7 +714,8 @@
 				onOpenInTree={(p) => void nav.navigateTo(p)}
 				onCellSelect={(c) => (gridSelected = c)}
 				docKey={session.summary?.sourcePath ?? null}
-				onError={(e) => (doc.error = e)}
+				onError={(e) => (doc.error = e || null)}
+				onApply={async (op) => (await session.applyOp(op)) !== null}
 				onExtract={(text, count) => {
 					const name = stem(session.sourceName ?? 'rows').slice(0, 24);
 					onOpenInNewTab({
@@ -776,6 +873,26 @@
 	}
 	.info-more {
 		color: var(--text-dim);
+	}
+	.info-item.info-bad {
+		color: var(--danger);
+	}
+	.info-action {
+		margin-left: auto;
+		flex-shrink: 0;
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text-dim);
+		text-decoration: underline dotted;
+		text-underline-offset: 2px;
+		cursor: pointer;
+	}
+	.info-action:hover {
+		color: var(--accent);
+	}
+	.info-action + .info-dismiss {
+		margin-left: 0;
 	}
 	.info-dismiss {
 		margin-left: auto;

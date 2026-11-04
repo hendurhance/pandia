@@ -15,10 +15,21 @@ const REPORT_EXAMPLE = `{
     }
   ]
 }`;
+
+const SHAPE_EXAMPLE = `{
+  "path": "$",
+  "kind": "object",
+  "count": 2,
+  "bytes": 206444476,
+  "shape": {
+    "items": [{ "email?": "string", "id": "integer", "name": "string", "tags": ["string"] }],
+    "meta": { "v": "integer" }
+  }
+}`;
 ---
 <DocsLayout
   title="Command line"
-  description="Open, pipe and compare JSON from any terminal with the pandia command, review piped JSON for a script or AI agent, validate against a schema, and use Pandia as git's diff tool."
+  description="Open, pipe and compare JSON from any terminal with the pandia command, query, validate, diff and convert files of any size without a window, review piped JSON for an AI agent, and use Pandia as git's diff tool."
   currentDoc="/docs/command-line"
 >
   <h1>Command line</h1>
@@ -87,6 +98,46 @@ const REPORT_EXAMPLE = `{
   schema ran. <code>problem</code> says why a file didn't open or why its schema couldn't be used.
   Piped input has a <code>path</code> of <code>null</code>, and once saved, its JSON is in
   <code>content</code>.</p>
+
+  <h2>Answer in the terminal, without a window</h2>
+  <p>These commands read a file, print the answer and exit. No window opens, so scripts and AI agents
+  can use them on their own, on files of any size. Use <code>-</code> as the file to read what is
+  piped in. YAML, XML and CSV are converted first, like files you open.</p>
+  <table>
+    <thead>
+      <tr><th>Command</th><th>What it prints</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>pandia get &lt;file&gt; &lt;path&gt;</code></td><td>The value at a path, as JSON. Write the path the way Pandia shows it, like <code>$.items[0].name</code>, or as a JSON Pointer, like <code>/items/0/name</code>.</td></tr>
+      <tr><td><code>pandia shape &lt;file&gt; [path]</code></td><td>The kind, item count and a sketch of the types, without the data.</td></tr>
+      <tr><td><code>pandia validate &lt;file&gt; --schema &lt;s&gt;</code></td><td>Whether the file matches a JSON Schema, with each error's JSON Pointer.</td></tr>
+      <tr><td><code>pandia diff &lt;a&gt; &lt;b&gt;</code></td><td>Each value added, removed, changed or moved, with its path and its values before and after.</td></tr>
+      <tr><td><code>pandia search &lt;file&gt; &lt;text&gt;</code></td><td>The path of every key or value that contains the text.</td></tr>
+      <tr><td><code>pandia types &lt;file&gt; --lang ts</code></td><td>Types, like the Types panel: <code>ts</code>, <code>zod</code>, <code>rust</code>, <code>go</code>, <code>python</code>, <code>java</code>, <code>kotlin</code>, <code>php</code>, <code>dart</code> or <code>json-schema</code>.</td></tr>
+      <tr><td><code>pandia convert &lt;file&gt; --to yaml</code></td><td>The document as <code>json</code>, <code>json-min</code>, <code>yaml</code>, <code>csv</code> or <code>xml</code>.</td></tr>
+      <tr><td><code>pandia repair &lt;file&gt;</code></td><td>Broken JSON fixed, with each fix listed on stderr.</td></tr>
+    </tbody>
+  </table>
+  <pre><code><span class="k">pandia</span> shape events.json
+<span class="k">pandia</span> get events.json '$.items[1999999].email'
+<span class="k">curl</span> -s https://api.example.com/users | <span class="k">pandia</span> validate - --schema users.schema.json</code></pre>
+  <p><code>shape</code> shows a large file's structure without printing it. A key ending in
+  <code>?</code> is missing from some items:</p>
+  <pre><code>{SHAPE_EXAMPLE}</code></pre>
+  <p>Put a path in single quotes so the shell doesn't read <code>$</code> or <code>[</code>.
+  <code>pandia &lt;command&gt; --help</code> shows a command's options. The exit code works like
+  <code>diff</code> and <code>grep</code>:</p>
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0</td><td>Done: found, valid, or the same.</td></tr>
+      <tr><td>1</td><td>The answer is no: the path doesn't exist, the file is invalid, the files differ, or nothing matched. For a missing path, stderr says where it stops, like <code>$.items has 2 items, so the last is $.items[1]</code>.</td></tr>
+      <tr><td>2</td><td>The command was mistyped, or the file can't be read. Pandia prints what to fix.</td></tr>
+    </tbody>
+  </table>
+  <p>To open a file whose name is a command, like <code>get</code>, write <code>pandia -- get</code>.</p>
 
   <h2>Use Pandia as git's diff tool</h2>
   <pre><code><span class="k">git</span> config --global difftool.pandia.cmd 'pandia --wait --diff "$LOCAL" "$REMOTE"'

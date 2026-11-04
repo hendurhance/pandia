@@ -6,6 +6,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use crate::doc::atomic::create_private;
+
 pub(crate) const LAUNCHED_ENV: &str = "PANDIA_LAUNCHED";
 
 const STDIN_PREFIX: &str = "pandia-stdin-";
@@ -316,9 +318,12 @@ fn version_line() -> String {
 }
 
 pub(crate) fn launch(args: Vec<String>, identifier: &str) -> i32 {
+    if let Some(code) = crate::headless::run(&args) {
+        return code;
+    }
     let req = parse(args.iter().cloned());
     if req.help {
-        print!("{USAGE}");
+        print!("{USAGE}\n{}", crate::headless::USAGE);
         return 0;
     }
     if req.version {
@@ -498,17 +503,6 @@ fn save_piped(input: impl std::io::Read, limit: u64) -> Result<PathBuf, String> 
             ))
         }
     }
-}
-
-fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    options.open(path)
 }
 
 // Windows release builds are GUI programs, so they start without the terminal's console and
