@@ -120,5 +120,11 @@ a {
 	background: var(--rule-2);
 }
 ::-webkit-scrollbar-thumb:hover {
-	background: var(--text-ghost);
+	background: var(--text-faint);
+}
+::-webkit-scrollbar-thumb:active {
+	background: var(--text-dim);
+}
+:hover::-webkit-scrollbar-track {
+	background: var(--rule);
 }

@@ -236,13 +236,6 @@
 	.builder-scroll::-webkit-scrollbar {
 		height: 6px;
 	}
-	.builder-scroll::-webkit-scrollbar-thumb {
-		background: var(--rule-2);
-		border-radius: 3px;
-	}
-	.builder-scroll::-webkit-scrollbar-track {
-		background: transparent;
-	}
 	.builder {
 		display: flex;
 		align-items: center;

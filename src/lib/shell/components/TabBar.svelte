@@ -199,15 +199,6 @@
 	.tab-scroll::-webkit-scrollbar {
 		height: 4px;
 	}
-	.tab-scroll:hover::-webkit-scrollbar-track {
-		background: var(--rule);
-	}
-	.tab-scroll::-webkit-scrollbar-thumb:hover {
-		background: var(--text-faint);
-	}
-	.tab-scroll::-webkit-scrollbar-thumb:active {
-		background: var(--text-dim);
-	}
 
 	.tab {
 		position: relative;
