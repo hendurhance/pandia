@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench:js": "node --expose-gc --experimental-strip-types --disable-warning=ExperimentalWarning bench/js/bench-diff.ts",
-    "e2e:build": "tauri build --debug --bundles app",
+    "e2e:build": "tauri build --debug --bundles app --config src-tauri/tauri.e2e.conf.json",
     "e2e": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/e2e/cli.ts src-tauri/target/debug/bundle/macos/Pandia.app",
     "tauri": "tauri",
     "prepare": "husky"

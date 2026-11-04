@@ -65,6 +65,7 @@
 	import { noirHighlight, noirTheme } from './logic/codemirror-theme';
 	import type { DocHandle, Path } from '$lib/ipc/bindings';
 	import { diffHighlightExtension, setHighlights, type Highlight } from './logic/highlights';
+	import { searchMarks } from './logic/search-marks';
 
 	interface Props {
 		handle: DocHandle | null;
@@ -273,6 +274,7 @@
 							json(),
 							diffHighlightExtension(),
 							search(),
+							searchMarks,
 							keymap.of([
 								{ key: 'Mod-[', run: foldCode },
 								{ key: 'Mod-]', run: unfoldCode },

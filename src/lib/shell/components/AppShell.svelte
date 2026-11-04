@@ -42,6 +42,10 @@
 	const FEEDBACK_URL = 'https://tally.so/r/dW419D';
 
 	const confirm = new ConfirmController();
+	$effect(() => {
+		const title = confirm.state?.title;
+		if (title) void ipc.e2eRecord(JSON.stringify({ event: 'prompt', title })).catch(() => {});
+	});
 	const workspace = new Workspace({ confirmLargeFile, confirmUnsaved });
 
 	async function confirmLargeFile(name: string, bytes: number): Promise<boolean> {
@@ -150,6 +154,7 @@
 		togglePalette,
 		clearRecents,
 		showAbout,
+		quit: () => void getCurrentWebviewWindow().close(),
 		checkForUpdates,
 		openWebsite: () => void openInBrowser('https://www.pandia.app').catch(() => {}),
 		openDiscussions: () =>

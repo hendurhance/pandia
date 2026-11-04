@@ -56,7 +56,13 @@ function events(): Event[] {
 	return readFileSync(report, 'utf8')
 		.split('\n')
 		.filter(Boolean)
-		.map((line) => JSON.parse(line) as Event);
+		.flatMap((line) => {
+			try {
+				return [JSON.parse(line) as Event];
+			} catch {
+				return [];
+			}
+		});
 }
 
 function appRunning(): boolean {
@@ -443,11 +449,69 @@ const scenarios: Scenario[] = [
 			rmSync(big, { force: true });
 		},
 	},
+	{
+		name: 'quit-command-asks',
+		doc: 'Quit (⌘Q, File → Exit) asks about unsaved changes, like closing the window.',
+		modes: ['cold'],
+		async run(t) {
+			const path = file(`quit-${Date.now()}.json`, '{"b":1,"a":2}');
+			await pandia([path]);
+			if (!(await t.tab(isFor(path)))) return t.fail('the tab never opened');
+			await t.act('tree.sortKeysAsc', 'app.quit');
+			const prompt = await waitFor(() => t.events().find((e) => e.event === 'prompt'), 5000);
+			t.expect('asked before quitting', prompt !== undefined, true);
+			t.expect('still running', appRunning(), true);
+		},
+	},
+	{
+		name: 'system-quit-asks',
+		doc: 'Quitting from the Dock or by logging out asks about unsaved changes too.',
+		modes: ['cold'],
+		async run(t) {
+			const path = file(`squit-${Date.now()}.json`, '{"b":1,"a":2}');
+			await pandia([path]);
+			if (!(await t.tab(isFor(path)))) return t.fail('the tab never opened');
+			await t.act('tree.sortKeysAsc');
+			systemQuit();
+			const prompt = await waitFor(() => t.events().find((e) => e.event === 'prompt'), 5000);
+			t.expect('asked before quitting', prompt !== undefined, true);
+			t.expect('still running', appRunning(), true);
+		},
+	},
+	{
+		name: 'system-quit-clean',
+		doc: 'With nothing unsaved, quitting closes Pandia without asking.',
+		modes: ['cold'],
+		async run(t) {
+			const path = valid();
+			await pandia([path]);
+			if (!(await t.tab(isFor(path)))) return t.fail('the tab never opened');
+			systemQuit();
+			const gone = await waitFor(() => (appRunning() ? undefined : true), 8000);
+			t.expect('closed', gone, true);
+			t.expect(
+				'asked',
+				t.events().some((e) => e.event === 'prompt'),
+				false,
+			);
+		},
+	},
 ];
 
-const DATA = join(homedir(), 'Library/Application Support/com.pandia.ide.dev');
+const DATA = join(homedir(), 'Library/Application Support/com.pandia.ide.e2e');
 const BACKUPS = join(DATA, 'backups');
 const SETTINGS = join(DATA, 'pandia-settings.json');
+
+function systemQuit(): void {
+	try {
+		execFileSync('osascript', ['-e', 'tell application id "com.pandia.ide.e2e" to quit'], {
+			timeout: 15_000,
+			stdio: 'pipe',
+		});
+	} catch (e) {
+		if (!String((e as { stderr?: Buffer }).stderr).includes('(-128)')) throw e;
+	}
+}
 
 async function withBehavior(
 	patch: Record<string, unknown>,

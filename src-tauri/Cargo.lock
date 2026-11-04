@@ -3465,6 +3465,7 @@ dependencies = [
  "dashmap",
  "imara-diff",
  "jsonschema",
+ "objc2 0.6.4",
  "once_cell",
  "parking_lot",
  "quick-xml 0.36.2",

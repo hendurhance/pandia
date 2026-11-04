@@ -3,6 +3,8 @@ mod commands;
 pub(crate) mod doc;
 mod e2e;
 mod headless;
+#[cfg(target_os = "macos")]
+mod macos_quit;
 mod shell_command;
 mod shortcuts;
 
@@ -196,6 +198,8 @@ pub fn run() {
         .invoke_handler(specta_builder().invoke_handler())
         .setup(move |app| {
             cli::hold_instance(&app.config().identifier);
+            #[cfg(target_os = "macos")]
+            macos_quit::ask_before_quit(app.handle());
             let cwd = std::env::current_dir().unwrap_or_default();
             let files = cli::pending_from(args, &cwd, &app.state::<AppState>().handoffs);
             queue_files(app.handle(), "launch", files);
@@ -261,7 +265,7 @@ fn build_menu(
         .item(&PredefinedMenuItem::hide_others(app, Some("Hide Others"))?)
         .item(&PredefinedMenuItem::show_all(app, Some("Show All"))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Pandia"))?)
+        .item(&item(app, "app.quit", "Quit Pandia")?)
         .build()?;
 
     let new_file = item(app, "doc.new", "New File")?;
@@ -312,9 +316,7 @@ fn build_menu(
         .item(&close_tab);
 
     #[cfg(not(target_os = "macos"))]
-    let file_menu = file_menu
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?);
+    let file_menu = file_menu.separator().item(&item(app, "app.quit", "Exit")?);
 
     let file_menu = file_menu.build()?;
 

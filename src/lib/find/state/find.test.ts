@@ -56,3 +56,22 @@ describe('FindController — the typing debounce', () => {
 		}
 	});
 });
+
+describe('FindController — closing in the Code view', () => {
+	it('clears the code search, so its match marks go away', () => {
+		const cmSearch = vi.fn(() => 0);
+		const find = new FindController({
+			handle: () => 'h',
+			canOpen: () => true,
+			isCodeView: () => true,
+			isGraphView: () => false,
+			switchToTree: () => {},
+			codeApi: () => ({ cmSearch }) as never,
+			openGraphSearch: () => {},
+			navigateToHit: () => {},
+			afterReplace: async () => {},
+		} as FindDeps);
+		find.close();
+		expect(cmSearch).toHaveBeenLastCalledWith('', false);
+	});
+});

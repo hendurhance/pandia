@@ -47,3 +47,19 @@ describe('Code view find & replace treats the query as a plain substring', () =>
 		expect(view.state.sliceDoc(sel.from, sel.to)).toBe('\\n');
 	});
 });
+
+describe('Code view find marks every match', () => {
+	it('marks each match, the current one more strongly, and clears them when the query empties', async () => {
+		const { api, view } = await mount();
+		expect(api.cmSearch('"', false)).toBe(4);
+		await vi.waitFor(() =>
+			expect(view.contentDOM.querySelectorAll('.cm-searchMatch').length).toBe(4),
+		);
+		expect(view.contentDOM.querySelectorAll('.cm-searchMatch-selected').length).toBe(1);
+
+		api.cmSearch('', false);
+		await vi.waitFor(() =>
+			expect(view.contentDOM.querySelectorAll('.cm-searchMatch').length).toBe(0),
+		);
+	});
+});

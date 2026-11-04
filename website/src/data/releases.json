@@ -54,6 +54,18 @@
 						"detail": "Typing in Code view no longer changes the document by itself after a pause: nothing changes until ⌘⏎, and Esc reverts. Crash backups still keep what you typed. In the Tree, ⏎ commits a one-line string, ⇧⏎ adds a line break, and ⌘⏎ commits a multi-line string."
 					},
 					{
+						"title": "Quitting asks about unsaved changes",
+						"detail": "\u2318Q, File \u2192 Exit, Quit from the Dock and logging out now ask about unsaved changes, the same as closing the window. Before, they quit straight away."
+					},
+					{
+						"title": "A value that isn't valid stays in its editor",
+						"detail": "Typing something that isn't a valid number, boolean or null into a Tree value now keeps the editor open with your text and the reason, instead of discarding what you typed."
+					},
+					{
+						"title": "Code view highlights every match",
+						"detail": "Find in Code view now marks every match, with the current one stronger, and clears the marks when you close the find bar."
+					},
+					{
 						"title": "Smaller fixes",
 						"detail": "Code view find and replace treats `\\n` as plain text. The Open dialog accepts YAML, XML and CSV. A slow URL fetch no longer replaces a document you opened while it ran, and a cURL response isn't dropped when a file arrives while it loads. History steps show the right text in Code view. Grid filter checklists show current values."
 					}
