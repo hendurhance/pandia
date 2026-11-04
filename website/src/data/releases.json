@@ -13,6 +13,10 @@
 						"detail": "Copy a request as cURL from Postman or your browser and paste it into the start screen. A GET is sent straight away and the response opens in that tab, at any size; for POST and other methods Pandia shows the request first and waits for your click. Options Pandia cannot honour, such as `-k`, are refused by name. “Open the request as JSON” still shows the request itself."
 					},
 					{
+						"title": "Edit cells in the Grid",
+						"detail": "Double-click a Grid cell, or press ⏎ or F2, to edit it in place. ⏎ saves and moves down, Tab saves and moves right, and Esc cancels. Typing into an empty cell adds the key to that row. See [Views](/docs/views)."
+					},
+					{
 						"title": "Answer in the terminal, without a window",
 						"detail": "Eight new commands print their answer and exit, so scripts and AI agents can use them on files of any size: `pandia get` prints the value at a path, `shape` sketches the structure, and `validate`, `diff`, `search`, `types`, `convert` and `repair` do what the app does. Exit codes work like `diff` and `grep`. See [Command line](/docs/command-line)."
 					},

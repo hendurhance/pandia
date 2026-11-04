@@ -173,3 +173,92 @@ describe('GridView columns', () => {
 		expect(ipc.cancelJob).toHaveBeenCalledWith(jobId);
 	});
 });
+
+describe('GridView editing', () => {
+	const cell = (c: HTMLElement, row: number) =>
+		c.querySelector<HTMLElement>(`[data-cell-row="${row}"][data-cell-col="a"]`);
+
+	it('edits a cell in place, then keeps the scroll and moves down after the refresh', async () => {
+		const onApply = vi.fn(async () => true);
+		const { container, rerender } = render(GridView, {
+			props: { handle: 'doc', path: ['rows'], schema: schema(100), onApply },
+		});
+		const scroller = container.querySelector<HTMLElement>('.scroller')!;
+		scroller.scrollTop = 240;
+		scroller.dispatchEvent(new Event('scroll'));
+		flushSync();
+		await vi.waitFor(() => expect(cell(container, 12)?.textContent).toBe('1'));
+
+		await fireEvent.dblClick(cell(container, 12)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		expect(input.value).toBe('1');
+		await fireEvent.input(input, { target: { value: '2' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		expect(onApply).toHaveBeenCalledWith({
+			kind: 'setValueText',
+			path: ['rows', 12, 'a'],
+			text: '2',
+		});
+		await rerender({ handle: 'doc', path: ['rows'], schema: schema(100), onApply });
+		await vi.waitFor(() => expect(cell(container, 13)?.classList.contains('selected')).toBe(true));
+		expect(scroller.scrollTop).toBe(240);
+		expect(container.querySelector('.cell-editor')).toBeNull();
+	});
+
+	it('follows the edited row to its new place after the rows re-order', async () => {
+		const onApply = vi.fn(async () => true);
+		const { container, rerender } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(20), onApply },
+		});
+		const screen = within(container);
+		await fireEvent.click(screen.getByLabelText('Filter a'));
+		await fireEvent.input(within(document.body).getByLabelText('minimum'), {
+			target: { value: '0' },
+		});
+		await vi.waitFor(() => expect(ipc.docGetRowsFiltered).toHaveBeenCalled());
+		await vi.waitFor(() => expect(cell(container, 5)?.textContent).toBe('1'));
+
+		await fireEvent.dblClick(cell(container, 5)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '2' } });
+		vi.mocked(ipc.docGetRowsFiltered).mockImplementation(
+			async (_h: unknown, _p: unknown, start: number, end: number) => ({
+				rows: Array.from({ length: end - start }, (_, k) => {
+					const pos = start + k;
+					const index = pos === 15 ? 5 : pos >= 5 && pos < 15 ? pos + 1 : pos;
+					return { index, value: asLosslessText('{"a": 1}') };
+				}),
+				total: 20,
+			}),
+		);
+		await fireEvent.keyDown(input, { key: 'Tab' });
+		expect(onApply).toHaveBeenCalledWith({ kind: 'setValueText', path: [5, 'a'], text: '2' });
+
+		await rerender({ handle: 'doc', path: [], schema: schema(20), onApply });
+		await vi.waitFor(() => expect(cell(container, 15)?.classList.contains('selected')).toBe(true));
+	});
+
+	it('Esc leaves the cell unchanged, and invalid input stays in the editor', async () => {
+		const onApply = vi.fn(async () => true);
+		const onError = vi.fn();
+		const { container } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(10), onApply, onError },
+		});
+		await vi.waitFor(() => expect(cell(container, 0)?.textContent).toBe('1'));
+
+		await fireEvent.keyDown(cell(container, 0)!, { key: 'Enter' });
+		let input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '9' } });
+		await fireEvent.keyDown(input, { key: 'Escape' });
+		expect(container.querySelector('.cell-editor')).toBeNull();
+
+		await fireEvent.keyDown(cell(container, 0)!, { key: 'F2' });
+		input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: 'abc' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		expect(container.querySelector<HTMLInputElement>('.cell-editor')?.value).toBe('abc');
+		expect(onError).toHaveBeenLastCalledWith(expect.stringContaining('invalid number'));
+		expect(onApply).not.toHaveBeenCalled();
+	});
+});

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
+	import type { ColumnSchema, DocHandle, NodeKind, Op, Path } from '$lib/ipc/bindings';
+	import { tick, untrack } from 'svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import {
@@ -16,6 +17,7 @@
 	import { GridDataController, ROW_HEIGHT } from '../state/grid-data.svelte';
 	import { GridFilterController } from '../state/grid-filters.svelte';
 	import { GridSelectionController } from '../state/grid-select.svelte';
+	import { GridEditController } from '../state/grid-edit.svelte';
 	import CellInspector from './CellInspector.svelte';
 	import ColumnFilterPopover from './ColumnFilterPopover.svelte';
 	import ColumnHeader from './ColumnHeader.svelte';
@@ -42,6 +44,8 @@
 		onExtract?: (text: string, count: number) => void;
 
 		onError?: (msg: string) => void;
+
+		onApply?: (op: Op) => Promise<boolean>;
 	}
 
 	let {
@@ -53,6 +57,7 @@
 		docKey = null,
 		onExtract = () => {},
 		onError = () => {},
+		onApply = async () => false,
 	}: Props = $props();
 
 	const HEADER_HEIGHT = 26;
@@ -233,6 +238,7 @@
 	});
 
 	const queryKey = $derived(JSON.stringify(filter.query));
+	const docIdentity = $derived(handle);
 
 	const colWindow = $derived(
 		columnWindow(columnLayout, data.scroller.scrollLeft, data.scroller.viewportWidth, COL_OVERSCAN),
@@ -249,7 +255,12 @@
 		void schema;
 		void queryKey;
 		data.reset();
-		data.scroller.resetTop();
+	});
+
+	$effect(() => {
+		void docIdentity;
+		void queryKey;
+		untrack(() => data.scroller.resetTop());
 	});
 
 	$effect(() => {
@@ -307,11 +318,113 @@
 	});
 
 	$effect(() => {
-		void handle;
-		void schema;
+		void docIdentity;
 		void queryKey;
-		selection.reset();
+		untrack(() => {
+			selection.reset();
+			edit.cancel();
+		});
 	});
+
+	const edit = new GridEditController({
+		path: () => path,
+		getRow: (rowIdx) => data.getRow(rowIdx),
+		apply: (op) => onApply(op),
+		openInTree: (cellPath) => onOpenInTree(cellPath),
+		setError: (msg) => onError(msg ?? ''),
+	});
+
+	let follow: { orig: number; col: string; dRow: number; schema: ColumnSchema } | null = null;
+
+	$effect(() => {
+		const chunks = data.chunks;
+		const f = follow;
+		if (!f || schema === f.schema || chunks.size === 0) return;
+		follow = null;
+		let at: number | null = null;
+		for (const [start, rows] of chunks) {
+			const i = rows.findIndex((r) => r.index === f.orig);
+			if (i >= 0) at = start + i;
+		}
+		const row = (at ?? selection.selected?.row ?? 0) + f.dRow;
+		if (row < 0 || row >= data.effectiveRowCount) return;
+		selection.selectCell(row, f.col);
+		revealRow(row);
+		void focusCell(row, f.col);
+	});
+
+	function revealRow(row: number) {
+		const el = data.scroller.el;
+		if (!el) return;
+		const top = data.rowTop(row) - el.scrollTop;
+		if (top < 0) el.scrollTop += top;
+		else if (top + ROW_HEIGHT > el.clientHeight) el.scrollTop += top + ROW_HEIGHT - el.clientHeight;
+	}
+
+	async function focusCell(row: number, col: string) {
+		await tick();
+		const cells = data.scroller.el?.querySelectorAll<HTMLElement>(`[data-cell-row="${row}"]`);
+		[...(cells ?? [])].find((c) => c.dataset.cellCol === col)?.focus();
+	}
+
+	function startEdit(row: number, col: string) {
+		selection.selectCell(row, col);
+		edit.start(row, col, data.getCell(row, col));
+	}
+
+	async function finishEdit(dRow: number, dCol: number) {
+		const s = edit.state;
+		if (!s) return;
+		const orig = data.getRow(s.row)?.index;
+		const colIdx = orderedColumns.findIndex((c) => c.key === s.col);
+		const nextCol = orderedColumns[Math.min(Math.max(colIdx + dCol, 0), orderedColumns.length - 1)];
+		const before = schema;
+		const changed = s.buffer !== s.initial;
+		if (!(await edit.commit())) return;
+		const col = nextCol?.key ?? s.col;
+		if (changed && orig != null && schema === before) {
+			follow = { orig, col, dRow, schema: before };
+			return;
+		}
+		const row = Math.min(Math.max(s.row + dRow, 0), Math.max(data.effectiveRowCount - 1, 0));
+		selection.selectCell(row, col);
+		revealRow(row);
+		void focusCell(row, col);
+	}
+
+	function cancelEdit() {
+		const s = edit.state;
+		edit.cancel();
+		if (s) void focusCell(s.row, s.col);
+	}
+
+	function onEditorKeydown(e: KeyboardEvent) {
+		e.stopPropagation();
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			void finishEdit(e.shiftKey ? -1 : 1, 0);
+		} else if (e.key === 'Tab') {
+			e.preventDefault();
+			void finishEdit(0, e.shiftKey ? -1 : 1);
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			cancelEdit();
+		}
+	}
+
+	function onCellKeydown(e: KeyboardEvent, row: number, col: string) {
+		if (e.key === 'Enter' || e.key === 'F2') {
+			e.preventDefault();
+			startEdit(row, col);
+			return;
+		}
+		selection.onCellKeydown(e, row, col);
+	}
+
+	function focusEditor(el: HTMLInputElement) {
+		el.focus();
+		el.select();
+	}
 
 	$effect(() => {
 		const path = selection.selectedPath;
@@ -437,14 +550,30 @@
 									title={image ? undefined : cellTitle(v)}
 									role="button"
 									tabindex="0"
+									data-cell-row={rowIdx}
+									data-cell-col={col.key}
 									onclick={() => selection.selectCell(rowIdx, col.key)}
-									onkeydown={(e) => selection.onCellKeydown(e, rowIdx, col.key)}
+									ondblclick={() => startEdit(rowIdx, col.key)}
+									onkeydown={(e) => onCellKeydown(e, rowIdx, col.key)}
 									onpointerenter={image
 										? (e) => imagePreview.hoverStart(e.currentTarget, async () => v)
 										: undefined}
 									onpointerleave={image ? imagePreview.hoverEnd : undefined}
 								>
-									{#if text.includes('\n') || text.includes('\r')}
+									{#if edit.state?.row === rowIdx && edit.state.col === col.key}
+										<input
+											class="cell-editor"
+											value={edit.state.buffer}
+											spellcheck="false"
+											aria-label="Edit {col.key}"
+											use:focusEditor
+											oninput={(e) => edit.input(e.currentTarget.value)}
+											onkeydown={onEditorKeydown}
+											onblur={() => void finishEdit(0, 0)}
+											onclick={(e) => e.stopPropagation()}
+											ondblclick={(e) => e.stopPropagation()}
+										/>
+									{:else if text.includes('\n') || text.includes('\r')}
 										{@const parts = text.replace(/\r\n|\r/g, '\n').split('\n')}
 										{#each parts as seg, j (j)}
 											{#if j > 0}<span class="nl">↵</span>{/if}{seg}
@@ -623,6 +752,17 @@
 		background: var(--accent-soft);
 	}
 
+	.cell-editor {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		padding: 0 0.6ch;
+		border: 1px solid var(--accent);
+		border-radius: 0;
+		background: var(--bg);
+		font: inherit;
+		color: var(--text);
+	}
 	.cell {
 		position: absolute;
 		top: 0;

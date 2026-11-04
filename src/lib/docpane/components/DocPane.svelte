@@ -714,7 +714,8 @@
 				onOpenInTree={(p) => void nav.navigateTo(p)}
 				onCellSelect={(c) => (gridSelected = c)}
 				docKey={session.summary?.sourcePath ?? null}
-				onError={(e) => (doc.error = e)}
+				onError={(e) => (doc.error = e || null)}
+				onApply={async (op) => (await session.applyOp(op)) !== null}
 				onExtract={(text, count) => {
 					const name = stem(session.sourceName ?? 'rows').slice(0, 24);
 					onOpenInNewTab({
