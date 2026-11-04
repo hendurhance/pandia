@@ -22,6 +22,7 @@
 	import UpdateDialog from '$lib/shell/components/UpdateDialog.svelte';
 	import WhatsNewDialog from '$lib/shell/components/WhatsNewDialog.svelte';
 	import SettingsView from '$lib/settings/SettingsView.svelte';
+	import { dragWindowFrom } from '$lib/shell/logic/window-drag';
 	import type { SettingsTab } from '$lib/settings/tabs';
 	import Sidebar from './Sidebar.svelte';
 	import StatusBar from './StatusBar.svelte';
@@ -427,19 +428,6 @@
 		e.preventDefault();
 		commandRegistry.run(id);
 	}
-
-	function onTopBarPointerDown(e: PointerEvent) {
-		if (e.button !== 0) return;
-		const target = e.target as HTMLElement | null;
-		if (
-			target?.closest(
-				'button, input, select, a, [role="button"], [role="tab"], [data-tab-id], [data-no-drag]',
-			)
-		)
-			return;
-		const win = getCurrentWebviewWindow();
-		void win.startDragging().catch(() => {});
-	}
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
@@ -450,7 +438,7 @@
 		role="toolbar"
 		aria-label="Window top bar"
 		tabindex="-1"
-		onpointerdown={onTopBarPointerDown}
+		onpointerdown={dragWindowFrom}
 	>
 		<TabBar
 			tabs={workspace.tabList}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dragWindowFrom } from '$lib/shell/logic/window-drag';
 	import { getVersion } from '@tauri-apps/api/app';
 	import { open as openInBrowser } from '@tauri-apps/plugin-shell';
 	import AppearancePanel from '$lib/settings/AppearancePanel.svelte';
@@ -29,7 +30,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="settings">
-	<header class="top">
+	<header class="top" role="toolbar" tabindex="-1" onpointerdown={dragWindowFrom}>
 		<span class="title">Settings</span>
 		<span class="grow"></span>
 		<button class="back" onclick={onClose} title="Back to canvas (esc)">← Back</button>
