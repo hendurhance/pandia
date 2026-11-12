@@ -70,6 +70,10 @@
 						"detail": "Find in Code view now marks every match, with the current one stronger, and clears the marks when you close the find bar."
 					},
 					{
+						"title": "Up to 50 tabs",
+						"detail": "You can now open 50 tabs instead of 10. Each extra tab adds only a few MB of memory; most of the memory goes to the documents themselves."
+					},
+					{
 						"title": "Smaller fixes",
 						"detail": "Code view find and replace treats `\\n` as plain text. The Open dialog accepts YAML, XML and CSV. A slow URL fetch no longer replaces a document you opened while it ran, and a cURL response isn't dropped when a file arrives while it loads. History steps show the right text in Code view. Grid filter checklists show current values."
 					}

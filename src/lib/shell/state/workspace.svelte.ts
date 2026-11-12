@@ -9,7 +9,7 @@ import type { DocHandle, OpenSource } from '$lib/ipc/bindings';
 import type { Handoff } from './handoff';
 import { loadOpenTabs, saveOpenTabs } from './tabs-restore';
 
-export const MAX_TABS = 10;
+export const MAX_TABS = 50;
 export const LARGE_FILE_WARN_BYTES = 200 * 1024 * 1024;
 
 export interface DocContext {

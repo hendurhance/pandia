@@ -177,10 +177,10 @@ describe('Handoff', () => {
 
 	it('answers a launch that never got a tab and deletes its piped input', async () => {
 		const h = new Handoff(launch({ piped: true, path: '/tmp/pandia-stdin-2.json', wait: WAIT }));
-		await h.abandon('Pandia already has 10 tabs open.');
+		await h.abandon('Pandia already has 50 tabs open.');
 		expect(ipc.cliWaitDone).toHaveBeenCalledWith(
 			WAIT,
-			report({ path: null, opened: false, problem: 'Pandia already has 10 tabs open.' }),
+			report({ path: null, opened: false, problem: 'Pandia already has 50 tabs open.' }),
 		);
 		expect(ipc.cliDiscardPiped).toHaveBeenCalledWith('/tmp/pandia-stdin-2.json');
 	});
