@@ -60,6 +60,12 @@ export function describeRefusal(r: Refusal): string {
 	}
 }
 
+export function describeCurlError(e: unknown): string {
+	return e instanceof IpcError && e.kind === 'parse' && e.detail
+		? sentence(e.detail)
+		: describeError(e);
+}
+
 function describeRequestProblem(p: RequestProblem): string {
 	switch (p.problem) {
 		case 'refused':

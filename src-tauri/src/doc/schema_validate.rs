@@ -41,7 +41,7 @@ pub fn validate(
         serde_json::from_str(schema_text.trim_start_matches('\u{feff}').trim())
             .map_err(|e| SchemaCompileError::Parse(e.to_string()))?;
 
-    let validator = jsonschema::validator_for(&schema_json).map_err(|e| match &e.kind {
+    let validator = jsonschema::validator_for(&schema_json).map_err(|e| match e.kind() {
         ValidationErrorKind::Referencing(ReferencingError::Unretrievable { uri, .. }) => {
             SchemaCompileError::ExternalRef(uri.clone())
         }
@@ -56,8 +56,8 @@ pub fn validate(
         total += 1;
         if errors.len() < DEFAULT_MAX_ERRORS {
             errors.push(SchemaError {
-                instance_path: err.instance_path.to_string(),
-                schema_path: err.schema_path.to_string(),
+                instance_path: err.instance_path().to_string(),
+                schema_path: err.schema_path().to_string(),
                 message: err.to_string(),
             });
         } else {
@@ -219,5 +219,52 @@ mod tests {
         assert_eq!(r.error_count, 600);
         assert_eq!(r.errors.len(), 500);
         assert!(r.truncated);
+    }
+
+    fn check(doc: &str, schema: &str) -> SchemaValidationResult {
+        validate(&serde_json::from_str(doc).unwrap(), schema).unwrap()
+    }
+
+    #[test]
+    fn numbers_beyond_f64_are_checked_without_a_panic() {
+        let cases = [
+            ("1e400", r#"{"minimum": 0}"#, true),
+            ("1e400", r#"{"maximum": 0}"#, false),
+            ("1e400", r#"{"exclusiveMaximum": 0}"#, false),
+            ("1e400", r#"{"multipleOf": 2}"#, true),
+            ("1e400", r#"{"const": 1}"#, false),
+            ("1e400", r#"{"enum": [1, 2]}"#, false),
+            ("[1e400, 1e400]", r#"{"uniqueItems": true}"#, false),
+            ("1e400", r#"{"type": "integer"}"#, true),
+            ("5", r#"{"minimum": 1e999}"#, false),
+            ("5", r#"{"maximum": 1e999}"#, true),
+            ("5", r#"{"multipleOf": 1e999}"#, false),
+            ("5", r#"{"const": 1e999}"#, false),
+            ("5", r#"{"enum": [1e999]}"#, false),
+        ];
+        for (doc, schema, valid) in cases {
+            assert_eq!(check(doc, schema).valid, valid, "{doc} against {schema}");
+        }
+    }
+
+    #[test]
+    fn multiple_of_a_decimal_is_exact() {
+        assert!(check("19.99", r#"{"multipleOf": 0.01}"#).valid);
+        assert!(check("0.3", r#"{"multipleOf": 0.1}"#).valid);
+        assert!(!check("19.995", r#"{"multipleOf": 0.01}"#).valid);
+    }
+
+    #[test]
+    fn big_integers_compare_exactly() {
+        assert!(!check("9007199254740993", r#"{"const": 9007199254740992}"#).valid);
+        assert!(!check("9007199254740993", r#"{"enum": [9007199254740992]}"#).valid);
+        assert!(
+            check(
+                "[9007199254740993, 9007199254740992]",
+                r#"{"uniqueItems": true}"#
+            )
+            .valid
+        );
+        assert!(check("1.0", r#"{"const": 1}"#).valid);
     }
 }

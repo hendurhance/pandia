@@ -69,15 +69,15 @@
 		const s = schema;
 		const h = handle;
 		const p = path;
-		scannedColumns = [];
-		if (s.sampled >= s.rowCount) return;
+		if (s.sampled >= s.rowCount) {
+			scannedColumns = [];
+			return;
+		}
 		const jobId = crypto.randomUUID();
 		let cancelled = false;
 		void ipc.docScanColumns(h, p, jobId).then(
 			(all) => {
-				if (cancelled) return;
-				const known = new Set(s.columns.map((c) => c.key));
-				scannedColumns = all.filter((c) => !known.has(c.key));
+				if (!cancelled) scannedColumns = all;
 			},
 			(e) => {
 				if (!cancelled) onError(describeError(e));
@@ -88,9 +88,11 @@
 			void ipc.cancelJob(jobId).catch(() => {});
 		};
 	});
-	const columns = $derived(
-		scannedColumns.length > 0 ? [...schema.columns, ...scannedColumns] : schema.columns,
-	);
+	const columns = $derived.by(() => {
+		const known = new Set(schema.columns.map((c) => c.key));
+		const extra = scannedColumns.filter((c) => !known.has(c.key));
+		return extra.length > 0 ? [...schema.columns, ...extra] : schema.columns;
+	});
 
 	const filter = new GridFilterController({
 		handle: () => handle,
@@ -341,13 +343,17 @@
 		const f = follow;
 		if (!f || schema === f.schema || chunks.size === 0) return;
 		follow = null;
+		if (edit.state) return;
 		let at: number | null = null;
 		for (const [start, rows] of chunks) {
 			const i = rows.findIndex((r) => r.index === f.orig);
 			if (i >= 0) at = start + i;
 		}
-		const row = (at ?? selection.selected?.row ?? 0) + f.dRow;
-		if (row < 0 || row >= data.effectiveRowCount) return;
+		const row = Math.min(
+			Math.max((at ?? selection.selected?.row ?? 0) + f.dRow, 0),
+			data.effectiveRowCount - 1,
+		);
+		if (row < 0) return;
 		selection.selectCell(row, f.col);
 		revealRow(row);
 		void focusCell(row, f.col);
@@ -375,21 +381,26 @@
 	async function finishEdit(dRow: number, dCol: number) {
 		const s = edit.state;
 		if (!s) return;
-		const orig = data.getRow(s.row)?.index;
 		const colIdx = orderedColumns.findIndex((c) => c.key === s.col);
 		const nextCol = orderedColumns[Math.min(Math.max(colIdx + dCol, 0), orderedColumns.length - 1)];
 		const before = schema;
 		const changed = s.buffer !== s.initial;
-		if (!(await edit.commit())) return;
+		const saved = await edit.commit();
+		if (edit.state) return;
 		const col = nextCol?.key ?? s.col;
-		if (changed && orig != null && schema === before) {
-			follow = { orig, col, dRow, schema: before };
+		if (saved && changed && schema === before) {
+			follow = { orig: s.index, col, dRow, schema: before };
 			return;
 		}
 		const row = Math.min(Math.max(s.row + dRow, 0), Math.max(data.effectiveRowCount - 1, 0));
 		selection.selectCell(row, col);
 		revealRow(row);
 		void focusCell(row, col);
+	}
+
+	async function commitOnBlur(input: HTMLInputElement) {
+		await edit.commit();
+		if (edit.state?.error && input.isConnected) input.focus();
 	}
 
 	function cancelEdit() {
@@ -535,7 +546,7 @@
 						class:row-selected={selection.rowSelected(data.getRow(rowIdx)?.index)}
 						style="top: {data.rowTop(
 							rowIdx,
-						)}px; height: {ROW_HEIGHT}px; width: {columnLayout.total}px;"
+						)}px; height: {ROW_HEIGHT}px; line-height: {ROW_HEIGHT}px; width: {columnLayout.total}px;"
 					>
 						{#each orderedColumns as col, i (col.key)}
 							{#if i >= colWindow.start && i < colWindow.end}
@@ -563,13 +574,15 @@
 									{#if edit.state?.row === rowIdx && edit.state.col === col.key}
 										<input
 											class="cell-editor"
+											class:invalid={!!edit.state.error}
 											value={edit.state.buffer}
 											spellcheck="false"
 											aria-label="Edit {col.key}"
+											aria-invalid={!!edit.state.error}
 											use:focusEditor
 											oninput={(e) => edit.input(e.currentTarget.value)}
 											onkeydown={onEditorKeydown}
-											onblur={() => void finishEdit(0, 0)}
+											onblur={(e) => void commitOnBlur(e.currentTarget)}
 											onclick={(e) => e.stopPropagation()}
 											ondblclick={(e) => e.stopPropagation()}
 										/>
@@ -594,6 +607,7 @@
 		<CellInspector
 			value={selection.selectedValue}
 			location={`[${data.getRow(selection.selected.row)?.index ?? selection.selected.row}] · ${selection.selected.col}`}
+			error={edit.state?.error ?? null}
 			copied={selection.inspectorCopy.done}
 			onCopy={selection.copyInspector}
 			onOpenInTree={selection.openSelectedInTree}
@@ -723,7 +737,7 @@
 		background: var(--bg-elev-2);
 	}
 	.index-cell.row-selected {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--accent-soft);
 		box-shadow: inset 2px 0 0 var(--accent);
 	}
@@ -763,12 +777,14 @@
 		font: inherit;
 		color: var(--text);
 	}
+	.cell-editor.invalid {
+		border-color: var(--danger);
+	}
 	.cell {
 		position: absolute;
 		top: 0;
 		bottom: 0;
-		display: flex;
-		align-items: center;
+		display: block;
 		padding: 0 0.6ch;
 		white-space: nowrap;
 		overflow: hidden;
@@ -776,7 +792,7 @@
 		border-right: 1px solid var(--rule);
 	}
 	.cell.right {
-		justify-content: flex-end;
+		text-align: right;
 	}
 	.cell.string {
 		color: var(--text);
@@ -788,7 +804,8 @@
 		color: var(--syntax-boolean);
 	}
 	.cell.null {
-		color: var(--syntax-null);
+		color: var(--text-dim);
+		font-style: italic;
 	}
 	.cell.object,
 	.cell.array {

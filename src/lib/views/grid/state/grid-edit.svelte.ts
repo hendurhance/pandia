@@ -13,11 +13,15 @@ export interface GridEditDeps {
 
 export interface GridEditState {
 	row: number;
+	index: number;
 	col: string;
 	buffer: string;
 	initial: string;
 	kind: NodeKind | null;
+	error: string | null;
 }
+
+const INVALID_VALUE = 'Not a valid JSON value. Put text in "quotes".';
 
 const KIND_NAME: Record<NodeKind, string> = {
 	object: 'an object',
@@ -45,12 +49,12 @@ export class GridEditController {
 		if (!r) return;
 		const cellPath = [...this.deps.path(), r.index, col];
 		if (value === MISSING) {
-			if (r.value === null || typeof r.value !== 'object' || Array.isArray(r.value)) {
-				const kind = kindOf(r.value);
+			const kind = kindOf(r.value);
+			if (kind !== 'object') {
 				this.deps.setError(`Row [${r.index}] is ${KIND_NAME[kind]}, so it has no keys to add.`);
 				return;
 			}
-			this.state = { row, col, buffer: '', initial: '', kind: null };
+			this.state = { row, index: r.index, col, buffer: '', initial: '', kind: null, error: null };
 			return;
 		}
 		const kind = kindOf(value);
@@ -60,11 +64,11 @@ export class GridEditController {
 			return;
 		}
 		const text = scalarText(value, kind);
-		this.state = { row, col, buffer: text, initial: text, kind };
+		this.state = { row, index: r.index, col, buffer: text, initial: text, kind, error: null };
 	};
 
 	input = (text: string) => {
-		if (this.state) this.state = { ...this.state, buffer: text };
+		if (this.state) this.state = { ...this.state, buffer: text, error: null };
 	};
 
 	cancel = () => {
@@ -74,12 +78,7 @@ export class GridEditController {
 	commit = async (): Promise<boolean> => {
 		const s = this.state;
 		if (!s) return true;
-		const r = this.deps.getRow(s.row);
-		if (!r) {
-			this.state = null;
-			return true;
-		}
-		const rowPath = [...this.deps.path(), r.index];
+		const rowPath = [...this.deps.path(), s.index];
 		let op: Op | null;
 		if (s.kind === null) {
 			op = s.buffer === '' ? null : this.newKeyOp(rowPath, s.col, s.buffer);
@@ -91,15 +90,14 @@ export class GridEditController {
 				s.buffer,
 			);
 			if (result !== null && 'error' in result) {
-				this.deps.setError(result.error);
+				this.state = { ...s, error: INVALID_VALUE };
 				return false;
 			}
 			op = result && s.buffer !== s.initial ? result.op : null;
 		}
 		this.state = null;
 		this.deps.setError(null);
-		if (op) await this.deps.apply(op);
-		return true;
+		return op ? this.deps.apply(op) : true;
 	};
 
 	private newKeyOp(rowPath: Path, key: string, buffer: string): Op {

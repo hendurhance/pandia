@@ -15,7 +15,7 @@ pub(crate) trait DocumentBackend {
     fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>>;
     fn get_value(&self, path: &Path) -> DocResult<Value>;
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>>;
-    fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>>;
+    fn column_text(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>>;
     fn for_each_row_field(
         &self,
         path: &Path,
@@ -165,9 +165,9 @@ mod conformance {
                 "column_cells {key}"
             );
             assert_eq!(
-                DocumentBackend::column_text_lower(&eager, &users, key).ok(),
-                DocumentBackend::column_text_lower(&lazy, &users, key).ok(),
-                "column_text_lower {key}"
+                DocumentBackend::column_text(&eager, &users, key).ok(),
+                DocumentBackend::column_text(&lazy, &users, key).ok(),
+                "column_text {key}"
             );
         }
     }

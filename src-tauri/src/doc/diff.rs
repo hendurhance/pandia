@@ -1,4 +1,6 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 
 use imara_diff::{Algorithm, Diff, InternedInput};
@@ -7,6 +9,7 @@ use serde_json::Value;
 
 use super::jobs::CancelFlag;
 use super::types::{DocError, DocResult, Path, PathSegment};
+use super::wire::cmp_number_tokens;
 
 const CANCEL_CHECK_MASK: u32 = 0x0FFF;
 
@@ -82,7 +85,7 @@ fn walk(
     if *checked & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
         return Err(DocError::Cancelled);
     }
-    if left == right {
+    if values_equal(left, right) {
         return Ok(());
     }
 
@@ -128,11 +131,11 @@ fn diff_arrays(
     checked: &mut u32,
 ) -> DocResult<()> {
     let mut pre = 0;
-    while pre < l.len() && pre < r.len() && l[pre] == r[pre] {
+    while pre < l.len() && pre < r.len() && values_equal(&l[pre], &r[pre]) {
         pre += 1;
     }
     let (mut sl, mut sr) = (l.len(), r.len());
-    while sl > pre && sr > pre && l[sl - 1] == r[sr - 1] {
+    while sl > pre && sr > pre && values_equal(&l[sl - 1], &r[sr - 1]) {
         sl -= 1;
         sr -= 1;
     }
@@ -147,16 +150,13 @@ fn diff_arrays(
     }
     let mut pair = vec![Pair::None; n];
 
-    let mut adds_by_value: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut adds_by_value: HashMap<ByValue, Vec<usize>> = HashMap::new();
     for (j, op) in ops.iter().enumerate() {
         if j as u32 & CANCEL_CHECK_MASK == 0 && cancel.is_cancelled() {
             return Err(DocError::Cancelled);
         }
         if let ArrOp::Add(_, rv) = op {
-            adds_by_value
-                .entry(serde_json::to_string(rv).unwrap_or_default())
-                .or_default()
-                .push(j);
+            adds_by_value.entry(ByValue(rv)).or_default().push(j);
         }
     }
     for i in 0..n {
@@ -164,8 +164,7 @@ fn diff_arrays(
             return Err(DocError::Cancelled);
         }
         if let ArrOp::Remove(_, lv) = &ops[i] {
-            let key = serde_json::to_string(lv).unwrap_or_default();
-            if let Some(candidates) = adds_by_value.get_mut(&key) {
+            if let Some(candidates) = adds_by_value.get_mut(&ByValue(lv)) {
                 while let Some(j) = candidates.pop() {
                     if matches!(pair[j], Pair::None) {
                         pair[i] = Pair::MovedTo(j);
@@ -298,8 +297,8 @@ fn align_middle<'a>(a: &'a [Value], b: &'a [Value], base: usize) -> Vec<ArrOp<'a
     const CELL_CAP: usize = 100_000;
     if n.saturating_mul(m) > CELL_CAP {
         let mut input = InternedInput::default();
-        input.update_before(a.iter());
-        input.update_after(b.iter());
+        input.update_before(a.iter().map(ByValue));
+        input.update_after(b.iter().map(ByValue));
         for hunk in Diff::compute(Algorithm::Histogram, &input).hunks() {
             for i in hunk.before {
                 ops.push(ArrOp::Remove(base + i as usize, &a[i as usize]));
@@ -314,7 +313,7 @@ fn align_middle<'a>(a: &'a [Value], b: &'a [Value], base: usize) -> Vec<ArrOp<'a
     let mut dp = vec![vec![0u32; m + 1]; n + 1];
     for i in (0..n).rev() {
         for j in (0..m).rev() {
-            dp[i][j] = if a[i] == b[j] {
+            dp[i][j] = if values_equal(&a[i], &b[j]) {
                 dp[i + 1][j + 1] + 1
             } else {
                 dp[i + 1][j].max(dp[i][j + 1])
@@ -323,7 +322,7 @@ fn align_middle<'a>(a: &'a [Value], b: &'a [Value], base: usize) -> Vec<ArrOp<'a
     }
     let (mut i, mut j) = (0, 0);
     while i < n && j < m {
-        if a[i] == b[j] {
+        if values_equal(&a[i], &b[j]) {
             i += 1;
             j += 1;
         } else if dp[i + 1][j] >= dp[i][j + 1] {
@@ -343,6 +342,66 @@ fn align_middle<'a>(a: &'a [Value], b: &'a [Value], base: usize) -> Vec<ArrOp<'a
         j += 1;
     }
     ops
+}
+
+fn values_equal(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Number(x), Value::Number(y)) => {
+            x == y || cmp_number_tokens(x.as_str(), y.as_str()) == Some(Ordering::Equal)
+        }
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(a, b)| values_equal(a, b))
+        }
+        (Value::Object(x), Value::Object(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, v)| y.get(k).is_some_and(|w| values_equal(v, w)))
+        }
+        _ => a == b,
+    }
+}
+
+#[derive(Default)]
+struct ByValue<'a>(&'a Value);
+
+impl PartialEq for ByValue<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        values_equal(self.0, other.0)
+    }
+}
+
+impl Eq for ByValue<'_> {}
+
+impl Hash for ByValue<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        hash_value(self.0, state);
+    }
+}
+
+fn hash_value<H: Hasher>(v: &Value, state: &mut H) {
+    std::mem::discriminant(v).hash(state);
+    match v {
+        Value::Null => {}
+        Value::Bool(b) => b.hash(state),
+        Value::Number(n) => n
+            .as_f64()
+            .map(|f| if f == 0.0 { 0 } else { f.to_bits() })
+            .hash(state),
+        Value::String(s) => s.hash(state),
+        Value::Array(a) => {
+            a.len().hash(state);
+            a.iter().for_each(|x| hash_value(x, state));
+        }
+        Value::Object(m) => {
+            let entries = m.iter().fold(0u64, |sum, (k, x)| {
+                let mut entry = DefaultHasher::new();
+                k.hash(&mut entry);
+                hash_value(x, &mut entry);
+                sum.wrapping_add(entry.finish())
+            });
+            (m.len(), entries).hash(state);
+        }
+    }
 }
 
 fn preview(v: &Value) -> String {
@@ -692,5 +751,63 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].left_preview.as_deref(), Some("[3 items]"));
         assert_eq!(entries[0].right_preview.as_deref(), Some("\"scalar\""));
+    }
+
+    fn parse(text: &str) -> Value {
+        serde_json::from_str(text).unwrap()
+    }
+
+    #[test]
+    fn numbers_compare_by_value_not_by_how_they_are_written() {
+        let entries = diff(
+            parse(r#"{"a": 1, "b": [1, 2], "c": 100, "d": [{"n": -0}]}"#),
+            parse(r#"{"a": 1.0, "b": [1.0, 2], "c": 1e2, "d": [{"n": 0}]}"#),
+        );
+        assert!(entries.is_empty(), "{entries:?}");
+
+        let ids = diff(
+            parse("[1075283027435454464]"),
+            parse("[1075283027435454465]"),
+        );
+        assert_eq!(ids.len(), 1);
+        assert_eq!(ids[0].kind, DiffKind::Changed);
+
+        let moved = diff(parse(r#"[1, "x", "y"]"#), parse(r#"["x", "y", 1.0]"#));
+        let got: Vec<_> = moved.into_iter().map(|e| (e.kind, e.path)).collect();
+        assert_eq!(got, vec![(DiffKind::Moved, segs(&["2"]))]);
+    }
+
+    #[test]
+    fn numbers_compare_by_value_past_the_cell_cap() {
+        let ints: Vec<String> = (0..400).map(|i| i.to_string()).collect();
+        let floats: Vec<String> = (0..400).map(|i| format!("{i}.0")).collect();
+        let entries = diff(
+            parse(&format!("[\"x\",{},\"y\"]", ints.join(","))),
+            parse(&format!("[\"X\",{},\"Y\"]", floats.join(","))),
+        );
+        let got: Vec<_> = entries.into_iter().map(|e| (e.kind, e.path)).collect();
+        assert_eq!(
+            got,
+            vec![
+                (DiffKind::Changed, segs(&["0"])),
+                (DiffKind::Changed, segs(&["401"]))
+            ]
+        );
+    }
+
+    #[test]
+    fn a_moved_object_with_reordered_keys_is_still_a_move() {
+        let entries = diff(
+            json!([{"a": 1, "b": 2}, "x", "y"]),
+            json!(["x", "y", {"b": 2, "a": 1}]),
+        );
+        let got: Vec<_> = entries
+            .into_iter()
+            .map(|e| (e.kind, e.path, e.left_path))
+            .collect();
+        assert_eq!(
+            got,
+            vec![(DiffKind::Moved, segs(&["2"]), Some(segs(&["0"])))]
+        );
     }
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { EditorView } from '@codemirror/view';
 	import { selectAll } from '@codemirror/commands';
 	import { BLOCK_CONTEXT_MENU } from '$lib/util/flags';
@@ -10,6 +10,16 @@
 	let open = $state(false);
 	let x = $state(0);
 	let y = $state(0);
+	let menuEl: HTMLElement | undefined = $state();
+
+	const EDGE_MARGIN_PX = 8;
+
+	async function keepInWindow() {
+		await tick();
+		if (!menuEl) return;
+		x = Math.min(x, Math.max(0, window.innerWidth - menuEl.offsetWidth - EDGE_MARGIN_PX));
+		y = Math.min(y, Math.max(0, window.innerHeight - menuEl.offsetHeight - EDGE_MARGIN_PX));
+	}
 	let canCut = $state(false);
 	let canCopy = $state(false);
 	let canPaste = $state(false);
@@ -178,13 +188,16 @@
 			canPaste = !!editable || !!editor;
 			canSelectAll = !!editable || !!editor || (target?.textContent?.length ?? 0) > 0;
 			open = true;
+			void keepInWindow();
 		};
 
 		const onDocClick = () => {
 			if (open) close();
 		};
 		const onKey = (e: KeyboardEvent) => {
-			if (open && e.key === 'Escape') close();
+			if (!open || e.key !== 'Escape') return;
+			e.preventDefault();
+			close();
 		};
 
 		document.addEventListener('contextmenu', onContextMenu);
@@ -200,6 +213,7 @@
 
 {#if open}
 	<div
+		bind:this={menuEl}
 		class="ctx"
 		style="left: {x}px; top: {y}px"
 		role="menu"

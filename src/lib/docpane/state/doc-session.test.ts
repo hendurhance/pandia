@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ipc } from '$lib/ipc/client';
 import { DocSessionController, type DocSessionDeps } from './doc-session.svelte';
 import type { OpenNotes, OpenOutcome, Summary } from '$lib/ipc/bindings';
-import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
+import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
 
 vi.mock('$lib/ipc/client', () => ({
 	ipc: {
+		docGetValue: vi.fn(),
 		docApplyOp: vi.fn(),
 		docSetRootText: vi.fn(),
 		docUndo: vi.fn(),
@@ -57,6 +58,7 @@ function setup() {
 		getError: () => null,
 		setSelectedPath: () => {},
 		clearViewState: () => {},
+		remapCutMark: () => {},
 		flushPendingEdits: async () => true,
 		applyDefaultView: async () => {},
 		flash: () => {},
@@ -85,6 +87,13 @@ describe('DocSessionController — the post-mutation protocol', () => {
 		const r = await session.applyOp({ kind: 'deleteKey', path: [], key: 'x' });
 		expect(r).toEqual(RESULT);
 		expect(calls).toEqual(['summary', 'refetch', 'find']);
+	});
+
+	it('applyOp hands the op to the tree so expanded items follow an array edit', async () => {
+		const { session, deps } = setup();
+		const op = { kind: 'deleteItem' as const, path: [], index: 0 };
+		await session.applyOp(op);
+		expect(deps.tree.refetchAfterOp).toHaveBeenCalledWith(RESULT.affectedPaths, op);
 	});
 
 	it('undo and redo follow the same protocol — stale Find hits refresh too', async () => {
@@ -187,6 +196,25 @@ describe('DocSessionController — opening a source', () => {
 		expect(session.handle).toBe('h1');
 		expect(session.sourceName).toBe('/w/a.json');
 		expect(session.repairInfo).toBeNull();
+	});
+
+	it('shows the real value of a scalar root', async () => {
+		const { session, deps } = fresh();
+		const tree = new TreeRowsController({
+			handle: () => session.handle,
+			summary: () => session.summary,
+			setError: vi.fn(),
+		});
+		deps.tree = tree;
+		vi.mocked(ipc.docOpen).mockResolvedValue({
+			kind: 'opened',
+			handle: 'h1' as never,
+			summary: { ...summary('/w/s.json'), rootKind: 'string', rootChildCount: null },
+			notes: { convertedFrom: null, repairs: [] },
+		});
+		vi.mocked(ipc.docGetValue).mockResolvedValue('"hello"' as never);
+		expect(await session.loadFromSource({ kind: 'file', path: '/w/s.json' })).toBe(true);
+		expect(tree.rows).toEqual([expect.objectContaining({ kind: 'string', preview: '"hello"' })]);
 	});
 
 	it('shows what repair changed and names the tab after the repaired copy', async () => {

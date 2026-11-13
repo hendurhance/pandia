@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{ErrorKind, Read, Write};
 use std::time::Duration;
 
 use serde_json::{json, Map, Value};
@@ -182,11 +182,33 @@ impl Answer {
 
 pub(crate) fn run(args: &[String]) -> Option<i32> {
     let answer = answer(args, &mut std::io::stdin().lock())?;
-    print!("{}", answer.stdout);
-    for line in answer.stderr.lines() {
-        eprintln!("pandia: {line}");
+    if let Err(code) = print_stdout(&answer.stdout) {
+        return Some(code);
     }
+    print_stderr(&answer.stderr);
     Some(answer.code)
+}
+
+pub(crate) fn print_stdout(text: &str) -> Result<(), i32> {
+    write_or_exit_code(&mut std::io::stdout().lock(), text)
+}
+
+pub(crate) fn print_stderr(message: &str) {
+    explain(&mut std::io::stderr().lock(), message);
+}
+
+fn explain(err: &mut impl Write, message: &str) {
+    for line in message.lines() {
+        let _ = writeln!(err, "pandia: {line}");
+    }
+}
+
+fn write_or_exit_code(out: &mut impl Write, text: &str) -> Result<(), i32> {
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == ErrorKind::BrokenPipe => Err(0),
+        Err(_) => Err(1),
+    }
 }
 
 fn answer(args: &[String], stdin: &mut dyn Read) -> Option<Answer> {
@@ -488,7 +510,10 @@ fn sketch(shape: &TypeShape) -> Value {
         TypeShape::Primitive(p) => match p {
             PrimitiveKind::Null => "null",
             PrimitiveKind::Bool => "boolean",
-            PrimitiveKind::Integer | PrimitiveKind::Unsigned => "integer",
+            PrimitiveKind::Integer
+            | PrimitiveKind::WideInteger
+            | PrimitiveKind::Unsigned
+            | PrimitiveKind::BigInteger => "integer",
             PrimitiveKind::Float => "number",
             PrimitiveKind::String => "string",
             PrimitiveKind::Any => "any",
@@ -603,7 +628,12 @@ fn diff(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {
             let from = e.left_path.as_ref().unwrap_or(&e.path);
             let mut entry = Map::new();
             entry.insert("kind".into(), json!(e.kind));
-            entry.insert("path".into(), e.path.to_string().into());
+            let path = if e.kind == DiffKind::Removed {
+                from
+            } else {
+                &e.path
+            };
+            entry.insert("path".into(), path.to_string().into());
             if e.kind == DiffKind::Moved {
                 entry.insert("from".into(), from.to_string().into());
             }
@@ -984,6 +1014,54 @@ mod tests {
         assert_eq!(
             (same.code, stdout_json(&same)["changes"].clone()),
             (0, json!(0))
+        );
+        std::fs::remove_file(old).unwrap();
+    }
+
+    struct Failing(ErrorKind);
+    impl Write for Failing {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(self.0.into())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_closed_pipe_ends_quietly_and_other_write_errors_exit_1() {
+        let mut closed = Failing(ErrorKind::BrokenPipe);
+        assert_eq!(write_or_exit_code(&mut closed, "x"), Err(0));
+        let mut denied = Failing(ErrorKind::PermissionDenied);
+        assert_eq!(write_or_exit_code(&mut denied, "x"), Err(1));
+        let mut out = Vec::new();
+        assert_eq!(write_or_exit_code(&mut out, "x\n"), Ok(()));
+        assert_eq!(out, b"x\n");
+    }
+
+    #[test]
+    fn a_closed_stderr_loses_the_message_without_a_panic() {
+        explain(
+            &mut Failing(ErrorKind::BrokenPipe),
+            "There's no file at /missing.json. Check the path.",
+        );
+        let mut err = Vec::new();
+        explain(&mut err, "one\ntwo");
+        assert_eq!(err, b"pandia: one\npandia: two\n");
+    }
+
+    #[test]
+    fn diff_prints_a_removed_value_at_its_path_in_the_old_file() {
+        let old = temp_file("[[1,2,3],[9]]");
+        let a = run_with(
+            &["diff", old.to_str().unwrap(), "-"],
+            r#"["new",[1,3],[9]]"#,
+        );
+        let out = stdout_json(&a);
+        let entries = out["entries"].as_array().unwrap();
+        assert!(
+            entries.contains(&json!({"kind": "removed", "path": "$[0][1]", "before": 2})),
+            "{entries:?}"
         );
         std::fs::remove_file(old).unwrap();
     }

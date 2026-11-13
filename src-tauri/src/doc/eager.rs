@@ -4,6 +4,7 @@ use regex::Regex;
 use serde_json::Value;
 
 use super::types::{quote_preview, DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
+use super::wire::cmp_number_tokens;
 
 pub(crate) fn slice_eager(
     root: &Value,
@@ -126,9 +127,9 @@ pub(crate) fn cell<'a>(el: &'a Value, key: &str) -> Option<&'a Value> {
     el.as_object().and_then(|m| m.get(key))
 }
 
-pub(crate) fn eager_cell_text_lower(el: &Value, key: &str) -> Option<String> {
+pub(crate) fn eager_cell_text(el: &Value, key: &str) -> Option<String> {
     match cell(el, key)? {
-        Value::String(s) => Some(s.to_lowercase()),
+        Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
         Value::Bool(b) => Some(b.to_string()),
         _ => None,
@@ -153,11 +154,14 @@ pub(crate) fn cmp_cell(a: Option<&Value>, b: Option<&Value>) -> std::cmp::Orderi
     }
     match (a, b) {
         (Some(Value::Bool(x)), Some(Value::Bool(y))) => x.cmp(y),
-        (Some(Value::Number(x)), Some(Value::Number(y))) => x
-            .as_f64()
-            .unwrap_or(f64::NAN)
-            .partial_cmp(&y.as_f64().unwrap_or(f64::NAN))
-            .unwrap_or(Ordering::Equal),
+        (Some(Value::Number(x)), Some(Value::Number(y))) => {
+            cmp_number_tokens(x.as_str(), y.as_str()).unwrap_or_else(|| {
+                x.as_f64()
+                    .unwrap_or(f64::NAN)
+                    .partial_cmp(&y.as_f64().unwrap_or(f64::NAN))
+                    .unwrap_or(Ordering::Equal)
+            })
+        }
         (Some(Value::String(x)), Some(Value::String(y))) => x.cmp(y),
         (Some(Value::Array(x)), Some(Value::Array(y))) => x.len().cmp(&y.len()),
         (Some(Value::Object(x)), Some(Value::Object(y))) => x.len().cmp(&y.len()),
@@ -228,12 +232,9 @@ impl super::backend::DocumentBackend for Value {
         Ok(arr.len() as u32)
     }
 
-    fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
+    fn column_text(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
         match resolve_eager(self, path) {
-            Ok(Value::Array(arr)) => Ok(arr
-                .iter()
-                .map(|el| eager_cell_text_lower(el, key))
-                .collect()),
+            Ok(Value::Array(arr)) => Ok(arr.iter().map(|el| eager_cell_text(el, key)).collect()),
             _ => Ok(Vec::new()),
         }
     }
@@ -290,5 +291,32 @@ impl super::backend::DocumentBackend for Value {
 
     fn borrowed_root(&self) -> Option<&Value> {
         Some(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn numbers_sort_by_their_exact_value() {
+        let mut cells: Vec<Value> = serde_json::from_str(
+            "[9007199254740993, 9007199254740992, 9007199254740994, 0.30000000000000004, 0.30000000000000001, 1e400, -1e400]",
+        )
+        .unwrap();
+        cells.sort_by(|a, b| cmp_cell(Some(a), Some(b)));
+        let sorted: Vec<String> = cells.iter().map(Value::to_string).collect();
+        assert_eq!(
+            sorted,
+            [
+                "-1e400",
+                "0.30000000000000001",
+                "0.30000000000000004",
+                "9007199254740992",
+                "9007199254740993",
+                "9007199254740994",
+                "1e400",
+            ]
+        );
     }
 }

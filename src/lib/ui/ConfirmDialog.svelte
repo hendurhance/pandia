@@ -93,6 +93,9 @@
 		border-color: var(--danger-hover);
 		color: var(--bg);
 	}
+	.btn-danger:focus-visible {
+		outline-color: var(--bg);
+	}
 	.btn-danger .hint {
 		color: var(--bg);
 	}

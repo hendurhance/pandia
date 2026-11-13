@@ -56,6 +56,28 @@ describe('paintFrame — search highlight', () => {
 	});
 });
 
+describe('edges', () => {
+	it('draw in the faint text colour, which reads against the canvas', () => {
+		const theme = readGraphTheme();
+		const layout = stringRows({ a: 'x' });
+		const { ctx, strokes } = recordingCtx();
+		paintFrame({
+			ctx,
+			layout,
+			viewport: { tx: 0, ty: 0, scale: 1 },
+			screenW: 800,
+			screenH: 600,
+			theme,
+			dpr: 1,
+			highlightCardId: null,
+		});
+		expect(strokes[0]).toBe(theme.textFaint);
+		expect(exportLayoutSVG(layout, theme)).toContain(
+			`<g fill="none" stroke="${theme.textFaint}" stroke-width="1.5"`,
+		);
+	});
+});
+
 describe('truncated emoji labels', () => {
 	const emoji = '😀'.repeat(60);
 

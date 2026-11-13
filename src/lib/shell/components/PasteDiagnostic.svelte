@@ -77,7 +77,7 @@
 		/* --danger has no line companion in tokens.css; derived here
 		   rather than adding a global for a single component. */
 		--diag-soft: var(--danger-soft);
-		--diag-line: rgba(229, 72, 77, 0.45);
+		--diag-line: color-mix(in srgb, var(--danger) 45%, transparent);
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-xs);
@@ -94,7 +94,7 @@
 	}
 	.title {
 		font-weight: 700;
-		color: var(--danger);
+		color: var(--text);
 	}
 	.dismiss {
 		background: none;

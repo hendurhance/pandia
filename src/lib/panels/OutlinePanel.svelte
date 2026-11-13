@@ -320,7 +320,6 @@
 
 	.more-label {
 		color: var(--text-dim);
-		font-style: italic;
 		text-decoration: underline dotted;
 		text-underline-offset: 2px;
 	}

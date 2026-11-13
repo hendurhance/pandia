@@ -17,7 +17,6 @@ const theme: GraphTheme = {
 	syntaxString: '#e0a53c',
 	syntaxNumber: '#7fb069',
 	syntaxBoolean: '#9c6bff',
-	syntaxNull: '#6a6a72',
 	syntaxPunct: '#6a6a72',
 	monoFamily: 'monospace',
 	isLight: false,

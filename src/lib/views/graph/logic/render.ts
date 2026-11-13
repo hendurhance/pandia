@@ -107,7 +107,7 @@ function paintEdges(
 	theme: GraphTheme,
 	edgeStyle: EdgeStyle,
 ): void {
-	ctx.strokeStyle = theme.rule2;
+	ctx.strokeStyle = theme.textFaint;
 	ctx.lineWidth = 1.5 / scale; // keep visual weight constant across zoom
 	ctx.lineJoin = 'round';
 	ctx.lineCap = 'round';

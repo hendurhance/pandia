@@ -82,6 +82,7 @@ export class Workspace {
 	private closing: Record<string, Promise<boolean>> = {};
 	private idCounter = 1;
 	private restored = false;
+	private restoring = false;
 
 	constructor(private readonly prompts: WorkspacePrompts) {}
 
@@ -188,34 +189,46 @@ export class Workspace {
 	async restore(launch: Promise<void>): Promise<void> {
 		if (this.restored) return;
 		this.restored = true;
-		await behaviorPrefs.init();
-		if (!behaviorPrefs.restoreTabsOnLaunch) return;
-		const [{ paths, activeIndex }] = await Promise.all([loadOpenTabs(), launch]);
-		const launched =
-			Object.values(this.views).some((v) => v.context) ||
-			Object.values(this.pendingOpens).some(Boolean);
-		if (paths.length === 0 || launched) return;
-		const tabIds: (string | undefined)[] = [];
-		for (const [i, path] of paths.entries()) {
-			const outcome = await this.open({ kind: 'file', path }, { focus: i === 0 });
-			if (outcome.kind === 'full') break;
-			tabIds.push(outcome.kind === 'opened' ? outcome.tabId : undefined);
+		this.restoring = true;
+		try {
+			await behaviorPrefs.init();
+			if (!behaviorPrefs.restoreTabsOnLaunch) return;
+			const [{ paths, activeIndex }] = await Promise.all([loadOpenTabs(), launch]);
+			const launched =
+				Object.values(this.views).some((v) => v.context) ||
+				Object.values(this.pendingOpens).some(Boolean);
+			if (paths.length === 0 || launched) return;
+			const tabIds: (string | undefined)[] = [];
+			for (const [i, path] of paths.entries()) {
+				const outcome = await this.open({ kind: 'file', path }, { focus: i === 0 });
+				if (outcome.kind === 'full') break;
+				tabIds.push(outcome.kind === 'opened' ? outcome.tabId : undefined);
+			}
+			const active = tabIds[activeIndex];
+			if (active) this.activeId = active;
+		} finally {
+			this.restoring = false;
 		}
-		const active = tabIds[activeIndex];
-		if (active) this.activeId = active;
 	}
 
 	async snapshot(): Promise<void> {
-		if (!behaviorPrefs.restoreTabsOnLaunch) return;
+		if (this.restoring || !behaviorPrefs.restoreTabsOnLaunch) return;
 		const paths: string[] = [];
 		let activeIndex = -1;
 		for (const t of this.tabs) {
-			const ctx = this.views[t.id]?.context;
-			if (!ctx?.fileBacked || !ctx.sourceName) continue;
+			const path = this.restorablePath(t.id);
+			if (!path) continue;
 			if (t.id === this.activeId) activeIndex = paths.length;
-			paths.push(ctx.sourceName);
+			paths.push(path);
 		}
 		await saveOpenTabs(paths, activeIndex);
+	}
+
+	private restorablePath(tabId: string): string | null {
+		const ctx = this.views[tabId]?.context;
+		if (ctx) return ctx.fileBacked ? ctx.sourceName : null;
+		const pending = this.pendingOpens[tabId];
+		return pending?.kind === 'file' ? pending.path : null;
 	}
 
 	create = () => {

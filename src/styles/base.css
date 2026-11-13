@@ -117,14 +117,12 @@ a {
 	background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-	background: var(--rule-2);
-}
-::-webkit-scrollbar-thumb:hover {
 	background: var(--text-faint);
 }
+::-webkit-scrollbar-thumb:hover,
 ::-webkit-scrollbar-thumb:active {
 	background: var(--text-dim);
 }
-:hover::-webkit-scrollbar-track {
-	background: var(--rule);
+::-webkit-scrollbar-corner {
+	background: transparent;
 }

@@ -13,16 +13,39 @@ import {
 	type Row,
 	type VirtualGapRow,
 } from '../logic/model';
-import { collectExpandedDescendants } from '../logic/tree-walk';
+import { collectExpandedDescendants, remapAfterOp } from '../logic/tree-walk';
 import { findIndexPaged } from '../logic/paging';
-import type { DocHandle, Path, Summary } from '$lib/ipc/bindings';
+import { decodeLossless, type LosslessText } from '$lib/ipc/wire';
+import type { DocHandle, NodeKind, Op, Path, Summary } from '$lib/ipc/bindings';
 
 const CHUNK = 200;
+const PREVIEW_MAX_CHARS = 1000;
 
 export interface TreeRowsDeps {
 	handle: () => DocHandle | null;
 	summary: () => Summary | null;
 	setError: (msg: string) => void;
+}
+
+function scalarPreview(kind: NodeKind, text: LosslessText): string {
+	if (kind !== 'string') return text;
+	const s = decodeLossless(text) as string;
+	let chars = 0;
+	let end = 0;
+	for (const ch of s) {
+		if (chars++ === PREVIEW_MAX_CHARS) return `"${s.slice(0, end)}…"`;
+		end += ch.length;
+	}
+	return `"${s}"`;
+}
+
+export async function fetchRootRow(
+	handle: DocHandle,
+	summary: Pick<Summary, 'rootKind' | 'rootChildCount'>,
+): Promise<ContentRow> {
+	const root = rootRow(summary.rootKind, summary.rootChildCount);
+	if (root.kind === 'object' || root.kind === 'array') return root;
+	return { ...root, preview: scalarPreview(root.kind, await ipc.docGetValue(handle, [])) };
 }
 
 export class TreeRowsController {
@@ -104,8 +127,9 @@ export class TreeRowsController {
 		this.expanding.add(key);
 		try {
 			const children = await this.fetchInitialChunk(row.path, row.depth);
-			const cur = this.rows[index];
-			if (cur?.variant !== 'content' || cur.expanded || pathKey(cur.path) !== key) return;
+			let at = this.contentRowIdx(row.path);
+			let cur = this.rows[at];
+			if (cur?.variant !== 'content' || cur.expanded) return;
 			let total = cur.childCount;
 			if (total === null && children.length < CHUNK) total = children.length;
 			if (total === null) {
@@ -116,10 +140,13 @@ export class TreeRowsController {
 					} catch {
 						total = null;
 					}
+					at = this.contentRowIdx(row.path);
+					cur = this.rows[at];
+					if (cur?.variant !== 'content' || cur.expanded) return;
 				}
 			}
-			insertChildrenWithClose(this.rows, index, children, total);
-			this.rows[index] = { ...cur, expanded: true, childCount: total };
+			insertChildrenWithClose(this.rows, at, children, total);
+			this.rows[at] = { ...cur, expanded: true, childCount: total };
 			this.scheduleFlush();
 		} catch (e) {
 			this.deps.setError(describeError(e));
@@ -265,17 +292,17 @@ export class TreeRowsController {
 
 	private lastRefetch: Promise<void> = Promise.resolve();
 
-	refetchAfterOp = (affectedPaths: Path[]): Promise<void> => {
+	refetchAfterOp = (affectedPaths: Path[], op?: Op): Promise<void> => {
 		const run = this.lastRefetch.then(async () => {
 			for (const path of affectedPaths) {
-				await this.refreshPath(path);
+				await this.refreshPath(path, op);
 			}
 		});
 		this.lastRefetch = run.catch(() => {});
 		return run;
 	};
 
-	private async refreshPath(path: Path) {
+	private async refreshPath(path: Path, op: Op | undefined) {
 		if (!this.deps.handle()) return;
 		const idx = this.contentRowIdx(path);
 		if (idx < 0) return; // not visible — fresh data lands when user expands
@@ -285,22 +312,25 @@ export class TreeRowsController {
 
 		const refreshed = await this.fetchUpdatedRow(row);
 		if (refreshed === null) return;
+		const at = this.contentRowIdx(path);
+		const cur = this.rows[at];
+		if (cur?.variant !== 'content') return;
 
 		const isCollection = refreshed.kind === 'object' || refreshed.kind === 'array';
 
-		if (row.expanded) {
-			const reopen = collectExpandedDescendants(this.rows, idx, row.depth);
-			removeSubtree(this.rows, idx);
-			this.rows[idx] = { ...refreshed, expanded: false };
+		if (cur.expanded) {
+			const reopen = remapAfterOp(collectExpandedDescendants(this.rows, at, cur.depth), path, op);
+			removeSubtree(this.rows, at);
+			this.rows[at] = { ...refreshed, expanded: false };
 			this.scheduleFlush();
 			if (isCollection) {
-				await this.toggleAt(idx);
+				await this.toggleAt(at);
 				if (reopen.length > 0) await this.reExpand(reopen);
 			}
 			return;
 		}
 
-		this.rows[idx] = { ...refreshed, expanded: row.expanded };
+		this.rows[at] = { ...refreshed, expanded: cur.expanded };
 		this.scheduleFlush();
 	}
 
@@ -320,10 +350,7 @@ export class TreeRowsController {
 		const handle = this.deps.handle();
 		if (!handle) return null;
 		try {
-			if (row.path.length === 0) {
-				const sum = await ipc.docSummary(handle);
-				return rootRow(sum.rootKind, sum.rootChildCount);
-			}
+			if (row.path.length === 0) return await fetchRootRow(handle, await ipc.docSummary(handle));
 			const parentPath = row.path.slice(0, -1);
 			const lastSeg = row.path[row.path.length - 1];
 			const slice = (start: number, end: number) => ipc.docGetSlice(handle, parentPath, start, end);

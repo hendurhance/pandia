@@ -44,6 +44,7 @@ export function parsePath(input: string): { ok: true; path: Path } | { ok: false
 			if (i >= n) return { ok: false, error: 'unterminated `[`' };
 			const q = s[i];
 			if (q === '"' || q === "'") {
+				const open = i;
 				i++;
 				let key = '';
 				while (i < n && s[i] !== q) {
@@ -56,6 +57,13 @@ export function parsePath(input: string): { ok: true; path: Path } | { ok: false
 				}
 				if (i >= n) return { ok: false, error: 'unterminated quoted key' };
 				i++; // closing quote
+				if (q === '"') {
+					try {
+						key = JSON.parse(s.slice(open, i)) as string;
+					} catch {
+						return { ok: false, error: `invalid escape in quoted key at ${open}` };
+					}
+				}
 				if (s[i] !== ']') return { ok: false, error: `expected ']' at ${i}` };
 				i++;
 				segs.push(key);

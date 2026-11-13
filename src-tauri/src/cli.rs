@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::doc::atomic::create_private;
+use crate::headless::{print_stderr, print_stdout};
 
 pub(crate) const LAUNCHED_ENV: &str = "PANDIA_LAUNCHED";
 
@@ -323,24 +324,20 @@ pub(crate) fn launch(args: Vec<String>, identifier: &str) -> i32 {
     }
     let req = parse(args.iter().cloned());
     if req.help {
-        print!("{USAGE}\n{}", crate::headless::USAGE);
-        return 0;
+        let usage = format!("{USAGE}\n{}", crate::headless::USAGE);
+        return print_stdout(&usage).err().unwrap_or(0);
     }
     if req.version {
-        print!("{}", version_line());
-        return 0;
+        return print_stdout(&version_line()).err().unwrap_or(0);
     }
     if let Some(problem) = req.problems.first() {
-        eprintln!("pandia: {problem}");
+        print_stderr(problem);
         return 2;
     }
     match hand_off(&req, args, identifier) {
-        Ok((code, out)) => {
-            print!("{out}");
-            code
-        }
+        Ok((code, out)) => print_stdout(&out).err().unwrap_or(code),
         Err(message) => {
-            eprintln!("pandia: {message}");
+            print_stderr(&message);
             2
         }
     }
@@ -380,7 +377,7 @@ fn hand_off(req: &Request, args: Vec<String>, identifier: &str) -> Result<(i32, 
 
     remove_on_ctrl_c(reply.iter().chain([&marker]).cloned().collect());
     let Some(report) = wait_for(&marker, &mut app, &instance_path(identifier)) else {
-        eprintln!("pandia: Pandia quit before the file was closed.");
+        print_stderr("Pandia quit before the file was closed.");
         return Ok((1, String::new()));
     };
     let reply_text = reply.map(|path| std::fs::read_to_string(path).unwrap_or_default());

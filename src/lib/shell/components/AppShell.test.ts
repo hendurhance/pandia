@@ -7,6 +7,8 @@ import type { BackupRecord, OpenOutcome, OpenSource } from '$lib/ipc/bindings';
 import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 import AppShell from './AppShell.svelte';
 
+Element.prototype.scrollIntoView = () => {};
+
 const h = vi.hoisted(() => ({
 	settingsGate: null as Promise<void> | null,
 	fns: {} as Record<string, ReturnType<typeof import('vitest').vi.fn>>,
@@ -139,6 +141,30 @@ describe('AppShell startup', () => {
 		expect(ipc.drainPendingFiles).toHaveBeenCalledTimes(1);
 		const fileOpen = vi.mocked(listen).mock.calls.filter(([name]) => name === 'file-open');
 		expect(fileOpen, 'file-open listener registered more than once').toHaveLength(1);
+	});
+});
+
+describe('opening a large file', () => {
+	it('offers one cancel button beside "open anyway"', async () => {
+		const { stat } = await import('@tauri-apps/plugin-fs');
+		vi.mocked(stat).mockResolvedValueOnce({ size: 300 * 1024 * 1024 } as never);
+		vi.mocked(ipc.drainPendingFiles).mockResolvedValueOnce([
+			{
+				path: '/w/big.json',
+				piped: false,
+				schema: null,
+				compareWith: null,
+				wait: null,
+				reply: null,
+			},
+		]);
+		render(AppShell);
+		const dialog = await screen.findByRole('dialog', { name: 'large file' });
+		const labels = within(dialog)
+			.getAllByRole('button')
+			.map((b) => b.textContent?.trim());
+		expect(labels.filter((l) => l?.startsWith('cancel'))).toHaveLength(1);
+		expect(labels.some((l) => l?.startsWith('open anyway'))).toBe(true);
 	});
 });
 

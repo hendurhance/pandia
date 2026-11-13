@@ -6,7 +6,7 @@ export const UNLOADED = Symbol('unloaded');
 export const MISSING = Symbol('missing');
 
 export function cellText(v: unknown): string {
-	if (v === null) return '—';
+	if (v === null) return 'null';
 	if (typeof v === 'boolean') return v ? 'true' : 'false';
 	if (typeof v === 'number') return String(v);
 	if (isLosslessNumber(v)) return v.toString();

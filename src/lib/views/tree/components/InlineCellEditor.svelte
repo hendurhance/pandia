@@ -190,7 +190,7 @@
 		color: var(--syntax-boolean);
 	}
 	.edit-input.v-input.null {
-		color: var(--syntax-null);
+		color: var(--text-dim);
 		font-style: italic;
 	}
 

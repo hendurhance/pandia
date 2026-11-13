@@ -7,6 +7,7 @@
 	import LayoutPanel from '$lib/settings/LayoutPanel.svelte';
 	import DataPanel from '$lib/settings/DataPanel.svelte';
 	import { SETTINGS_TABS, type SettingsTab } from '$lib/settings/tabs';
+	import { isDialogOpen } from '$lib/ui/Dialog.svelte';
 
 	interface Props {
 		onClose: () => void;
@@ -23,7 +24,8 @@
 	});
 
 	function onKey(e: KeyboardEvent) {
-		if (e.key === 'Escape') onClose();
+		if (e.key !== 'Escape' || e.defaultPrevented || isDialogOpen()) return;
+		onClose();
 	}
 </script>
 

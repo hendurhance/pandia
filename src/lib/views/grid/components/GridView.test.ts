@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { flushSync } from 'svelte';
+import { flushSync, tick } from 'svelte';
 import { cleanup, fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import { asLosslessText } from '$lib/ipc/wire';
@@ -19,6 +19,7 @@ vi.mock('$lib/ipc/client', () => ({
 			})),
 			total: 1000,
 		})),
+		docGetRowsSorted: vi.fn(),
 		docColumnValues: vi.fn(async () => ({ values: [], capped: false })),
 		docScanColumns: vi.fn(async () => []),
 		cancelJob: vi.fn(async () => true),
@@ -53,6 +54,8 @@ function schema(rowCount: number): ColumnSchema {
 		],
 	};
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 afterEach(() => cleanup());
 
@@ -239,6 +242,177 @@ describe('GridView editing', () => {
 		await vi.waitFor(() => expect(cell(container, 15)?.classList.contains('selected')).toBe(true));
 	});
 
+	it.each(['blur', 'Enter'])(
+		'saves an open edit to its own row after a refresh re-sorts the rows (first edit ends by %s)',
+		async (ending) => {
+			let order = Array.from({ length: 20 }, (_, i) => i);
+			vi.mocked(ipc.docGetRowsSorted).mockImplementation(async (_h, _p, start, end) =>
+				order
+					.slice(start, end)
+					.map((index) => ({ index, value: asLosslessText(`{"a": ${index}}`) })),
+			);
+			const onApply = vi.fn(async () => true);
+			const { container, rerender } = render(GridView, {
+				props: { handle: 'doc', path: [], schema: schema(20), onApply },
+			});
+			await fireEvent.click(container.querySelector('.cell.head')!);
+			await vi.waitFor(() => expect(cell(container, 5)?.textContent).toBe('5'));
+
+			await fireEvent.dblClick(cell(container, 3)!);
+			let input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+			await fireEvent.input(input, { target: { value: '99' } });
+			if (ending === 'blur') await fireEvent.blur(input);
+			else await fireEvent.keyDown(input, { key: 'Enter' });
+			await fireEvent.dblClick(cell(container, 5)!);
+			input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+			expect(input.value).toBe('5');
+			await fireEvent.input(input, { target: { value: '55' } });
+
+			order = [...order.filter((i) => i !== 3), 3];
+			await rerender({ handle: 'doc', path: [], schema: schema(20), onApply });
+			await sleep(50);
+			flushSync();
+			expect(cell(container, 19)?.textContent).toBe('3');
+			expect(container.querySelector<HTMLInputElement>('.cell-editor')?.value).toBe('55');
+			await fireEvent.keyDown(container.querySelector('.cell-editor')!, { key: 'Enter' });
+			expect(onApply).toHaveBeenLastCalledWith({
+				kind: 'setValueText',
+				path: [5, 'a'],
+				text: '55',
+			});
+		},
+	);
+
+	it.each([
+		['a changed value', '2', 1],
+		['an unchanged value', '1', 0],
+	])(
+		'clicking another cell commits %s and leaves that cell selected and focused',
+		async (_, value, saves) => {
+			const onApply = vi.fn(async () => true);
+			const { container, rerender } = render(GridView, {
+				props: { handle: 'doc', path: [], schema: schema(100), onApply },
+			});
+			await vi.waitFor(() => expect(cell(container, 3)?.textContent).toBe('1'));
+			await fireEvent.dblClick(cell(container, 3)!);
+			const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+			await fireEvent.input(input, { target: { value } });
+
+			cell(container, 9)!.focus();
+			await tick();
+			await fireEvent.click(cell(container, 9)!);
+			expect(onApply).toHaveBeenCalledTimes(saves);
+			await rerender({ handle: 'doc', path: [], schema: schema(100), onApply });
+			await sleep(50);
+			flushSync();
+			expect(container.querySelector('.cell-editor')).toBeNull();
+			expect(cell(container, 9)?.classList.contains('selected')).toBe(true);
+			expect(document.activeElement).toBe(cell(container, 9));
+		},
+	);
+
+	it('Enter on the last row keeps that row selected and focused after the refresh', async () => {
+		const onApply = vi.fn(async () => true);
+		const { container, rerender } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(5), onApply },
+		});
+		await vi.waitFor(() => expect(cell(container, 4)?.textContent).toBe('1'));
+		await fireEvent.dblClick(cell(container, 4)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '2' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await rerender({ handle: 'doc', path: [], schema: schema(5), onApply });
+		await sleep(50);
+		flushSync();
+		expect(cell(container, 4)?.classList.contains('selected')).toBe(true);
+		expect(document.activeElement).toBe(cell(container, 4));
+	});
+
+	it('a failed save keeps focus in the grid and leaves no move for a later refresh', async () => {
+		const onApply = vi.fn(async () => false);
+		const { container, rerender } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(100), onApply },
+		});
+		await vi.waitFor(() => expect(cell(container, 3)?.textContent).toBe('1'));
+		await fireEvent.dblClick(cell(container, 3)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '2' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await vi.waitFor(() => expect(document.activeElement).toBe(cell(container, 4)));
+
+		await fireEvent.click(cell(container, 9)!);
+		await rerender({ handle: 'doc', path: [], schema: schema(100), onApply });
+		await sleep(50);
+		flushSync();
+		expect(cell(container, 9)?.classList.contains('selected')).toBe(true);
+	});
+
+	it('keeps an open editor and the selection when a column scan lands under a quick search', async () => {
+		const scanned: ColumnSchema['columns'] = [
+			{ key: 'a', kinds: ['number'], dominantKind: 'number', presence: 1, nullable: false },
+			{ key: 'late', kinds: ['string'], dominantKind: 'string', presence: 0.001, nullable: false },
+		];
+		vi.mocked(ipc.docScanColumns).mockResolvedValueOnce(scanned);
+		const onApply = vi.fn(async () => true);
+		const sampled = (): ColumnSchema => ({ ...schema(2000), sampled: 1000 });
+		const { container, rerender } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: sampled(), onApply },
+		});
+		await within(container).findByLabelText('Filter late');
+		await fireEvent.input(within(container).getByLabelText('filter rows'), {
+			target: { value: '1' },
+		});
+		await sleep(650);
+		await vi.waitFor(() => expect(cell(container, 2)?.textContent).toBe('1'));
+
+		let finishScan!: (cols: ColumnSchema['columns']) => void;
+		vi.mocked(ipc.docScanColumns).mockReturnValueOnce(new Promise((r) => (finishScan = r)));
+		await rerender({ handle: 'doc', path: [], schema: sampled(), onApply });
+		await vi.waitFor(() => expect(cell(container, 2)?.textContent).toBe('1'));
+		await fireEvent.dblClick(cell(container, 2)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '777' } });
+		finishScan(scanned);
+		await sleep(50);
+		flushSync();
+		expect(container.querySelector<HTMLInputElement>('.cell-editor')?.value).toBe('777');
+		expect(cell(container, 2)?.classList.contains('selected')).toBe(true);
+	});
+
+	it('keeps the scroll position when a save refreshes a filtered grid', async () => {
+		vi.mocked(ipc.docGetRowsFiltered).mockImplementation(async (_h, _p, start, end) => ({
+			rows: Array.from({ length: Math.max(0, Math.min(end, 600) - start) }, (_, k) => ({
+				index: start + k,
+				value: asLosslessText('{"a": 1}'),
+			})),
+			total: 600,
+		}));
+		const onApply = vi.fn(async () => true);
+		const { container, rerender } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(1000), onApply },
+		});
+		await fireEvent.click(within(container).getByLabelText('Filter a'));
+		await fireEvent.input(within(document.body).getByLabelText('minimum'), {
+			target: { value: '0' },
+		});
+		await within(container).findByText('600');
+		const scroller = container.querySelector<HTMLElement>('.scroller')!;
+		scroller.scrollTop = 4800;
+		scroller.dispatchEvent(new Event('scroll'));
+		flushSync();
+		await vi.waitFor(() => expect(cell(container, 205)?.textContent).toBe('1'));
+
+		await fireEvent.dblClick(cell(container, 205)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '2' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await rerender({ handle: 'doc', path: [], schema: schema(1000), onApply });
+		await sleep(50);
+		flushSync();
+		expect(scroller.scrollTop).toBe(4800);
+		expect(cell(container, 206)?.classList.contains('selected')).toBe(true);
+	});
+
 	it('Esc leaves the cell unchanged, and invalid input stays in the editor', async () => {
 		const onApply = vi.fn(async () => true);
 		const onError = vi.fn();
@@ -258,7 +432,31 @@ describe('GridView editing', () => {
 		await fireEvent.input(input, { target: { value: 'abc' } });
 		await fireEvent.keyDown(input, { key: 'Enter' });
 		expect(container.querySelector<HTMLInputElement>('.cell-editor')?.value).toBe('abc');
-		expect(onError).toHaveBeenLastCalledWith(expect.stringContaining('invalid number'));
 		expect(onApply).not.toHaveBeenCalled();
+	});
+
+	it('marks invalid input on the cell and in the inspector, not in the pane banner', async () => {
+		const onApply = vi.fn(async () => true);
+		const onError = vi.fn();
+		const { container } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(10), onApply, onError },
+		});
+		await vi.waitFor(() => expect(cell(container, 0)?.textContent).toBe('1'));
+		await fireEvent.click(cell(container, 0)!);
+		await fireEvent.keyDown(cell(container, 0)!, { key: 'F2' });
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: 'abc' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		expect(input.getAttribute('aria-invalid')).toBe('true');
+		expect(container.querySelector('.inspector')?.textContent).toContain('Not a valid JSON value');
+		expect(onError).not.toHaveBeenCalledWith(expect.stringContaining('invalid'));
+
+		await fireEvent.blur(input);
+		await sleep(0);
+		expect(document.activeElement).toBe(input);
+
+		await fireEvent.input(input, { target: { value: 'abc1' } });
+		expect(input.getAttribute('aria-invalid')).toBe('false');
 	});
 });

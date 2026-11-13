@@ -3,6 +3,7 @@ import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
 import type { GraphViewApi } from '$lib/views/graph/components/GraphView.svelte';
 import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import { createNodeActions, type CutMark } from '$lib/views/tree/logic/node-actions';
+import { pathAfterOp } from '$lib/views/tree/logic/tree-walk';
 import { CompareController } from '$lib/views/compare/state/compare.svelte';
 import { FindController } from '$lib/find/state/find.svelte';
 import { PromptController } from '$lib/ui/prompt.svelte';
@@ -114,7 +115,16 @@ export class DocumentSession {
 			setError,
 			getError: () => this.error,
 			setSelectedPath: (p) => this.nav.select(p),
-			clearViewState: () => deps.clearViewState(),
+			clearViewState: () => {
+				this.cutMark = null;
+				deps.clearViewState();
+			},
+			remapCutMark: (op) => {
+				const cut = this.cutMark;
+				if (!cut) return;
+				const path = op ? pathAfterOp(cut.path, op) : null;
+				if (path !== cut.path) this.cutMark = path ? { ...cut, path } : null;
+			},
 			flushPendingEdits: () => this.flushCode(),
 			applyDefaultView: async (summary) => {
 				await sidebarPrefs.init();

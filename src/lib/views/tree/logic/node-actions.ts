@@ -3,6 +3,7 @@ import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { ContentRow, Row } from './model';
 import { findIndexPaged } from './paging';
+import { pathAfterOp } from './tree-walk';
 import { reorderDestination } from '$lib/util/reorder';
 import { pathToString } from '$lib/util/path';
 import type { PromptController } from '$lib/ui/prompt.svelte';
@@ -13,12 +14,6 @@ const OBJECT_REORDER_MAX = 2000;
 
 function startsWith(path: Path, prefix: Path): boolean {
 	return prefix.length <= path.length && prefix.every((seg, i) => path[i] === seg);
-}
-
-function shiftedByInsert(path: Path, parent: Path, index: number): Path {
-	const at = path[parent.length];
-	if (!startsWith(path, parent) || typeof at !== 'number' || at < index) return path;
-	return [...path.slice(0, parent.length), at + 1, ...path.slice(parent.length + 1)];
 }
 
 export interface CutMark {
@@ -332,34 +327,34 @@ export function createNodeActions(deps: NodeActionDeps) {
 				deps.setError("A cut value can't be pasted inside itself.");
 				return;
 			}
-			let source = cut?.path ?? [];
 
+			let insert: Op;
 			if (typeof row.key === 'number') {
-				const inserted = await deps.apply({
-					kind: 'insertItemText',
-					path: parentPath,
-					index: row.key + 1,
-					text,
-				});
-				if (!inserted) return;
-				source = shiftedByInsert(source, parentPath, row.key + 1);
+				insert = { kind: 'insertItemText', path: parentPath, index: row.key + 1, text };
 			} else {
 				const newKey = await deps.prompt.show('paste as new key:', `${row.key}_copy`);
 				if (newKey === null || newKey === '') return;
 				const rowPosition = await findKeyPosition(parentPath, row.key);
-				const inserted = await deps.apply({
+				insert = {
 					kind: 'insertKeyText',
 					path: parentPath,
 					key: newKey,
 					text,
 					position: rowPosition === null ? null : rowPosition + 1,
-				});
-				if (!inserted) return;
+				};
 			}
 
+			if (isCutPaste && (await ipc.docGetValue(handle, cut.path).catch(() => null)) !== cut.text) {
+				deps.setCutMark(null);
+				deps.setError('The cut item changed. Cut it again.');
+				return;
+			}
+			if (!(await deps.apply(insert))) return;
+
 			if (isCutPaste) {
-				const now = await ipc.docGetValue(handle, source).catch(() => null);
-				if (now !== cut.text) {
+				const source = pathAfterOp(cut.path, insert);
+				const now = source && (await ipc.docGetValue(handle, source).catch(() => null));
+				if (!source || now !== cut.text) {
 					deps.setCutMark(null);
 					deps.flash('pasted a copy · the cut value had moved, so it was left in place');
 					return;

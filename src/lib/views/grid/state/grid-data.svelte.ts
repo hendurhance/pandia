@@ -1,6 +1,7 @@
+import { untrack } from 'svelte';
 import { ipc } from '$lib/ipc/client';
 import type { DocHandle, GridFilter, Path, RowJson } from '$lib/ipc/bindings';
-import { decodeLossless } from '$lib/ipc/wire';
+import { decodeLossless, kindOf } from '$lib/ipc/wire';
 import { IpcError } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
 import { PagedSource } from '$lib/views/shared/paged-source.svelte';
@@ -15,6 +16,12 @@ const CHUNK = 100;
 export interface GridRow {
 	index: number;
 	value: unknown;
+}
+
+function cellOf(v: unknown, colKey: string): unknown {
+	return kindOf(v) === 'object' && Object.hasOwn(v as object, colKey)
+		? (v as Record<string, unknown>)[colKey]
+		: MISSING;
 }
 
 export interface GridQuery {
@@ -104,6 +111,9 @@ export class GridDataController {
 		rowHeight: ROW_HEIGHT,
 	});
 
+	private heldTotal: number | null = $state(null);
+	private heldFor = '';
+
 	constructor(private deps: GridDataDeps) {}
 
 	get chunks(): Map<number, GridRow[]> {
@@ -111,7 +121,7 @@ export class GridDataController {
 	}
 
 	get filteredTotal(): number | null {
-		return this.source.total;
+		return this.source.total ?? this.heldTotal;
 	}
 
 	get fetching(): boolean {
@@ -162,21 +172,15 @@ export class GridDataController {
 	getCell = (rowIdx: number, colKey: string): unknown => {
 		const row = this.getRow(rowIdx);
 		if (!row) return UNLOADED;
-		const v = row.value;
-		if (v === null || typeof v !== 'object') return MISSING;
-		const cell = (v as Record<string, unknown>)[colKey];
-		return cell === undefined ? MISSING : cell;
+		return cellOf(row.value, colKey);
 	};
 
 	loadedColumnTexts = (colKey: string): string[] => {
 		const out: string[] = [];
 		for (const rows of this.chunks.values()) {
 			for (const row of rows) {
-				const v = row.value;
-				if (v === null || typeof v !== 'object') continue;
-				const cell = (v as Record<string, unknown>)[colKey];
-				if (cell === undefined) continue;
-				out.push(cellText(cell));
+				const cell = cellOf(row.value, colKey);
+				if (cell !== MISSING) out.push(cellText(cell));
 			}
 		}
 		return out;
@@ -192,6 +196,11 @@ export class GridDataController {
 	};
 
 	reset = () => {
+		untrack(() => {
+			const key = JSON.stringify([this.deps.handle(), this.deps.query()]);
+			this.heldTotal = key === this.heldFor ? this.filteredTotal : null;
+			this.heldFor = key;
+		});
 		this.source.reset();
 	};
 }

@@ -120,6 +120,7 @@
 		clearViewState: () => {
 			gridSchema = null;
 			gridLoadingFor = null;
+			codeDirty = false;
 		},
 	});
 	const { session, tree, edit, find, compare, nav, nodeActions, menuAction, prompt } = doc;
@@ -192,7 +193,7 @@
 		expandAllDisabled: () => expandAllDisabled,
 		inCompare: () => compare.active,
 		find,
-		selectedContentRow: nodeActions.selectedContentRow,
+		selectedContentRow: () => (doc.viewMode === 'tree' ? nodeActions.selectedContentRow() : null),
 		moveBounds: nodeActions.moveBounds,
 		doSave: session.save,
 		doSaveAs: session.saveAs,
@@ -436,6 +437,10 @@
 
 	$effect(() => {
 		if (menuState && !session.refreshing && menuRowIdx === -1) menuState = null;
+	});
+
+	$effect(() => {
+		if (doc.viewMode !== 'tree') menuState = null;
 	});
 
 	function onMenuClose() {

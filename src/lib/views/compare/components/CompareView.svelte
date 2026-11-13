@@ -394,7 +394,7 @@
 				{#if loading}
 					<div class="dim text-sm empty-line">Computing diff…</div>
 				{:else if error}
-					<div class="err text-sm empty-line">{error}</div>
+					<div class="notice">{error}</div>
 				{:else if entries.length === 0}
 					<div class="dim text-sm empty-line">No differences</div>
 				{:else}
@@ -469,10 +469,6 @@
 	.counter:empty {
 		display: none;
 	}
-	.err {
-		color: var(--danger);
-	}
-
 	.stale-notice {
 		flex: 1;
 		display: flex;
@@ -606,7 +602,8 @@
 	}
 	.entry.active {
 		background: var(--accent-soft);
-		color: var(--accent);
+		color: var(--text);
+		box-shadow: inset 2px 0 0 var(--accent);
 	}
 
 	.glyph {

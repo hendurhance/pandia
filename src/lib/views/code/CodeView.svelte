@@ -9,10 +9,10 @@
 		undo: () => boolean;
 		redo: () => boolean;
 
-		cmSearch: (query: string, caseSensitive: boolean) => number;
+		cmSearch: (query: string, caseSensitive: boolean) => { count: number; current: number };
 		cmCount: (query: string, caseSensitive: boolean) => number;
-		cmFindNext: () => void;
-		cmFindPrev: () => void;
+		cmFindNext: (query: string, caseSensitive: boolean) => { count: number; current: number };
+		cmFindPrev: (query: string, caseSensitive: boolean) => { count: number; current: number };
 
 		cmReplaceAll: (query: string, replacement: string, caseSensitive: boolean) => number;
 	}
@@ -54,8 +54,6 @@
 		search,
 		SearchQuery,
 		setSearchQuery,
-		findNext as cmFindNextCmd,
-		findPrevious as cmFindPrevCmd,
 		replaceAll as cmReplaceAllCmd,
 		SearchCursor,
 	} from '@codemirror/search';
@@ -185,18 +183,62 @@
 		setDirty(false);
 	}
 
-	function countMatches(view: EditorView, query: string, caseSensitive: boolean): number {
+	function matchCursor(view: EditorView, query: string, caseSensitive: boolean): SearchCursor {
 		const doc = view.state.doc;
-		const cursor = new SearchCursor(
+		return new SearchCursor(
 			doc,
 			query,
 			0,
 			doc.length,
 			caseSensitive ? undefined : (s: string) => s.toLowerCase(),
 		);
+	}
+
+	function countMatches(view: EditorView, query: string, caseSensitive: boolean): number {
+		const cursor = matchCursor(view, query, caseSensitive);
 		let n = 0;
 		while (!cursor.next().done) n++;
 		return n;
+	}
+
+	function selectMatch(
+		view: EditorView,
+		query: string,
+		caseSensitive: boolean,
+		step: 0 | 1 | -1,
+	): { count: number; current: number } {
+		const sel = view.state.selection.main;
+		const at = step === 1 ? sel.to : sel.from;
+		const cursor = matchCursor(view, query, caseSensitive);
+		let count = 0;
+		let current = 0;
+		let first: { from: number; to: number } | null = null;
+		let last: { from: number; to: number } | null = null;
+		let pick: { from: number; to: number } | null = null;
+		while (!cursor.next().done) {
+			count++;
+			first ??= cursor.value;
+			last = cursor.value;
+			if (step === -1 ? cursor.value.to <= at : !pick && cursor.value.from >= at) {
+				pick = cursor.value;
+				current = count;
+			}
+		}
+		if (!pick && first) {
+			pick = step === -1 ? last : first;
+			current = step === -1 ? count : 1;
+		}
+		if (pick) {
+			const line = view.state.doc.lineAt(pick.from).number;
+			view.dispatch({
+				selection: { anchor: pick.from, head: pick.to },
+				scrollIntoView: true,
+				userEvent: 'select.search',
+				effects:
+					step === 0 ? [] : EditorView.announce.of(`match ${current} of ${count}, line ${line}`),
+			});
+		}
+		return { count, current };
 	}
 
 	const api: CodeViewApi = {
@@ -206,25 +248,21 @@
 		undo: () => (editorView ? undo(editorView) : false),
 		redo: () => (editorView ? redo(editorView) : false),
 		cmSearch: (query, caseSensitive) => {
-			if (!editorView) return 0;
+			if (!editorView) return { count: 0, current: 0 };
 			editorView.dispatch({
 				effects: setSearchQuery.of(
 					new SearchQuery({ search: query, caseSensitive, literal: true }),
 				),
 			});
-			if (!query) return 0;
-			const count = countMatches(editorView, query, caseSensitive);
-			if (count > 0) cmFindNextCmd(editorView); // land on the first match
-			return count;
+			if (!query) return { count: 0, current: 0 };
+			return selectMatch(editorView, query, caseSensitive, 0);
 		},
 		cmCount: (query, caseSensitive) =>
 			editorView ? countMatches(editorView, query, caseSensitive) : 0,
-		cmFindNext: () => {
-			if (editorView) cmFindNextCmd(editorView);
-		},
-		cmFindPrev: () => {
-			if (editorView) cmFindPrevCmd(editorView);
-		},
+		cmFindNext: (query, caseSensitive) =>
+			editorView ? selectMatch(editorView, query, caseSensitive, 1) : { count: 0, current: 0 },
+		cmFindPrev: (query, caseSensitive) =>
+			editorView ? selectMatch(editorView, query, caseSensitive, -1) : { count: 0, current: 0 },
 		cmReplaceAll: (query, replacement, caseSensitive) => {
 			if (!editorView || !query) return 0;
 			editorView.dispatch({
@@ -467,7 +505,7 @@
 		color: var(--text-dim);
 	}
 	.status.err {
-		color: var(--danger);
+		color: var(--text);
 		border-color: var(--danger);
 	}
 
@@ -480,23 +518,22 @@
 		background: var(--bg-elev);
 		border-top: var(--rule-width) solid var(--danger);
 		font-size: var(--font-size-sm);
-		color: var(--danger);
+		color: var(--text);
 	}
 	.eb-msg {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-sm);
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.eb-dot {
+		display: inline-block;
+		vertical-align: middle;
 		width: 6px;
 		height: 6px;
+		margin-right: var(--space-sm);
 		border-radius: 50%;
 		background: var(--danger);
-		flex-shrink: 0;
 	}
 
 	.cm-wrap :global(.cm-diff-added) {

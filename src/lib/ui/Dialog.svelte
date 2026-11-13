@@ -1,5 +1,9 @@
 <script module lang="ts">
 	const openDialogs: object[] = [];
+
+	export function isDialogOpen(): boolean {
+		return openDialogs.length > 0;
+	}
 </script>
 
 <script lang="ts">
@@ -26,7 +30,7 @@
 
 	function onKeydown(e: KeyboardEvent) {
 		// Every dialog listens on the window; only the top one answers Escape.
-		if (e.key === 'Escape' && openDialogs.at(-1) === self) {
+		if (e.key === 'Escape' && !e.defaultPrevented && openDialogs.at(-1) === self) {
 			e.preventDefault();
 			onClose();
 		}

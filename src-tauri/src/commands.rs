@@ -1170,6 +1170,47 @@ mod tests {
     }
 
     #[test]
+    fn a_one_record_ndjson_file_that_needed_recovery_still_opens_as_its_records() {
+        let record = serde_json::json!({"id": 1, "tags": ["a"]});
+        for (name, body, root, note) in [
+            (
+                "bom.ndjson",
+                "\u{feff}{\"id\":1,\"tags\":[\"a\"]}\n",
+                serde_json::json!([record]),
+                "Removed an invisible character before the first value",
+            ),
+            (
+                "commented.jsonl",
+                "{\"id\":1, // first\n\"tags\":[\"a\"]}\n",
+                serde_json::json!([record]),
+                crate::doc::format::COMMENTS_STRIPPED_NOTE,
+            ),
+            (
+                "two.ndjson",
+                "\u{feff}{\"id\":1}\n{\"id\":2}\n",
+                serde_json::json!([{"id": 1}, {"id": 2}]),
+                "Removed an invisible character before the first value",
+            ),
+            (
+                "bom.json",
+                "\u{feff}{\"id\":1,\"tags\":[\"a\"]}\n",
+                record.clone(),
+                "Removed an invisible character before the first value",
+            ),
+        ] {
+            let store = DocStore::new();
+            let OpenOutcome::Opened(doc) = open_file(&store, name, body, false) else {
+                panic!("{name} should open");
+            };
+            let value = store
+                .read(doc.handle, |d| d.get_value(&Path::root()))
+                .unwrap();
+            assert_eq!(value, root, "{name}");
+            assert_eq!(doc.summary.recovery_note.as_deref(), Some(note), "{name}");
+        }
+    }
+
+    #[test]
     fn a_lone_surrogate_escape_opens_after_repair() {
         let store = DocStore::new();
         let OpenOutcome::Opened(doc) = open_file(&store, "emoji.json", r#"{"a": "\ud83d"}"#, true)

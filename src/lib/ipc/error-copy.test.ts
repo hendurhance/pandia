@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { IpcError, type IpcErrorKind } from './error';
-import { describeError, describeOpenFailure, describeRefusal } from './error-copy';
+import {
+	describeCurlError,
+	describeError,
+	describeOpenFailure,
+	describeRefusal,
+} from './error-copy';
 import type { FileOp, IoProblem, RequestProblem } from './bindings';
 
 describe('describeError — backend kinds', () => {
@@ -226,5 +231,19 @@ describe('describeError — sending a cURL command', () => {
 		expect(describeRefusal({ reason: 'unsupported', option: '-F' })).toBe(
 			"Pandia can't send this: it doesn't support -F. Remove -F to send the rest.",
 		);
+	});
+});
+
+describe('describeCurlError', () => {
+	it('says why the command could not be read, without calling it JSON', () => {
+		const reason = 'This is a Windows cmd curl command. Copy it as cURL (bash) instead.';
+		expect(describeCurlError(new IpcError('parse', 'parse error', { detail: reason }))).toBe(
+			reason,
+		);
+	});
+
+	it('reads any other failure the way describeError does', () => {
+		const e = new IpcError('notFound', 'no such doc');
+		expect(describeCurlError(e)).toBe(describeError(e));
 	});
 });

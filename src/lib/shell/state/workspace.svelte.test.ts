@@ -427,6 +427,35 @@ describe('Workspace: restoring tabs', () => {
 		expect(ws.tabs).toHaveLength(1);
 	});
 
+	it('leaves the saved tabs alone while restore waits on the large-file prompt', async () => {
+		const p = prompts();
+		p.confirmLargeFile.mockImplementation(() => new Promise<boolean>(() => {}));
+		const ws = new Workspace(p);
+		vi.mocked(loadOpenTabs).mockResolvedValue({
+			paths: ['/w/big.json', '/w/b.json'],
+			activeIndex: 0,
+		});
+		vi.mocked(stat).mockImplementation(
+			async (path) => ({ size: String(path).includes('big') ? LARGE : 10 }) as never,
+		);
+		void ws.restore(Promise.resolve());
+		await vi.waitFor(() => expect(p.confirmLargeFile).toHaveBeenCalled());
+		await ws.snapshot();
+		expect(saveOpenTabs).not.toHaveBeenCalled();
+	});
+
+	it('keeps restored tabs that are still loading in the saved set', async () => {
+		const ws = new Workspace(prompts());
+		vi.mocked(loadOpenTabs).mockResolvedValue({
+			paths: ['/w/a.json', '/w/b.json', '/w/c.json'],
+			activeIndex: 2,
+		});
+		await ws.restore(Promise.resolve());
+		pane(ws, ws.tabs[0]!.id);
+		await ws.snapshot();
+		expect(saveOpenTabs).toHaveBeenLastCalledWith(['/w/a.json', '/w/b.json', '/w/c.json'], 2);
+	});
+
 	it('saves only file-backed tabs, with the active one marked', async () => {
 		const ws = new Workspace(prompts());
 		const a = await openTab(ws, '/w/a.json');

@@ -49,9 +49,8 @@ export interface BulkCollapseDeps {
 export async function collapseAll(deps: BulkCollapseDeps): Promise<void> {
 	if (!deps.summary) return;
 	const root = rootRow(deps.summary.rootKind, deps.summary.rootChildCount);
-	deps.tree.setRows([root]);
 	deps.selectPath(root.path);
-	if (isExpandable(root)) {
-		await deps.tree.toggleAt(0);
-	}
+	if (!isExpandable(root)) return;
+	deps.tree.setRows([root]);
+	await deps.tree.toggleAt(0);
 }

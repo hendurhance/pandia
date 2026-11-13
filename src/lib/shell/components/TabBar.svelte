@@ -45,6 +45,16 @@
 
 	let draggingId: string | null = $state(null);
 	let dragOverId: string | null = $state(null);
+	let scrollEl: HTMLElement | undefined = $state();
+
+	$effect(() => {
+		const id = activeTabId;
+		void tabs.find((t) => t.id === id)?.label;
+		const tab = [...(scrollEl?.children ?? [])].find(
+			(el) => el instanceof HTMLElement && el.dataset.tabId === id,
+		);
+		tab?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	});
 	let dragStart: { tabId: string; x: number; y: number; pointerId: number } | null = null;
 	const DRAG_THRESHOLD_PX = 4;
 
@@ -89,7 +99,7 @@
 </script>
 
 <nav class="tab-bar" aria-label="open documents">
-	<div class="tab-scroll">
+	<div class="tab-scroll" bind:this={scrollEl}>
 		{#each tabs as tab (tab.id)}
 			<div
 				class="tab"
@@ -128,19 +138,17 @@
 				>
 			</div>
 		{/each}
-		<button
-			class="tab-new"
-			onclick={onNew}
-			title={tabs.length >= maxTabs
-				? `Max ${maxTabs} tabs`
-				: `New tab (${shortcutLabel('tab.new')})`}
-			disabled={tabs.length >= maxTabs}
-			aria-label="New tab"><Icon icon={Plus} size="sm" /></button
-		>
-		{#if capWarning}
-			<span class="cap-warn text-xs dim">Max {maxTabs} tabs · close one to open another</span>
-		{/if}
 	</div>
+	<button
+		class="tab-new"
+		onclick={onNew}
+		title={tabs.length >= maxTabs ? `Max ${maxTabs} tabs` : `New tab (${shortcutLabel('tab.new')})`}
+		disabled={tabs.length >= maxTabs}
+		aria-label="New tab"><Icon icon={Plus} size="sm" /></button
+	>
+	{#if capWarning}
+		<span class="cap-warn text-xs dim">Max {maxTabs} tabs · close one to open another</span>
+	{/if}
 	<div class="tab-bar-drag" aria-hidden="true"></div>
 	<div class="tab-bar-actions">
 		<button
@@ -291,7 +299,9 @@
 	.cap-warn {
 		display: flex;
 		align-items: center;
+		flex-shrink: 0;
 		padding: 0 var(--space-sm);
+		white-space: nowrap;
 	}
 
 	.tab-bar-actions {

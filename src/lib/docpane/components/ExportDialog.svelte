@@ -173,7 +173,7 @@
 		color: var(--text);
 	}
 	.fmt.active {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--accent-soft);
 		border-color: var(--accent-line);
 	}

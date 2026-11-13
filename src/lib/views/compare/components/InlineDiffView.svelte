@@ -173,7 +173,7 @@
 {#if loading}
 	<div class="empty-state"><div class="dim text-sm">Computing diff…</div></div>
 {:else if error}
-	<div class="empty-state"><div class="err">{error}</div></div>
+	<div class="empty-state"><div class="notice">{error}</div></div>
 {:else if rows.length === 0}
 	<div class="empty-state"><div class="dim text-sm">No differences</div></div>
 {:else}
@@ -336,10 +336,5 @@
 
 	.tok-text {
 		color: inherit;
-	}
-
-	.err {
-		color: var(--danger);
-		font-size: var(--font-size-sm);
 	}
 </style>

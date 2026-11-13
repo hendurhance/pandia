@@ -22,7 +22,7 @@ function row(path: Path): ContentRow {
 }
 
 describe('cut, another edit, then paste', () => {
-	it('keeps the value that slid into the cut index', async () => {
+	it('refuses the paste and changes nothing when another value slid into the cut index', async () => {
 		const doc: unknown[] = ['a', 'b', 'c', 'd'];
 		vi.mocked(ipc.docGetValue).mockImplementation(async (_h, p: Path) =>
 			asLosslessText(JSON.stringify(doc[p[0] as number])),
@@ -35,6 +35,7 @@ describe('cut, another edit, then paste', () => {
 		};
 		let cut: CutMark | null = null;
 		const flash = vi.fn();
+		const setError = vi.fn();
 		const actions = createNodeActions({
 			handle: () => 'h' as never,
 			rows: () => [],
@@ -43,7 +44,7 @@ describe('cut, another edit, then paste', () => {
 			siblingCount: () => doc.length,
 			prompt: {} as PromptController,
 			apply,
-			setError: vi.fn(),
+			setError,
 			flash,
 			onOpenInNewTab: () => {},
 			getCutMark: () => cut,
@@ -54,8 +55,9 @@ describe('cut, another edit, then paste', () => {
 		await actions.remove(row([0]));
 		await actions.paste(row([0]));
 
-		expect(doc).toEqual(['b', 'c', 'c', 'd']);
+		expect(doc).toEqual(['b', 'c', 'd']);
 		expect(cut).toBeNull();
-		expect(flash).toHaveBeenLastCalledWith(expect.stringContaining('pasted a copy'));
+		expect(setError).toHaveBeenLastCalledWith('The cut item changed. Cut it again.');
+		expect(flash).not.toHaveBeenCalledWith(expect.stringContaining('pasted a copy'));
 	});
 });

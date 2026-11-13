@@ -8,6 +8,18 @@ use std::fmt::Write as _;
 
 pub(crate) const ARRAY_SAMPLE_CAP: usize = 50;
 
+pub(crate) fn sample_indices(len: usize, cap: usize) -> impl Iterator<Item = usize> {
+    let head = cap / 2;
+    let spread = cap - head;
+    (0..len.min(cap)).map(move |k| {
+        if len <= cap || k < head {
+            k
+        } else {
+            head + (k - head + 1) * (len - head) / spread - 1
+        }
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum TypegenLang {
@@ -37,7 +49,9 @@ pub enum PrimitiveKind {
     Null,
     Bool,
     Integer,
+    WideInteger,
     Unsigned,
+    BigInteger,
     Float,
     String,
     Any,
@@ -53,29 +67,21 @@ pub struct ObjectProp {
 }
 
 pub fn infer(value: &Value) -> TypeShape {
+    infer_sampled(value, ARRAY_SAMPLE_CAP)
+}
+
+fn infer_sampled(value: &Value, cap: usize) -> TypeShape {
     match value {
         Value::Null => TypeShape::Primitive(PrimitiveKind::Null),
         Value::Bool(_) => TypeShape::Primitive(PrimitiveKind::Bool),
-        Value::Number(n) => {
-            if n.is_i64() {
-                TypeShape::Primitive(PrimitiveKind::Integer)
-            } else if n.is_u64() {
-                TypeShape::Primitive(PrimitiveKind::Unsigned)
-            } else {
-                TypeShape::Primitive(PrimitiveKind::Float)
-            }
-        }
+        Value::Number(n) => TypeShape::Primitive(number_kind(&n.to_string())),
         Value::String(_) => TypeShape::Primitive(PrimitiveKind::String),
         Value::Array(items) => {
-            if items.is_empty() {
-                TypeShape::Array(Box::new(TypeShape::Unknown))
-            } else {
-                let limit = items.len().min(ARRAY_SAMPLE_CAP);
-                let mut acc = infer(&items[0]);
-                for it in items.iter().take(limit).skip(1) {
-                    acc = merge(acc, infer(it));
-                }
-                TypeShape::Array(Box::new(acc))
+            let mut shapes =
+                sample_indices(items.len(), cap).map(|i| infer_sampled(&items[i], cap));
+            match shapes.next() {
+                None => TypeShape::Array(Box::new(TypeShape::Unknown)),
+                Some(first) => TypeShape::Array(Box::new(shapes.fold(first, merge))),
             }
         }
         Value::Object(map) => {
@@ -84,7 +90,7 @@ pub fn infer(value: &Value) -> TypeShape {
                 props.insert(
                     k.clone(),
                     ObjectProp {
-                        shape: infer(v),
+                        shape: infer_sampled(v, cap),
                         optional: false,
                         nullable: false,
                     },
@@ -95,24 +101,49 @@ pub fn infer(value: &Value) -> TypeShape {
     }
 }
 
+pub(crate) fn number_kind(token: &str) -> PrimitiveKind {
+    const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
+    if let Ok(n) = token.parse::<i64>() {
+        if n.unsigned_abs() <= MAX_SAFE_INTEGER {
+            PrimitiveKind::Integer
+        } else {
+            PrimitiveKind::WideInteger
+        }
+    } else if token.parse::<u64>().is_ok() {
+        PrimitiveKind::Unsigned
+    } else if token
+        .strip_prefix('-')
+        .unwrap_or(token)
+        .bytes()
+        .all(|b| b.is_ascii_digit())
+    {
+        PrimitiveKind::BigInteger
+    } else {
+        PrimitiveKind::Float
+    }
+}
+
+fn integer_rank(p: PrimitiveKind) -> Option<u8> {
+    match p {
+        PrimitiveKind::Integer => Some(0),
+        PrimitiveKind::WideInteger => Some(1),
+        PrimitiveKind::Unsigned => Some(2),
+        PrimitiveKind::BigInteger => Some(3),
+        _ => None,
+    }
+}
+
 pub(crate) fn merge(a: TypeShape, b: TypeShape) -> TypeShape {
     use TypeShape::*;
     match (a, b) {
         (Unknown, x) | (x, Unknown) => x,
         (Primitive(p1), Primitive(p2)) if p1 == p2 => Primitive(p1),
-        (Primitive(PrimitiveKind::Integer), Primitive(PrimitiveKind::Unsigned))
-        | (Primitive(PrimitiveKind::Unsigned), Primitive(PrimitiveKind::Integer)) => {
-            Primitive(PrimitiveKind::Unsigned)
-        }
-        (
-            Primitive(PrimitiveKind::Integer | PrimitiveKind::Unsigned),
-            Primitive(PrimitiveKind::Float),
-        )
-        | (
-            Primitive(PrimitiveKind::Float),
-            Primitive(PrimitiveKind::Integer | PrimitiveKind::Unsigned),
-        ) => Primitive(PrimitiveKind::Float),
-        (Primitive(_), Primitive(_)) => Primitive(PrimitiveKind::Any),
+        (Primitive(p1), Primitive(p2)) => match (integer_rank(p1), integer_rank(p2)) {
+            (Some(r1), Some(r2)) => Primitive(if r1 >= r2 { p1 } else { p2 }),
+            (Some(_), None) if p2 == PrimitiveKind::Float => Primitive(PrimitiveKind::Float),
+            (None, Some(_)) if p1 == PrimitiveKind::Float => Primitive(PrimitiveKind::Float),
+            _ => Primitive(PrimitiveKind::Any),
+        },
         (Array(a1), Array(a2)) => Array(Box::new(merge(*a1, *a2))),
         (Object(p1), Object(p2)) => {
             let mut out: BTreeMap<String, ObjectProp> = BTreeMap::new();
@@ -308,21 +339,59 @@ fn claim_type_name<'a>(
     base: String,
     parent: &str,
     reserved: impl Fn(&str) -> bool,
+    key: fn(&str) -> String,
 ) -> (String, bool) {
     let qualified = format!("{parent}{base}");
     let name = [base, qualified.clone()]
         .into_iter()
         .chain((2..).map(|n| format!("{qualified}{n}")))
-        .find(|n| !reserved(n) && names.get(n).is_none_or(|&s| s == shape))
+        .find(|n| !reserved(n) && names.get(&key(n)).is_none_or(|&s| s == shape))
         .expect("the candidate space is unbounded");
-    let fresh = names.insert(name.clone(), shape).is_none();
+    let fresh = names.insert(key(&name), shape).is_none();
     (name, fresh)
+}
+
+fn names_with_root_alias(shape: &TypeShape, key: String) -> BTreeMap<String, &TypeShape> {
+    let mut names = BTreeMap::new();
+    if !matches!(shape, TypeShape::Object(_)) {
+        names.insert(key, shape);
+    }
+    names
+}
+
+fn exceeds_64_bits(shape: &TypeShape) -> bool {
+    match shape {
+        TypeShape::Array(inner) => exceeds_64_bits(inner),
+        s => *s == TypeShape::Primitive(PrimitiveKind::BigInteger),
+    }
+}
+
+fn uses_big_integer(shape: &TypeShape) -> bool {
+    match shape {
+        TypeShape::Object(props) => props.values().any(|p| uses_big_integer(&p.shape)),
+        TypeShape::Array(inner) => uses_big_integer(inner),
+        s => *s == TypeShape::Primitive(PrimitiveKind::BigInteger),
+    }
+}
+
+fn rounding_note(shape: &TypeShape, indent: &str) -> String {
+    if exceeds_64_bits(shape) {
+        format!("{indent}// exceeds 64 bits, so this type may round it\n")
+    } else {
+        String::new()
+    }
 }
 
 fn render_typescript(shape: &TypeShape, name: &str) -> String {
     let mut classes: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = ts_type(shape, name, "", &mut classes, &mut seen);
+    let mut seen = names_with_root_alias(shape, name.to_string());
+    let root = ts_type(shape, name, "", &mut classes, &mut seen);
+    if !matches!(shape, TypeShape::Object(_)) {
+        classes.push(format!(
+            "{}export type {name} = {root};",
+            rounding_note(shape, "")
+        ));
+    }
     let mut out = String::new();
     for c in classes {
         out.push_str(&c);
@@ -346,8 +415,14 @@ fn ts_type<'a>(
             format!("{inner_ty}[]")
         }
         TypeShape::Object(props) => {
-            let (class_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |_| false);
+            let (class_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |_| false,
+                str::to_string,
+            );
             if fresh {
                 let mut body = format!("export interface {class_name} {{\n");
                 for (k, v) in props {
@@ -365,6 +440,7 @@ fn ts_type<'a>(
                     } else {
                         ty
                     };
+                    body.push_str(&rounding_note(&v.shape, "  "));
                     let _ = writeln!(body, "  {prop_name}{q}: {ty};");
                 }
                 body.push('}');
@@ -380,7 +456,11 @@ fn ts_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "null",
         PrimitiveKind::Bool => "boolean",
-        PrimitiveKind::Integer | PrimitiveKind::Unsigned | PrimitiveKind::Float => "number",
+        PrimitiveKind::Integer
+        | PrimitiveKind::WideInteger
+        | PrimitiveKind::Unsigned
+        | PrimitiveKind::BigInteger
+        | PrimitiveKind::Float => "number",
         PrimitiveKind::String => "string",
         PrimitiveKind::Any => "unknown",
     }
@@ -411,8 +491,14 @@ const RUST_TYPES: &[&str] = &["Deserialize", "Option", "Serialize", "String", "V
 
 fn render_rust(shape: &TypeShape, name: &str) -> String {
     let mut structs: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = rust_type(shape, name, "", &mut structs, &mut seen);
+    let mut seen = names_with_root_alias(shape, name.to_string());
+    let root = rust_type(shape, name, "", &mut structs, &mut seen);
+    if !matches!(shape, TypeShape::Object(_)) {
+        structs.push(format!(
+            "{}pub type {name} = {root};",
+            rounding_note(shape, "")
+        ));
+    }
     let mut out = String::from("use serde::{Deserialize, Serialize};\n\n");
     for s in structs {
         out.push_str(&s);
@@ -436,10 +522,14 @@ fn rust_type<'a>(
             format!("Vec<{inner_ty}>")
         }
         TypeShape::Object(props) => {
-            let (struct_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |n| {
-                    RUST_KEYWORDS.contains(&n) || RUST_TYPES.contains(&n)
-                });
+            let (struct_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |n| RUST_KEYWORDS.contains(&n) || RUST_TYPES.contains(&n),
+                str::to_string,
+            );
             if fresh {
                 let mut body = String::new();
                 body.push_str("#[derive(Debug, Clone, Serialize, Deserialize)]\n");
@@ -477,6 +567,7 @@ fn rust_type<'a>(
                     } else {
                         ty
                     };
+                    body.push_str(&rounding_note(&v.shape, "    "));
                     body.push_str(&rename);
                     let _ = writeln!(body, "    pub {field}: {ty},");
                 }
@@ -493,9 +584,9 @@ fn rust_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "Option<serde_json::Value>",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer => "i64",
+        PrimitiveKind::Integer | PrimitiveKind::WideInteger => "i64",
         PrimitiveKind::Unsigned => "u64",
-        PrimitiveKind::Float => "f64",
+        PrimitiveKind::BigInteger | PrimitiveKind::Float => "f64",
         PrimitiveKind::String => "String",
         PrimitiveKind::Any => "serde_json::Value",
     }
@@ -506,9 +597,15 @@ static GO_TAG_NAME: Lazy<Regex> =
 
 fn render_go(shape: &TypeShape, name: &str) -> String {
     let mut structs: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = go_type(shape, name, "", &mut structs, &mut seen);
+    let mut seen = names_with_root_alias(shape, name.to_string());
+    let root = go_type(shape, name, "", &mut structs, &mut seen);
+    if !matches!(shape, TypeShape::Object(_)) {
+        structs.push(format!("type {name} = {root}"));
+    }
     let mut out = String::from("package types\n\n");
+    if uses_big_integer(shape) {
+        out.push_str("import \"encoding/json\"\n\n");
+    }
     for s in structs {
         out.push_str(&s);
         out.push_str("\n\n");
@@ -531,8 +628,14 @@ fn go_type<'a>(
             format!("[]{inner_ty}")
         }
         TypeShape::Object(props) => {
-            let (struct_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |_| false);
+            let (struct_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |_| false,
+                str::to_string,
+            );
             if fresh {
                 let mut body = format!("type {struct_name} struct {{\n");
                 let mut taken = std::collections::BTreeSet::new();
@@ -584,8 +687,9 @@ fn go_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "interface{}",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer => "int64",
+        PrimitiveKind::Integer | PrimitiveKind::WideInteger => "int64",
         PrimitiveKind::Unsigned => "uint64",
+        PrimitiveKind::BigInteger => "json.Number",
         PrimitiveKind::Float => "float64",
         PrimitiveKind::String => "string",
         PrimitiveKind::Any => "interface{}",
@@ -627,8 +731,14 @@ const KOTLIN_TYPES: &[&str] = &["Any", "Boolean", "Double", "List", "Long", "Str
 
 fn render_kotlin(shape: &TypeShape, name: &str) -> String {
     let mut classes: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = kotlin_type(shape, name, "", &mut classes, &mut seen);
+    let mut seen = names_with_root_alias(shape, name.to_string());
+    let root = kotlin_type(shape, name, "", &mut classes, &mut seen);
+    if !matches!(shape, TypeShape::Object(_)) {
+        classes.push(format!(
+            "{}typealias {name} = {root}",
+            rounding_note(shape, "")
+        ));
+    }
     let mut out = String::new();
     for c in classes {
         out.push_str(&c);
@@ -652,10 +762,14 @@ fn kotlin_type<'a>(
             format!("List<{inner_ty}>")
         }
         TypeShape::Object(props) => {
-            let (class_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |n| {
-                    KOTLIN_TYPES.contains(&n)
-                });
+            let (class_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |n| KOTLIN_TYPES.contains(&n),
+                str::to_string,
+            );
             if fresh {
                 let mut body = format!("data class {class_name}(\n");
                 let entries: Vec<_> = props.iter().collect();
@@ -681,6 +795,7 @@ fn kotlin_type<'a>(
                         ty
                     };
                     let comma = if i + 1 < entries.len() { "," } else { "" };
+                    body.push_str(&rounding_note(&v.shape, "    "));
                     let _ = writeln!(body, "    val {prop_name}: {ty}{comma}");
                 }
                 body.push(')');
@@ -696,10 +811,10 @@ fn kotlin_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "Any?",
         PrimitiveKind::Bool => "Boolean",
-        PrimitiveKind::Integer => "Long",
+        PrimitiveKind::Integer | PrimitiveKind::WideInteger => "Long",
         // kotlinx.serialization decodes ULong over its full range; it has no BigInteger serializer.
         PrimitiveKind::Unsigned => "ULong",
-        PrimitiveKind::Float => "Double",
+        PrimitiveKind::BigInteger | PrimitiveKind::Float => "Double",
         PrimitiveKind::String => "String",
         PrimitiveKind::Any => "Any",
     }
@@ -716,8 +831,11 @@ const PYTHON_TYPES: &[&str] = &["Any", "Optional"];
 
 fn render_python(shape: &TypeShape, name: &str) -> String {
     let mut classes: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = python_type(shape, name, "", &mut classes, &mut seen);
+    let mut seen = names_with_root_alias(shape, name.to_string());
+    let root = python_type(shape, name, "", &mut classes, &mut seen);
+    if !matches!(shape, TypeShape::Object(_)) {
+        classes.push(format!("{name} = {root}"));
+    }
     let mut out = String::from("from __future__ import annotations\n");
     out.push_str("from dataclasses import dataclass\n");
     out.push_str("from typing import Any, Optional\n\n\n");
@@ -743,10 +861,14 @@ fn python_type<'a>(
             format!("list[{inner_ty}]")
         }
         TypeShape::Object(props) => {
-            let (class_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |n| {
-                    PYTHON_KEYWORDS.contains(&n) || PYTHON_TYPES.contains(&n)
-                });
+            let (class_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |n| PYTHON_KEYWORDS.contains(&n) || PYTHON_TYPES.contains(&n),
+                str::to_string,
+            );
             if fresh {
                 let mut body = format!("@dataclass\nclass {class_name}:\n");
                 if props.is_empty() {
@@ -793,7 +915,10 @@ fn python_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "Optional[Any]",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer | PrimitiveKind::Unsigned => "int",
+        PrimitiveKind::Integer
+        | PrimitiveKind::WideInteger
+        | PrimitiveKind::Unsigned
+        | PrimitiveKind::BigInteger => "int",
         PrimitiveKind::Float => "float",
         PrimitiveKind::String => "str",
         PrimitiveKind::Any => "Any",
@@ -886,10 +1011,272 @@ const PHP_RESERVED: &[&str] = &[
     "yield",
 ];
 
+const PHP_BUILT_IN_CLASSES: &[&str] = &[
+    "AddressInfo",
+    "AllowDynamicProperties",
+    "AppendIterator",
+    "ArgumentCountError",
+    "ArithmeticError",
+    "ArrayAccess",
+    "ArrayIterator",
+    "ArrayObject",
+    "AssertionError",
+    "Attribute",
+    "BackedEnum",
+    "BadFunctionCallException",
+    "BadMethodCallException",
+    "CachingIterator",
+    "CallbackFilterIterator",
+    "ClosedGeneratorException",
+    "Closure",
+    "Collator",
+    "CompileError",
+    "Countable",
+    "CURLFile",
+    "CurlHandle",
+    "CurlMultiHandle",
+    "CurlShareHandle",
+    "CurlSharePersistentHandle",
+    "CURLStringFile",
+    "DateError",
+    "DateException",
+    "DateInterval",
+    "DateInvalidOperationException",
+    "DateInvalidTimeZoneException",
+    "DateMalformedIntervalStringException",
+    "DateMalformedPeriodStringException",
+    "DateMalformedStringException",
+    "DateObjectError",
+    "DatePeriod",
+    "DateRangeError",
+    "DateTime",
+    "DateTimeImmutable",
+    "DateTimeInterface",
+    "DateTimeZone",
+    "DeflateContext",
+    "DelayedTargetValidation",
+    "Deprecated",
+    "Directory",
+    "DirectoryIterator",
+    "DivisionByZeroError",
+    "DomainException",
+    "DOMAttr",
+    "DOMCdataSection",
+    "DOMCharacterData",
+    "DOMChildNode",
+    "DOMComment",
+    "DOMDocument",
+    "DOMDocumentFragment",
+    "DOMDocumentType",
+    "DOMElement",
+    "DOMEntity",
+    "DOMEntityReference",
+    "DOMException",
+    "DOMImplementation",
+    "DOMNamedNodeMap",
+    "DOMNameSpaceNode",
+    "DOMNode",
+    "DOMNodeList",
+    "DOMNotation",
+    "DOMParentNode",
+    "DOMProcessingInstruction",
+    "DOMText",
+    "DOMXPath",
+    "EmptyIterator",
+    "Error",
+    "ErrorException",
+    "Exception",
+    "FFI",
+    "Fiber",
+    "FiberError",
+    "FilesystemIterator",
+    "FilterIterator",
+    "finfo",
+    "GdFont",
+    "GdImage",
+    "Generator",
+    "GlobIterator",
+    "GMP",
+    "HashContext",
+    "InfiniteIterator",
+    "InflateContext",
+    "InternalIterator",
+    "IntlBreakIterator",
+    "IntlCalendar",
+    "IntlChar",
+    "IntlCodePointBreakIterator",
+    "IntlDateFormatter",
+    "IntlDatePatternGenerator",
+    "IntlException",
+    "IntlGregorianCalendar",
+    "IntlIterator",
+    "IntlListFormatter",
+    "IntlPartsIterator",
+    "IntlRuleBasedBreakIterator",
+    "IntlTimeZone",
+    "InvalidArgumentException",
+    "Iterator",
+    "IteratorAggregate",
+    "IteratorIterator",
+    "JsonException",
+    "JsonSerializable",
+    "LengthException",
+    "LibXMLError",
+    "LimitIterator",
+    "Locale",
+    "LogicException",
+    "MessageFormatter",
+    "MultipleIterator",
+    "mysqli",
+    "mysqli_driver",
+    "mysqli_result",
+    "mysqli_sql_exception",
+    "mysqli_stmt",
+    "mysqli_warning",
+    "NoDiscard",
+    "NoRewindIterator",
+    "Normalizer",
+    "NumberFormatter",
+    "OpenSSLAsymmetricKey",
+    "OpenSSLCertificate",
+    "OpenSSLCertificateSigningRequest",
+    "OuterIterator",
+    "OutOfBoundsException",
+    "OutOfRangeException",
+    "OverflowException",
+    "Override",
+    "ParentIterator",
+    "ParseError",
+    "PDO",
+    "PDOException",
+    "PDORow",
+    "PDOStatement",
+    "Phar",
+    "PharData",
+    "PharException",
+    "PharFileInfo",
+    "PhpToken",
+    "php_user_filter",
+    "PropertyHookType",
+    "RangeException",
+    "RecursiveArrayIterator",
+    "RecursiveCachingIterator",
+    "RecursiveCallbackFilterIterator",
+    "RecursiveDirectoryIterator",
+    "RecursiveFilterIterator",
+    "RecursiveIterator",
+    "RecursiveIteratorIterator",
+    "RecursiveRegexIterator",
+    "RecursiveTreeIterator",
+    "Reflection",
+    "ReflectionAttribute",
+    "ReflectionClass",
+    "ReflectionClassConstant",
+    "ReflectionConstant",
+    "ReflectionEnum",
+    "ReflectionEnumBackedCase",
+    "ReflectionEnumUnitCase",
+    "ReflectionException",
+    "ReflectionExtension",
+    "ReflectionFiber",
+    "ReflectionFunction",
+    "ReflectionFunctionAbstract",
+    "ReflectionGenerator",
+    "ReflectionIntersectionType",
+    "ReflectionMethod",
+    "ReflectionNamedType",
+    "ReflectionObject",
+    "ReflectionParameter",
+    "ReflectionProperty",
+    "ReflectionReference",
+    "ReflectionType",
+    "ReflectionUnionType",
+    "ReflectionZendExtension",
+    "Reflector",
+    "RegexIterator",
+    "RequestParseBodyException",
+    "ResourceBundle",
+    "ReturnTypeWillChange",
+    "RoundingMode",
+    "RuntimeException",
+    "SeekableIterator",
+    "SensitiveParameter",
+    "SensitiveParameterValue",
+    "Serializable",
+    "SessionHandler",
+    "SessionHandlerInterface",
+    "SessionIdInterface",
+    "SessionUpdateTimestampHandlerInterface",
+    "Shmop",
+    "SimpleXMLElement",
+    "SimpleXMLIterator",
+    "SNMP",
+    "SNMPException",
+    "SoapClient",
+    "SoapFault",
+    "SoapHeader",
+    "SoapParam",
+    "SoapServer",
+    "SoapVar",
+    "Socket",
+    "SodiumException",
+    "SplDoublyLinkedList",
+    "SplFileInfo",
+    "SplFileObject",
+    "SplFixedArray",
+    "SplHeap",
+    "SplMaxHeap",
+    "SplMinHeap",
+    "SplObjectStorage",
+    "SplObserver",
+    "SplPriorityQueue",
+    "SplQueue",
+    "SplStack",
+    "SplSubject",
+    "SplTempFileObject",
+    "Spoofchecker",
+    "SQLite3",
+    "SQLite3Exception",
+    "SQLite3Result",
+    "SQLite3Stmt",
+    "stdClass",
+    "StreamBucket",
+    "Stringable",
+    "SysvMessageQueue",
+    "SysvSemaphore",
+    "SysvSharedMemory",
+    "Throwable",
+    "tidy",
+    "tidyNode",
+    "Transliterator",
+    "Traversable",
+    "TypeError",
+    "UConverter",
+    "UnderflowException",
+    "UnexpectedValueException",
+    "UnhandledMatchError",
+    "UnitEnum",
+    "ValueError",
+    "WeakMap",
+    "WeakReference",
+    "XMLParser",
+    "XMLReader",
+    "XMLWriter",
+    "XSLTProcessor",
+    "ZipArchive",
+    "__PHP_Incomplete_Class",
+];
+
 fn render_php(shape: &TypeShape, name: &str) -> String {
     let mut classes: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = php_type(shape, name, "", &mut classes, &mut seen);
+    let mut seen = names_with_root_alias(shape, name.to_ascii_lowercase());
+    let root = php_type(shape, name, "", &mut classes, &mut seen);
+    if !matches!(shape, TypeShape::Object(_)) {
+        classes.push(format!(
+            "{}// The root is {root}, not an object. PHP has no type aliases, so there is no {name} class.",
+            rounding_note(shape, "")
+        ));
+    }
     let mut out = String::from("<?php\n\ndeclare(strict_types=1);\n\n");
     for c in classes {
         out.push_str(&c);
@@ -913,10 +1300,19 @@ fn php_type<'a>(
             "array".to_string()
         }
         TypeShape::Object(props) => {
-            let (class_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |n| {
+            let (class_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |n| {
                     PHP_RESERVED.contains(&n.to_ascii_lowercase().as_str())
-                });
+                        || PHP_BUILT_IN_CLASSES
+                            .iter()
+                            .any(|c| c.eq_ignore_ascii_case(n))
+                },
+                str::to_ascii_lowercase,
+            );
             if fresh {
                 let mut body = format!("final readonly class {class_name}\n{{\n");
                 body.push_str("    public function __construct(\n");
@@ -959,6 +1355,7 @@ fn php_type<'a>(
                     };
                     let default = if v.optional { " = null" } else { "" };
                     let comma = if i + 1 < entries.len() { "," } else { "" };
+                    body.push_str(&rounding_note(&v.shape, "        "));
                     let _ = writeln!(body, "        public {ty} ${prop_name}{default}{comma}");
                 }
                 body.push_str("    ) {}\n}");
@@ -974,10 +1371,10 @@ fn php_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "mixed",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer => "int",
+        PrimitiveKind::Integer | PrimitiveKind::WideInteger => "int",
         // json_decode returns a float for integers above PHP_INT_MAX.
         PrimitiveKind::Unsigned => "int|float",
-        PrimitiveKind::Float => "float",
+        PrimitiveKind::BigInteger | PrimitiveKind::Float => "float",
         PrimitiveKind::String => "string",
         PrimitiveKind::Any => "mixed",
     }
@@ -1051,10 +1448,13 @@ const JAVA_TYPES: &[&str] = &[
 
 fn render_java(shape: &TypeShape, name: &str) -> String {
     let mut classes: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
-    let _ = java_type(shape, name, "", &mut classes, &mut seen, true);
+    let mut seen = names_with_root_alias(shape, name.to_string());
+    let root = java_type(shape, name, "", &mut classes, &mut seen, true);
+    let note = (!matches!(shape, TypeShape::Object(_))).then(|| {
+        format!("// The root is {root}, not an object. Java has no type aliases, so there is no {name} class.")
+    });
     let Some(outer) = classes.pop() else {
-        return String::new();
+        return note.unwrap_or_default();
     };
     let mut body = outer.strip_suffix('}').unwrap_or(&outer).to_string();
     for class in classes {
@@ -1084,6 +1484,9 @@ fn render_java(shape: &TypeShape, name: &str) -> String {
     if !out.is_empty() {
         out.push('\n');
     }
+    if let Some(note) = note {
+        let _ = writeln!(out, "{note}");
+    }
     out.push_str(&body);
     out
 }
@@ -1104,10 +1507,14 @@ fn java_type<'a>(
             format!("List<{inner_ty}>")
         }
         TypeShape::Object(props) => {
-            let (class_name, fresh) =
-                claim_type_name(seen, shape, sanitize_ident(name, true), parent, |n| {
-                    JAVA_TYPES.contains(&n)
-                });
+            let (class_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                sanitize_ident(name, true),
+                parent,
+                |n| JAVA_TYPES.contains(&n),
+                str::to_string,
+            );
             if fresh {
                 let mut body = format!("public class {class_name} {{\n");
                 let mut taken = std::collections::BTreeSet::from(["Class".to_string()]);
@@ -1158,9 +1565,9 @@ fn java_primitive(p: PrimitiveKind, boxed: bool) -> &'static str {
         (PrimitiveKind::Null, _) => "Object",
         (PrimitiveKind::Bool, true) => "Boolean",
         (PrimitiveKind::Bool, false) => "boolean",
-        (PrimitiveKind::Integer, true) => "Long",
-        (PrimitiveKind::Integer, false) => "long",
-        (PrimitiveKind::Unsigned, _) => "BigInteger",
+        (PrimitiveKind::Integer | PrimitiveKind::WideInteger, true) => "Long",
+        (PrimitiveKind::Integer | PrimitiveKind::WideInteger, false) => "long",
+        (PrimitiveKind::Unsigned | PrimitiveKind::BigInteger, _) => "BigInteger",
         (PrimitiveKind::Float, true) => "Double",
         (PrimitiveKind::Float, false) => "double",
         (PrimitiveKind::String, _) => "String",
@@ -1171,7 +1578,13 @@ fn java_primitive(p: PrimitiveKind, boxed: bool) -> &'static str {
 fn render_zod(shape: &TypeShape, name: &str) -> String {
     let mut out = String::from("import { z } from 'zod';\n\n");
     let body = zod_schema(shape, name);
-    let _ = writeln!(out, "export const {} = {};", capitalize_first(name), body);
+    let _ = writeln!(
+        out,
+        "{}export const {} = {};",
+        rounding_note(shape, ""),
+        capitalize_first(name),
+        body
+    );
     let _ = write!(
         out,
         "export type {} = z.infer<typeof {}>;",
@@ -1202,6 +1615,7 @@ fn zod_schema(shape: &TypeShape, _name: &str) -> String {
                 } else {
                     inner
                 };
+                body.push_str(&rounding_note(&v.shape, "  "));
                 let _ = writeln!(body, "  {key}: {inner},");
             }
             body.push_str("})");
@@ -1215,8 +1629,11 @@ fn zod_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null => "z.null()",
         PrimitiveKind::Bool => "z.boolean()",
-        PrimitiveKind::Integer | PrimitiveKind::Unsigned => "z.number().int()",
-        PrimitiveKind::Float => "z.number()",
+        PrimitiveKind::Integer => "z.number().int()",
+        PrimitiveKind::WideInteger
+        | PrimitiveKind::Unsigned
+        | PrimitiveKind::BigInteger
+        | PrimitiveKind::Float => "z.number()",
         PrimitiveKind::String => "z.string()",
         PrimitiveKind::Any => "z.unknown()",
     }
@@ -1251,7 +1668,12 @@ fn render_dart(shape: &TypeShape, name: &str) -> String {
     }
 
     if !matches!(shape, TypeShape::Object(_)) {
-        let _ = writeln!(out, "typedef {} = {root};", dart_class_name(name));
+        let _ = writeln!(
+            out,
+            "{}typedef {} = {root};",
+            rounding_note(shape, ""),
+            dart_class_name(name)
+        );
     }
     out.trim_end().to_string()
 }
@@ -1273,10 +1695,14 @@ fn dart_type<'a>(
             )
         }
         TypeShape::Object(props) => {
-            let (class_name, fresh) =
-                claim_type_name(seen, shape, dart_class_name(name), parent, |n| {
-                    DART_TYPES.contains(&n)
-                });
+            let (class_name, fresh) = claim_type_name(
+                seen,
+                shape,
+                dart_class_name(name),
+                parent,
+                |n| DART_TYPES.contains(&n),
+                str::to_string,
+            );
             if fresh {
                 let body = dart_class(&class_name, props, classes, seen);
                 classes.push(body);
@@ -1343,7 +1769,8 @@ fn dart_class<'a>(
     }
     let _ = writeln!(body, "      );\n");
 
-    for (field, ty, _, _, _) in &fields {
+    for ((_, prop), (field, ty, _, _, _)) in props.iter().zip(&fields) {
+        body.push_str(&rounding_note(&prop.shape, "  "));
         let _ = writeln!(body, "  final {ty} {field};");
     }
     body.push('\n');
@@ -1361,10 +1788,10 @@ fn dart_primitive(p: PrimitiveKind) -> &'static str {
     match p {
         PrimitiveKind::Null | PrimitiveKind::Any => "dynamic",
         PrimitiveKind::Bool => "bool",
-        PrimitiveKind::Integer => "int",
+        PrimitiveKind::Integer | PrimitiveKind::WideInteger => "int",
         // On the VM, jsonDecode returns a double for integers that don't fit a 64-bit int.
         PrimitiveKind::Unsigned => "num",
-        PrimitiveKind::Float => "double",
+        PrimitiveKind::BigInteger | PrimitiveKind::Float => "double",
         PrimitiveKind::String => "String",
     }
 }
@@ -1382,7 +1809,7 @@ fn dart_from_json<'a>(
         TypeShape::Primitive(PrimitiveKind::Null | PrimitiveKind::Any) | TypeShape::Unknown => {
             src.to_string()
         }
-        TypeShape::Primitive(PrimitiveKind::Float) => {
+        TypeShape::Primitive(PrimitiveKind::Float | PrimitiveKind::BigInteger) => {
             if optional {
                 format!("({src} as num?)?.toDouble()")
             } else {
@@ -1395,7 +1822,7 @@ fn dart_from_json<'a>(
             let body = match inner.as_ref() {
                 TypeShape::Primitive(PrimitiveKind::Null | PrimitiveKind::Any)
                 | TypeShape::Unknown => return format!("{src} as List<dynamic>{q}"),
-                TypeShape::Primitive(PrimitiveKind::Float)
+                TypeShape::Primitive(PrimitiveKind::Float | PrimitiveKind::BigInteger)
                 | TypeShape::Object(_)
                 | TypeShape::Array(_) => {
                     let elem = dart_from_json(inner, &item_name, parent, "e", false, seen);
@@ -1408,9 +1835,14 @@ fn dart_from_json<'a>(
             dart_guard_null(src, body, optional)
         }
         TypeShape::Object(_) => {
-            let (cls, _) = claim_type_name(seen, shape, dart_class_name(name), parent, |n| {
-                DART_TYPES.contains(&n)
-            });
+            let (cls, _) = claim_type_name(
+                seen,
+                shape,
+                dart_class_name(name),
+                parent,
+                |n| DART_TYPES.contains(&n),
+                str::to_string,
+            );
             let body = format!("{cls}.fromJson({src} as Map<String, dynamic>)");
             dart_guard_null(src, body, optional)
         }
@@ -1525,7 +1957,7 @@ fn dart_string_lit(s: &str) -> String {
 }
 
 fn render_json_schema(value: &Value, name: &str) -> String {
-    let mut schema = json_schema_of(&infer(value), &[value]);
+    let mut schema = json_schema_of(&infer_sampled(value, usize::MAX), &[value]);
     if let Value::Object(map) = &mut schema {
         let mut wrapped = serde_json::Map::new();
         wrapped.insert(
@@ -1554,7 +1986,12 @@ fn json_schema_of(shape: &TypeShape, samples: &[&Value]) -> Value {
     match shape {
         TypeShape::Primitive(PrimitiveKind::Null) => json!({"type": "null"}),
         TypeShape::Primitive(PrimitiveKind::Bool) => json!({"type": "boolean"}),
-        TypeShape::Primitive(PrimitiveKind::Integer | PrimitiveKind::Unsigned) => {
+        TypeShape::Primitive(
+            PrimitiveKind::Integer
+            | PrimitiveKind::WideInteger
+            | PrimitiveKind::Unsigned
+            | PrimitiveKind::BigInteger,
+        ) => {
             json!({"type": "integer"})
         }
         TypeShape::Primitive(PrimitiveKind::Float) => json!({"type": "number"}),
@@ -1567,7 +2004,7 @@ fn json_schema_of(shape: &TypeShape, samples: &[&Value]) -> Value {
             let items: Vec<&Value> = samples
                 .iter()
                 .filter_map(|v| v.as_array())
-                .flat_map(|items| items.iter().take(ARRAY_SAMPLE_CAP))
+                .flatten()
                 .collect();
             json!({"type": "array", "items": json_schema_of(inner, &items)})
         }
@@ -2383,5 +2820,215 @@ mod tests {
         assert!(!is_date_time(weird));
         let s = gen(&json!({ "k": weird }), TypegenLang::JsonSchema);
         assert!(s.contains("\"type\""));
+    }
+
+    #[test]
+    fn php_class_names_avoid_built_in_classes_and_names_differing_only_by_case() {
+        let s = gen(
+            &json!({"locale": {"p": 1}, "error": {"c": 1}, "dateTime": {"d": 1}, "generator": {"g": 1}}),
+            TypegenLang::Php,
+        );
+        for class in ["RootLocale", "RootError", "RootDateTime", "RootGenerator"] {
+            assert!(
+                s.contains(&format!("final readonly class {class}\n")),
+                "{s}"
+            );
+        }
+        assert!(s.contains("public RootLocale $locale\n"), "{s}");
+        let root = generate(&json!({"a": 1}), TypegenLang::Php, "exception");
+        assert!(root.contains("final readonly class Exception2\n"), "{root}");
+        let case = gen(&json!({"aB": {"x": 1}, "ab": {"y": "s"}}), TypegenLang::Php);
+        assert!(case.contains("final readonly class AB\n"), "{case}");
+        assert!(case.contains("final readonly class RootAb\n"), "{case}");
+    }
+
+    #[test]
+    fn json_schema_accepts_its_own_source_when_late_items_differ() {
+        let mut items: Vec<Value> = (0..50).map(|i| json!({"id": i, "name": "n"})).collect();
+        items.push(json!({"id": "x51"}));
+        items.push(json!({"id": 1.5, "name": null}));
+        let v = json!({ "items": items });
+        let s = gen(&v, TypegenLang::JsonSchema);
+        let verdict = crate::doc::schema_validate::validate(&v, &s).unwrap();
+        assert!(verdict.valid, "{:?}\n{s}", verdict.errors);
+    }
+
+    #[test]
+    fn a_capped_sample_reads_the_head_then_spreads_to_the_tail() {
+        assert_eq!(sample_indices(3, 50).collect::<Vec<_>>(), [0, 1, 2]);
+        let picked: Vec<usize> = sample_indices(1000, 50).collect();
+        assert_eq!(picked.len(), 50);
+        assert_eq!(picked[..25], (0..25).collect::<Vec<_>>());
+        assert_eq!(picked.last(), Some(&999));
+        assert!(picked.windows(2).all(|w| w[0] < w[1]), "{picked:?}");
+
+        let mut rows: Vec<Value> = (0..100).map(|i| json!({ "id": i })).collect();
+        rows.push(json!({"id": 1, "late": true}));
+        let v = Value::Array(rows);
+        let eager = gen(&v, TypegenLang::Typescript);
+        assert!(eager.contains("  late?: boolean;"), "{eager}");
+        let lazy = super::super::lazy::LazyDoc::new(sonic_rs::FastStr::new(v.to_string()))
+            .unwrap()
+            .infer_shape();
+        assert_eq!(
+            generate_from_shape(&lazy, TypegenLang::Typescript, "Root"),
+            eager
+        );
+    }
+
+    #[test]
+    fn zod_leaves_int_off_integers_above_2_to_the_53() {
+        let v: Value = serde_json::from_str(r#"{"id": 18446744073709551615, "n": 1}"#).unwrap();
+        let z = gen(&v, TypegenLang::Zod);
+        assert!(z.contains("  id: z.number(),"), "{z}");
+        assert!(z.contains("  n: z.number().int(),"), "{z}");
+    }
+
+    #[test]
+    fn a_root_that_is_not_an_object_gets_a_type_alias() {
+        let ints = json!([1, 2, 3]);
+        for (v, lang, want) in [
+            (&ints, TypegenLang::Typescript, "export type Root = number[];"),
+            (&json!("str"), TypegenLang::Typescript, "export type Root = string;"),
+            (&json!([]), TypegenLang::Typescript, "export type Root = unknown[];"),
+            (&ints, TypegenLang::Rust, "pub type Root = Vec<i64>;"),
+            (&ints, TypegenLang::Go, "type Root = []int64"),
+            (&ints, TypegenLang::Kotlin, "typealias Root = List<Long>"),
+            (&ints, TypegenLang::Python, "Root = list[int]"),
+            (
+                &ints,
+                TypegenLang::Php,
+                "// The root is array, not an object. PHP has no type aliases, so there is no Root class.",
+            ),
+            (
+                &ints,
+                TypegenLang::Java,
+                "// The root is List<Long>, not an object. Java has no type aliases, so there is no Root class.",
+            ),
+        ] {
+            let s = gen(v, lang);
+            assert!(s.contains(want), "{lang:?} {v}:\n{s}");
+        }
+        let items = gen(&json!([{"id": 1}]), TypegenLang::Typescript);
+        assert!(items.contains("export interface RootItem {"), "{items}");
+        assert!(items.ends_with("export type Root = RootItem[];"), "{items}");
+        let nested = gen(&json!([{"root": {"a": 1}}]), TypegenLang::Rust);
+        assert!(
+            nested.contains("pub type Root = Vec<RootItem>;"),
+            "{nested}"
+        );
+        assert!(nested.contains("pub struct RootItemRoot {"), "{nested}");
+        assert!(!nested.contains("pub struct Root {"), "{nested}");
+    }
+
+    #[test]
+    fn integers_beyond_64_bits_get_a_lossless_type_or_a_note() {
+        let json = r#"{"huge": 123456789012345678901234567890, "ids": [-123456789012345678901234567890], "n": 1}"#;
+        let v: Value = serde_json::from_str(json).unwrap();
+        let note = "// exceeds 64 bits, so this type may round it";
+        for (lang, want) in [
+            (TypegenLang::Python, vec!["    huge: int\n", "    ids: list[int]\n"]),
+            (
+                TypegenLang::Java,
+                vec![
+                    "import java.math.BigInteger;\n",
+                    "    private BigInteger huge;",
+                    "    private List<BigInteger> ids;",
+                ],
+            ),
+            (
+                TypegenLang::Go,
+                vec![
+                    "package types\n\nimport \"encoding/json\"\n\ntype Root struct {",
+                    "    Huge json.Number `json:\"huge\"`",
+                    "    Ids []json.Number `json:\"ids\"`",
+                ],
+            ),
+            (
+                TypegenLang::Typescript,
+                vec![
+                    "  // exceeds 64 bits, so this type may round it\n  huge: number;",
+                    "  // exceeds 64 bits, so this type may round it\n  ids: number[];",
+                ],
+            ),
+            (
+                TypegenLang::Rust,
+                vec!["    // exceeds 64 bits, so this type may round it\n    pub huge: f64,"],
+            ),
+            (
+                TypegenLang::Kotlin,
+                vec!["    // exceeds 64 bits, so this type may round it\n    val huge: Double,"],
+            ),
+            (
+                TypegenLang::Php,
+                vec!["        // exceeds 64 bits, so this type may round it\n        public float $huge,"],
+            ),
+            (
+                TypegenLang::Dart,
+                vec![
+                    "  // exceeds 64 bits, so this type may round it\n  final double huge;",
+                    "huge: (json['huge'] as num).toDouble(),",
+                ],
+            ),
+            (
+                TypegenLang::Zod,
+                vec!["  // exceeds 64 bits, so this type may round it\n  huge: z.number(),"],
+            ),
+        ] {
+            let s = gen(&v, lang);
+            for w in want {
+                assert!(s.contains(w), "{lang:?} is missing {w:?}:\n{s}");
+            }
+            let lossless = matches!(
+                lang,
+                TypegenLang::Python | TypegenLang::Java | TypegenLang::Go
+            );
+            let notes = if lossless { 0 } else { 2 };
+            assert_eq!(s.matches(note).count(), notes, "{lang:?}:\n{s}");
+            let lazy = super::super::lazy::LazyDoc::new(sonic_rs::FastStr::new(json))
+                .unwrap()
+                .infer_shape();
+            assert_eq!(generate_from_shape(&lazy, lang, "Root"), s, "{lang:?}");
+        }
+        let schema = gen(&v, TypegenLang::JsonSchema);
+        let parsed: Value = serde_json::from_str(&schema).unwrap();
+        assert_eq!(
+            parsed["properties"]["huge"],
+            json!({"type": "integer"}),
+            "{schema}"
+        );
+        assert!(
+            crate::doc::schema_validate::validate(&v, &schema)
+                .unwrap()
+                .valid
+        );
+
+        let root: Value = serde_json::from_str("18446744073709551616").unwrap();
+        assert_eq!(
+            gen(&root, TypegenLang::Typescript),
+            format!("{note}\nexport type Root = number;")
+        );
+        assert!(gen(&root, TypegenLang::Python).ends_with("\nRoot = int"));
+    }
+
+    #[test]
+    fn zod_leaves_int_off_i64_values_outside_the_safe_integer_range() {
+        let v: Value = serde_json::from_str(
+            r#"{"snowflake": 1800000000000000000, "edge": 9007199254740992, "safe": 9007199254740991, "neg": -9007199254740992}"#,
+        )
+        .unwrap();
+        let z = gen(&v, TypegenLang::Zod);
+        for line in [
+            "  snowflake: z.number(),",
+            "  edge: z.number(),",
+            "  safe: z.number().int(),",
+            "  neg: z.number(),",
+        ] {
+            assert!(z.contains(line), "missing {line:?}:\n{z}");
+        }
+        assert!(gen(&v, TypegenLang::Rust).contains("    pub snowflake: i64,"));
+        let merged: Value =
+            serde_json::from_str(r#"[{"id": 1}, {"id": 1800000000000000000}]"#).unwrap();
+        assert!(gen(&merged, TypegenLang::Zod).contains("  id: z.number(),"));
     }
 }

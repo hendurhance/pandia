@@ -105,3 +105,45 @@ pub fn copy_name(name: Option<&str>, suffix: &str) -> String {
         None => copy,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::doc::types::Path;
+    use serde_json::json;
+
+    fn open(text: &str) -> (serde_json::Value, OpenNotes) {
+        let options = OpenOptions { repair: true };
+        match load_text(text.into(), Some("x.json".into()), None, options, 1 << 20).unwrap() {
+            Loaded::Opened(doc, notes) => (doc.get_value(&Path::root()).unwrap(), notes),
+            Loaded::Failed(f) => panic!("{text:?} failed to open: {}", f.detail),
+        }
+    }
+
+    #[test]
+    fn multi_line_jsonp_repairs_instead_of_converting_from_csv() {
+        for text in [
+            "callback([{\"id\":1,\"name\":\"a\"},\n{\"id\":2,\"name\":\"b\"}]);",
+            "({\"id\":1,\"name\":\"a\"},\n{\"id\":2,\"name\":\"b\"})",
+        ] {
+            let (v, notes) = open(text);
+            assert_eq!(notes.converted_from, None, "{text:?}");
+            assert_eq!(
+                v,
+                json!([{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]),
+                "{text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn csv_still_converts_when_repair_is_on() {
+        for text in ["id,name\n1,a\n2,b\n", "\"id\",\"name\"\n1,\"a\"\n2,\"b\"\n"] {
+            let (v, notes) = open(text);
+            assert_eq!(notes.converted_from, Some(DetectKind::Csv), "{text:?}");
+            assert_eq!(v, json!([{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]));
+        }
+        let (_, notes) = open("name: Ada\ntags:\n  - x\n");
+        assert_eq!(notes.converted_from, Some(DetectKind::Yaml));
+    }
+}

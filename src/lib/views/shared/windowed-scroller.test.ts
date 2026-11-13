@@ -118,6 +118,28 @@ describe('WindowedScroller — fixed heights', () => {
 			destroy();
 		}
 	});
+
+	it('takes its position from a remounted element, not the one that left', () => {
+		const { result: s, destroy } = inRoot(
+			() => new WindowedScroller({ rowCount: () => 1000, rowHeight: 20, overscan: 2 }),
+		);
+		try {
+			const first = scrollerEl(300);
+			const action = s.attach(first);
+			first.scrollTop = 8000;
+			first.dispatchEvent(new Event('scroll'));
+			flushSync();
+			expect(s.window.start).toBe(398);
+			action.destroy();
+
+			s.attach(scrollerEl(300));
+			flushSync();
+			expect(s.scrollTop).toBe(0);
+			expect(s.window.start).toBe(0);
+		} finally {
+			destroy();
+		}
+	});
 });
 
 describe('WindowedScroller — variable heights', () => {

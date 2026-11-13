@@ -15,9 +15,9 @@ import type {
 	ResponseInfo,
 	Summary,
 } from '$lib/ipc/bindings';
-import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
+import { isExpandable } from '$lib/views/tree/logic/model';
 import { basename } from '$lib/util/path';
-import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
+import { fetchRootRow, type TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -69,6 +69,8 @@ export interface DocSessionDeps {
 	setSelectedPath: (path: Path | null) => void;
 
 	clearViewState: () => void;
+
+	remapCutMark: (op: Op | undefined) => void;
 
 	flushPendingEdits: () => Promise<boolean>;
 
@@ -122,7 +124,8 @@ export class DocSessionController {
 			this.summary = outcome.summary;
 			this.sourceName = outcome.summary.sourcePath ?? '(inline)';
 			this.repairInfo = repairInfoFrom(outcome.notes);
-			const root = rootRow(outcome.summary.rootKind, outcome.summary.rootChildCount);
+			const root = await fetchRootRow(outcome.handle, outcome.summary);
+			if (seq !== this.loadSeq) return false;
 			this.deps.tree.setRows([root]);
 			this.deps.setSelectedPath(root.path);
 			if (isExpandable(root)) {
@@ -223,29 +226,31 @@ export class DocSessionController {
 		} catch {}
 	};
 
-	reloadAfter = async (affectedPaths: Path[]) => {
+	reloadAfter = async (affectedPaths: Path[], op?: Op) => {
+		this.deps.remapCutMark(op);
 		this.refreshing = true;
 		try {
 			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(affectedPaths);
+			await this.deps.tree.refetchAfterOp(affectedPaths, op);
 		} finally {
 			this.refreshing = false;
 		}
 	};
 
-	private afterMutation = async (result: ApplyResult) => {
-		await this.reloadAfter(result.affectedPaths);
+	private afterMutation = async (result: ApplyResult, op?: Op) => {
+		await this.reloadAfter(result.affectedPaths, op);
 		this.deps.find.refreshAfterEdit();
 	};
 
 	private mutate = async (
 		run: (handle: DocHandle) => Promise<ApplyResult | null>,
+		op?: Op,
 	): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
 			const result = await run(this.handle);
 			if (result === null) return null;
-			await this.afterMutation(result);
+			await this.afterMutation(result, op);
 			return result;
 		} catch (e) {
 			this.deps.setError(describeError(e));
@@ -253,7 +258,7 @@ export class DocSessionController {
 		}
 	};
 
-	applyOp = (op: Op): Promise<ApplyResult | null> => this.mutate((h) => ipc.docApplyOp(h, op));
+	applyOp = (op: Op): Promise<ApplyResult | null> => this.mutate((h) => ipc.docApplyOp(h, op), op);
 
 	commitText = (text: string): Promise<ApplyResult | null> =>
 		this.mutate((h) => ipc.docSetRootText(h, text));

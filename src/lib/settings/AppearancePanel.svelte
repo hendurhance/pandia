@@ -356,9 +356,14 @@
 		border-color: var(--text-dim);
 	}
 	.font-pick.active {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--accent-soft);
 		border-color: var(--accent);
+	}
+	.swatch.active:focus-visible,
+	.font-pick.active:focus-visible,
+	.density-pick.active:focus-visible {
+		outline-offset: 2px;
 	}
 	.font-custom {
 		font-size: var(--font-size-sm);

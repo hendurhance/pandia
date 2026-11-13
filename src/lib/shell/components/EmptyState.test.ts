@@ -2,6 +2,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
+import { IpcError } from '$lib/ipc/error';
 import type { CurlPreview } from '$lib/ipc/bindings';
 import EmptyState from './EmptyState.svelte';
 
@@ -109,6 +110,23 @@ describe('EmptyState pasting a cURL command', () => {
 
 		expect(await findByText(/-k turns off certificate checks/)).toBeTruthy();
 		expect(queryByRole('button', { name: /^Send/ })).toBeNull();
+		expect(onSendRequest).not.toHaveBeenCalled();
+	});
+
+	it('says why it cannot read a command, without opening it as JSON or sending it', async () => {
+		const reason = 'This is a Windows cmd curl command. Copy it as cURL (bash) instead.';
+		vi.mocked(ipc.curlPreview).mockRejectedValue(
+			new IpcError('parse', `parse error: ${reason}`, { detail: reason }),
+		);
+		const { container, findByText, onOpenSource, onSendRequest } = setup();
+		const box = container.querySelector('textarea')!;
+		await fireEvent.input(box, {
+			target: { value: 'curl ^"https://example.invalid/api?a=1^&b=2^" -H ^"accept: */*^"' },
+		});
+		await fireEvent.keyDown(box, { key: 'Enter', metaKey: true });
+
+		expect(await findByText(reason)).toBeTruthy();
+		expect(onOpenSource).not.toHaveBeenCalled();
 		expect(onSendRequest).not.toHaveBeenCalled();
 	});
 

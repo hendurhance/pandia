@@ -584,6 +584,13 @@
 		background: var(--moved-soft);
 		box-shadow: inset 2px 0 0 var(--syntax-boolean);
 	}
+	.r[data-diff]:hover {
+		background: var(--bg-elev-2);
+	}
+	.r[data-diff].selected {
+		background: var(--accent-soft);
+		box-shadow: inset 2px 0 0 var(--accent);
+	}
 
 	.r[data-invalid='ancestor'] {
 		box-shadow: inset 2px 0 0 var(--warning);
@@ -614,8 +621,9 @@
 	.guide {
 		display: inline-block;
 		flex-shrink: 0;
+		align-self: stretch;
+		margin-block: -2px;
 		width: 1.2rem;
-		height: 100%;
 		border-right: 1px solid transparent;
 	}
 	.r .guide {
@@ -679,7 +687,7 @@
 		color: var(--syntax-boolean);
 	}
 	.v.null {
-		color: var(--syntax-null);
+		color: var(--text-dim);
 		font-style: italic;
 	}
 	.v.url {

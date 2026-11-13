@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { collectExpandedDescendants } from './tree-walk';
+import { collectExpandedDescendants, pathAfterOp } from './tree-walk';
 import type { CloseRow, ContentRow, PlaceholderRow, Row } from './model';
-import type { NodeKind, Path } from '$lib/ipc/bindings';
+import type { NodeKind, Op, Path } from '$lib/ipc/bindings';
 
 function content(path: Path, depth: number, expanded: boolean): ContentRow {
 	return {
@@ -93,5 +93,42 @@ describe('collectExpandedDescendants', () => {
 		];
 		const paths = collectExpandedDescendants(rows, 0, 0);
 		expect(paths).toEqual([['a'], ['a', 'x'], ['a', 'x', 'y']]);
+	});
+});
+
+describe('pathAfterOp', () => {
+	const P: Path = ['list', 2, 'name'];
+	it.each<[string, Op, Path | null]>([
+		[
+			'an earlier item is removed',
+			{ kind: 'deleteItem', path: ['list'], index: 0 },
+			['list', 1, 'name'],
+		],
+		['its own item is removed', { kind: 'deleteItem', path: ['list'], index: 2 }, null],
+		['a later item is removed', { kind: 'deleteItem', path: ['list'], index: 3 }, P],
+		[
+			'an item is inserted before it',
+			{ kind: 'insertItemText', path: ['list'], index: 2, text: '1' },
+			['list', 3, 'name'],
+		],
+		['its item is duplicated', { kind: 'duplicateItem', path: ['list'], index: 2 }, P],
+		[
+			'its item is moved',
+			{ kind: 'moveItem', path: ['list'], from: 2, to: 0 },
+			['list', 0, 'name'],
+		],
+		[
+			'an ancestor key is renamed',
+			{ kind: 'renameKey', path: [], from: 'list', to: 'rows' },
+			['rows', 2, 'name'],
+		],
+		['an ancestor key is deleted', { kind: 'deleteKey', path: [], key: 'list' }, null],
+		['an ancestor is replaced', { kind: 'setValueText', path: ['list', 2], text: '{}' }, null],
+		['the node itself is replaced', { kind: 'setValueText', path: P, text: '"x"' }, null],
+		['another key is deleted', { kind: 'deleteKey', path: [], key: 'other' }, P],
+		['another array changes', { kind: 'deleteItem', path: ['other'], index: 0 }, P],
+		['something inside it changes', { kind: 'deleteKey', path: [...P, 'deep'], key: 'x' }, P],
+	])('when %s', (_, op, expected) => {
+		expect(pathAfterOp(P, op)).toEqual(expected);
 	});
 });

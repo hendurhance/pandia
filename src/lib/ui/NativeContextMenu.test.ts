@@ -113,3 +113,42 @@ describe('NativeContextMenu — focus', () => {
 		expect(notCancelled).toBe(false);
 	});
 });
+
+describe('NativeContextMenu — placement', () => {
+	it('stays inside the window when opened near its bottom-right corner', async () => {
+		const size = { offsetWidth: 160, offsetHeight: 120 };
+		const restore = Object.entries(size).map(([key, value]) => {
+			const prior = Object.getOwnPropertyDescriptor(HTMLElement.prototype, key)!;
+			Object.defineProperty(HTMLElement.prototype, key, { configurable: true, get: () => value });
+			return () => Object.defineProperty(HTMLElement.prototype, key, prior);
+		});
+		try {
+			const input = document.createElement('input');
+			document.body.append(input);
+			await fireEvent.contextMenu(input, {
+				clientX: window.innerWidth - 4,
+				clientY: window.innerHeight - 4,
+			});
+			const menu = await vi.waitFor(() => {
+				const el = screen.getByRole('menu');
+				expect(parseFloat(el.style.left)).toBeLessThanOrEqual(window.innerWidth - 160 - 8);
+				return el;
+			});
+			expect(parseFloat(menu.style.top)).toBeLessThanOrEqual(window.innerHeight - 120 - 8);
+		} finally {
+			for (const undo of restore) undo();
+		}
+	});
+});
+
+describe('NativeContextMenu — Escape', () => {
+	it('closes the menu and marks the key as handled, so a dialog under it stays open', async () => {
+		const input = document.createElement('input');
+		document.body.append(input);
+		await fireEvent.contextMenu(input);
+		expect(screen.getByRole('menu')).not.toBeNull();
+		const notCancelled = await fireEvent.keyDown(input, { key: 'Escape' });
+		expect(notCancelled).toBe(false);
+		expect(screen.queryByRole('menu')).toBeNull();
+	});
+});

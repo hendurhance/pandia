@@ -163,13 +163,16 @@ const OUTPUT_ONLY: &[&str] = &[
 ];
 
 pub fn parse(text: &str) -> Result<CurlRequest, String> {
-    let tokens = tokenize_shell(text.trim()).map_err(|e| format!("curl tokenize failed: {e}"))?;
+    let tokens = tokenize_shell(&text.trim().replace("\r\n", "\n"))?;
     let mut tokens = tokens.into_iter();
     if !tokens
         .next()
         .is_some_and(|first| first.eq_ignore_ascii_case("curl"))
     {
-        return Err("curl tokens must start with `curl`".to_string());
+        return Err(
+            "This doesn't start with `curl`, so Pandia can't read it as a curl command."
+                .to_string(),
+        );
     }
 
     let mut req = CurlRequest::default();
@@ -227,8 +230,10 @@ pub fn parse(text: &str) -> Result<CurlRequest, String> {
                         .ok()
                         .and_then(|s| Duration::try_from_secs_f64(s).ok())
                     {
-                        Some(d) if name == "--connect-timeout" => req.connect_timeout = Some(d),
-                        Some(d) => req.max_time = Some(d),
+                        Some(d) if name == "--connect-timeout" => {
+                            req.connect_timeout = (!d.is_zero()).then_some(d)
+                        }
+                        Some(d) => req.max_time = (!d.is_zero()).then_some(d),
                         None => req.refuse(Refusal::Unsupported { option: name }),
                     }
                 }
@@ -586,18 +591,26 @@ fn tokenize_shell(s: &str) -> Result<Vec<String>, String> {
             '\\' if in_ansi => push_ansi_escape(&mut chars, &mut buf),
             '\'' if in_ansi => in_ansi = false,
             _ if in_ansi => buf.push(c),
-            '\\' if !in_single => {
-                if matches!(chars.peek(), Some('\n')) {
+            '\\' if !in_single => match chars.peek() {
+                Some('\n') => {
                     chars.next();
-                    continue;
                 }
-                if let Some(&next) = chars.peek() {
+                Some(&next) if !in_double || matches!(next, '"' | '\\' | '$' | '`') => {
                     chars.next();
                     buf.push(next);
                     has_token = true;
                 }
+                Some(_) => {
+                    buf.push('\\');
+                    has_token = true;
+                }
+                None => {}
+            },
+            '^' if !in_single && !in_double && matches!(chars.peek(), Some('"' | '\n')) => {
+                return Err(
+                    "This is a Windows cmd curl command. Copy it as cURL (bash) instead.".into(),
+                );
             }
-
             '$' if !in_single && !in_double && chars.peek() == Some(&'\'') => {
                 chars.next();
                 in_ansi = true;
@@ -624,7 +637,7 @@ fn tokenize_shell(s: &str) -> Result<Vec<String>, String> {
         }
     }
     if in_single || in_double || in_ansi {
-        return Err("unterminated quote".to_string());
+        return Err("This curl command has a quote that is never closed.".to_string());
     }
     if has_token {
         out.push(buf);
@@ -1122,5 +1135,75 @@ pub(crate) mod tests {
             "{err:?}"
         );
         assert!(got.recv_timeout(Duration::from_millis(200)).is_err());
+    }
+
+    #[test]
+    fn a_backslash_in_double_quotes_is_kept_unless_bash_would_drop_it() {
+        let r = request(
+            r#"curl -X POST https://api.example.com/v1 -H "Content-Type: application/json" -d "{\"text\":\"line1\nline2\",\"re\":\"\d+\",\"path\":\"C:\\\\dir\"}""#,
+        );
+        assert_eq!(
+            r.body.as_deref(),
+            Some(r#"{"text":"line1\nline2","re":"\d+","path":"C:\\dir"}"#)
+        );
+        assert_eq!(
+            request("curl x.dev -d \"a\\$b\\`c\\\nd\\'e\"")
+                .body
+                .as_deref(),
+            Some("a$b`cd\\'e")
+        );
+    }
+
+    #[test]
+    fn crlf_line_continuations_join_like_lf_ones() {
+        let r = request(
+            "curl \"https://api.example.com/v1\" \\\r\n  -H \"Accept: application/json\" \\\r\n  --compressed\r\n",
+        );
+        assert_eq!(r.url.as_deref(), Some("https://api.example.com/v1"));
+        assert_eq!(
+            r.headers,
+            vec![("Accept".into(), "application/json".into())]
+        );
+        assert_eq!(r.refusal, None);
+        let r = request("curl \\\r\n  example.com/api \\\r\n -H \"A: b\"");
+        assert_eq!(r.url.as_deref(), Some("example.com/api"));
+        assert_eq!(r.headers, vec![("A".into(), "b".into())]);
+    }
+
+    #[test]
+    fn a_windows_cmd_command_is_refused_with_a_clear_message() {
+        let message = "This is a Windows cmd curl command. Copy it as cURL (bash) instead.";
+        for cmd in [
+            "curl \"https://api.example.com/v1\" ^\n  -H \"accept: application/json\" ^\n  -H \"x: a^&b\" ^\n  --data-raw \"{^\\^\"a^\\^\":1}\"\n",
+            "curl ^\"https://example.com/api?a=1^&b=2^\" ^\r\n  -H ^\"accept: */*^\" ^\r\n  --data-raw ^\"^{^\\^\"a^\\^\":1^}^\"",
+        ] {
+            assert_eq!(parse(cmd), Err(message.to_string()), "{cmd}");
+        }
+        assert_eq!(
+            request(r#"curl x.dev -d '{"re":"^"}' -H "X-Re: a^b""#).refusal,
+            None
+        );
+    }
+
+    #[test]
+    fn a_command_pandia_cannot_read_is_refused_in_plain_words() {
+        let open_quote = "This curl command has a quote that is never closed.";
+        for cmd in ["curl 'https://x.dev", "curl -H \"A: b https://x.dev"] {
+            assert_eq!(parse(cmd), Err(open_quote.to_string()), "{cmd}");
+        }
+        let not_curl = "This doesn't start with `curl`, so Pandia can't read it as a curl command.";
+        for cmd in ["wget https://x.dev", ""] {
+            assert_eq!(parse(cmd), Err(not_curl.to_string()), "{cmd:?}");
+        }
+    }
+
+    #[test]
+    fn a_zero_timeout_means_no_timeout_like_curl() {
+        let r = request("curl -m 0 --connect-timeout 0 https://x.test/a");
+        assert_eq!((r.max_time, r.connect_timeout), (None, None));
+        assert_eq!(r.refusal, None);
+        let r = request("curl -m 2.5 --connect-timeout 1 https://x.test/a");
+        assert_eq!(r.max_time, Some(Duration::from_millis(2500)));
+        assert_eq!(r.connect_timeout, Some(Duration::from_secs(1)));
     }
 }

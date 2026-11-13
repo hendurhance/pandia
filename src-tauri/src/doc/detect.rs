@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -81,22 +83,24 @@ fn looks_like_csv(s: &str) -> bool {
     if !first.contains(',') || !second.contains(',') {
         return false;
     }
-    let h = count_cells(first);
-    let r = count_cells(second);
+    let (Some(h), Some(r)) = (count_cells(first), count_cells(second)) else {
+        return false;
+    };
     h > 1 && (h == r || (h as i32 - r as i32).abs() <= 1)
 }
 
-fn count_cells(line: &str) -> usize {
+fn count_cells(line: &str) -> Option<usize> {
     let mut count = 1;
     let mut in_quotes = false;
     for c in line.chars() {
-        if c == '"' {
-            in_quotes = !in_quotes;
-        } else if c == ',' && !in_quotes {
-            count += 1;
+        match c {
+            '"' => in_quotes = !in_quotes,
+            ',' if !in_quotes => count += 1,
+            '{' | '[' | '(' if !in_quotes => return None,
+            _ => {}
         }
     }
-    count
+    Some(count)
 }
 
 fn looks_like_yaml(s: &str) -> bool {
@@ -285,7 +289,7 @@ fn convert_csv(text: &str) -> DetectResult {
         .from_reader(text.as_bytes());
 
     let headers = match rdr.headers() {
-        Ok(h) => h.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+        Ok(h) => unique_headers(h),
         Err(e) => {
             return DetectResult {
                 kind: DetectKind::Csv,
@@ -324,6 +328,29 @@ fn convert_csv(text: &str) -> DetectResult {
     }
 }
 
+fn unique_headers(raw: &csv::StringRecord) -> Vec<String> {
+    let mut highest_suffix: HashMap<String, usize> = HashMap::new();
+    raw.iter()
+        .enumerate()
+        .map(|(i, h)| {
+            let base = if h.is_empty() {
+                format!("col_{}", i + 1)
+            } else {
+                h.to_string()
+            };
+            let mut n = highest_suffix.get(&base).copied().unwrap_or(1);
+            let mut name = base.clone();
+            while highest_suffix.contains_key(&name) {
+                n += 1;
+                name = format!("{base}_{n}");
+            }
+            highest_suffix.insert(base, n);
+            highest_suffix.entry(name.clone()).or_insert(1);
+            name
+        })
+        .collect()
+}
+
 fn infer_cell(s: &str) -> serde_json::Value {
     let t = s.trim();
     if t.is_empty() {
@@ -338,19 +365,10 @@ fn infer_cell(s: &str) -> serde_json::Value {
     if t.eq_ignore_ascii_case("null") {
         return serde_json::Value::Null;
     }
-    let digits = t.strip_prefix('-').unwrap_or(t);
-    if digits.len() > 1 && digits.starts_with('0') && digits.as_bytes()[1].is_ascii_digit() {
-        return serde_json::Value::String(s.to_string());
-    }
-    if let Ok(n) = t.parse::<i64>() {
-        return serde_json::json!(n);
-    }
-    if let Ok(n) = t.parse::<f64>() {
-        if n.is_finite() {
-            return serde_json::json!(n);
-        }
-    }
-    serde_json::Value::String(s.to_string())
+    t.parse::<serde_json::Number>().map_or_else(
+        |_| serde_json::Value::String(s.to_string()),
+        serde_json::Value::Number,
+    )
 }
 
 fn convert_curl(text: &str) -> DetectResult {
@@ -464,6 +482,49 @@ mod tests {
             v,
             serde_json::json!([{"zip": "00501", "code": 0}, {"zip": 0.5, "code": "-007"}])
         );
+    }
+
+    #[test]
+    fn csv_number_cells_keep_their_exact_text() {
+        let r = detect_and_convert(
+            "id,ver,phone,code,dot\n12345678901234567890,1.10,+15551234567,1e5,.5\n",
+        );
+        assert_eq!(r.kind, DetectKind::Csv);
+        let row = &assert_json(&r.json)[0];
+        assert_eq!(row["id"].to_string(), "12345678901234567890");
+        assert_eq!(row["ver"].to_string(), "1.10");
+        assert_eq!(row["phone"], "+15551234567");
+        assert_eq!(row["code"].to_string(), "1e5");
+        assert_eq!(row["dot"], ".5");
+    }
+
+    #[test]
+    fn csv_repeated_and_empty_headers_keep_every_column() {
+        let v = assert_json(&detect_and_convert("name,value,value,value\na,1,2,3\n").json);
+        assert_eq!(
+            v,
+            serde_json::json!([{"name": "a", "value": 1, "value_2": 2, "value_3": 3}])
+        );
+        let v = assert_json(&detect_and_convert("name,,\na,1,2\n").json);
+        assert_eq!(
+            v,
+            serde_json::json!([{"name": "a", "col_2": 1, "col_3": 2}])
+        );
+        let v = assert_json(&detect_and_convert("a,a,a_2\n1,2,3\n").json);
+        assert_eq!(v[0].as_object().unwrap().len(), 3, "{v}");
+    }
+
+    #[test]
+    fn brackets_outside_quotes_are_not_csv() {
+        for text in [
+            "callback([{\"id\":1,\"name\":\"a\"},\n{\"id\":2,\"name\":\"b\"}]);",
+            "({\"id\":1,\"name\":\"a\"},\n{\"id\":2,\"name\":\"b\"})",
+        ] {
+            assert_ne!(detect_and_convert(text).kind, DetectKind::Csv, "{text:?}");
+        }
+        let r = detect_and_convert("name,note\nAda,\"x (y) [z] {w}\"\n");
+        assert_eq!(r.kind, DetectKind::Csv);
+        assert_eq!(assert_json(&r.json)[0]["note"], "x (y) [z] {w}");
     }
 
     #[test]

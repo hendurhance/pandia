@@ -52,14 +52,16 @@ describe('GridEditController', () => {
 		]);
 	});
 
-	it('keeps invalid input in the editor with the reason, like the Tree', async () => {
+	it('keeps invalid input in the editor with the reason on the cell, until the next keystroke', async () => {
 		const { edit, applied, errors } = setup(ROWS);
 		edit.start(0, 'on', true);
 		edit.input('yes');
 		expect(await edit.commit()).toBe(false);
 		expect(applied).toEqual([]);
-		expect(edit.state?.buffer).toBe('yes');
-		expect(errors.at(-1)).toContain('invalid bool');
+		expect(edit.state).toMatchObject({ buffer: 'yes', error: expect.stringContaining('quotes') });
+		expect(errors.filter(Boolean)).toEqual([]);
+		edit.input('yes!');
+		expect(edit.state?.error).toBeNull();
 	});
 
 	it('addresses the row by its index in the document, not its place on screen', async () => {
@@ -112,6 +114,15 @@ describe('GridEditController', () => {
 		edit.start(0, 'name', MISSING);
 		expect(edit.state).toBeNull();
 		expect(errors.at(-1)).toContain('[2] is a number');
+	});
+
+	it('cannot add a key to a big-number row', () => {
+		const { edit, errors } = setup([
+			{ index: 1, value: new LosslessNumber('12345678901234567890') },
+		]);
+		edit.start(0, 'a', MISSING);
+		expect(edit.state).toBeNull();
+		expect(errors.at(-1)).toBe('Row [1] is a number, so it has no keys to add.');
 	});
 
 	it('cancel closes the editor without writing', async () => {

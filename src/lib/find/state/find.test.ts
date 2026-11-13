@@ -1,12 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ipc } from '$lib/ipc/client';
+import type { SearchHit } from '$lib/ipc/bindings';
 import { FindController, type FindDeps } from './find.svelte';
 
 vi.mock('$lib/ipc/client', () => ({
-	ipc: { docSearch: vi.fn(async () => []), cancelJob: vi.fn(async () => true) },
+	ipc: {
+		docSearch: vi.fn(async () => []),
+		docReplace: vi.fn(async () => ({ count: 1, applied: null })),
+		cancelJob: vi.fn(async () => true),
+	},
 }));
 
-function controller(handle: string | null = null) {
+const hit: SearchHit = {
+	path: ['foo'],
+	kind: 'string',
+	matchField: 'key',
+	snippet: 'foo',
+};
+
+function controller(handle: string | null = null, over: Partial<FindDeps> = {}) {
 	return new FindController({
 		handle: () => handle,
 		canOpen: () => true,
@@ -17,6 +29,7 @@ function controller(handle: string | null = null) {
 		openGraphSearch: () => {},
 		navigateToHit: () => {},
 		afterReplace: async () => {},
+		...over,
 	} as FindDeps);
 }
 
@@ -73,5 +86,128 @@ describe('FindController — closing in the Code view', () => {
 		} as FindDeps);
 		find.close();
 		expect(cmSearch).toHaveBeenLastCalledWith('', false);
+	});
+});
+
+describe('FindController — the query', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('Replace All in the tree replaces the text the search looked for, spaces included', async () => {
+		const find = controller('h');
+		vi.useFakeTimers();
+		try {
+			find.openFind();
+			find.onQueryChange(' id');
+			await vi.runAllTimersAsync();
+		} finally {
+			vi.useRealTimers();
+		}
+		await find.replaceAll();
+		expect(ipc.docReplace).toHaveBeenCalledWith('h', ' id', '', false);
+		expect(vi.mocked(ipc.docSearch).mock.calls.map((c) => c[1].query)).toEqual([' id', ' id']);
+	});
+
+	it('the Code view finds and replaces the text as typed, spaces included', () => {
+		const cmSearch = vi.fn(() => ({ count: 1, current: 1 }));
+		const cmReplaceAll = vi.fn(() => 1);
+		const find = controller('h', {
+			isCodeView: () => true,
+			codeApi: () => ({ cmSearch, cmReplaceAll }) as never,
+		});
+		find.openFind();
+		find.onQueryChange(' id');
+		void find.replaceAll();
+		expect(cmSearch.mock.calls.slice(1)).toEqual([
+			[' id', false],
+			[' id', false],
+		]);
+		expect(cmReplaceAll).toHaveBeenCalledWith(' id', '', false);
+	});
+});
+
+describe('FindController — switching views with find open', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('searches the tree for the new view without jumping to a hit', async () => {
+		vi.mocked(ipc.docSearch).mockResolvedValueOnce([hit]);
+		let code = true;
+		const navigateToHit = vi.fn();
+		const find = controller('h', {
+			isCodeView: () => code,
+			codeApi: () => ({ cmSearch: () => ({ count: 1, current: 1 }) }) as never,
+			navigateToHit,
+		});
+		find.openFind();
+		find.onQueryChange('foo');
+		code = false;
+		find.syncActiveView();
+		await vi.waitFor(() => expect(find.hits).toHaveLength(1));
+		expect(navigateToHit).not.toHaveBeenCalled();
+	});
+});
+
+describe('FindController — the Code view counter', () => {
+	it('shows the number of the match the editor selected', () => {
+		const find = controller('h', {
+			isCodeView: () => true,
+			codeApi: () => ({ cmSearch: () => ({ count: 3, current: 2 }) }) as never,
+		});
+		find.openFind();
+		find.onQueryChange('foo');
+		expect(find.counter).toBe('2 / 3');
+	});
+
+	it('Next and Previous show the number of the match the editor selected', () => {
+		const cmFindNext = vi.fn(() => ({ count: 3, current: 1 }));
+		const cmFindPrev = vi.fn(() => ({ count: 3, current: 2 }));
+		const find = controller('h', {
+			isCodeView: () => true,
+			codeApi: () =>
+				({ cmSearch: () => ({ count: 3, current: 1 }), cmFindNext, cmFindPrev }) as never,
+		});
+		find.openFind();
+		find.onQueryChange('foo');
+		find.next();
+		expect(cmFindNext).toHaveBeenCalledWith('foo', false);
+		expect(find.counter).toBe('1 / 3');
+		find.prev();
+		expect(cmFindPrev).toHaveBeenCalledWith('foo', false);
+		expect(find.counter).toBe('2 / 3');
+	});
+});
+
+describe('FindController — Replace All', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('ignores a second press while the first is still replacing', async () => {
+		const find = controller('h');
+		find.openFind();
+		find.query = 'a';
+		find.replaceValue = 'aa';
+		await Promise.all([find.replaceAll(), find.replaceAll()]);
+		expect(ipc.docReplace).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('FindController — cancelling a search', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('drops the hits of the previous query', async () => {
+		vi.mocked(ipc.docSearch).mockResolvedValueOnce([hit]);
+		vi.useFakeTimers();
+		try {
+			const find = controller('h');
+			find.openFind();
+			find.onQueryChange('foo');
+			await vi.runAllTimersAsync();
+			expect(find.counter).toBe('1 / 1');
+			find.onQueryChange('foobar');
+			find.cancel();
+			await vi.runAllTimersAsync();
+			expect(find.hits).toEqual([]);
+			expect(find.counter).toBe('no matches');
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

@@ -30,12 +30,11 @@ uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "2"
 regex = "1"
 once_cell = "1"
-jsonschema = { version = "0.30", default-features = false }
+jsonschema = { version = "0.61", default-features = false, features = ["arbitrary-precision"] }
 serde_yaml_ng = "0.10"
 quick-xml = { version = "0.36", features = ["serialize"] }
 csv = "1"
 
-serde-transcode = "1.1"
 blake3 = "1"
 imara-diff = "0.2.0"
 ryu = "1"
@@ -62,3 +61,6 @@ harness = false
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+
+[target.'cfg(unix)'.dependencies]
+xattr = "1.6"

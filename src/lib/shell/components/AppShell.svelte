@@ -54,7 +54,6 @@
 			title: 'large file',
 			message: `${name} is ${fmtBytes(bytes)}. Opening will work but validation, diff, and export may be slow at this size.`,
 			primaryLabel: 'open anyway',
-			secondaryLabel: 'cancel',
 			cancelLabel: 'cancel',
 		});
 		return choice === 'primary';

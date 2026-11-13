@@ -41,6 +41,18 @@ describe('Dialog — keyboard and focus', () => {
 		expect(below.onClose).not.toHaveBeenCalled();
 	});
 
+	it('stays open when a menu inside it already handled Escape', async () => {
+		const { onClose, input } = renderDialog();
+		const handled = (e: KeyboardEvent) => e.preventDefault();
+		document.addEventListener('keydown', handled);
+		try {
+			await fireEvent.keyDown(input, { key: 'Escape' });
+		} finally {
+			document.removeEventListener('keydown', handled);
+		}
+		expect(onClose).not.toHaveBeenCalled();
+	});
+
 	it('gives focus back to what had it before it opened', () => {
 		const trigger = document.createElement('button');
 		document.body.append(trigger);

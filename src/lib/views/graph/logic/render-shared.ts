@@ -18,7 +18,7 @@ export function valueColor(row: CardRow, theme: GraphTheme): string {
 		case 'bool':
 			return theme.syntaxBoolean;
 		case 'null':
-			return theme.syntaxNull;
+			return theme.textDim;
 		default:
 			return theme.text;
 	}

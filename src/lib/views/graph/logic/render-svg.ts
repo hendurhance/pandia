@@ -35,7 +35,7 @@ export function exportLayoutSVG(
 	parts.push(`<g transform="translate(${n(ox)},${n(oy)})">`);
 
 	parts.push(
-		`<g fill="none" stroke="${esc(theme.rule2)}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`,
+		`<g fill="none" stroke="${esc(theme.textFaint)}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`,
 	);
 	for (const e of layout.edges) {
 		if (edgeStyle === 'curve') {

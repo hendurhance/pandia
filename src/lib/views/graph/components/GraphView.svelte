@@ -420,7 +420,7 @@
 			</div>
 		{/if}
 	{:else if error}
-		<div class="state err">{error}</div>
+		<div class="state notice">{error}</div>
 	{/if}
 </div>
 
@@ -440,9 +440,6 @@
 		left: 1rem;
 		font-size: var(--font-size-sm);
 		z-index: 1;
-	}
-	.err {
-		color: var(--danger);
 	}
 	.graph-error {
 		position: absolute;

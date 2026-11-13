@@ -2,7 +2,7 @@
 	import { open as openDialog } from '@tauri-apps/plugin-dialog';
 	import type { CurlPreview, Diagnosis, OpenSource } from '$lib/ipc/bindings';
 	import { ipc } from '$lib/ipc/client';
-	import { describeRefusal } from '$lib/ipc/error-copy';
+	import { describeCurlError, describeRefusal } from '$lib/ipc/error-copy';
 	import { fmtBytes } from '$lib/util/format';
 	import PasteDiagnostic from './PasteDiagnostic.svelte';
 	import { buildDemoSource } from '../logic/demo';
@@ -39,6 +39,8 @@
 	let request = $state<{ text: string; preview: CurlPreview } | null>(null);
 	let sendingJob = $state<string | null>(null);
 	const shownRequest = $derived(request?.text === pasteText.trim() ? request : null);
+	let curlError = $state<{ text: string; message: string } | null>(null);
+	const shownCurlError = $derived(curlError?.text === pasteText.trim() ? curlError.message : null);
 
 	async function onPickFile() {
 		const picked = await openDialog({
@@ -63,9 +65,9 @@
 		let preview: CurlPreview;
 		try {
 			preview = await ipc.curlPreview(text);
-		} catch {
-			// The command doesn't parse; opening it as text reports why.
-			return openFromText(text, 'pasted.json');
+		} catch (e) {
+			curlError = { text, message: describeCurlError(e) };
+			return;
 		}
 		request = { text, preview };
 		if (preview.sendsOnPaste) await sendRequest(text);
@@ -195,6 +197,8 @@
 						>
 					</div>
 				</div>
+			{:else if shownCurlError}
+				<div class="notice notice-warn">{shownCurlError}</div>
 			{/if}
 			{#if diagnosis}
 				<PasteDiagnostic {diagnosis} {busy} onFix={onFixDiagnosis} onDismiss={onDismissDiagnosis} />
