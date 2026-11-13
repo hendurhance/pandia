@@ -160,4 +160,24 @@ describe('EmptyState pasting a cURL command', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it('does not send an earlier paste whose preview arrives after a newer paste', async () => {
+		let firstPreviewReady!: (p: CurlPreview) => void;
+		vi.mocked(ipc.curlPreview)
+			.mockImplementationOnce(() => new Promise((r) => (firstPreviewReady = r)))
+			.mockResolvedValueOnce(preview({}));
+		const { paste, onSendRequest } = setup();
+		await paste('curl https://api.example.com/users/1');
+		await paste('curl https://api.example.com/users/2');
+		await vi.waitFor(() => expect(onSendRequest).toHaveBeenCalledOnce());
+
+		firstPreviewReady(preview({}));
+		await new Promise((r) => setTimeout(r, 10));
+
+		expect(onSendRequest).toHaveBeenCalledOnce();
+		expect(onSendRequest).toHaveBeenCalledWith(
+			'curl https://api.example.com/users/2',
+			expect.any(String),
+		);
+	});
 });

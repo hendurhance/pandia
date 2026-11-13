@@ -39,6 +39,7 @@
 	let rootsMore = $state(false); // top level has more than what's loaded
 	let loading = $state(false);
 	let error: string | null = $state(null);
+	let expandError: string | null = $state(null);
 	let loadedVersion = $state(-1);
 	let loadedHandle: DocHandle | null = null;
 
@@ -94,10 +95,15 @@
 		}
 		if (loadedHandle === ctx.handle && loadedVersion === ctx.version) return;
 		const open = new Set(loadedHandle === ctx.handle ? untrack(() => expandedKeys(roots)) : []);
+		if (loadedHandle !== ctx.handle) {
+			roots = [];
+			rootsMore = false;
+		}
 		loadedHandle = ctx.handle;
 		loadedVersion = ctx.version;
 		loading = true;
 		error = null;
+		expandError = null;
 		void fetchRange([], 1, 0)
 			.then(async (children) => {
 				await reopen(children, open);
@@ -130,7 +136,7 @@
 				n.children = children;
 				n.more = children.length === PER_LEVEL;
 			} catch (e) {
-				error = describeError(e);
+				expandError = describeError(e);
 				return;
 			}
 		}
@@ -139,10 +145,13 @@
 	}
 
 	async function loadMore(parent: ONode | null, loaded: number) {
+		const handle = loadedHandle;
+		const version = loadedVersion;
 		const path = parent ? parent.path : [];
 		const depth = parent ? parent.depth + 1 : 1;
 		try {
 			const next = await fetchRange(path, depth, loaded);
+			if (loadedHandle !== handle || loadedVersion !== version) return;
 			if (parent) {
 				parent.children = [...(parent.children ?? []), ...next];
 				parent.more = next.length === PER_LEVEL;
@@ -152,7 +161,7 @@
 			}
 			roots = roots;
 		} catch (e) {
-			error = describeError(e);
+			expandError = describeError(e);
 		}
 	}
 
@@ -262,7 +271,11 @@
 				{/each}
 			</div>
 		</div>
-		<div class="hint text-xs dim">click to expand · double-click to jump</div>
+		{#if expandError}
+			<div class="hint text-xs err">{expandError}</div>
+		{:else}
+			<div class="hint text-xs dim">click to expand · double-click to jump</div>
+		{/if}
 	{/if}
 </div>
 

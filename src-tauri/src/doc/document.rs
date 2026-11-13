@@ -9,7 +9,7 @@ use sonic_rs::FastStr;
 
 use super::atomic;
 use super::backend::DocumentBackend;
-use super::eager::{cmp_cell, replace_in_value};
+use super::eager::{cmp_cell, replace_in_value, ReplaceCounts};
 use super::export::{export as export_value, ExportError, ExportFormat};
 use super::format::{self, InputFormat};
 use super::grid_filter::{compile_filters, row_passes, GridFilter};
@@ -130,6 +130,8 @@ pub struct FilteredRows {
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceResult {
     pub count: u32,
+    pub values: u32,
+    pub keys: u32,
     pub applied: Option<ApplyResult>,
 }
 
@@ -528,6 +530,18 @@ impl Document {
         descending: bool,
         range: Range<u32>,
     ) -> DocResult<Vec<SortedRow>> {
+        self.with_sorted_perm(path, key, descending, |perm| {
+            self.window_sorted(perm, path, range)
+        })
+    }
+
+    fn with_sorted_perm<R>(
+        &self,
+        path: &Path,
+        key: &str,
+        descending: bool,
+        f: impl FnOnce(&[u32]) -> DocResult<R>,
+    ) -> DocResult<R> {
         {
             let cache = self.sort_cache.lock();
             if let Some(c) = cache.as_ref() {
@@ -536,7 +550,7 @@ impl Document {
                     && c.descending == descending
                     && c.version == self.version
                 {
-                    return self.window_sorted(&c.perm, path, range);
+                    return f(&c.perm);
                 }
             }
         }
@@ -563,7 +577,7 @@ impl Document {
             });
             guard
         };
-        self.window_sorted(&cache.as_ref().expect("just set").perm, path, range)
+        f(&cache.as_ref().expect("just set").perm)
     }
 
     fn window_sorted(
@@ -637,6 +651,22 @@ impl Document {
         range: Range<u32>,
         cancel: &crate::doc::jobs::CancelFlag,
     ) -> DocResult<FilteredRows> {
+        self.with_filtered_perm(path, groups, quick, quick_keys, sort, cancel, |perm| {
+            self.window_filtered(perm, path, range)
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn with_filtered_perm<R>(
+        &self,
+        path: &Path,
+        groups: &[Vec<GridFilter>],
+        quick: Option<&str>,
+        quick_keys: &[String],
+        sort: Option<(&str, bool)>,
+        cancel: &crate::doc::jobs::CancelFlag,
+        f: impl FnOnce(&[u32]) -> DocResult<R>,
+    ) -> DocResult<R> {
         let sort_owned = sort.map(|(k, d)| (k.to_string(), d));
         let quick_norm = quick.map(str::trim).filter(|q| !q.is_empty());
         let quick_owned = quick_norm.map(str::to_string);
@@ -651,7 +681,7 @@ impl Document {
                     && c.sort == sort_owned
                     && c.version == self.version
                 {
-                    return self.window_filtered(&c.perm, path, range);
+                    return f(&c.perm);
                 }
             }
         }
@@ -778,7 +808,7 @@ impl Document {
             });
             guard
         };
-        self.window_filtered(&cache.as_ref().expect("just set").perm, path, range)
+        f(&cache.as_ref().expect("just set").perm)
     }
 
     fn window_filtered(
@@ -801,6 +831,37 @@ impl Document {
             });
         }
         Ok(FilteredRows { total, rows })
+    }
+
+    pub fn get_row_indices(
+        &self,
+        path: &Path,
+        groups: &[Vec<GridFilter>],
+        quick: Option<&str>,
+        quick_keys: &[String],
+        sort: Option<(&str, bool)>,
+        range: Range<u32>,
+    ) -> DocResult<Vec<u32>> {
+        let window = |perm: &[u32]| -> DocResult<Vec<u32>> {
+            let total = perm.len() as u32;
+            Ok((range.start.min(total)..range.end.min(total))
+                .map(|d| perm[d as usize])
+                .collect())
+        };
+        if !groups.is_empty() || quick.is_some() {
+            let never = crate::doc::jobs::CancelFlag::never();
+            return self.with_filtered_perm(path, groups, quick, quick_keys, sort, &never, window);
+        }
+        match sort {
+            Some((key, descending)) => self.with_sorted_perm(path, key, descending, window),
+            None => {
+                let total = match self.kind_at(path)? {
+                    (NodeKind::Array, count) => count.unwrap_or(0),
+                    _ => 0,
+                };
+                Ok((range.start.min(total)..range.end.min(total)).collect())
+            }
+        }
     }
 
     pub fn column_values(&self, path: &Path, key: &str, limit: usize) -> DocResult<ColumnValues> {
@@ -985,17 +1046,21 @@ impl Document {
         if needle.is_empty() {
             return Ok(ReplaceResult {
                 count: 0,
+                values: 0,
+                keys: 0,
                 applied: None,
             });
         }
         let re =
             literal_matcher(needle, case_sensitive).map_err(|e| DocError::Parse(e.to_string()))?;
         let mut root = self.get_value(&Path::root())?;
-        let mut count = 0u32;
+        let mut count = ReplaceCounts::default();
         replace_in_value(&mut root, &re, replacement, &mut count);
-        if count == 0 {
+        if count.matches == 0 {
             return Ok(ReplaceResult {
                 count: 0,
+                values: 0,
+                keys: 0,
                 applied: None,
             });
         }
@@ -1004,7 +1069,9 @@ impl Document {
             value: root,
         })?;
         Ok(ReplaceResult {
-            count,
+            count: count.matches,
+            values: count.values,
+            keys: count.keys,
             applied: Some(applied),
         })
     }
@@ -2434,6 +2501,76 @@ mod tests {
         }
     }
 
+    fn grid_docs() -> [(bool, Document); 2] {
+        let rows = format!(
+            "[{}]",
+            (0..40)
+                .map(|i| format!(r#"{{"name":"row-{i}","v":{}}}"#, (i * 7) % 13))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let padded = format!("{rows}{}", " ".repeat(LAZY_THRESHOLD_BYTES as usize));
+        [(false, doc(&rows)), (true, doc(&padded))]
+    }
+
+    #[test]
+    fn row_indices_match_the_filtered_rows_on_both_backends() {
+        use super::super::grid_filter::{FilterOp, GridFilter};
+        let never = crate::doc::jobs::CancelFlag::never();
+        let groups = [vec![GridFilter {
+            key: "v".into(),
+            op: FilterOp::Gt,
+            value: Some(serde_json::json!(3)),
+        }]];
+        let quick_keys = ["name".to_string()];
+        let sort = Some(("v", true));
+        for (lazy, d) in grid_docs() {
+            assert_eq!(d.summary().lazy, lazy);
+            let indices = d
+                .get_row_indices(
+                    &Path::root(),
+                    &groups,
+                    Some("row-1"),
+                    &quick_keys,
+                    sort,
+                    2..9,
+                )
+                .unwrap();
+            let rows = d
+                .get_rows_filtered(
+                    &Path::root(),
+                    &groups,
+                    Some("row-1"),
+                    &quick_keys,
+                    sort,
+                    2..9,
+                    &never,
+                )
+                .unwrap();
+            let shown: Vec<u32> = rows.rows.iter().map(|r| r.index).collect();
+            assert_eq!(indices, shown, "lazy={lazy}");
+            assert_eq!(indices, [16, 1, 14, 12, 10], "lazy={lazy}");
+        }
+    }
+
+    #[test]
+    fn row_indices_without_a_filter_match_the_sorted_and_plain_rows_on_both_backends() {
+        for (lazy, d) in grid_docs() {
+            let indices = d
+                .get_row_indices(&Path::root(), &[], None, &[], Some(("v", false)), 5..12)
+                .unwrap();
+            let rows = d.get_rows_sorted(&Path::root(), "v", false, 5..12).unwrap();
+            let shown: Vec<u32> = rows.iter().map(|r| r.index).collect();
+            assert_eq!(indices, shown, "lazy={lazy}");
+            assert_eq!(
+                d.get_row_indices(&Path::root(), &[], None, &[], None, 38..50)
+                    .unwrap(),
+                [38, 39],
+                "lazy={lazy}"
+            );
+        }
+    }
+
     #[test]
     fn get_rows_at_fetches_in_order() {
         let d = doc(r#"[{"n":0},{"n":1},{"n":2},{"n":3}]"#);
@@ -2584,6 +2721,17 @@ mod tests {
         let r3 = d3.replace_all("zzz", "y", false).unwrap();
         assert_eq!(r3.count, 0);
         assert!(r3.applied.is_none());
+    }
+
+    #[test]
+    fn replace_all_counts_each_changed_value_once_on_both_backends() {
+        let text = r#"{"a":"foo foo foo","b":["foo","bar"],"foo":1}"#;
+        let padded = format!("{text}{}", " ".repeat(LAZY_THRESHOLD_BYTES as usize));
+        for (lazy, mut d) in [(false, doc(text)), (true, doc(&padded))] {
+            assert_eq!(d.summary().lazy, lazy);
+            let r = d.replace_all("foo", "x", false).unwrap();
+            assert_eq!((r.count, r.values, r.keys), (5, 2, 1), "lazy={lazy}");
+        }
     }
 
     #[test]

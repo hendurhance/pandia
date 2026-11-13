@@ -4,6 +4,7 @@ import { fireEvent, render, within } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
 import { ipc } from '$lib/ipc/client';
 import type { TabSlot } from '$lib/shell/state/workspace.svelte';
+import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 import DocPane from './DocPane.svelte';
 
 vi.mock('$lib/ipc/client', () => ({
@@ -20,6 +21,7 @@ vi.mock('$lib/ipc/client', () => ({
 		docBackupText: vi.fn(async () => {}),
 		docBackupClear: vi.fn(async () => {}),
 		docColumnSchema: vi.fn(async () => null),
+		docExportPreview: vi.fn(async () => ({ text: '', truncated: false })),
 		e2eRecord: vi.fn(async () => {}),
 	},
 }));
@@ -105,5 +107,21 @@ describe('typing in the Code view, then pausing', () => {
 		expect(ipc.docBackupText).toHaveBeenCalledWith('C', '/w/c.json', '{\n  "a": 2,\n');
 		expect(container.querySelector('.edit-bar')).toBeNull();
 		expect(ipc.docSetRootText).not.toHaveBeenCalled();
+	});
+});
+
+describe('Export with uncommitted Code view edits', () => {
+	it('commits the typed text before the export reads the document', async () => {
+		const { container, type } = await openInCode('tab-code-buf-3');
+		type('{\n  "a": 2\n}');
+		commandRegistry.run('doc.export');
+		await vi.waitFor(() =>
+			expect(container.querySelector('[aria-label="export document"]')).not.toBeNull(),
+		);
+		await vi.waitFor(() => expect(ipc.docExportPreview).toHaveBeenCalled());
+		expect(ipc.docSetRootText).toHaveBeenCalledWith('C', '{\n  "a": 2\n}');
+		expect(vi.mocked(ipc.docSetRootText).mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(ipc.docExportPreview).mock.invocationCallOrder[0]!,
+		);
 	});
 });

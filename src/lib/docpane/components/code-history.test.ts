@@ -5,6 +5,7 @@ import { EditorView } from '@codemirror/view';
 import { ipc } from '$lib/ipc/client';
 import { PaneCommandBus } from '$lib/shell/state/pane-bus';
 import type { TabSlot } from '$lib/shell/state/workspace.svelte';
+import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 import DocPane from './DocPane.svelte';
 
 vi.mock('$lib/ipc/client', () => ({
@@ -106,13 +107,13 @@ beforeEach(() => {
 	});
 });
 
-async function openInCode(tabId: string) {
+async function openInCode(tabId: string, isActive = false) {
 	const paneBus = new PaneCommandBus();
 	const { container } = render(DocPane, {
 		props: {
 			tabId,
 			slot,
-			isActive: false,
+			isActive,
 			pendingOpen: { kind: 'file', path: '/w/a.json' },
 			paneBus,
 		},
@@ -171,5 +172,32 @@ describe('History step while the Code view is showing', () => {
 		expect(ipc.docSetRootText).not.toHaveBeenCalled();
 		expect(ipc.docRedo).not.toHaveBeenCalled();
 		expect(redo).toEqual([json(2)]);
+	});
+});
+
+describe('Undo and Redo right after switching to the Code view', () => {
+	it('Undo steps the document back when the editor has nothing to undo', async () => {
+		const { view } = await openInCode('tab-hist-5', true);
+		commandRegistry.run('doc.undo');
+		await vi.waitFor(() => expect(view().state.doc.toString()).toBe(json(0)));
+		expect(ipc.docUndo).toHaveBeenCalledTimes(1);
+	});
+
+	it('Redo steps the document forward when the editor has nothing to redo', async () => {
+		redo = [json(2)];
+		const { view } = await openInCode('tab-hist-6', true);
+		commandRegistry.run('doc.redo');
+		await vi.waitFor(() => expect(view().state.doc.toString()).toBe(json(2)));
+		expect(ipc.docRedo).toHaveBeenCalledTimes(1);
+	});
+
+	it('Redo with uncommitted typing leaves the document and shows no error', async () => {
+		redo = [json(2)];
+		const { container, type } = await openInCode('tab-hist-7', true);
+		type(json(9));
+		commandRegistry.run('doc.redo');
+		await settle();
+		expect(ipc.docRedo).not.toHaveBeenCalled();
+		expect(container.querySelector('.banner-err')).toBeNull();
 	});
 });

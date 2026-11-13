@@ -40,11 +40,12 @@ pub fn write_atomic(
         }
         Err(e) => return Err(e),
     };
-    let result = finish(file, &temp, &target, existing.as_ref(), write);
+    let result = finish(file, &target, existing.as_ref(), write);
     if result.is_err() {
         let _ = fs::remove_file(&temp);
+        return result;
     }
-    result
+    replace(&temp, &target)
 }
 
 fn resolve_target(path: &Path) -> PathBuf {
@@ -61,7 +62,6 @@ fn resolve_target(path: &Path) -> PathBuf {
 
 fn finish(
     file: File,
-    temp: &Path,
     target: &Path,
     existing: Option<&fs::Metadata>,
     write: impl FnOnce(&mut BufWriter<File>) -> io::Result<()>,
@@ -73,12 +73,19 @@ fn finish(
     }
     let mut w = BufWriter::new(file);
     write(&mut w)?;
-    w.into_inner().map_err(|e| e.into_error())?.sync_all()?;
-    if let Err(rename) = fs::rename(temp, target) {
-        fs::copy(temp, target).map_err(|_| rename)?;
-        fs::remove_file(temp)?;
-    }
-    Ok(())
+    w.into_inner().map_err(|e| e.into_error())?.sync_all()
+}
+
+fn replace(temp: &Path, target: &Path) -> io::Result<()> {
+    let Err(rename) = fs::rename(temp, target) else {
+        return Ok(());
+    };
+    fs::copy(temp, target).map_err(|_| rename)?;
+    fs::OpenOptions::new()
+        .write(true)
+        .open(target)?
+        .sync_all()?;
+    fs::remove_file(temp)
 }
 
 fn write_in_place(
@@ -313,5 +320,40 @@ mod tests {
             .file_type()
             .is_symlink());
         assert_eq!(fs::read_to_string(d.join("missing.json")).unwrap(), "new");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_failed_copy_after_a_failed_rename_keeps_the_new_content() {
+        let d = dir("copyfail");
+        if running_as_root(&d) {
+            return;
+        }
+        let p = d.join("a.json");
+        fs::write(&p, "old").unwrap();
+        let chmod = |args: &[&str]| {
+            std::process::Command::new("chmod")
+                .args(args)
+                .arg(&p)
+                .status()
+                .is_ok_and(|s| s.success())
+        };
+        let mut locked = false;
+
+        let result = write_atomic(&p, |w| {
+            w.write_all(b"new")?;
+            locked = chmod(&["+a", "everyone deny write,delete"]);
+            Ok(())
+        });
+        chmod(&["-N"]);
+        if !locked {
+            return;
+        }
+
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(&p).unwrap(), "old");
+        let kept: Vec<String> = entries(&d).into_iter().filter(|n| n != "a.json").collect();
+        assert_eq!(kept.len(), 1, "{kept:?}");
+        assert_eq!(fs::read_to_string(d.join(&kept[0])).unwrap(), "new");
     }
 }

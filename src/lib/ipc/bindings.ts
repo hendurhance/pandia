@@ -13,6 +13,7 @@ export const commands = {
 	docGetRows: (handle: DocHandle, path: Path, start: number, end: number) => __TAURI_INVOKE<(string & { readonly __brand: "LosslessText" })[]>("doc_get_rows", { handle, path, start, end }),
 	docGetRowsSorted: (handle: DocHandle, path: Path, start: number, end: number, key: string, descending: boolean) => __TAURI_INVOKE<RowJson[]>("doc_get_rows_sorted", { handle, path, start, end, key, descending }),
 	docGetRowsFiltered: (handle: DocHandle, path: Path, start: number, end: number, query: GridQuery, jobId: string | null) => __TAURI_INVOKE<FilteredRowsJson>("doc_get_rows_filtered", { handle, path, start, end, query, jobId }),
+	docGetRowIndices: (handle: DocHandle, path: Path, start: number, end: number, query: GridQuery) => __TAURI_INVOKE<number[]>("doc_get_row_indices", { handle, path, start, end, query }),
 	docColumnValues: (handle: DocHandle, path: Path, key: string, limit: number) => __TAURI_INVOKE<ColumnValues>("doc_column_values", { handle, path, key, limit }),
 	docGetRowsAt: (handle: DocHandle, path: Path, indices: number[]) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_rows_at", { handle, path, indices }),
 	docGetColumn: (handle: DocHandle, path: Path, key: string) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_column", { handle, path, key }),
@@ -294,6 +295,8 @@ export type Refusal = { reason: "noUrl" } | { reason: "insecure"; option: string
 
 export type ReplaceResult = {
 	count: number,
+	values: number,
+	keys: number,
 	applied: ApplyResult | null,
 };
 

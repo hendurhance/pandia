@@ -77,12 +77,20 @@ pub(crate) fn kind_and_child_count_eager(v: &Value) -> (NodeKind, Option<u32>) {
     }
 }
 
-pub(crate) fn replace_in_value(v: &mut Value, re: &Regex, repl: &str, count: &mut u32) {
+#[derive(Debug, Default)]
+pub(crate) struct ReplaceCounts {
+    pub matches: u32,
+    pub values: u32,
+    pub keys: u32,
+}
+
+pub(crate) fn replace_in_value(v: &mut Value, re: &Regex, repl: &str, count: &mut ReplaceCounts) {
     match v {
         Value::String(s) => {
             let c = re.find_iter(s).count() as u32;
             if c > 0 {
-                *count += c;
+                count.matches += c;
+                count.values += 1;
                 *s = re.replace_all(s, regex::NoExpand(repl)).into_owned();
             }
         }
@@ -108,7 +116,8 @@ pub(crate) fn replace_in_value(v: &mut Value, re: &Regex, repl: &str, count: &mu
                         && !map.contains_key(&candidate)
                         && !original.contains(&candidate)
                     {
-                        *count += kc;
+                        count.matches += kc;
+                        count.keys += 1;
                         candidate
                     } else {
                         k

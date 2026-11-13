@@ -28,12 +28,30 @@
 		};
 	});
 
+	const FOCUSABLE =
+		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+	let scrimEl: HTMLDivElement | undefined = $state();
+
 	function onKeydown(e: KeyboardEvent) {
 		// Every dialog listens on the window; only the top one answers Escape.
 		if (e.key === 'Escape' && !e.defaultPrevented && openDialogs.at(-1) === self) {
 			e.preventDefault();
 			onClose();
+		} else if (e.key === 'Tab' && !e.defaultPrevented && openDialogs.at(-1) === self) {
+			keepFocusInside(e);
 		}
+	}
+
+	function keepFocusInside(e: KeyboardEvent) {
+		if (!scrimEl) return;
+		const items = [...scrimEl.querySelectorAll<HTMLElement>(FOCUSABLE)];
+		const edge = e.shiftKey ? items[0] : items.at(-1);
+		const wrapTo = e.shiftKey ? items.at(-1) : items[0];
+		const active = document.activeElement;
+		if (wrapTo && active !== edge && scrimEl.contains(active)) return;
+		e.preventDefault();
+		wrapTo?.focus();
 	}
 
 	let pressedScrim = false;
@@ -46,6 +64,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
+	bind:this={scrimEl}
 	class="scrim"
 	onmousedown={(e) => (pressedScrim = e.target === e.currentTarget)}
 	onclick={onScrimClick}

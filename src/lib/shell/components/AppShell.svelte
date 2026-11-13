@@ -207,8 +207,9 @@
 	}
 
 	async function prepareToQuit(): Promise<boolean> {
+		if (!(await workspace.closeAll())) return false;
 		await workspace.snapshot();
-		return workspace.closeAll();
+		return true;
 	}
 
 	let snapshotTimer: ReturnType<typeof setTimeout> | null = null;

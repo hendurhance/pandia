@@ -17,6 +17,7 @@ function setup(rows: Row[], arrayPath: Path = ['users']) {
 			applied.push(op);
 			return true;
 		},
+		setCell: vi.fn(),
 		openInTree,
 		setError: (e) => errors.push(e),
 	});

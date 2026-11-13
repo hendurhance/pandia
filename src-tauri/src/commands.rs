@@ -616,6 +616,34 @@ pub async fn doc_get_rows_filtered(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn doc_get_row_indices(
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+    path: Path,
+    start: u32,
+    end: u32,
+    query: GridQuery,
+) -> Result<Vec<u32>, WireError> {
+    let store = state.inner().clone();
+    let groups = filters_into_engine(query.groups).map_err(WireError::from)?;
+    run_blocking(move || {
+        let sort = query.sort_key.as_deref().map(|k| (k, query.descending));
+        store.read(handle, |doc| {
+            doc.get_row_indices(
+                &path,
+                &groups,
+                query.quick.as_deref(),
+                &query.quick_keys,
+                sort,
+                start..end,
+            )
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn doc_get_rows_at(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,

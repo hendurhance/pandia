@@ -35,6 +35,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_get_rows,
             commands::doc_get_rows_sorted,
             commands::doc_get_rows_filtered,
+            commands::doc_get_row_indices,
             commands::doc_column_values,
             commands::doc_get_rows_at,
             commands::doc_get_column,

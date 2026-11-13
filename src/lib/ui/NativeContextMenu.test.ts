@@ -152,3 +152,40 @@ describe('NativeContextMenu — Escape', () => {
 		expect(screen.queryByRole('menu')).toBeNull();
 	});
 });
+
+describe('NativeContextMenu — keyboard', () => {
+	function openOnField() {
+		const input = document.createElement('input');
+		const fieldKeys: string[] = [];
+		input.addEventListener('keydown', (e) => fieldKeys.push(e.key));
+		document.body.append(input);
+		input.focus();
+		return { input, fieldKeys, open: () => fireEvent.contextMenu(input) };
+	}
+
+	it('runs the item picked with the arrow keys and Enter, while the field keeps focus', async () => {
+		const { input, fieldKeys, open } = openOnField();
+		await open();
+		expect(screen.getAllByRole('menuitem').map((el) => el.textContent)).toEqual([
+			'Paste',
+			'Select All',
+		]);
+		for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter']) {
+			await fireEvent.keyDown(input, { key });
+		}
+		await vi.waitFor(() => expect(input.value).toBe('X'));
+		expect(screen.queryByRole('menu')).toBeNull();
+		expect(document.activeElement).toBe(input);
+		expect(fieldKeys).toEqual([]);
+	});
+
+	it('starts from the last item on ArrowUp', async () => {
+		const { input, open } = openOnField();
+		input.value = 'abc';
+		await open();
+		await fireEvent.keyDown(input, { key: 'ArrowUp' });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		expect([input.selectionStart, input.selectionEnd]).toEqual([0, 3]);
+		expect(clipboard.readText).not.toHaveBeenCalled();
+	});
+});

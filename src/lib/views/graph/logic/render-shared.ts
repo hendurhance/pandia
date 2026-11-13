@@ -7,6 +7,7 @@ export const HEADER_FONT_WEIGHT = 700;
 export const ROW_PAD_X = 11; // matches legacy .card-row padding (0.7rem ≈ 11.2px)
 export const SWATCH_W = 11;
 export const SWATCH_GAP = 6;
+export const MIN_VALUE_W = 20;
 
 export function valueColor(row: CardRow, theme: GraphTheme): string {
 	if (row.container) return theme.textDim;

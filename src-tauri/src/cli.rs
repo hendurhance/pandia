@@ -142,12 +142,18 @@ fn parse(args: impl IntoIterator<Item = String>) -> Request {
             "--wait" => req.wait = true,
             "--json" => req.json = true,
             "--schema" => match inline.or_else(|| args.next()) {
+                Some(value) if value == "-" => req.problems.push(
+                    "--schema can't read piped input. Give a path or URL after it, like: pandia --schema config.schema.json config.json".into(),
+                ),
                 Some(value) => req.schema = Some(value),
                 None => req
                     .problems
                     .push("--schema needs a path or URL after it.".into()),
             },
             "--diff" => match (args.next(), args.next()) {
+                (Some(a), Some(b)) if a == "-" || b == "-" => req.problems.push(
+                    "--diff can't compare piped input. Save it to a file first, like: pandia --diff old.json new.json".into(),
+                ),
                 (Some(a), Some(b)) => req.diff = Some((a, b)),
                 _ => req
                     .problems
@@ -216,7 +222,9 @@ pub(crate) fn pending_from(
         let reply = req.reply_file.filter(|p| is_handoff(p, REPLY_PREFIX));
         let mut files = handoffs.lock();
         files.piped.push(path.clone());
-        files.replies.extend(reply.clone());
+        files
+            .replies
+            .extend(reply.clone().map(|reply| (reply, path.clone())));
         drop(files);
         opens.push(PendingFile {
             piped: true,
@@ -235,7 +243,11 @@ pub(crate) fn pending_from(
 }
 
 pub(crate) fn is_reply(handoffs: &Handoffs, path: &str) -> bool {
-    handoffs.lock().replies.iter().any(|p| p == path)
+    handoffs
+        .lock()
+        .replies
+        .iter()
+        .any(|(reply, piped)| reply == path && is_held(Path::new(piped)))
 }
 
 #[derive(Default)]
@@ -245,7 +257,7 @@ pub(crate) struct Handoffs(Mutex<HandoffFiles>);
 pub(crate) struct HandoffFiles {
     waits: HashMap<String, (usize, Vec<TabReport>, Option<std::fs::File>)>,
     piped: Vec<String>,
-    replies: Vec<String>,
+    replies: Vec<(String, String)>,
 }
 
 impl Handoffs {
@@ -255,7 +267,7 @@ impl Handoffs {
 
     fn expect(&self, id: &str, tabs: usize) {
         if tabs == 0 {
-            return finish_wait(hold(id), Vec::new());
+            return finish_wait(hold(id), Vec::new(), tabs);
         }
         let mut files = self.lock();
         let wait = files
@@ -273,8 +285,8 @@ impl Handoffs {
         *open = open.saturating_sub(1);
         reports.push(report);
         if *open == 0 {
-            if let Some((_, reports, marker)) = files.waits.remove(id) {
-                finish_wait(marker, reports);
+            if let Some((open, reports, marker)) = files.waits.remove(id) {
+                finish_wait(marker, reports, open);
             }
         }
     }
@@ -288,8 +300,8 @@ impl Handoffs {
 
     pub fn finish_all(&self) {
         let mut files = self.lock();
-        for (_, (_, reports, marker)) in files.waits.drain() {
-            finish_wait(marker, reports);
+        for (_, (open, reports, marker)) in files.waits.drain() {
+            finish_wait(marker, reports, open);
         }
         for path in files.piped.drain(..) {
             let _ = std::fs::remove_file(path);
@@ -303,9 +315,12 @@ fn hold(marker: &str) -> Option<std::fs::File> {
     Some(file)
 }
 
-fn finish_wait(marker: Option<std::fs::File>, files: Vec<TabReport>) {
+fn finish_wait(marker: Option<std::fs::File>, files: Vec<TabReport>, open: usize) {
     use std::io::Write;
-    let exit_code = files.iter().map(TabReport::exit_code).max().unwrap_or(0);
+    let exit_code = files
+        .iter()
+        .map(TabReport::exit_code)
+        .fold(i32::from(open > 0), i32::max);
     if let (Some(mut marker), Ok(json)) = (
         marker,
         serde_json::to_string(&WaitReport { exit_code, files }),
@@ -350,9 +365,11 @@ fn hand_off(req: &Request, args: Vec<String>, identifier: &str) -> Result<(i32, 
     }
     let mut handoff = Vec::new();
     let mut temp = TempFiles(Vec::new());
+    let mut _waiting_for_reply = None;
     if req.stdin {
         let saved = save_stdin()?;
         handoff.push(format!("{STDIN_FILE_FLAG}={}", saved.display()));
+        _waiting_for_reply = hold_shared(&saved);
         temp.0.push(saved);
     }
     let reply = if req.stdin && req.wait {
@@ -571,6 +588,12 @@ fn read_report(marker: &Path) -> Option<WaitReport> {
 fn is_held(marker: &Path) -> bool {
     std::fs::File::open(marker)
         .is_ok_and(|file| matches!(file.try_lock(), Err(std::fs::TryLockError::WouldBlock)))
+}
+
+fn hold_shared(path: &Path) -> Option<std::fs::File> {
+    let file = std::fs::File::open(path).ok()?;
+    file.lock_shared().ok()?;
+    Some(file)
 }
 
 fn instance_path(identifier: &str) -> PathBuf {
@@ -913,7 +936,26 @@ mod tests {
 
         handoffs.finish_all();
         assert!(!piped.exists());
-        assert_eq!(read_report(&marker).unwrap().exit_code, 0);
+        assert_eq!(read_report(&marker).unwrap().exit_code, 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn quitting_with_a_tab_still_open_reports_1() {
+        let dir = std::env::temp_dir().join(format!("pandia-cli-open-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("pandia-wait-open");
+        create_private(&marker).unwrap();
+        let id = marker.to_string_lossy().into_owned();
+        let handoffs = Handoffs::default();
+        let flag = format!("--wait-id={id}");
+        pending_from(args(&["a.json", "b.json", &flag]), &dir, &handoffs);
+        handoffs.release(&id, report("/w/a.json"));
+
+        handoffs.finish_all();
+        let got = read_report(&marker).unwrap();
+        assert_eq!(got.exit_code, 1);
+        assert_eq!(got.files, vec![report("/w/a.json")]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -1009,6 +1051,35 @@ mod tests {
     }
 
     #[test]
+    fn a_reply_is_sent_only_while_the_launcher_waits_for_it() {
+        let dir = std::env::temp_dir().join(format!("pandia-cli-reply-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let piped = dir.join("pandia-stdin-reply.json");
+        std::fs::write(&piped, "[]").unwrap();
+        let reply = dir.join("pandia-reply-reply.json");
+        create_private(&reply).unwrap();
+        let handoffs = Handoffs::default();
+        let stdin_flag = format!("--stdin-file={}", piped.display());
+        let reply_flag = format!("--reply-file={}", reply.display());
+        pending_from(args(&[&stdin_flag, &reply_flag]), &dir, &handoffs);
+        let reply = reply.to_string_lossy();
+
+        assert!(
+            !is_reply(&handoffs, &reply),
+            "no launcher holds the piped input, so nobody reads the reply"
+        );
+        let launcher = hold_shared(&piped).unwrap();
+        assert!(is_reply(&handoffs, &reply));
+        assert!(!is_reply(&handoffs, "/tmp/pandia-reply-stranger.json"));
+        drop(launcher);
+        assert!(
+            !is_reply(&handoffs, &reply),
+            "the launcher was killed while it waited"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn saved_piped_input_goes_to_stdout_with_the_tab_exit_code() {
         let stdin_tab = TabReport {
             path: None,
@@ -1076,6 +1147,28 @@ mod tests {
         assert_eq!(got.len(), 1, "{got:?}");
         assert_eq!(got[0].path, "/work/-x.json");
         assert_eq!(got[0].wait.as_deref(), Some("/tmp/pandia-wait-1"));
+    }
+
+    #[test]
+    fn piped_input_is_refused_as_a_diff_or_schema_operand() {
+        let lines: [&[&str]; 4] = [
+            &["--diff", "-", "b.json"],
+            &["--diff", "a.json", "-"],
+            &["--schema", "-", "a.json"],
+            &["--schema=-", "a.json"],
+        ];
+        let accepted: Vec<_> = lines
+            .into_iter()
+            .filter(|line| parse(args(line)).problems.is_empty())
+            .map(|line| {
+                let app = app_args(Vec::new(), args(line));
+                (
+                    line,
+                    pending_from(app, Path::new("/work"), &Handoffs::default()),
+                )
+            })
+            .collect();
+        assert!(accepted.is_empty(), "{accepted:?}");
     }
 
     #[test]

@@ -332,6 +332,7 @@
 		path: () => path,
 		getRow: (rowIdx) => data.getRow(rowIdx),
 		apply: (op) => onApply(op),
+		setCell: (index, col, value) => data.setCell(index, col, value),
 		openInTree: (cellPath) => onOpenInTree(cellPath),
 		setError: (msg) => onError(msg ?? ''),
 	});

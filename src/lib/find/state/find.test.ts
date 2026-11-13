@@ -187,6 +187,20 @@ describe('FindController — Replace All', () => {
 		await Promise.all([find.replaceAll(), find.replaceAll()]);
 		expect(ipc.docReplace).toHaveBeenCalledTimes(1);
 	});
+
+	it.each([
+		[5, 3, 0, 'replaced 5 matches in 3 values'],
+		[1, 1, 0, 'replaced 1 match in 1 value'],
+		[4, 2, 1, 'replaced 4 matches in 2 values and 1 key'],
+		[2, 0, 2, 'replaced 2 matches in 2 keys'],
+	])('reports count %i, values %i, keys %i as "%s"', async (count, values, keys, status) => {
+		vi.mocked(ipc.docReplace).mockResolvedValueOnce({ count, values, keys, applied: null });
+		const find = controller('h');
+		find.openFind();
+		find.query = 'a';
+		await find.replaceAll();
+		expect(find.replaceStatus).toBe(status);
+	});
 });
 
 describe('FindController — cancelling a search', () => {
@@ -206,6 +220,24 @@ describe('FindController — cancelling a search', () => {
 			await vi.runAllTimersAsync();
 			expect(find.hits).toEqual([]);
 			expect(find.counter).toBe('no matches');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe('FindController — the tree counter at the search cap', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('shows the total as a lower bound when the engine stops at 10,000 hits', async () => {
+		vi.mocked(ipc.docSearch).mockResolvedValueOnce(Array.from({ length: 10_000 }, () => hit));
+		vi.useFakeTimers();
+		try {
+			const find = controller('h');
+			find.openFind();
+			find.onQueryChange('foo');
+			await vi.runAllTimersAsync();
+			expect(find.counter).toBe('1 / 10000+');
 		} finally {
 			vi.useRealTimers();
 		}

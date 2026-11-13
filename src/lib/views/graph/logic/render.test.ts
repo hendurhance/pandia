@@ -14,10 +14,12 @@ const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[
 
 function recordingCtx() {
 	const strokes: unknown[] = [];
+	const texts: { text: string; x: number }[] = [];
 	const state: Record<string | symbol, unknown> = {};
 	const ctx = new Proxy(state, {
 		get(target, key) {
 			if (key === 'stroke') return () => strokes.push(target.strokeStyle);
+			if (key === 'fillText') return (text: string, x: number) => texts.push({ text, x });
 			if (key === 'measureText') return (s: string) => ({ width: s.length * CHAR_W });
 			if (key in target) return target[key];
 			return () => {};
@@ -27,7 +29,7 @@ function recordingCtx() {
 			return true;
 		},
 	});
-	return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes };
+	return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes, texts };
 }
 
 function stringRows(values: Record<string, string>) {
@@ -91,5 +93,35 @@ describe('truncated emoji labels', () => {
 	it('SVG text never ends in half an emoji', () => {
 		const svg = exportLayoutSVG(stringRows({ a: emoji, b: `x${emoji}` }), readGraphTheme());
 		expect(svg).not.toMatch(LONE_SURROGATE);
+	});
+});
+
+describe('a long key', () => {
+	const layout = stringRows({ ['k'.repeat(60)]: 'true' });
+	const card = layout.cards[0]!;
+
+	it('stays inside its card on the canvas', () => {
+		const { ctx, texts } = recordingCtx();
+		paintFrame({
+			ctx,
+			layout,
+			viewport: { tx: 0, ty: 0, scale: 1 },
+			screenW: 800,
+			screenH: 600,
+			theme: readGraphTheme(),
+			dpr: 1,
+		});
+		for (const t of texts) {
+			expect(t.x + t.text.length * CHAR_W).toBeLessThanOrEqual(card.x + card.w);
+		}
+	});
+
+	it('stays inside its card in SVG export', () => {
+		const svg = exportLayoutSVG(layout, readGraphTheme(), 'elbow', 0);
+		const texts = [...svg.matchAll(/<text x="([\d.]+)"[^>]*>([^<]*)<\/text>/g)];
+		expect(texts.length).toBeGreaterThan(0);
+		for (const [, x, text] of texts) {
+			expect(Number(x) + text!.length * 7.8).toBeLessThanOrEqual(card.x + card.w);
+		}
 	});
 });

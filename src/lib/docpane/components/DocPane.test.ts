@@ -267,6 +267,8 @@ describe('DocPane', () => {
 		slow = true;
 		vi.mocked(ipc.docReplace).mockResolvedValue({
 			count: 1,
+			values: 1,
+			keys: 0,
 			applied: { version: 2, affectedPaths: [['items']] },
 		});
 		const pane = within(container);

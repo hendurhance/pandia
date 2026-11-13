@@ -459,4 +459,21 @@ describe('GridView editing', () => {
 		await fireEvent.input(input, { target: { value: 'abc1' } });
 		expect(input.getAttribute('aria-invalid')).toBe('false');
 	});
+
+	it('shows a saved value, and edits from it, before the refresh lands', async () => {
+		const onApply = vi.fn(async () => true);
+		const { container } = render(GridView, {
+			props: { handle: 'doc', path: [], schema: schema(10), onApply },
+		});
+		await vi.waitFor(() => expect(cell(container, 2)?.textContent).toBe('1'));
+		await fireEvent.dblClick(cell(container, 2)!);
+		const input = container.querySelector<HTMLInputElement>('.cell-editor')!;
+		await fireEvent.input(input, { target: { value: '2' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		expect(onApply).toHaveBeenCalledOnce();
+
+		await vi.waitFor(() => expect(cell(container, 2)?.textContent).toBe('2'));
+		await fireEvent.dblClick(cell(container, 2)!);
+		expect(container.querySelector<HTMLInputElement>('.cell-editor')?.value).toBe('2');
+	});
 });

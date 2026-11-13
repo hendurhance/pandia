@@ -26,9 +26,12 @@
 
 	let scrollRequest = $state<{ idx: number; nonce: number } | null>(null);
 	let scrollNonce = 0;
+	let revealGen = 0;
 	async function revealActive(target: Path) {
+		const gen = ++revealGen;
 		await tree.ensurePathVisible(target);
 		await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		if (gen !== revealGen) return;
 		const idx = tree.contentRowIdx(target);
 		if (idx >= 0) {
 			scrollNonce++;

@@ -69,6 +69,7 @@
 			curlError = { text, message: describeCurlError(e) };
 			return;
 		}
+		if (text !== pasteText.trim()) return;
 		request = { text, preview };
 		if (preview.sendsOnPaste) await sendRequest(text);
 	}

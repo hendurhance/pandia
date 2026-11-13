@@ -179,10 +179,8 @@
 		}
 	}
 
-	function onPointerUp(e: PointerEvent) {
+	function endPan() {
 		if (!canvas) return;
-		const wasPanning = panStart !== null;
-		const moved = panMoved;
 		if (panStart) {
 			try {
 				canvas.releasePointerCapture(panStart.pointerId);
@@ -190,6 +188,14 @@
 			panStart = null;
 			panMoved = false;
 		}
+		canvas.style.cursor = 'grab';
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (!canvas) return;
+		const wasPanning = panStart !== null;
+		const moved = panMoved;
+		endPan();
 		if (wasPanning && !moved) {
 			const rect = canvas.getBoundingClientRect();
 			const hit = hitAtScreen(e.clientX - rect.left, e.clientY - rect.top);
@@ -198,7 +204,6 @@
 				else onPickCard(hit.card.path);
 			}
 		}
-		canvas.style.cursor = 'grab';
 	}
 
 	function onDblClick(e: MouseEvent) {
@@ -267,6 +272,15 @@
 		const onDprChange = () => syncCanvasSize();
 		window.addEventListener('resize', onDprChange);
 
+		let dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+		const onDprQuery = () => {
+			syncCanvasSize();
+			dprQuery.removeEventListener('change', onDprQuery);
+			dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+			dprQuery.addEventListener('change', onDprQuery);
+		};
+		dprQuery.addEventListener('change', onDprQuery);
+
 		const onAppearanceChange = () => {
 			theme = readGraphTheme();
 			requestPaint();
@@ -277,6 +291,7 @@
 		return () => {
 			ro.disconnect();
 			window.removeEventListener('resize', onDprChange);
+			dprQuery.removeEventListener('change', onDprQuery);
 			window.removeEventListener(APPEARANCE_CHANGE_EVENT, onAppearanceChange);
 			if (pendingFrame) cancelAnimationFrame(pendingFrame);
 			pendingFrame = 0;
@@ -298,7 +313,7 @@
 	onpointerdown={onPointerDown}
 	onpointermove={onPointerMove}
 	onpointerup={onPointerUp}
-	onpointercancel={onPointerUp}
+	onpointercancel={endPan}
 	ondblclick={onDblClick}
 >
 	<canvas bind:this={canvas} aria-hidden="true"></canvas>

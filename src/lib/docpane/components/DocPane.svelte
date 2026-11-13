@@ -197,18 +197,20 @@
 		moveBounds: nodeActions.moveBounds,
 		doSave: session.save,
 		doSaveAs: session.saveAs,
-		openExport: () => {
-			if (session.summary) exportOpen = true;
+		openExport: async () => {
+			if (session.summary && (await doc.flushCode())) exportOpen = true;
 		},
 		switchView: doc.switchView,
 		undo: () => {
-			if (doc.viewMode === 'code' && codeApi) codeApi.undo();
-			else if (edit.active) edit.cancel();
+			if (doc.viewMode === 'code' && codeApi) {
+				if (!codeApi.undo()) void stepHistory(-1);
+			} else if (edit.active) edit.cancel();
 			else void session.undo();
 		},
 		redo: () => {
-			if (doc.viewMode === 'code' && codeApi) codeApi.redo();
-			else void session.redo();
+			if (doc.viewMode === 'code' && codeApi) {
+				if (!codeApi.redo() && !codeDirty) void stepHistory(1);
+			} else void session.redo();
 		},
 		close: async () => {
 			if (await slot.resolveUnsaved()) await session.reset();

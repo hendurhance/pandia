@@ -189,3 +189,22 @@ describe('Close Document with uncommitted Code view edits', () => {
 		}
 	});
 });
+
+describe('Closing Find with Escape', () => {
+	it('gives focus back to the tree row that had it', async () => {
+		const { container, rowWithKey } = open('find-focus');
+		await vi.waitFor(() => expect(rowWithKey('b')).toBeTruthy());
+		const row = rowWithKey('b')!;
+		row.focus();
+
+		commandRegistry.run('find.open');
+		const input = await vi.waitFor(() => {
+			const el = container.querySelector<HTMLInputElement>('input[aria-label="search query"]');
+			expect(document.activeElement).toBe(el);
+			return el!;
+		});
+		await fireEvent.keyDown(input, { key: 'Escape' });
+		expect(container.querySelector('input[aria-label="search query"]')).toBeNull();
+		expect(document.activeElement).toBe(row);
+	});
+});

@@ -62,4 +62,36 @@ describe('Dialog — keyboard and focus', () => {
 		unmount();
 		expect(document.activeElement).toBe(trigger);
 	});
+
+	it.each([
+		['Tab', false],
+		['Shift+Tab', true],
+	])('keeps %s focus inside the dialog', async (_, shiftKey) => {
+		const TABBABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+		const pressTab = async () => {
+			const from = document.activeElement as HTMLElement;
+			if (!(await fireEvent.keyDown(from, { key: 'Tab', shiftKey }))) return;
+			const all = [...document.querySelectorAll<HTMLElement>(TABBABLE)];
+			all[all.indexOf(from) + (shiftKey ? -1 : 1)]?.focus();
+		};
+		const before = document.createElement('button');
+		const after = document.createElement('button');
+		document.body.prepend(before);
+		const children = createRawSnippet(() => ({
+			render: () => '<div><input /><button>OK</button></div>',
+		}));
+		const { container, unmount } = render(Dialog, { props: { onClose: vi.fn(), children } });
+		document.body.append(after);
+		const first = container.querySelector('input')!;
+		const last = container.querySelector('button')!;
+		try {
+			(shiftKey ? first : last).focus();
+			await pressTab();
+			expect(document.activeElement).toBe(shiftKey ? last : first);
+		} finally {
+			unmount();
+			before.remove();
+			after.remove();
+		}
+	});
 });

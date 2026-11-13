@@ -770,7 +770,9 @@ fn kotlin_type<'a>(
                 |n| KOTLIN_TYPES.contains(&n),
                 str::to_string,
             );
-            if fresh {
+            if fresh && props.is_empty() {
+                classes.push(format!("class {class_name}"));
+            } else if fresh {
                 let mut body = format!("data class {class_name}(\n");
                 let entries: Vec<_> = props.iter().collect();
                 let mut taken = std::collections::BTreeSet::new();
@@ -1655,11 +1657,13 @@ const DART_MEMBERS: &[&str] = &[
     "noSuchMethod",
 ];
 
-const DART_TYPES: &[&str] = &["List", "Map", "String"];
+const DART_TYPES: &[&str] = &[
+    "List", "Map", "String", "bool", "double", "dynamic", "int", "num",
+];
 
 fn render_dart(shape: &TypeShape, name: &str) -> String {
     let mut classes: Vec<String> = Vec::new();
-    let mut seen: BTreeMap<String, &TypeShape> = BTreeMap::new();
+    let mut seen = names_with_root_alias(shape, dart_class_name(name));
     let root = dart_type(shape, name, "", &mut classes, &mut seen);
     let mut out = String::new();
     for c in classes {
@@ -1878,6 +1882,8 @@ fn dart_class_name(name: &str) -> String {
     let cleaned = cleaned.trim_start_matches('_').to_string();
     let base = if cleaned.is_empty() {
         "Root".to_string()
+    } else if cleaned.starts_with(|c: char| c.is_ascii_digit()) {
+        format!("X{cleaned}")
     } else {
         cleaned
     };
@@ -1920,7 +1926,10 @@ fn dart_field_name(key: &str, taken: &[String]) -> String {
     if base.chars().next().map(|c| c.is_ascii_digit()) == Some(true) {
         base.insert(0, 'x');
     }
-    if DART_RESERVED.contains(&base.as_str()) || DART_MEMBERS.contains(&base.as_str()) {
+    if [DART_RESERVED, DART_MEMBERS, DART_TYPES]
+        .iter()
+        .any(|names| names.contains(&base.as_str()))
+    {
         base.push('_');
     }
     if !taken.iter().any(|t| t == &base) {
@@ -3030,5 +3039,58 @@ mod tests {
         let merged: Value =
             serde_json::from_str(r#"[{"id": 1}, {"id": 1800000000000000000}]"#).unwrap();
         assert!(gen(&merged, TypegenLang::Zod).contains("  id: z.number(),"));
+    }
+
+    #[test]
+    fn kotlin_empty_object_is_a_plain_class() {
+        let s = gen(&json!({"id": 1, "meta": {}}), TypegenLang::Kotlin);
+        assert!(
+            !s.contains("data class Meta("),
+            "a data class needs a constructor parameter:\n{s}"
+        );
+        assert!(s.starts_with("class Meta\n"), "{s}");
+        assert_eq!(gen(&json!({}), TypegenLang::Kotlin), "class Root");
+    }
+
+    fn dart_declared(out: &str) -> Vec<&str> {
+        out.lines()
+            .filter_map(|l| l.strip_prefix("class ").or(l.strip_prefix("typedef ")))
+            .filter_map(|rest| rest.split_whitespace().next())
+            .collect()
+    }
+
+    #[test]
+    fn dart_class_names_never_start_with_a_digit() {
+        let s = gen(&json!({"2fa": {"on": true}}), TypegenLang::Dart);
+        let declared = dart_declared(&s);
+        assert!(
+            declared
+                .iter()
+                .all(|n| !n.starts_with(|c: char| c.is_ascii_digit())),
+            "{declared:?}\n{s}"
+        );
+    }
+
+    #[test]
+    fn dart_fields_never_shadow_a_type_the_class_uses() {
+        let s = gen(
+            &json!({"int": 1, "double": 1.5, "num": 2.5, "bool": true, "dynamic": null}),
+            TypegenLang::Dart,
+        );
+        let shadowing: Vec<&str> = s
+            .lines()
+            .filter_map(|l| l.trim_end_matches(';').strip_prefix("  final "))
+            .filter_map(|decl| decl.rsplit(' ').next())
+            .filter(|field| ["bool", "double", "dynamic", "int", "num"].contains(field))
+            .collect();
+        assert!(shadowing.is_empty(), "{shadowing:?}\n{s}");
+    }
+
+    #[test]
+    fn dart_root_typedef_never_reuses_a_class_name() {
+        let s = gen(&json!([{"root": {"a": 1}}]), TypegenLang::Dart);
+        let declared = dart_declared(&s);
+        let unique: std::collections::BTreeSet<_> = declared.iter().collect();
+        assert_eq!(unique.len(), declared.len(), "{declared:?}\n{s}");
     }
 }

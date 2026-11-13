@@ -1,10 +1,19 @@
 import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
-import type { DocHandle, Path, SearchHit } from '$lib/ipc/bindings';
+import type { DocHandle, Path, ReplaceResult, SearchHit } from '$lib/ipc/bindings';
 import { pathKey } from '$lib/views/tree/logic/model';
 
 const FIND_DEBOUNCE_MS = 160;
+const SEARCH_HIT_CAP = 10_000;
+
+function replacedStatus({ count, values, keys }: ReplaceResult): string {
+	if (count === 0) return 'no matches';
+	const places: string[] = [];
+	if (values > 0) places.push(`${values} value${values === 1 ? '' : 's'}`);
+	if (keys > 0) places.push(`${keys} key${keys === 1 ? '' : 's'}`);
+	return `replaced ${count} match${count === 1 ? '' : 'es'} in ${places.join(' and ')}`;
+}
 
 export interface FindDeps {
 	handle: () => DocHandle | null;
@@ -58,7 +67,9 @@ export class FindController {
 				: `${this.codeActiveIdx} / ${this.codeMatchCount}`;
 		}
 		if (this.busy) return 'searching…';
-		return this.hits.length === 0 ? 'no matches' : `${this.activeIdx + 1} / ${this.hits.length}`;
+		if (this.hits.length === 0) return 'no matches';
+		const more = this.hits.length >= SEARCH_HIT_CAP ? '+' : '';
+		return `${this.activeIdx + 1} / ${this.hits.length}${more}`;
 	});
 
 	navDisabled = $derived.by(() =>
@@ -170,7 +181,11 @@ export class FindController {
 		const jobId = crypto.randomUUID();
 		this.activeJobId = jobId;
 		try {
-			const hits = await ipc.docSearch(handle, { query: q, caseSensitive: false }, jobId);
+			const hits = await ipc.docSearch(
+				handle,
+				{ query: q, caseSensitive: false, maxResults: SEARCH_HIT_CAP },
+				jobId,
+			);
 			if (seq !== this.seq) return; // a newer query started — drop stale.
 			const prev = this.hits[this.activeIdx];
 			this.hits = hits;
@@ -259,7 +274,7 @@ export class FindController {
 			if (res.applied) {
 				await this.deps.afterReplace(res.applied.affectedPaths);
 			}
-			this.replaceStatus = res.count === 0 ? 'no matches' : `replaced ${res.count}`;
+			this.replaceStatus = replacedStatus(res);
 			if (this.open && q) void this.runSearch(q); // refresh the hit count
 		} catch (e) {
 			this.error = describeError(e);

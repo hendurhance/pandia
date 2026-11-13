@@ -1,5 +1,5 @@
 import type { NodeKind, Op, Path } from '$lib/ipc/bindings';
-import { kindOf } from '$lib/ipc/wire';
+import { asLosslessText, decodeLossless, kindOf } from '$lib/ipc/wire';
 import { valueCommitOp } from '$lib/docpane/state/doc-edit.svelte';
 import { MISSING, UNLOADED } from '../logic/grid-cell';
 
@@ -7,6 +7,7 @@ export interface GridEditDeps {
 	path: () => Path;
 	getRow: (rowIdx: number) => { index: number; value: unknown } | undefined;
 	apply: (op: Op) => Promise<boolean>;
+	setCell: (index: number, col: string, value: unknown) => void;
 	openInTree: (cellPath: Path) => void;
 	setError: (msg: string | null) => void;
 }
@@ -97,7 +98,12 @@ export class GridEditController {
 		}
 		this.state = null;
 		this.deps.setError(null);
-		return op ? this.deps.apply(op) : true;
+		if (!op) return true;
+		const saved = await this.deps.apply(op);
+		if (saved && 'text' in op) {
+			this.deps.setCell(s.index, s.col, decodeLossless(asLosslessText(op.text)));
+		}
+		return saved;
 	};
 
 	private newKeyOp(rowPath: Path, key: string, buffer: string): Op {

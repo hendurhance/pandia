@@ -217,6 +217,28 @@ describe('CompareView — side-by-side', () => {
 	});
 });
 
+describe('CompareView — a large diff', () => {
+	it('renders only a window of the entries list', async () => {
+		const n = 10_000;
+		texts = { L: `[${'"a",'.repeat(n - 1)}"a"]`, R: `[${'"b",'.repeat(n - 1)}"b"]` };
+		entries = Array.from({ length: n }, (_, i) => entry({ path: [i], kind: 'changed' }));
+		const { container } = render(CompareView, { props });
+
+		await vi.waitFor(() =>
+			expect(container.querySelector('.summary')?.textContent).toMatch(/^10000 entries/),
+		);
+		await vi.waitFor(() => expect(container.querySelector('.entry')).not.toBeNull());
+
+		expect(container.querySelectorAll('.entry').length).toBeLessThan(100);
+
+		const list = container.querySelector<HTMLElement>('.entries')!;
+		list.scrollTo = vi.fn() as never;
+		await fireEvent.click(within(container).getByTitle('Previous diff'));
+		expect(container.querySelector('.counter')?.textContent?.trim()).toBe('#10000 / 10000');
+		expect(list.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: (n - 1) * 22 }));
+	});
+});
+
 describe('CompareView — sync scroll', () => {
 	// jsdom has no layout: give a pane a size, and fire a scroll event for every scrollTop
 	// write as browsers do (CodeMirror centers an entry by writing scrollTop).

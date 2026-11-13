@@ -180,7 +180,7 @@ export class DocumentSession {
 		setTimeout(() => (this.saveFlash = null), SAVE_FLASH_MS);
 	};
 
-	private flushCode = async (): Promise<boolean> => {
+	flushCode = async (): Promise<boolean> => {
 		const api = this.deps.code.api();
 		if (this.viewMode === 'code' && this.deps.code.dirty() && api) return api.flush();
 		return true;

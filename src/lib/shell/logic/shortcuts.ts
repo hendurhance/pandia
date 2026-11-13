@@ -60,10 +60,27 @@ function typedKeyCode(e: KeyboardEvent): string {
 	return /^[a-z]$/i.test(e.key) ? `Key${e.key.toUpperCase()}` : e.code;
 }
 
+const SHIFTED_PUNCTUATION_CODES: Record<string, string> = {
+	'{': 'BracketLeft',
+	'}': 'BracketRight',
+};
+
+const PUNCTUATION_KEYS = new Set(Object.values(PUNCTUATION_CODES));
+
+function pressedCombo(e: KeyboardEvent): string | null {
+	const typed = PUNCTUATION_CODES[e.key];
+	if (typed) return combo(e.altKey, false, typed);
+	const shifted = SHIFTED_PUNCTUATION_CODES[e.key];
+	if (shifted) return combo(e.altKey, true, shifted);
+	if (PUNCTUATION_KEYS.has(e.code)) return null;
+	return combo(e.altKey, e.shiftKey, typedKeyCode(e));
+}
+
 export function matchShortcut(e: KeyboardEvent): string | null {
 	if (isMac) return null;
 	if (!e.ctrlKey || e.metaKey) return null;
-	const pressed = combo(e.altKey, e.shiftKey, typedKeyCode(e));
+	const pressed = pressedCombo(e);
+	if (!pressed) return null;
 	if (TEXT_FIELD_EDITS.has(pressed) && isTextField(e.target)) return null;
 	return COMMAND_BY_COMBO.get(pressed) ?? null;
 }

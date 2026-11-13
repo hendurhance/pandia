@@ -107,10 +107,12 @@
 				}
 			}
 		} catch (e) {
-			error = describeError(e);
+			if (gen === loadGen) error = describeError(e);
 		} finally {
-			loading = false;
-			queueMicrotask(() => canvasApi?.fitView());
+			if (gen === loadGen) {
+				loading = false;
+				queueMicrotask(() => canvasApi?.fitView());
+			}
 		}
 	}
 
@@ -147,15 +149,23 @@
 
 	async function toggleRow(row: CardRow) {
 		if (!row.expandable || !root) return;
-		if (row.children.length > 0) row.children = [];
-		else await expandRowFetch(handle, row);
-		root = { ...root }; // new identity → re-layout
+		try {
+			if (row.children.length > 0) row.children = [];
+			else await expandRowFetch(handle, row);
+			root = { ...root }; // new identity → re-layout
+		} catch (e) {
+			error = describeError(e);
+		}
 	}
 
 	async function showMore(more: MoreItems) {
 		if (!root) return;
-		await showMoreFetch(handle, more);
-		root = { ...root };
+		try {
+			await showMoreFetch(handle, more);
+			root = { ...root };
+		} catch (e) {
+			error = describeError(e);
+		}
 	}
 
 	let collapseGen = 0;
@@ -243,12 +253,12 @@
 	);
 
 	$effect(() => {
-		const match = searchMatches[activeMatch];
-		if (!match || !canvasApi) return;
+		if (!searchHighlightId || !canvasApi) return;
 		const api = canvasApi;
-		const cx = match.x + match.w / 2;
-		const cy = match.y + match.h / 2;
-		untrack(() => api.centerOn(cx, cy));
+		untrack(() => {
+			const match = searchMatches[activeMatch];
+			if (match) api.centerOn(match.x + match.w / 2, match.y + match.h / 2);
+		});
 	});
 
 	function openSearch() {
@@ -279,10 +289,14 @@
 
 	let isFullscreen = $state(false);
 	$effect(() => {
-		void getCurrentWebviewWindow()
-			.isFullscreen()
-			.then((v) => (isFullscreen = v))
-			.catch(() => {});
+		const read = () =>
+			void getCurrentWebviewWindow()
+				.isFullscreen()
+				.then((v) => (isFullscreen = v))
+				.catch(() => {});
+		read();
+		window.addEventListener('resize', read);
+		return () => window.removeEventListener('resize', read);
 	});
 	async function toggleFullscreen() {
 		const win = getCurrentWebviewWindow();

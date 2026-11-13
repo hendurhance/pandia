@@ -290,7 +290,7 @@ export class Workspace {
 			const ctx = this.views[id]?.context;
 			if (!ctx) continue;
 			if (choice === 'discard') {
-				void ipc.docBackupClear(ctx.handle).catch(() => {});
+				await ipc.docBackupClear(ctx.handle).catch(() => {});
 				continue;
 			}
 			this.activate(id); // a Save As dialog should show which document it is for

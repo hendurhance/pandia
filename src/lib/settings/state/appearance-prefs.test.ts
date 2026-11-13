@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { loadPersisted } from '$lib/util/persist';
+import { DEFAULT_THEME } from '$lib/shell/logic/theme';
 import { appearancePrefs } from './appearance-prefs.svelte';
 
 vi.mock('$lib/util/persist', () => ({
@@ -21,5 +22,14 @@ describe('appearancePrefs', () => {
 		await appearancePrefs.reload();
 		expect(style.getPropertyValue('--font-mono')).not.toContain('Fira Code');
 		expect(style.getPropertyValue('--font-size-base')).not.toBe('16px');
+	});
+
+	it('uses the default theme and still applies the rest when the saved theme id is "constructor"', async () => {
+		const style = document.documentElement.style;
+		vi.mocked(loadPersisted).mockResolvedValue({ themeId: 'constructor', fontSizeBase: 15 });
+		await appearancePrefs.reload();
+		expect(appearancePrefs.themeId).toBe(DEFAULT_THEME.id);
+		expect(style.getPropertyValue('--bg')).toBe(DEFAULT_THEME.colors.bg);
+		expect(style.getPropertyValue('--font-size-base')).toBe('15px');
 	});
 });

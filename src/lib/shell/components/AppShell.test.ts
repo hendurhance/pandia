@@ -6,6 +6,8 @@ import { ipc } from '$lib/ipc/client';
 import type { BackupRecord, OpenOutcome, OpenSource } from '$lib/ipc/bindings';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { savePersisted, TABS_FILE } from '$lib/util/persist';
 import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 import { updateCheck } from '$lib/shell/state/update-check.svelte';
 import AppShell from './AppShell.svelte';
@@ -17,6 +19,7 @@ const h = vi.hoisted(() => ({
 	fns: {} as Record<string, ReturnType<typeof import('vitest').vi.fn>>,
 	onClose: null as ((event: { preventDefault: () => void }) => Promise<void>) | null,
 	destroyed: 0,
+	atDestroy: null as (() => void) | null,
 }));
 
 vi.mock('$lib/ipc/client', async () => {
@@ -49,6 +52,7 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 		startDragging: async () => {},
 		destroy: async () => {
 			h.destroyed += 1;
+			h.atDestroy?.();
 		},
 	}),
 }));
@@ -94,6 +98,7 @@ beforeEach(() => {
 	vi.mocked(ipc.docClose).mockResolvedValue(true);
 	h.settingsGate = null;
 	h.destroyed = 0;
+	h.atDestroy = null;
 });
 afterEach(() => cleanup());
 
@@ -373,5 +378,79 @@ describe('unsaved-changes prompts', () => {
 		expect(document.activeElement, 'focus stayed on the previous prompt’s cancel button').toBe(
 			within(second!).getByRole('button', { name: /^save/ }),
 		);
+	});
+});
+
+describe('quitting', () => {
+	const quit = async (button: RegExp) => {
+		void h.onClose?.({ preventDefault: () => {} });
+		const prompt = await vi.waitFor(
+			() => unsavedPrompt() ?? Promise.reject(new Error('no prompt')),
+		);
+		await fireEvent.click(within(prompt).getByRole('button', { name: button }));
+	};
+
+	it('reopens a pasted document saved from the quit prompt at the next launch', async () => {
+		const summary = {
+			rootKind: 'object' as const,
+			rootChildCount: 1,
+			sourcePath: null,
+			sourceSize: 7,
+			lazy: false,
+			version: 1,
+			dirty: true,
+			fileBacked: false,
+			recoveryNote: null,
+			commentsStripped: false,
+		};
+		vi.mocked(ipc.docOpen).mockResolvedValue({
+			kind: 'opened',
+			handle: 'pasted' as never,
+			summary,
+			notes: { convertedFrom: null, repairs: [] },
+		});
+		vi.mocked(saveDialog).mockResolvedValue('/w/saved.json');
+		vi.mocked(ipc.docSave).mockResolvedValue({ path: '/w/saved.json', version: 1 });
+		vi.mocked(ipc.docSummary).mockResolvedValue({
+			...summary,
+			sourcePath: '/w/saved.json',
+			dirty: false,
+			fileBacked: true,
+		});
+		const { container } = render(AppShell);
+		await fireEvent.paste(container.querySelector('textarea')!, {
+			clipboardData: { getData: () => '{"a":1}' },
+		});
+		await vi.waitFor(() => expect(container.querySelector('.view-modes')).not.toBeNull());
+		let tabsAtQuit: unknown;
+		h.atDestroy = () =>
+			(tabsAtQuit = vi
+				.mocked(savePersisted)
+				.mock.calls.findLast(([file]) => file === TABS_FILE)?.[2]);
+
+		await quit(/^save/);
+		await vi.waitFor(() => expect(h.destroyed).toBe(1));
+
+		expect(tabsAtQuit).toEqual({ paths: ['/w/saved.json'], activeIndex: 0 });
+	});
+
+	it('closes the window only after the backup of discarded work is deleted', async () => {
+		launchWithEdited('/w/a.json');
+		const { container } = render(AppShell);
+		await vi.waitFor(() => expect(container.querySelector('.view-modes')).not.toBeNull());
+		let backupCleared!: () => void;
+		vi.mocked(ipc.docBackupClear).mockImplementation(
+			() => new Promise((r) => (backupCleared = () => r(null))),
+		);
+
+		await quit(/^don't save/);
+		await vi.waitFor(() => expect(ipc.docBackupClear).toHaveBeenCalledWith('/w/a.json'));
+		await settle();
+		const destroyedBeforeCleared = h.destroyed;
+		backupCleared();
+		await settle();
+
+		expect(destroyedBeforeCleared, 'the window closed while the backup still existed').toBe(0);
+		expect(h.destroyed).toBe(1);
 	});
 });

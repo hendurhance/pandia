@@ -35,6 +35,16 @@ export interface GridQuery {
 	filtering: boolean;
 }
 
+function engineQuery(q: GridQuery) {
+	return {
+		groups: q.filterGroups,
+		quick: q.quick.trim() || null,
+		quickKeys: q.quickKeys,
+		sortKey: q.sortKey,
+		descending: q.sortDesc,
+	};
+}
+
 export interface GridDataDeps {
 	handle: () => DocHandle;
 	path: () => Path;
@@ -64,20 +74,7 @@ export class GridDataController {
 				const jobId = crypto.randomUUID();
 				this.filterJobIds.add(jobId);
 				try {
-					const res = await ipc.docGetRowsFiltered(
-						handle,
-						path,
-						start,
-						end,
-						{
-							groups: q.filterGroups,
-							quick: q.quick.trim() || null,
-							quickKeys: q.quickKeys,
-							sortKey: q.sortKey,
-							descending: q.sortDesc,
-						},
-						jobId,
-					);
+					const res = await ipc.docGetRowsFiltered(handle, path, start, end, engineQuery(q), jobId);
 					return { items: res.rows.map(decodeRow), total: res.total };
 				} finally {
 					this.filterJobIds.delete(jobId);
@@ -175,6 +172,18 @@ export class GridDataController {
 		return cellOf(row.value, colKey);
 	};
 
+	setCell = (index: number, colKey: string, value: unknown) => {
+		for (const [start, rows] of this.source.pages) {
+			const at = rows.findIndex((r) => r.index === index);
+			const row = rows[at];
+			if (!row) continue;
+			const patched = [...rows];
+			patched[at] = { index, value: { ...(row.value as object), [colKey]: value } };
+			this.source.pages = new Map(this.source.pages).set(start, patched);
+			return;
+		}
+	};
+
 	loadedColumnTexts = (colKey: string): string[] => {
 		const out: string[] = [];
 		for (const rows of this.chunks.values()) {
@@ -194,6 +203,15 @@ export class GridDataController {
 	fetchRange = async (lo: number, hi: number) => {
 		await this.source.ensureRange(lo, hi + 1);
 	};
+
+	rowIndices = (lo: number, hi: number): Promise<number[]> =>
+		ipc.docGetRowIndices(
+			this.deps.handle(),
+			this.deps.path(),
+			lo,
+			hi + 1,
+			engineQuery(this.deps.query()),
+		);
 
 	reset = () => {
 		untrack(() => {

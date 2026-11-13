@@ -47,6 +47,15 @@
 		onToggleReplace,
 	}: Props = $props();
 
+	$effect(() => {
+		if (!open) return;
+		const returnFocus = document.activeElement;
+		return () => {
+			if (!(returnFocus instanceof HTMLElement) || !returnFocus.isConnected) return;
+			if (document.activeElement === document.body) returnFocus.focus();
+		};
+	});
+
 	function onReplaceInput(e: Event) {
 		onReplaceChange((e.target as HTMLInputElement).value);
 	}

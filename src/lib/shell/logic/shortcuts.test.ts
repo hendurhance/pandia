@@ -64,9 +64,9 @@ describe('matchShortcut — Ctrl shortcuts off macOS', () => {
 	it('finds the command for letter, digit and punctuation keys', () => {
 		expect(matchShortcut(key('KeyS', { shiftKey: true }))).toBe('doc.saveAs');
 		expect(matchShortcut(key('Digit2'))).toBe('view.code');
-		expect(matchShortcut(key('BracketRight', { shiftKey: true }))).toBe('tab.next');
-		expect(matchShortcut(key('Comma'))).toBe('nav.settings');
-		expect(matchShortcut(key('Slash'))).toBe('help.shortcuts');
+		expect(matchShortcut(key('BracketRight', { key: '}', shiftKey: true }))).toBe('tab.next');
+		expect(matchShortcut(key('Comma', { key: ',' }))).toBe('nav.settings');
+		expect(matchShortcut(key('Slash', { key: '/' }))).toBe('help.shortcuts');
 		expect(matchShortcut(key('KeyH'))).toBe('find.replace');
 	});
 
@@ -85,10 +85,21 @@ describe('matchShortcut — keyboard layouts', () => {
 		expect(matchShortcut(key('KeyW', { key: 'Z', shiftKey: true }))).toBe('doc.redo');
 	});
 
-	it('keeps digits, punctuation and non-Latin letters on their physical keys', () => {
+	it('keeps digits and non-Latin letters on their physical keys', () => {
 		expect(matchShortcut(key('Digit1', { key: '&' }))).toBe('view.tree');
-		expect(matchShortcut(key('Comma', { key: ';' }))).toBe('nav.settings');
 		expect(matchShortcut(key('KeyZ', { key: 'я' }))).toBe('doc.undo');
+	});
+
+	it('runs a punctuation shortcut only from a key that types it', () => {
+		expect(matchShortcut(key('Slash', { key: '-' }))).toBeNull();
+		expect(matchShortcut(key('Comma', { key: ';' }))).toBeNull();
+		expect(matchShortcut(key('KeyM', { key: ',' }))).toBe('nav.settings');
+		expect(matchShortcut(key('BracketRight', { key: '}', shiftKey: true }))).toBe('tab.next');
+		expect(matchShortcut(key('BracketLeft', { key: '{', shiftKey: true }))).toBe('tab.prev');
+	});
+
+	it('matches punctuation by the character it types, so German Ctrl+Shift+7 (/) opens the shortcuts', () => {
+		expect(matchShortcut(key('Digit7', { key: '/', shiftKey: true }))).toBe('help.shortcuts');
 	});
 });
 
