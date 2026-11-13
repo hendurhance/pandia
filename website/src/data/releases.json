@@ -9,24 +9,34 @@
 				"label": "New",
 				"items": [
 					{
-						"title": "Paste a cURL command and get the response",
-						"detail": "Copy a request as cURL from Postman or your browser and paste it into the start screen. A GET is sent straight away and the response opens in that tab, at any size; for POST and other methods Pandia shows the request first and waits for your click. Options Pandia cannot honour, such as `-k`, are refused by name. “Open the request as JSON” still shows the request itself."
+						"title": "Paste a cURL command on the start screen to send it",
+						"detail": "GET requests run straight away. Other methods show the request first and wait for you."
 					},
 					{
-						"title": "Edit cells in the Grid",
-						"detail": "Double-click a Grid cell, or press ⏎ or F2, to edit it in place. ⏎ saves and moves down, Tab saves and moves right, and Esc cancels. Typing into an empty cell adds the key to that row. See [Views](/docs/views)."
+						"title": "Edit Grid cells in place",
+						"detail": "Double-click a cell, or press ⏎ or F2. See [Views](/docs/views)."
 					},
 					{
-						"title": "Answer in the terminal, without a window",
-						"detail": "Eight new commands print their answer and exit, so scripts and AI agents can use them on files of any size: `pandia get` prints the value at a path, `shape` sketches the structure, and `validate`, `diff`, `search`, `types`, `convert` and `repair` do what the app does. Exit codes work like `diff` and `grep`. See [Command line](/docs/command-line)."
+						"title": "Terminal commands that print a result and exit",
+						"detail": "`get`, `shape`, `validate`, `diff`, `search`, `types`, `convert` and `repair` work on files of any size. See [Command line](/docs/command-line)."
 					},
 					{
-						"title": "Types for fields that are sometimes null or empty",
-						"detail": "A field that is a string in one item and `null` in another now becomes `string | null` in TypeScript, `Option<String>` in Rust and the nullable form in every other language, instead of `unknown`. An array that is empty in some items keeps its item type too."
+						"title": "Generated types for fields that are sometimes `null`",
+						"detail": "They become `string | null`, `Option<String>` and so on, instead of `unknown`."
 					},
 					{
-						"title": "Check the version from the terminal",
-						"detail": "`pandia --version` (or `-v`) prints the installed version."
+						"title": "`pandia --version` prints the installed version"
+					}
+				]
+			},
+			{
+				"label": "Improved",
+				"items": [
+					{
+						"title": "Open up to 50 tabs, up from 10"
+					},
+					{
+						"title": "Find in Code view highlights every match"
 					}
 				]
 			},
@@ -35,47 +45,60 @@
 				"items": [
 					{
 						"title": "`--schema` and `--diff` work when the command starts Pandia",
-						"detail": "`pandia config.json --schema config.schema.json` loaded the schema only when Pandia was already open, and `pandia --diff a.json b.json` opened Compare only then too. When the same command started Pandia, the file opened without them. Thanks to [@bastiankistner](https://github.com/hendurhance/pandia/issues/27) for the report."
+						"detail": "Thanks to [@bastiankistner](https://github.com/hendurhance/pandia/issues/27) for the report."
 					},
 					{
-						"title": "Restored work is kept until you save it",
-						"detail": "Unsaved work restored after an unexpected close now opens as unsaved, so closing it asks first, and its backup stays until the tab has loaded. Undoing back to the saved state no longer leaves a backup that is offered again on the next launch."
+						"title": "⌘Q, File → Exit, Quit from the Dock and logging out ask about unsaved changes"
 					},
 					{
-						"title": "Edits land on the node you chose",
-						"detail": "Paste after a cut no longer removes a different value when another edit moved things in between. The row menu acts on the row you opened it on, even if rows above it finish loading meanwhile. Quick undos no longer leave rows that are gone."
+						"title": "Code view changes the document only when you press ⌘⏎",
+						"detail": "Esc reverts. Crash backups still keep what you typed."
 					},
 					{
-						"title": "Schemas stay with the right document",
-						"detail": "A file opened into a tab no longer inherits the previous file's schema. A relative `$schema` in a repaired or converted copy is read from the original's folder. Two documents that each ask to download a schema both get asked. A schema file that starts with a byte-order mark loads."
+						"title": "Clearer keys for editing strings in the Tree",
+						"detail": "⏎ commits a one-line string, ⇧⏎ adds a line break and ⌘⏎ commits a multi-line string."
 					},
 					{
-						"title": "Startup uses your saved settings",
-						"detail": "A file opened as Pandia starts now follows your saved settings, such as the large file warning, instead of the defaults."
+						"title": "An invalid Tree value keeps its editor open and shows why"
 					},
 					{
-						"title": "Code view and string edits do what the keys say",
-						"detail": "Typing in Code view no longer changes the document by itself after a pause: nothing changes until ⌘⏎, and Esc reverts. Crash backups still keep what you typed. In the Tree, ⏎ commits a one-line string, ⇧⏎ adds a line break, and ⌘⏎ commits a multi-line string."
+						"title": "Restored work stays unsaved until you save it"
 					},
 					{
-						"title": "Quitting asks about unsaved changes",
-						"detail": "\u2318Q, File \u2192 Exit, Quit from the Dock and logging out now ask about unsaved changes, the same as closing the window. Before, they quit straight away."
+						"title": "Cut and paste, the row menu and undo act on the right node while rows load"
 					},
 					{
-						"title": "A value that isn't valid stays in its editor",
-						"detail": "Typing something that isn't a valid number, boolean or null into a Tree value now keeps the editor open with your text and the reason, instead of discarding what you typed."
+						"title": "A file opened into a tab no longer keeps the previous file's schema"
 					},
 					{
-						"title": "Code view highlights every match",
-						"detail": "Find in Code view now marks every match, with the current one stronger, and clears the marks when you close the find bar."
+						"title": "Relative `$schema` paths in repaired or converted copies resolve from the original file's folder"
 					},
 					{
-						"title": "Up to 50 tabs",
-						"detail": "You can now open 50 tabs instead of 10. Each extra tab adds only a few MB of memory; most of the memory goes to the documents themselves."
+						"title": "Schema files that start with a byte-order mark load"
 					},
 					{
-						"title": "Smaller fixes",
-						"detail": "Code view find and replace treats `\\n` as plain text. The Open dialog accepts YAML, XML and CSV. A slow URL fetch no longer replaces a document you opened while it ran, and a cURL response isn't dropped when a file arrives while it loads. History steps show the right text in Code view. Grid filter checklists show current values."
+						"title": "Each document that asks to download a schema gets its own prompt"
+					},
+					{
+						"title": "Files opened at launch follow your saved settings, such as the large file warning"
+					},
+					{
+						"title": "Find and replace in Code view treats `\\n` as plain text"
+					},
+					{
+						"title": "The Open dialog accepts YAML, XML and CSV"
+					},
+					{
+						"title": "A slow URL fetch no longer replaces a document opened while it loads"
+					},
+					{
+						"title": "A cURL response is no longer dropped when a file opens while it loads"
+					},
+					{
+						"title": "History steps show the right text in Code view"
+					},
+					{
+						"title": "Grid filter checklists show current values"
 					}
 				]
 			}
@@ -92,31 +115,31 @@
 				"items": [
 					{
 						"title": "Open files from the terminal with `pandia`",
-						"detail": "Install the command under Settings → Behavior. `pandia a.json b.json` opens both files as tabs in the window you already have, `pandia --diff a.json b.json` opens them in Compare, and `cat data.json | pandia -` opens piped input. See [the command-line guide](/docs/command-line)."
+						"detail": "Install it under Settings → Behavior. It also opens Compare with `--diff` and piped input with `-`. See [the command-line guide](/docs/command-line)."
 					},
 					{
-						"title": "Review piped JSON and send it back to a script",
-						"detail": "With `--wait`, the command waits until you close the tab. Edit the JSON, press Save, and the command prints what you saved, so `pandia --wait - < draft.json > final.json` puts a person in the middle of a script. The exit code says whether the file opened, passed its schema or was closed without saving, and `--json` prints a full report instead."
+						"title": "`--wait` returns what you save to the calling script",
+						"detail": "`pandia --wait - < draft.json > final.json` lets you edit JSON in the middle of a script. Exit codes report the result, and `--json` prints a full report."
 					},
 					{
-						"title": "Schemas load on their own",
-						"detail": "Open a document whose top-level `$schema` points to a schema file or URL, and the Schema panel loads it and validates. `--schema` sets one from the terminal and wins over the document. Pandia asks before downloading a schema from the web, and uses only https:// unless you allow http under Settings → Behavior. Requested in [#27](https://github.com/hendurhance/pandia/issues/27)."
+						"title": "Schemas load from a document's `$schema`",
+						"detail": "`--schema` sets one from the terminal. Pandia asks before downloading a schema. Requested in [#27](https://github.com/hendurhance/pandia/issues/27)."
 					},
 					{
-						"title": "Preview images inside your data",
-						"detail": "Hover a value holding an image in Tree or Grid to see it. `data:image` values show at once. Links to images on the web ask before loading, or load straight away once you turn on “image previews from the web”."
+						"title": "Hover an image value in Tree or Grid to preview it",
+						"detail": "Web images ask first, unless you turn on “image previews from the web”."
 					},
 					{
-						"title": "Pull one key out of every item",
-						"detail": "Right-click a key inside an array item and choose “Extract key from all items”. Pandia collects that key from every item into a new tab as an array, and skips items that do not have it."
+						"title": "Extract one key from every item in an array",
+						"detail": "Right-click the key and choose “Extract key from all items”."
 					},
 					{
-						"title": "Edit a key or value where it is",
-						"detail": "Double-click a key or value in Tree to edit it in place. F2 does the same from the keyboard."
+						"title": "Edit keys and values in place in the Tree",
+						"detail": "Double-click, or press F2."
 					},
 					{
-						"title": "See what changed when you update",
-						"detail": "The update prompt now shows the notes for the new version, with Install and restart, Later and Skip this version. If you update another way, a “what’s new” cell in the status bar opens them once. Help → What’s New shows every version."
+						"title": "The update prompt shows the release notes",
+						"detail": "Help → What’s New lists every version."
 					}
 				]
 			},
@@ -125,47 +148,48 @@
 				"items": [
 					{
 						"title": "A repaired file opens as a copy",
-						"detail": "Repair used to put the fixed text in place of your file on the next Save. A repaired file now opens as `name.repaired.json`, so Save asks where to keep it, and the banner lists each change in a plain sentence, such as “Added a missing colon.”"
+						"detail": "It opens as `name.repaired.json`, and the banner lists each change."
 					},
 					{
 						"title": "Repair fixes more broken files",
-						"detail": "`{\"a\" 1}` gets its colon back instead of losing the key, JSON Lines with a cut-off last line opens, a broken `\\ud800` escape becomes �, and `NaN`, `Infinity` or `undefined` turned into `null` come with a note that says so."
+						"detail": "Missing colons, a cut-off last line in JSON Lines and broken escapes. Values like `NaN` turned into `null` come with a note."
 					},
 					{
-						"title": "Very large files take half the memory",
-						"detail": "Opening a 524 MB file used to peak at 1.08 GB of memory, because the text was held twice. It now peaks at 553 MB, so a 2 GB file no longer needs about 4 GB free."
+						"title": "Very large files use half the memory",
+						"detail": "A 524 MB file now peaks at 553 MB instead of 1.08 GB."
 					},
 					{
-						"title": "Grid reaches every row and finds every column",
-						"detail": "Arrays of more than 1.4 million rows stopped scrolling before the end; the scrollbar now reaches the last row. A key that appears in only a few items far down the array now becomes a column, found by a scan in the background. On an array nested inside a 106 MB file, finding the columns went from 9.8 seconds to 0.18."
+						"title": "Grid scrolls to the last row of arrays with over 1.4 million rows"
 					},
 					{
-						"title": "Grid shows `null` and filters text as text",
-						"detail": "A `null` cell shows `—`, so it no longer looks the same as a missing one, and filtering a text column for `501` no longer matches `00501`."
+						"title": "Grid finds columns that appear in only a few items",
+						"detail": "Finding columns in a 106 MB file went from 9.8 s to 0.18 s."
 					},
 					{
-						"title": "Documents nested up to 1,000 levels deep",
-						"detail": "Valid JSON nested more than 128 levels deep was called invalid, and some deeper files crashed the app. Every view now handles 1,000 levels, and a deeper file gets a plain message instead of a crash."
+						"title": "Grid shows `null` as `—`, and filters text columns as text"
 					},
 					{
-						"title": "Compare shows what really changed",
-						"detail": "Editing an item after an insert used to show the whole item as removed and added again. Compare now shows the insert and the one field that changed, updates as you edit either side, and keeps your place in the list."
+						"title": "Documents nested up to 1,000 levels deep open in every view"
+					},
+					{
+						"title": "Compare shows the field that changed after an insert, and updates as you edit"
 					},
 					{
 						"title": "Generated types compile in more cases",
-						"detail": "Keys like `type` or `class` no longer break Rust, Python, Java or Kotlin. Java compiles as one file, IDs above the 64-bit signed limit get a type that holds them in every language, such as `u64`, `BigInteger`, `ULong`, `int|float` or `num`, PHP no longer writes the invalid `?mixed`, and Python dataclasses import with optional fields in any order."
+						"detail": "Fixes for reserved keys like `type`, IDs above the 64-bit limit, Java, PHP and Python."
 					},
 					{
-						"title": "CSV keeps your data as it is",
-						"detail": "Importing keeps codes like `00501` as text. Exporting puts a `'` before text that starts with `=`, `+`, `-` or `@`, so a spreadsheet shows it instead of running it as a formula."
+						"title": "CSV import keeps codes like `00501` as text"
 					},
 					{
-						"title": "Theme follows your system",
-						"detail": "New installs and Restore defaults use Auto, and light mode no longer flashes dark at startup."
+						"title": "CSV export stops spreadsheets from running text as formulas"
 					},
 					{
-						"title": "File errors name the file and the cause",
-						"detail": "When open, save or export fails, the message says which file and why: it is missing, you have no permission, it is a folder, it is not UTF-8, the disk is full or it is read-only."
+						"title": "New installs follow the system theme",
+						"detail": "Light mode no longer flashes dark at startup."
+					},
+					{
+						"title": "File errors name the file and the cause"
 					}
 				]
 			},
@@ -173,60 +197,60 @@
 				"label": "Fixed",
 				"items": [
 					{
-						"title": "Copy value and paste failed on Linux",
-						"detail": "Copy → Value showed “The request is not allowed by the user agent…” and copied nothing, and Paste said the clipboard was unavailable. Copy and paste now go through the system clipboard directly. Reported in [#30](https://github.com/hendurhance/pandia/issues/30)."
+						"title": "Copy value and paste work on Linux",
+						"detail": "Reported in [#30](https://github.com/hendurhance/pandia/issues/30)."
 					},
 					{
-						"title": "A failed edit on a large file could replace it with `null`",
-						"detail": "On files of 10 MB or more, an edit that reached a deeply nested value or a broken emoji escape turned the document into `null`, and Save then wrote `null` over the file. A failed edit now leaves the document as it was."
+						"title": "A failed edit on a file of 10 MB or more no longer turns the document into `null`"
 					},
 					{
-						"title": "Repair could change the text inside strings",
-						"detail": "A path such as `C:\\\\new\\\\file.txt` came back with a line break and a form feed in it. Repair no longer touches escapes inside strings."
+						"title": "Repair no longer changes escapes inside strings"
 					},
 					{
-						"title": "Replace All could delete a key",
-						"detail": "Replacing `foo` with `baz` in `{\"foo\": 1, \"baz\": 2}` silently dropped one of them. A rename that would collide with another key is now skipped."
+						"title": "Replace All no longer deletes a key when a rename collides with another"
 					},
 					{
-						"title": "Restoring after a crash brought back only one tab",
-						"detail": "“Restore all” reopened the last backup and deleted the others, and opening several files at once, by dropping three or with `pandia a.json b.json`, opened only the last. Every file now opens in its own tab, and a backup is deleted only after its tab opens."
+						"title": "“Restore all” reopens every backup, not just the last"
 					},
 					{
-						"title": "Close Document discarded unsaved edits",
-						"detail": "It now asks first, the same as closing a tab."
+						"title": "Opening several files at once opens each in its own tab"
 					},
 					{
-						"title": "A crash during Save could leave half a file",
-						"detail": "Save, export and crash backups now write to a temporary file and swap it in, so a crash or a full disk mid-write leaves the original intact. An export that fails no longer empties the file it was replacing."
+						"title": "Close Document asks before discarding unsaved edits"
 					},
 					{
-						"title": "Your last keystrokes could be skipped by Save",
-						"detail": "A background save that finished while you were typing in Code view marked the tab as saved, so ⌘S missed what you typed after it. An unfinished edit in Code view was also dropped when you jumped away with Compare, Go to Path or the Outline."
+						"title": "A crash or full disk during Save leaves the original file intact",
+						"detail": "Save, export and crash backups write to a temporary file first."
 					},
 					{
-						"title": "Moves in Tree landed on the wrong item",
-						"detail": "Dragging item 500 onto 499 moved it to index 231, an edit could save to another row after rows loaded above it, and Cut then Paste in the same array made a copy instead of moving."
+						"title": "⌘S no longer misses text typed after a background save"
 					},
 					{
-						"title": "Edits waited for a running comparison",
-						"detail": "Comparing two large documents held them locked, so an edit could wait close to a second for the comparison to finish. Edits now go through at once."
+						"title": "Jumping away from Code view keeps your unfinished edit"
 					},
 					{
-						"title": "Find and Replace opened Hide on macOS",
-						"detail": "⌘H is the macOS shortcut for Hide. Find and Replace is now ⌘⌥F on macOS and opens with the replace field showing; Windows and Linux keep Ctrl+H."
+						"title": "Drag, edit and Cut then Paste in the Tree land on the right item"
 					},
 					{
-						"title": "Text-field shortcuts on Windows and Linux",
-						"detail": "Ctrl+Z and Ctrl+Shift+V in a text field now edit that field instead of the document, and Ctrl+Z on a French AZERTY keyboard no longer closes the tab."
+						"title": "Edits no longer wait for a running comparison"
 					},
 					{
-						"title": "Find jumped back to the first match after every edit",
-						"detail": "It now keeps your place, and an edit in Code view with Find open no longer switches you to Tree."
+						"title": "Find and Replace is ⌘⌥F on macOS",
+						"detail": "⌘H hides the app again. Windows and Linux keep Ctrl+H."
 					},
 					{
-						"title": "Graph cards overlapped and went stale",
-						"detail": "A tall card no longer covers the one above it, the graph updates after Undo and Redo, and an error no longer replaces it for good. Arrays with thousands of items show a set number of cards and a “… N more” card instead of thousands of cards."
+						"title": "Ctrl+Z and Ctrl+Shift+V edit the focused text field on Windows and Linux",
+						"detail": "Ctrl+Z on an AZERTY keyboard no longer closes the tab."
+					},
+					{
+						"title": "Find keeps your place after an edit",
+						"detail": "Editing in Code view with Find open no longer switches to Tree."
+					},
+					{
+						"title": "Graph cards no longer overlap, and the graph updates after Undo and Redo"
+					},
+					{
+						"title": "Large arrays in Graph show a “… N more” card instead of thousands of cards"
 					}
 				]
 			}
