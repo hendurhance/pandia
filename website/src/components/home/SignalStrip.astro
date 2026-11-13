@@ -11,6 +11,7 @@ const usedBy = [
   { name: 'Nucleus Security', slug: 'nucleus-security' },
   { name: 'Revenue.io', slug: 'revenue-io' },
   { name: 'Gruppo AB', slug: 'gruppoab' },
+  { name: 'North Carolina Central University', slug: 'nccu' },
 ];
 
 const svgs = import.meta.glob<string>('../../assets/logos/*.svg', { query: '?raw', import: 'default', eager: true });
@@ -32,7 +33,7 @@ const logos = sized.map((l) => ({
 ---
 <section class="proof">
   <div class="usedby">
-    <p class="usedby-label">Used by engineers at</p>
+    <p class="usedby-label">Used by thousands of engineers at</p>
     <ul class="usedby-list">
       {logos.map((l) => (
         <li>
@@ -89,9 +90,8 @@ const logos = sized.map((l) => ({
   }
 
   @media (max-width: 940px) {
-    .pandia-page .usedby-list { display: grid; grid-template-columns: repeat(5, 1fr); row-gap: 26px; }
-    .pandia-page .usedby-list li { display: flex; justify-content: center; }
-    .pandia-page .usedby-list li:last-child:nth-child(5n + 1) { grid-column: 1 / -1; }
+    .pandia-page .usedby-list { flex-wrap: wrap; justify-content: center; gap: 26px 0; }
+    .pandia-page .usedby-list li { display: flex; justify-content: center; flex: 0 0 20%; }
     .pandia-page .usedby-logo { width: min(var(--w), 100%); }
     .pandia-page .proof-in { grid-template-columns: 1fr 1fr; }
     .pandia-page .proof-cell:nth-child(2) { border-right: 0; }
@@ -99,9 +99,7 @@ const logos = sized.map((l) => ({
   }
   @media (max-width: 560px) {
     .pandia-page .usedby { padding: 24px 16px 26px; }
-    .pandia-page .usedby-list { grid-template-columns: repeat(2, 1fr); }
-    .pandia-page .usedby-list li:last-child:nth-child(5n + 1) { grid-column: auto; }
-    .pandia-page .usedby-list li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .pandia-page .usedby-list li { flex-basis: 50%; }
     .pandia-page .usedby-logo { width: min(calc(var(--w) * 0.85), 100%); }
     .pandia-page .proof-cell { padding: 18px 16px; }
     .pandia-page .proof-cell .pv { font-size: 19px; }
