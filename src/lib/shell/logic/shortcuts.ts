@@ -28,7 +28,25 @@ const KEYS_BY_COMMAND = new Map<string, string>(
 	HERE.map((s) => [s.command, `⌘${s.alt ? '⌥' : ''}${s.shift ? '⇧' : ''}${s.key}`]),
 );
 
-const TEXT_FIELD_COMBOS = new Set(['KeyZ', 'Shift+KeyZ', 'Shift+KeyV']);
+export type TextFieldEdit = 'undo' | 'redo' | 'paste';
+
+const TEXT_FIELD_EDITS = new Map<string, TextFieldEdit>([
+	['KeyZ', 'undo'],
+	['Shift+KeyZ', 'redo'],
+	['Shift+KeyV', 'paste'],
+]);
+
+const TEXT_FIELD_EDIT_BY_COMMAND = new Map<string, TextFieldEdit>(
+	[...TEXT_FIELD_EDITS].flatMap(([pressed, edit]) => {
+		const command = COMMAND_BY_COMBO.get(pressed);
+		return command ? [[command, edit] as const] : [];
+	}),
+);
+
+export function textFieldEditFor(command: string, el: Element | null): TextFieldEdit | null {
+	if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
+	return TEXT_FIELD_EDIT_BY_COMMAND.get(command) ?? null;
+}
 
 function isTextField(el: EventTarget | null): boolean {
 	return (
@@ -46,7 +64,7 @@ export function matchShortcut(e: KeyboardEvent): string | null {
 	if (isMac) return null;
 	if (!e.ctrlKey || e.metaKey) return null;
 	const pressed = combo(e.altKey, e.shiftKey, typedKeyCode(e));
-	if (TEXT_FIELD_COMBOS.has(pressed) && isTextField(e.target)) return null;
+	if (TEXT_FIELD_EDITS.has(pressed) && isTextField(e.target)) return null;
 	return COMMAND_BY_COMBO.get(pressed) ?? null;
 }
 

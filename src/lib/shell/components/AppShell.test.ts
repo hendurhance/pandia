@@ -4,7 +4,10 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/sve
 import { listen } from '@tauri-apps/api/event';
 import { ipc } from '$lib/ipc/client';
 import type { BackupRecord, OpenOutcome, OpenSource } from '$lib/ipc/bindings';
+import type { Update } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { commandRegistry } from '$lib/palette/state/command-store.svelte';
+import { updateCheck } from '$lib/shell/state/update-check.svelte';
 import AppShell from './AppShell.svelte';
 
 Element.prototype.scrollIntoView = () => {};
@@ -237,6 +240,79 @@ describe('restoring unsaved work after a crash', () => {
 			queryByText('unsaved changes'),
 			'the restored work closed without an unsaved-changes prompt',
 		).not.toBeNull();
+	});
+});
+
+describe('menu shortcuts while typing in a text field', () => {
+	async function menu(id: string) {
+		const call = vi.mocked(listen).mock.calls.find(([name]) => name === 'menu-event');
+		const handler = call?.[1] as ((e: { payload: string }) => void) | undefined;
+		if (!handler) throw new Error('no menu-event listener');
+		handler({ payload: id });
+		await settle();
+	}
+
+	it('⌘Z and ⇧⌘Z undo the typing, not the document', async () => {
+		launchWithEdited('/w/a.json');
+		const { container } = render(AppShell);
+		await vi.waitFor(() => expect(container.querySelector('.view-modes')).not.toBeNull());
+		const execCommand = vi.fn(() => true);
+		document.execCommand = execCommand;
+		const field = document.body.appendChild(document.createElement('input'));
+		field.focus();
+
+		await menu('doc.undo');
+		await menu('doc.redo');
+		expect(ipc.docUndo).not.toHaveBeenCalled();
+		expect(ipc.docRedo).not.toHaveBeenCalled();
+		expect(execCommand.mock.calls.map((c) => (c as unknown[])[0])).toEqual(['undo', 'redo']);
+
+		field.remove();
+		await menu('doc.undo');
+		expect(ipc.docUndo).toHaveBeenCalledOnce();
+	});
+
+	it('⇧⌘V pastes plain text into the field instead of opening the schema panel', async () => {
+		launchWithEdited('/w/a.json');
+		const { container } = render(AppShell);
+		await vi.waitFor(() => expect(container.querySelector('.view-modes')).not.toBeNull());
+		const { readText } = await import('@tauri-apps/plugin-clipboard-manager');
+		vi.mocked(readText).mockResolvedValueOnce('pasted');
+		const execCommand = vi.fn(() => true);
+		document.execCommand = execCommand;
+		const field = document.body.appendChild(document.createElement('textarea'));
+		field.focus();
+
+		await menu('view.openSchemaPanel');
+		expect(execCommand).toHaveBeenCalledWith('insertText', false, 'pasted');
+		expect(container.querySelector('[aria-label="schema"]')).toBeNull();
+		field.remove();
+	});
+});
+
+describe('installing an update', () => {
+	it('asks about unsaved changes before it restarts, and stays when the prompt is cancelled', async () => {
+		launchWithEdited('/w/a.json');
+		const { container } = render(AppShell);
+		await vi.waitFor(() => expect(container.querySelector('.view-modes')).not.toBeNull());
+
+		const update = {
+			version: '9.9.9',
+			currentVersion: '1.0.9',
+			body: '',
+			downloadAndInstall: vi.fn(async () => {}),
+		} as unknown as Update;
+		updateCheck.offer(update);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Install and restart' }));
+
+		const prompt = await vi.waitFor(
+			() => unsavedPrompt() ?? Promise.reject(new Error('restarted without asking')),
+		);
+		expect(relaunch).not.toHaveBeenCalled();
+		await fireEvent.click(within(prompt).getByRole('button', { name: /^cancel/ }));
+		await settle();
+		expect(relaunch).not.toHaveBeenCalled();
+		updateCheck.later();
 	});
 });
 

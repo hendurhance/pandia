@@ -11,6 +11,7 @@
 		vgapCount,
 		type ContentRow,
 		type MenuAction,
+		type PathKey,
 		type Row,
 		type VirtualGapRow,
 	} from '../logic/model';
@@ -298,7 +299,7 @@
 	const DRAG_THRESHOLD = 4; // px of movement before a grip press counts as a drag
 
 	interface DragState {
-		index: number; // flat-list index of the dragged content row
+		key: PathKey;
 		pointerId: number;
 		startY: number;
 		lastY: number;
@@ -306,13 +307,24 @@
 	}
 	let drag = $state<DragState | null>(null);
 	let dropTarget = $state<{ gap: number; y: number; depth: number } | null>(null);
+	const dragIndex = $derived.by(() => {
+		const key = drag?.key;
+		if (key === undefined) return -1;
+		return rows.findIndex((r) => r.variant === 'content' && pathKey(r.path) === key);
+	});
 
-	function onGripDown(e: PointerEvent, i: number) {
+	function onGripDown(e: PointerEvent, path: Path) {
 		if (readOnly || !onReorder || !s.el) return;
 		e.stopPropagation();
 		e.preventDefault();
 		s.el.setPointerCapture(e.pointerId);
-		drag = { index: i, pointerId: e.pointerId, startY: e.clientY, lastY: e.clientY, moved: false };
+		drag = {
+			key: pathKey(path),
+			pointerId: e.pointerId,
+			startY: e.clientY,
+			lastY: e.clientY,
+			moved: false,
+		};
 	}
 
 	function contentY(clientY: number): number {
@@ -325,15 +337,19 @@
 		if (!drag || e.pointerId !== drag.pointerId || !s.el) return;
 		drag.lastY = e.clientY;
 		if (!drag.moved && Math.abs(e.clientY - drag.startY) < DRAG_THRESHOLD) return;
+		if (dragIndex < 0) {
+			onDragCancel();
+			return;
+		}
 		drag.moved = true;
-		dropTarget = gapAt(rows, offsets, drag.index, contentY(e.clientY));
+		dropTarget = gapAt(rows, offsets, dragIndex, contentY(e.clientY));
 		startAutoScroll();
 	}
 
 	function onDragUp(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
 		const moved = drag.moved;
-		const di = drag.index;
+		const di = dragIndex;
 		const target = dropTarget;
 		drag = null;
 		dropTarget = null;
@@ -358,7 +374,11 @@
 		maxStep: ROW_DRAG_MAX_STEP,
 		onTick: () => {
 			if (!drag || !s.el) return;
-			dropTarget = gapAt(rows, offsets, drag.index, contentY(drag.lastY));
+			if (dragIndex < 0) {
+				onDragCancel();
+				return;
+			}
+			dropTarget = gapAt(rows, offsets, dragIndex, contentY(drag.lastY));
 		},
 	});
 	const startAutoScroll = () => autoScroller.start();
@@ -397,7 +417,7 @@
 					class="r"
 					class:expandable
 					class:selected
-					class:dragging={drag?.index === i}
+					class:dragging={dragIndex === i}
 					class:cut
 					data-diff={diff}
 					data-invalid={invalid}
@@ -418,7 +438,7 @@
 							tabindex={-1}
 							aria-label="Drag to reorder"
 							title="Drag to reorder"
-							onpointerdown={(e) => onGripDown(e, i)}
+							onpointerdown={(e) => onGripDown(e, row.path)}
 							onclick={(e) => e.stopPropagation()}><Icon icon={GripVertical} size="xs" /></span
 						>
 					{/if}

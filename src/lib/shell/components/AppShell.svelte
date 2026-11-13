@@ -15,7 +15,8 @@
 	import CommandPalette from '$lib/palette/CommandPalette.svelte';
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import { buildShellCommands, type ShellCommandDeps } from '$lib/shell/logic/app-commands';
-	import { matchShortcut } from '$lib/shell/logic/shortcuts';
+	import { matchShortcut, textFieldEditFor } from '$lib/shell/logic/shortcuts';
+	import { readText } from '@tauri-apps/plugin-clipboard-manager';
 	import DocPane from '$lib/docpane/components/DocPane.svelte';
 	import HelpDialog from '$lib/shell/components/HelpDialog.svelte';
 	import FeedbackDialog from '$lib/shell/components/FeedbackDialog.svelte';
@@ -205,6 +206,11 @@
 		recovery = [];
 	}
 
+	async function prepareToQuit(): Promise<boolean> {
+		await workspace.snapshot();
+		return workspace.closeAll();
+	}
+
 	let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
 	$effect(() => {
 		void workspace.tabList;
@@ -228,8 +234,7 @@
 				closing = true;
 				let shouldClose = true;
 				try {
-					await workspace.snapshot();
-					shouldClose = await workspace.closeAll();
+					shouldClose = await prepareToQuit();
 				} finally {
 					if (shouldClose) await win.destroy();
 					closing = false;
@@ -385,9 +390,16 @@
 		let cancelled = false;
 		listen<string>('menu-event', (e) => {
 			const id = e.payload;
+			const fieldEdit = textFieldEditFor(id, document.activeElement);
 			if (id.startsWith('recent::')) {
 				const path = id.slice('recent::'.length);
 				void workspace.open({ kind: 'file', path });
+			} else if (fieldEdit === 'paste') {
+				void readText()
+					.then((text) => document.execCommand('insertText', false, text))
+					.catch(() => {});
+			} else if (fieldEdit) {
+				document.execCommand(fieldEdit);
 			} else {
 				commandRegistry.run(id);
 			}
@@ -554,7 +566,7 @@
 {/if}
 
 {#if updateCheck.dialogOpen && updateCheck.update}
-	<UpdateDialog update={updateCheck.update} />
+	<UpdateDialog update={updateCheck.update} {prepareToQuit} />
 {/if}
 
 {#if feedbackOpen}

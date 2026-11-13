@@ -26,6 +26,7 @@ class UpdateCheck {
 	private lastCheckAt = 0;
 	private dismissedVersion: string | null = null;
 	private loaded = false;
+	private installed: Update | null = null;
 
 	update: Update | null = $state.raw(null);
 	dialogOpen = $state(false);
@@ -83,13 +84,16 @@ class UpdateCheck {
 		await this.persist();
 	}
 
-	async install(): Promise<void> {
+	async install(prepareToQuit: () => Promise<boolean>): Promise<void> {
 		if (!this.update || this.installing) return;
 		this.installing = true;
 		this.error = null;
 		try {
-			await this.update.downloadAndInstall();
-			await relaunch();
+			if (this.installed !== this.update) {
+				await this.update.downloadAndInstall();
+				this.installed = this.update;
+			}
+			if (await prepareToQuit()) await relaunch();
 		} catch {
 			// Keep the update on offer so the user can retry.
 			this.error = UPDATE_FAILED;
