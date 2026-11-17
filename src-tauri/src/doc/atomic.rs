@@ -94,7 +94,11 @@ fn write_in_place(
 ) -> io::Result<()> {
     let mut w = BufWriter::new(File::create(target)?);
     write(&mut w)?;
-    w.into_inner().map_err(|e| e.into_error())?.sync_all()
+    let file = w.into_inner().map_err(|e| e.into_error())?;
+    if file.metadata()?.is_file() {
+        file.sync_all()?;
+    }
+    Ok(())
 }
 
 #[cfg(unix)]

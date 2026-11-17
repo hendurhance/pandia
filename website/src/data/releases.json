@@ -44,6 +44,10 @@
 				"label": "Fixed",
 				"items": [
 					{
+						"title": "The Linux AppImage opens on newer distributions such as Arch",
+						"detail": "It showed a blank window and then closed, because it carried old display libraries that clash with newer graphics drivers. It now uses the system's own. Thanks to [@Shaunclarke04](https://github.com/hendurhance/pandia/discussions/35) for the report and the logs."
+					},
+					{
 						"title": "`--schema` and `--diff` work when the command starts Pandia",
 						"detail": "Thanks to [@bastiankistner](https://github.com/hendurhance/pandia/issues/27) for the report."
 					},
