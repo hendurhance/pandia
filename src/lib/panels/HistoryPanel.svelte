@@ -2,7 +2,7 @@
 	import type { DocContext } from '$lib/shell/state/workspace.svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { HistoryView } from '$lib/ipc/bindings';
+	import type { DocHandle, HistoryView } from '$lib/ipc/bindings';
 
 	interface Props {
 		context: DocContext | null;
@@ -15,6 +15,7 @@
 	let view = $state<HistoryView | null>(null);
 	let error = $state<string | null>(null);
 	let loadedKey = '';
+	let loadedHandle: DocHandle | null = null;
 
 	$effect(() => {
 		const ctx = context;
@@ -25,7 +26,12 @@
 		}
 		const key = `${ctx.handle}@${ctx.version}`;
 		if (key === loadedKey) return;
+		if (ctx.handle !== loadedHandle) {
+			view = null;
+			error = null;
+		}
 		loadedKey = key;
+		loadedHandle = ctx.handle;
 		void ipc
 			.docHistory(ctx.handle)
 			.then((v) => {

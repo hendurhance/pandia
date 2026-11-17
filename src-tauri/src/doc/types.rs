@@ -62,6 +62,88 @@ impl fmt::Display for Path {
     }
 }
 
+impl std::str::FromStr for Path {
+    type Err = String;
+
+    fn from_str(input: &str) -> Result<Self, String> {
+        let s = input.trim();
+        let s = s.strip_prefix('$').unwrap_or(s);
+        let mut segs = Vec::new();
+        let mut rest = s;
+        let mut first = true;
+        while !rest.is_empty() {
+            if let Some(after) = rest.strip_prefix('[') {
+                let (seg, tail) = bracket_segment(after)?;
+                segs.push(seg);
+                rest = tail;
+            } else {
+                let key_start = match rest.strip_prefix('.') {
+                    Some(after) => after,
+                    None if first => rest,
+                    None => return Err(format!("expected `.` or `[` before {rest}")),
+                };
+                let end = key_start.find(['.', '[']).unwrap_or(key_start.len());
+                if end == 0 {
+                    return Err("a `.` must be followed by a key name".into());
+                }
+                segs.push(PathSegment::Key(key_start[..end].to_string()));
+                rest = &key_start[end..];
+            }
+            first = false;
+        }
+        Ok(Path(segs))
+    }
+}
+
+fn bracket_segment(s: &str) -> Result<(PathSegment, &str), String> {
+    let unclosed = || "a `[` is missing its `]`".to_string();
+    match s.chars().next() {
+        Some(quote @ ('"' | '\'')) => {
+            let mut key = String::new();
+            let mut chars = s[1..].char_indices();
+            while let Some((i, c)) = chars.next() {
+                match c {
+                    '\\' if quote == '"' => {
+                        let (_, esc) = chars.next().ok_or_else(unclosed)?;
+                        match esc {
+                            'n' => key.push('\n'),
+                            't' => key.push('\t'),
+                            'r' => key.push('\r'),
+                            'b' => key.push('\u{8}'),
+                            'f' => key.push('\u{c}'),
+                            'u' => {
+                                let hex: String = chars.by_ref().take(4).map(|(_, c)| c).collect();
+                                let code = u32::from_str_radix(&hex, 16)
+                                    .map_err(|_| format!("\\u{hex} isn't a valid escape"))?;
+                                key.push(
+                                    char::from_u32(code).unwrap_or(char::REPLACEMENT_CHARACTER),
+                                );
+                            }
+                            other => key.push(other),
+                        }
+                    }
+                    '\\' => key.push(chars.next().ok_or_else(unclosed)?.1),
+                    c if c == quote => {
+                        let tail = &s[1 + i + 1..];
+                        let tail = tail.strip_prefix(']').ok_or_else(unclosed)?;
+                        return Ok((PathSegment::Key(key), tail));
+                    }
+                    c => key.push(c),
+                }
+            }
+            Err(unclosed())
+        }
+        _ => {
+            let end = s.find(']').ok_or_else(unclosed)?;
+            let index = s[..end].trim();
+            let index = index.parse::<u32>().map_err(|_| {
+                format!("[{index}] isn't an array index; quote a key like [\"{index}\"]")
+            })?;
+            Ok((PathSegment::Index(index), &s[end + 1..]))
+        }
+    }
+}
+
 fn is_bare_identifier(s: &str) -> bool {
     !s.is_empty()
         && s.chars().next().unwrap().is_ascii_alphabetic()
@@ -172,6 +254,9 @@ pub enum DocError {
 
     #[error("cancelled")]
     Cancelled,
+
+    #[error("request failed: {0:?}")]
+    Request(crate::doc::curl::RequestProblem),
 }
 
 impl DocError {
@@ -245,10 +330,11 @@ pub struct WireError {
     pub kind: ErrorKind,
     pub message: String,
     pub detail: Option<String>,
-    pub path: Option<Path>,
+    pub path: Option<Box<Path>>,
     pub actual: Option<u64>,
     pub limit: Option<u64>,
     pub io: Option<Box<IoInfo>>,
+    pub request: Option<Box<crate::doc::curl::RequestProblem>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -266,13 +352,20 @@ pub enum ErrorKind {
     Export,
     Io,
     Cancelled,
+    Request,
 }
 
 impl From<DocError> for WireError {
     fn from(e: DocError) -> Self {
         let (kind, detail, path, actual, limit) = match &e {
             DocError::NotFound(_) => (ErrorKind::NotFound, None, None, None, None),
-            DocError::InvalidPath(p) => (ErrorKind::InvalidPath, None, Some(p.clone()), None, None),
+            DocError::InvalidPath(p) => (
+                ErrorKind::InvalidPath,
+                None,
+                Some(Box::new(p.clone())),
+                None,
+                None,
+            ),
             DocError::TooLarge { actual, limit } => {
                 (ErrorKind::TooLarge, None, None, Some(*actual), Some(*limit))
             }
@@ -305,6 +398,7 @@ impl From<DocError> for WireError {
                 (ErrorKind::Io, Some(source.to_string()), None, None, None)
             }
             DocError::Cancelled => (ErrorKind::Cancelled, None, None, None, None),
+            DocError::Request(_) => (ErrorKind::Request, None, None, None, None),
         };
         let io = match &e {
             DocError::Io { source, op, file } => Some(Box::new(IoInfo {
@@ -312,6 +406,10 @@ impl From<DocError> for WireError {
                 op: *op,
                 file: file.clone(),
             })),
+            _ => None,
+        };
+        let request = match &e {
+            DocError::Request(problem) => Some(Box::new(problem.clone())),
             _ => None,
         };
         WireError {
@@ -322,6 +420,7 @@ impl From<DocError> for WireError {
             actual,
             limit,
             io,
+            request,
         }
     }
 }
@@ -335,6 +434,29 @@ impl From<std::io::Error> for WireError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_path_reads_back_the_way_it_is_displayed() {
+        use PathSegment::{Index, Key};
+        let parse = |s: &str| s.parse::<Path>();
+        let path = |segs: Vec<PathSegment>| Ok(Path(segs));
+        assert_eq!(parse("$"), path(vec![]));
+        assert_eq!(parse(""), path(vec![]));
+        assert_eq!(
+            parse("$.items[3].name"),
+            path(vec![Key("items".into()), Index(3), Key("name".into())])
+        );
+        assert_eq!(
+            parse(r#"$["a.b"]['it\'s'][0]"#),
+            path(vec![Key("a.b".into()), Key("it's".into()), Index(0)])
+        );
+        assert_eq!(parse("items[0]"), path(vec![Key("items".into()), Index(0)]));
+        let shown = Path(vec![Key("first name".into()), Index(2), Key("x\"y".into())]);
+        assert_eq!(parse(&shown.to_string()), Ok(shown));
+        assert!(parse("$.items[x]").is_err());
+        assert!(parse("$.items[0").is_err());
+        assert!(parse("$..a").is_err());
+    }
 
     fn roundtrip<T>(value: &T) -> T
     where
@@ -487,7 +609,7 @@ mod tests {
             PathSegment::Index(3),
         ]);
         let wire = WireError::from(DocError::InvalidPath(p.clone()));
-        assert_eq!(wire.path, Some(p));
+        assert_eq!(wire.path, Some(Box::new(p)));
         assert!(wire.detail.is_none());
         let json = serde_json::to_string(&wire).unwrap();
         assert!(json.contains("\"path\":[\"events\",3]"));

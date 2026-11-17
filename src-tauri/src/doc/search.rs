@@ -1,3 +1,4 @@
+use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -35,42 +36,39 @@ pub struct SearchOptions {
     pub max_results: Option<u32>,
 }
 
-pub(crate) fn prepare(opts: &SearchOptions) -> Option<(String, usize)> {
-    let cap = opts.max_results.unwrap_or(DEFAULT_MAX_RESULTS) as usize;
-    let needle = if opts.case_sensitive {
-        opts.query.clone()
-    } else {
-        opts.query.to_lowercase()
-    };
-    if needle.is_empty() {
+pub(crate) fn literal_matcher(query: &str, case_sensitive: bool) -> Result<Regex, regex::Error> {
+    RegexBuilder::new(&regex::escape(query))
+        .case_insensitive(!case_sensitive)
+        .build()
+}
+
+pub(crate) fn prepare_matcher(opts: &SearchOptions) -> Option<(Regex, usize)> {
+    if opts.query.is_empty() {
         return None;
     }
-    Some((needle, cap))
+    let cap = opts.max_results.unwrap_or(DEFAULT_MAX_RESULTS) as usize;
+    Some((literal_matcher(&opts.query, opts.case_sensitive).ok()?, cap))
+}
+
+pub(crate) fn match_snippet(s: &str, matcher: &Regex) -> Option<String> {
+    let m = matcher.find(s)?;
+    Some(make_snippet(s, m.start(), m.len()))
 }
 
 pub fn search_in_value(root: &Value, opts: &SearchOptions, cancel: &CancelFlag) -> Vec<SearchHit> {
-    let Some((needle, cap)) = prepare(opts) else {
+    let Some((matcher, cap)) = prepare_matcher(opts) else {
         return Vec::new();
     };
     let mut hits = Vec::new();
     let mut path = Path::root();
-    walk(
-        root,
-        &mut path,
-        &needle,
-        opts.case_sensitive,
-        cap,
-        &mut hits,
-        cancel,
-    );
+    walk(root, &mut path, &matcher, cap, &mut hits, cancel);
     hits
 }
 
 fn walk(
     value: &Value,
     path: &mut Path,
-    needle: &str,
-    case_sensitive: bool,
+    matcher: &Regex,
     cap: usize,
     hits: &mut Vec<SearchHit>,
     cancel: &CancelFlag,
@@ -87,8 +85,7 @@ fn walk(
                 if hits.len() >= cap {
                     return;
                 }
-                let key_hit = substr_contains(k, needle, case_sensitive);
-                if key_hit {
+                if matcher.is_match(k) {
                     path.push(PathSegment::Key(k.clone()));
                     hits.push(SearchHit {
                         path: path.clone(),
@@ -99,7 +96,7 @@ fn walk(
                     path.0.pop();
                 }
                 path.push(PathSegment::Key(k.clone()));
-                walk(v, path, needle, case_sensitive, cap, hits, cancel);
+                walk(v, path, matcher, cap, hits, cancel);
                 path.0.pop();
             }
         }
@@ -109,12 +106,12 @@ fn walk(
                     return;
                 }
                 path.push(PathSegment::Index(i as u32));
-                walk(v, path, needle, case_sensitive, cap, hits, cancel);
+                walk(v, path, matcher, cap, hits, cancel);
                 path.0.pop();
             }
         }
         Value::String(s) => {
-            if let Some(snippet) = string_match_snippet(s, needle, case_sensitive) {
+            if let Some(snippet) = match_snippet(s, matcher) {
                 hits.push(SearchHit {
                     path: path.clone(),
                     kind: NodeKind::String,
@@ -125,41 +122,6 @@ fn walk(
         }
         _ => {}
     }
-}
-
-pub(crate) fn substr_contains(haystack: &str, needle: &str, case_sensitive: bool) -> bool {
-    if case_sensitive {
-        haystack.contains(needle)
-    } else {
-        haystack.to_lowercase().contains(needle)
-    }
-}
-
-pub(crate) fn string_match_snippet(s: &str, needle: &str, case_sensitive: bool) -> Option<String> {
-    if case_sensitive {
-        let idx = s.find(needle)?;
-        return Some(make_snippet(s, idx, needle.len()));
-    }
-
-    let lower = s.to_lowercase();
-    let lo = lower.find(needle)?;
-    let hi = lo + needle.len();
-    let start = map_lower_offset(s, lo);
-    let end = map_lower_offset(s, hi);
-    Some(make_snippet(s, start, end.saturating_sub(start)))
-}
-
-fn map_lower_offset(s: &str, lower_offset: usize) -> usize {
-    let mut acc = 0;
-    for (orig_byte, ch) in s.char_indices() {
-        if acc >= lower_offset {
-            return orig_byte;
-        }
-        for lc in ch.to_lowercase() {
-            acc += lc.len_utf8();
-        }
-    }
-    s.len()
 }
 
 fn make_snippet(text: &str, byte_idx: usize, match_len: usize) -> String {
@@ -350,6 +312,49 @@ mod tests {
         let v = json!({"count": 42, "ok": true, "x": null});
         let hits = search_in_value(&v, &opts("42"), &CancelFlag::never());
         assert!(hits.is_empty(), "numbers should not match string queries");
+    }
+
+    #[test]
+    fn ignoring_case_finds_greek_final_sigma() {
+        let hits = search_in_value(
+            &json!({"t": "ΣΑΣΑ ΟΔΟΣΑ"}),
+            &opts("ΟΔΟΣ"),
+            &CancelFlag::never(),
+        );
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].snippet, "\"ΣΑΣΑ ΟΔΟΣΑ\"");
+        let hits = search_in_value(&json!({"ΟΔΟΣ": 1}), &opts("σ"), &CancelFlag::never());
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].match_field, MatchField::Key);
+    }
+
+    #[test]
+    fn search_finds_exactly_what_replace_all_changes() {
+        use crate::doc::document::Document;
+        for (text, query) in [
+            (r#"{"t": "ΣΑΣΑ ΟΔΟΣΑ"}"#, "ΟΔΟΣ"),
+            (r#"{"t": "ΟΔΟΣ"}"#, "σ"),
+            (r#"{"t": "straße"}"#, "STRASSE"),
+            (r#"{"t": "İSTANBUL"}"#, "istanbul"),
+        ] {
+            let mut doc = Document::from_text(text, None).unwrap();
+            let found = doc.search(&opts(query), &CancelFlag::never()).unwrap();
+            let replaced = doc.replace_all(query, "x", false).unwrap();
+            assert_eq!(!found.is_empty(), replaced.count > 0, "{query:?} in {text}");
+        }
+    }
+
+    #[test]
+    fn a_large_lazy_document_ignores_case_like_replace_all() {
+        use crate::doc::document::Document;
+        let pad = "x".repeat(11 * 1024 * 1024);
+        let text = format!(r#"{{"pad": "{pad}", "t": "ΣΑΣΑ ΟΔΟΣΑ"}}"#);
+        let doc = Document::from_text(&text, None).unwrap();
+        assert!(doc.summary().lazy, "an 11 MB document opens lazy");
+        let found = doc.search(&opts("ΟΔΟΣ"), &CancelFlag::never()).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(format!("{}", found[0].path), "$.t");
+        assert_eq!(found[0].snippet, "\"ΣΑΣΑ ΟΔΟΣΑ\"");
     }
 
     #[test]

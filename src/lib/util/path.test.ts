@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { pathToString, parsePath, parseJsonPointer, stem, truncatePathMiddle } from './path';
+import {
+	isAbsolutePath,
+	pathToString,
+	parsePath,
+	parseJsonPointer,
+	stem,
+	truncatePathMiddle,
+} from './path';
 
 describe('pathToString', () => {
 	it('renders the root path as $', () => {
@@ -34,6 +41,21 @@ describe('parsePath', () => {
 
 	it('reports an error for a non-numeric index', () => {
 		expect(parsePath('$.a[x]').ok).toBe(false);
+	});
+
+	it.each(['a\nb', 'tab\there', 'ctl\u0001x', 'q"uote', 'back\\slash', "it's", 'a]b', ''])(
+		'round-trips the copied path of key %j',
+		(key) => {
+			expect(parsePath(pathToString([key, 0]))).toEqual({ ok: true, path: [key, 0] });
+		},
+	);
+
+	it('reads single-quoted keys with backslash escapes', () => {
+		expect(parsePath("$['it\\'s']")).toEqual({ ok: true, path: ["it's"] });
+	});
+
+	it('reports an error for a bad escape in a double-quoted key', () => {
+		expect(parsePath('$["a\\qb"]').ok).toBe(false);
 	});
 });
 
@@ -153,5 +175,16 @@ describe('stem', () => {
 
 	it('keeps the whole name of a dotfile with no extension', () => {
 		expect(stem('/Users/me/.prettierrc')).toBe('.prettierrc');
+	});
+});
+
+describe('isAbsolutePath', () => {
+	it('accepts Unix, Windows drive and UNC paths, not bare names or URLs', () => {
+		expect(
+			['/w/a.json', 'C:\\w\\a.json', 'C:/w/a.json', '\\\\srv\\share\\a.json'].map(isAbsolutePath),
+		).toEqual([true, true, true, true]);
+		expect(
+			['pasted.json', 'stdin', 'https://x.dev/a.json', 'w/a.json'].map(isAbsolutePath),
+		).toEqual([false, false, false, false]);
 	});
 });

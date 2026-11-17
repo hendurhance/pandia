@@ -34,32 +34,38 @@ const faqItems = [
   faqItems={faqItems}
 >
   <h1>Postman response too large? Open it in Pandia</h1>
-  <p class="lead">Postman is built for sending requests, not for reading a 300 MB response. Here's how to save
-  a big response and open it in Pandia, where it loads instantly whatever the size.</p>
+  <p class="lead">Postman is built for sending requests, not for reading a 300 MB response. Here's how to get
+  the same response into Pandia, where it loads instantly whatever the size.</p>
 
   <p>Ask an API for a full export and Postman starts to struggle. The response pane slows down, the app stops
   responding, or you get "Maximum response size reached". That isn't a bug in your request. Postman renders
   responses up to <strong>50 MB</strong> by default, and for anything over <strong>100 MB</strong> its own
   documentation tells you to save the response to a file instead
   (<a href={POSTMAN_FAQ}>Postman's guidance</a>).</p>
-  <p>Saving it is the easy part. Reading it is where Pandia comes in.</p>
+  <p>There are two ways to get that response into Pandia.</p>
 
-  <h2>Save the response with Send and Download</h2>
+  <h2>The quick way: paste the request as cURL</h2>
   <ol>
-    <li>Set up the request in Postman as usual.</li>
-    <li>Open the dropdown next to <strong>Send</strong> and choose <strong>Send and Download</strong>.</li>
-    <li>Postman sends the request and saves the response as a file instead of rendering it.</li>
+    <li>In Postman, open the request's code snippet panel (the <code>&lt;/&gt;</code> icon), choose
+    <strong>cURL</strong> and copy it.</li>
+    <li>Paste it into Pandia's start screen. A GET request is sent straight away. For POST and other methods,
+    Pandia shows the method, URL and header names first and waits for you to click <strong>Send</strong>.</li>
+    <li>The response opens in the same tab, with its status in a banner. It's saved to disk as it arrives, so even a
+    multi-gigabyte response opens without freezing.</li>
   </ol>
+  <p>Check the snippet has real values, not <code>&#123;&#123;variable&#125;&#125;</code> placeholders: Pandia
+  can't fill in Postman's environment variables. If the request depends on Postman itself, through variables,
+  pre-request scripts or an OAuth flow, use Send and Download instead.</p>
 
-  <h2>Open it in Pandia</h2>
+  <h2>When the request needs Postman: Send and Download</h2>
   <ol>
-    <li><a href="/download">Download Pandia</a> for Mac, Windows or Linux.</li>
+    <li>Open the dropdown next to <strong>Send</strong> in Postman and choose <strong>Send and Download</strong>.
+    Postman saves the response as a file instead of rendering it.</li>
     <li>Drag the saved file into Pandia, or run <code>pandia response.json</code> if you've installed the
-    <a href="/docs/command-line">terminal command</a>.</li>
-    <li>The file opens immediately. At 10 MB and up Pandia loads only the part on screen, so a multi-gigabyte
-    response opens without freezing.</li>
+    <a href="/docs/command-line">terminal command</a>. It opens immediately, at any size.</li>
   </ol>
-  <p>From there you get what Postman's response pane can't give you on a large file:</p>
+
+  <h2>What you get in Pandia</h2>
   <ul>
     <li><strong>A tree you can navigate</strong>, with counts on every array and object.</li>
     <li><strong>A spreadsheet-style Grid</strong> for arrays of objects, with column filters and sorting.</li>
@@ -78,26 +84,21 @@ const faqItems = [
   <p>Compare matches the two documents by structure, not by line, so keys in a different order don't count as
   changes and you see only the fields that really differ.</p>
 
-  <h2>Simple GET requests without Postman</h2>
-  <p>For a quick look at a JSON endpoint, Pandia's start screen can fetch a URL directly, with the headers you
-  add (for example an <code>Authorization</code> header). Pasting a cURL command, such as the code snippet
-  Postman exports, turns it into a JSON description of the request, so you can check its URL, method, headers
-  and body.</p>
-
   <h2>Postman or Pandia</h2>
   <table>
     <thead>
       <tr><th>Task</th><th>Postman</th><th>Pandia</th></tr>
     </thead>
     <tbody>
-      <tr><td>Build and send requests</td><td>Best</td><td>Simple GET only</td></tr>
+      <tr><td>Build and send requests</td><td>Best</td><td>Sends a pasted cURL command</td></tr>
       <tr><td>Collections, environments, auth</td><td>Yes</td><td>No</td></tr>
       <tr><td>Read a response over 50 MB</td><td>Save it to a file</td><td>Opens any size</td></tr>
       <tr><td>Filter an array of objects</td><td>Not as a table</td><td>Grid with column filters</td></tr>
       <tr><td>Compare two responses side by side</td><td>Not built in</td><td>Structural Compare</td></tr>
     </tbody>
   </table>
-  <p>Keep Postman for the request. Open the response in Pandia when it gets big.</p>
+  <p>Keep Postman for building requests. When the response gets big, paste the request into Pandia or open the
+  saved file.</p>
 
   <h2>Frequently asked questions</h2>
   {faqItems.map((f) => (

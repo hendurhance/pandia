@@ -24,7 +24,7 @@
 		aria-label="graph settings"
 		use:dismissable={{ onDismiss: onClose, ignore: anchor ?? null }}
 	>
-		<div class="field">
+		<div class="gs-row">
 			<div class="label">edges</div>
 			<div class="seg">
 				<button
@@ -39,7 +39,7 @@
 				>
 			</div>
 		</div>
-		<div class="field">
+		<div class="gs-row">
 			<div class="label">expand</div>
 			<button
 				class="switch"
@@ -71,7 +71,7 @@
 		border-radius: 8px;
 		box-shadow: var(--shadow-pop);
 	}
-	.field {
+	.gs-row {
 		display: flex;
 		align-items: center;
 		gap: var(--space-sm);

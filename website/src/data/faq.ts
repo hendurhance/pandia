@@ -14,7 +14,7 @@ export const faqs: FaqItem[] = [
   },
   {
     q: 'Which formats can I import and export?',
-    a: "Import and auto-detect <code>JSON</code>, <code>YAML</code>, <code>XML</code>, <code>CSV</code> and <code>cURL</code>, or fetch from a URL. Export documents as JSON, JSON-min, YAML, CSV or XML, and graph images as PNG, JPEG or SVG. (CSV export needs a root array of objects.)",
+    a: "Import and auto-detect <code>JSON</code>, <code>YAML</code>, <code>XML</code> and <code>CSV</code>, fetch from a URL, or paste a <code>cURL</code> command to send it and open the response. Export documents as JSON, JSON-min, YAML, CSV or XML, and graph images as PNG, JPEG or SVG. (CSV export needs a root array of objects.)",
   },
   {
     q: 'Can it generate types from my JSON?',

@@ -168,12 +168,13 @@ export class WindowedScroller {
 				if (prev > 0 && Math.abs(w - prev) >= 4) this.opts.onWidthChange?.(w, prev);
 			}
 		};
-		sync();
-
 		const onScroll = () => {
 			this.scrollTop = el.scrollTop;
 			this.scrollLeft = el.scrollLeft;
 		};
+		onScroll();
+		sync();
+
 		el.addEventListener('scroll', onScroll, { passive: true });
 
 		let rafId = 0;

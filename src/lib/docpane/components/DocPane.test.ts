@@ -12,6 +12,7 @@ import DocPane from './DocPane.svelte';
 
 vi.mock('$lib/ipc/client', () => ({
 	ipc: {
+		e2eRecord: vi.fn(async () => {}),
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
 		docDiff: vi.fn(async () => []),
@@ -266,6 +267,8 @@ describe('DocPane', () => {
 		slow = true;
 		vi.mocked(ipc.docReplace).mockResolvedValue({
 			count: 1,
+			values: 1,
+			keys: 0,
 			applied: { version: 2, affectedPaths: [['items']] },
 		});
 		const pane = within(container);

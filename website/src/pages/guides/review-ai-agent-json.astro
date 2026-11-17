@@ -24,7 +24,9 @@ const AGENT_NOTE = `## JSON review
 Before writing a JSON file, hand it to me in Pandia:
   cat draft.json | pandia --wait - > draft.reviewed.json && mv draft.reviewed.json <target>
 The command waits until I close the tab. Exit 3 means I closed it without
-saving: stop and ask me what to change. If a schema exists, add --schema <path>.`;
+saving: stop and ask me what to change. If a schema exists, add --schema <path>.
+To read a JSON file too big to open, use pandia shape <file>, then
+pandia get <file> '<path>' for only the part you need.`;
 
 const faqItems = [
   {
@@ -123,8 +125,16 @@ const faqItems = [
   done, and tell the agent whether to keep the new version.</p>
 
   <h2>5. Work with files too big for the agent</h2>
-  <p>A multi-gigabyte log export or API dump doesn't fit in an agent's context. Pandia
-  <a href="/guides/open-large-json-file">opens it instantly</a>, so you can do the looking:</p>
+  <p>A multi-gigabyte log export or API dump doesn't fit in an agent's context. The agent can still
+  explore it with commands that print a small answer and open no window:</p>
+  <pre><code><span class="k">pandia</span> shape events.json
+<span class="k">pandia</span> search events.json "timeout" --limit 20
+<span class="k">pandia</span> get events.json '$.items[48211]'</code></pre>
+  <p><code>shape</code> prints the keys and types without the data, <code>search</code> prints the
+  path of each match, and <code>get</code> prints only the value at one path. The
+  <a href="/docs/command-line">command line docs</a> list all eight commands.</p>
+  <p>Or Pandia <a href="/guides/open-large-json-file">opens the file instantly</a>, so you can do the
+  looking:</p>
   <ol>
     <li>Open it with <code>pandia events.json</code>.</li>
     <li>Find what matters in the Tree, or filter the array in the Grid.</li>

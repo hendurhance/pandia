@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::search::literal_matcher;
 use super::wire::cmp_number_tokens;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, specta::Type)]
@@ -33,16 +35,43 @@ pub struct GridFilter {
     pub value: Option<Value>,
 }
 
-pub fn matches(cell: Option<&Value>, f: &GridFilter) -> bool {
+pub struct CompiledFilter<'a> {
+    filter: &'a GridFilter,
+    text: Option<Regex>,
+}
+
+pub fn compile_filters(
+    groups: &[Vec<GridFilter>],
+) -> Result<Vec<Vec<CompiledFilter<'_>>>, regex::Error> {
+    groups
+        .iter()
+        .map(|grp| grp.iter().map(compile).collect())
+        .collect()
+}
+
+fn compile(filter: &GridFilter) -> Result<CompiledFilter<'_>, regex::Error> {
+    let text = match filter.op {
+        FilterOp::Contains | FilterOp::NotContains | FilterOp::StartsWith => {
+            Some(literal_matcher(&operand_string(filter), false)?)
+        }
+        _ => None,
+    };
+    Ok(CompiledFilter { filter, text })
+}
+
+#[cfg(test)]
+fn matches(cell: Option<&Value>, f: &GridFilter) -> bool {
+    passes(cell, &compile(f).unwrap())
+}
+
+fn passes(cell: Option<&Value>, compiled: &CompiledFilter) -> bool {
+    let f = compiled.filter;
+    let found_at = || Some(compiled.text.as_ref()?.find(&cell_string(cell)?)?.start());
     match f.op {
         FilterOp::IsEmpty => is_empty(cell),
         FilterOp::IsNotEmpty => !is_empty(cell),
-        FilterOp::Contains => cell_string(cell)
-            .map(|s| contains_ci(&s, &operand_string(f)))
-            .unwrap_or(false),
-        FilterOp::NotContains => !cell_string(cell)
-            .map(|s| contains_ci(&s, &operand_string(f)))
-            .unwrap_or(false),
+        FilterOp::Contains => found_at().is_some(),
+        FilterOp::NotContains => found_at().is_none(),
         FilterOp::Eq => value_eq(cell, f.value.as_ref()),
         FilterOp::Ne => !value_eq(cell, f.value.as_ref()),
         FilterOp::Gt => num_cmp(cell, f) == Some(Ordering::Greater),
@@ -57,23 +86,18 @@ pub fn matches(cell: Option<&Value>, f: &GridFilter) -> bool {
             Some(Value::Array(opts)) => !opts.iter().any(|o| value_eq(cell, Some(o))),
             _ => true,
         },
-        FilterOp::StartsWith => cell_string(cell)
-            .map(|s| {
-                s.to_lowercase()
-                    .starts_with(&operand_string(f).to_lowercase())
-            })
-            .unwrap_or(false),
+        FilterOp::StartsWith => found_at() == Some(0),
     }
 }
 
-pub fn row_passes<'a, F>(groups: &[Vec<GridFilter>], cell_for: F) -> bool
+pub fn row_passes<'a, F>(groups: &[Vec<CompiledFilter>], cell_for: F) -> bool
 where
     F: Fn(&str) -> Option<&'a Value>,
 {
     groups.is_empty()
         || groups
             .iter()
-            .any(|grp| grp.iter().all(|f| matches(cell_for(&f.key), f)))
+            .any(|grp| grp.iter().all(|f| passes(cell_for(&f.filter.key), f)))
 }
 
 fn is_empty(cell: Option<&Value>) -> bool {
@@ -100,10 +124,6 @@ fn operand_string(f: &GridFilter) -> Cow<'_, str> {
         Some(Value::Bool(b)) => Cow::Owned(b.to_string()),
         _ => Cow::Borrowed(""),
     }
-}
-
-fn contains_ci(haystack: &str, needle: &str) -> bool {
-    haystack.to_lowercase().contains(&needle.to_lowercase())
 }
 
 fn value_eq(cell: Option<&Value>, operand: Option<&Value>) -> bool {
@@ -313,11 +333,12 @@ mod tests {
             value: Some(json!(2023)),
         };
 
-        assert!(row_passes(&[], &cell));
-        assert!(row_passes(&[vec![admin.clone(), active.clone()]], &cell));
-        assert!(!row_passes(&[vec![editor.clone(), active]], &cell));
-        assert!(row_passes(&[vec![editor.clone()], vec![pre2023]], &cell));
-        assert!(!row_passes(&[vec![editor], vec![post2023]], &cell));
+        let pass = |groups: &[Vec<GridFilter>]| row_passes(&compile_filters(groups).unwrap(), cell);
+        assert!(pass(&[]));
+        assert!(pass(&[vec![admin.clone(), active.clone()]]));
+        assert!(!pass(&[vec![editor.clone(), active]]));
+        assert!(pass(&[vec![editor.clone()], vec![pre2023]]));
+        assert!(!pass(&[vec![editor], vec![post2023]]));
     }
 
     #[test]

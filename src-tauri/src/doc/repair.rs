@@ -6,10 +6,6 @@ use super::lazy::prescan;
 
 static UNESCAPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\\+)(.)").unwrap());
 
-static IS_ESCAPED_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\\+["/nrtbf]"#).unwrap());
-
-const SAMPLE_HEAD_TAIL: usize = 50_000;
-
 #[derive(Debug, Clone)]
 pub struct Repaired {
     pub json: String,
@@ -56,16 +52,6 @@ pub fn unescape(text: &str) -> String {
         .into_owned()
 }
 
-pub fn is_escaped(text: &str) -> bool {
-    if text.len() > 100_000 {
-        let head_end = nearest_boundary(text, SAMPLE_HEAD_TAIL, false);
-        let tail_start = nearest_boundary(text, text.len().saturating_sub(SAMPLE_HEAD_TAIL), true);
-        return IS_ESCAPED_RE.is_match(&text[..head_end])
-            || IS_ESCAPED_RE.is_match(&text[tail_start..]);
-    }
-    IS_ESCAPED_RE.is_match(text)
-}
-
 pub fn deep_unescape(text: &str, max_iterations: u32) -> DeepUnescapeResult {
     if text.is_empty() {
         return DeepUnescapeResult {
@@ -86,7 +72,7 @@ pub fn deep_unescape(text: &str, max_iterations: u32) -> DeepUnescapeResult {
                 error: None,
             };
         }
-        if !is_escaped(&current) {
+        if !structure_is_escaped(&current) {
             break;
         }
         let unescaped = unescape(&current);
@@ -440,6 +426,7 @@ struct Frame {
     object: bool,
     slot: Slot,
     member_start: usize,
+    unrepaired: bool,
 }
 
 struct Scanner<'a> {
@@ -490,6 +477,7 @@ impl<'a> Scanner<'a> {
                             Slot::Value
                         },
                         member_start: start,
+                        unrepaired: false,
                     });
                 }
                 b'}' | b']' => self.close(b),
@@ -519,6 +507,9 @@ impl<'a> Scanner<'a> {
                 b if b.is_ascii_alphabetic() || b == b'_' || b == b'$' => self.word(),
                 b if b.is_ascii_digit() || b == b'-' || b == b'+' || b == b'.' => self.number(),
                 _ => {
+                    if let Some(f) = self.stack.last_mut() {
+                        f.unrepaired = true;
+                    }
                     self.out.push(b);
                     self.i += 1;
                 }
@@ -555,6 +546,7 @@ impl<'a> Scanner<'a> {
             let start = self.out.len();
             if let Some(f) = self.stack.last_mut() {
                 f.member_start = start;
+                f.unrepaired = false;
             }
         }
         if self.top_slot() == Some(Slot::Colon) {
@@ -710,6 +702,7 @@ impl<'a> Scanner<'a> {
             self.i += 1;
         }
         self.i = (self.i + 2).min(self.src.len());
+        self.out.push(b' ');
     }
 
     fn comma(&mut self) {
@@ -747,7 +740,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn drop_dangling_key(&mut self, frame: &Frame) {
-        if frame.object && matches!(frame.slot, Slot::Colon | Slot::Value) {
+        if frame.object && !frame.unrepaired && matches!(frame.slot, Slot::Colon | Slot::Value) {
             self.out.truncate(frame.member_start);
             self.notes.dropped_keys += 1;
         }
@@ -817,20 +810,6 @@ impl<'a> Scanner<'a> {
             self.notes.records = self.records;
         }
     }
-}
-
-fn nearest_boundary(s: &str, idx: usize, walking_back: bool) -> usize {
-    let mut i = idx.min(s.len());
-    if walking_back {
-        while i > 0 && !s.is_char_boundary(i) {
-            i -= 1;
-        }
-    } else {
-        while i < s.len() && !s.is_char_boundary(i) {
-            i += 1;
-        }
-    }
-    i
 }
 
 #[cfg(test)]
@@ -975,6 +954,36 @@ mod tests {
     }
 
     #[test]
+    fn broken_escaped_json_is_unescaped_only_until_its_structure_is_plain() {
+        let (v, notes) = fixed(r#"{\"path\":\"C:\\\\new\\\\file.txt\",\"x\":\"cu"#);
+        assert_eq!(
+            v,
+            serde_json::json!({"path": "C:\\new\\file.txt", "x": "cu"})
+        );
+        assert!(
+            notes.contains(&"Unescaped JSON that was stored as a string.".to_string()),
+            "{notes:?}"
+        );
+
+        let (v, _) = fixed(r#"{\"path\":\"C:\\\\new\\\\table\",\"msg\":\"a\\nb\",}"#);
+        assert_eq!(
+            v,
+            serde_json::json!({"path": "C:\\new\\table", "msg": "a\nb"})
+        );
+    }
+
+    #[test]
+    fn a_block_comment_between_two_tokens_does_not_join_them() {
+        assert_eq!(repair("[1/**/2]").map(|r| r.json), None);
+        assert_eq!(
+            repair(r#"{"port": 80/* was 8080 */80}"#).map(|r| r.json),
+            None
+        );
+        let (v, _) = fixed(r#"{"a": "1/**/2", /* c */}"#);
+        assert_eq!(v, serde_json::json!({"a": "1/**/2"}));
+    }
+
+    #[test]
     fn escaped_json_repairs_with_a_plain_note() {
         let (v, notes) = fixed(r#"{\"a\": 1}"#);
         assert_eq!(v["a"], 1);
@@ -1053,6 +1062,18 @@ mod tests {
         assert!(notes.contains(&"Dropped the last key, which had no value.".to_string()));
         let (v, _) = fixed(r#"{"a": 1, "b": "#);
         assert_eq!(v, serde_json::json!({ "a": 1 }));
+    }
+
+    #[test]
+    fn a_value_that_cannot_be_repaired_fails_instead_of_dropping_its_key() {
+        for text in [
+            r#"{"keep": 1, "price": £}"#,
+            r#"{"keep": 1, "price": £"#,
+            r#"{"a": @}"#,
+            r#"{"a" @}"#,
+        ] {
+            assert_eq!(repair(text).map(|r| r.json), None, "{text:?}");
+        }
     }
 
     #[test]

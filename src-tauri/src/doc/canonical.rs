@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use super::types::{Path, PathSegment};
 
@@ -122,18 +122,17 @@ fn emit<S: Sink>(v: &Value, depth: usize, out: &mut S) {
             if map.is_empty() {
                 out.write("{}");
             } else {
-                let keys = js_key_order(map);
                 out.write("{\n");
-                for (i, key) in keys.iter().enumerate() {
+                for (i, (key, value)) in map.iter().enumerate() {
                     pad(depth + 1, out);
                     out.write(
                         &serde_json::to_string(key).expect("string serialization is infallible"),
                     );
                     out.write(": ");
                     out.enter(Seg::Key(key));
-                    emit(&map[key.as_str()], depth + 1, out);
+                    emit(value, depth + 1, out);
                     out.leave();
-                    if i + 1 < keys.len() {
+                    if i + 1 < map.len() {
                         out.write(",");
                     }
                     out.write("\n");
@@ -144,29 +143,6 @@ fn emit<S: Sink>(v: &Value, depth: usize, out: &mut S) {
         }
     }
     out.end_node(start);
-}
-
-fn js_key_order(map: &Map<String, Value>) -> Vec<&String> {
-    let mut index_keys: Vec<(u32, &String)> = Vec::new();
-    let mut rest: Vec<&String> = Vec::new();
-    for key in map.keys() {
-        match array_index(key) {
-            Some(i) => index_keys.push((i, key)),
-            None => rest.push(key),
-        }
-    }
-    index_keys.sort_by_key(|&(i, _)| i);
-    index_keys.into_iter().map(|(_, k)| k).chain(rest).collect()
-}
-
-fn array_index(key: &str) -> Option<u32> {
-    if key.is_empty() || (key.len() > 1 && key.starts_with('0')) {
-        return None;
-    }
-    if !key.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    key.parse::<u32>().ok().filter(|&n| n != u32::MAX)
 }
 
 fn write_number<S: Sink>(n: &serde_json::Number, out: &mut S) {

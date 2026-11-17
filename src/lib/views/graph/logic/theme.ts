@@ -16,7 +16,6 @@ export interface GraphTheme {
 	syntaxString: string;
 	syntaxNumber: string;
 	syntaxBoolean: string;
-	syntaxNull: string;
 	syntaxPunct: string;
 
 	monoFamily: string;
@@ -67,7 +66,6 @@ export function readGraphTheme(): GraphTheme {
 		syntaxString: v(cs, '--syntax-string', '#e0a53c'),
 		syntaxNumber: v(cs, '--syntax-number', '#7fb069'),
 		syntaxBoolean: v(cs, '--syntax-boolean', '#9c6bff'),
-		syntaxNull: v(cs, '--syntax-null', '#6a6a72'),
 		syntaxPunct: v(cs, '--syntax-punct', '#6a6a72'),
 		monoFamily,
 		isLight: luminance(bg) >= 0.6,

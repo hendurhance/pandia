@@ -203,7 +203,7 @@
 		color: var(--text-dim);
 	}
 	.mark.nullable {
-		color: var(--syntax-null);
+		color: var(--text-dim);
 	}
 	.sort-arrow {
 		color: var(--accent);

@@ -1,6 +1,6 @@
 .notice {
 	padding: var(--space-xs);
-	color: var(--danger);
+	color: var(--text);
 	background: var(--danger-soft);
 	border-left: 2px solid var(--danger);
 	font-size: var(--font-size-sm);
@@ -23,7 +23,7 @@
 }
 .banner-err {
 	border-bottom-color: var(--danger);
-	color: var(--danger);
+	color: var(--text);
 }
 .banner-saved {
 	border-bottom-color: var(--success);

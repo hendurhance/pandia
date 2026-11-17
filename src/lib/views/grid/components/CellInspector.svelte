@@ -4,6 +4,7 @@
 	let {
 		value,
 		location,
+		error = null,
 		copied,
 		onCopy,
 		onOpenInTree,
@@ -11,6 +12,7 @@
 		value: unknown;
 
 		location: string;
+		error?: string | null;
 		copied: boolean;
 		onCopy: () => void;
 		onOpenInTree: () => void;
@@ -20,6 +22,7 @@
 <div class="inspector">
 	<div class="insp-head">
 		<span class="insp-loc">{location}</span>
+		{#if error}<span class="insp-err" role="alert">{error}</span>{/if}
 		<span class="grow"></span>
 		<button class="insp-btn" onclick={onOpenInTree} title="Reveal this cell in the tree view"
 			>Open in tree ↗</button
@@ -51,6 +54,11 @@
 		color: var(--text-dim);
 		font-variant-numeric: tabular-nums;
 		letter-spacing: var(--label-tracking);
+	}
+	.insp-err {
+		color: var(--text);
+		padding-left: var(--space-xs);
+		border-left: 2px solid var(--danger);
 	}
 	.insp-btn {
 		background: transparent;

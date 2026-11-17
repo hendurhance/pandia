@@ -7,9 +7,7 @@ export interface BackupFlushDeps {
 
 	isDirty: () => boolean;
 
-	codeDirty: () => boolean;
-
-	flushCodeBuffer: () => Promise<boolean>;
+	uncommittedText: () => string | null;
 }
 
 export const BACKUP_IDLE_MS = 750;
@@ -18,9 +16,10 @@ export function createBackupFlusher(deps: BackupFlushDeps) {
 	async function flush(): Promise<void> {
 		const h = deps.handle();
 		if (!h || !deps.isDirty()) return;
-		if (deps.codeDirty()) {
-			const ok = await deps.flushCodeBuffer().catch(() => false);
-			if (!ok) return;
+		const text = deps.uncommittedText();
+		if (text !== null) {
+			void ipc.docBackupText(h, deps.sourceName(), text).catch(() => {});
+			return;
 		}
 		void ipc.docBackup(h, deps.sourceName()).catch(() => {});
 	}

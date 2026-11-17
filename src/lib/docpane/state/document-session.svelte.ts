@@ -3,6 +3,7 @@ import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
 import type { GraphViewApi } from '$lib/views/graph/components/GraphView.svelte';
 import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import { createNodeActions, type CutMark } from '$lib/views/tree/logic/node-actions';
+import { pathAfterOp } from '$lib/views/tree/logic/tree-walk';
 import { CompareController } from '$lib/views/compare/state/compare.svelte';
 import { FindController } from '$lib/find/state/find.svelte';
 import { PromptController } from '$lib/ui/prompt.svelte';
@@ -114,7 +115,16 @@ export class DocumentSession {
 			setError,
 			getError: () => this.error,
 			setSelectedPath: (p) => this.nav.select(p),
-			clearViewState: () => deps.clearViewState(),
+			clearViewState: () => {
+				this.cutMark = null;
+				deps.clearViewState();
+			},
+			remapCutMark: (op) => {
+				const cut = this.cutMark;
+				if (!cut) return;
+				const path = op ? pathAfterOp(cut.path, op) : null;
+				if (path !== cut.path) this.cutMark = path ? { ...cut, path } : null;
+			},
 			flushPendingEdits: () => this.flushCode(),
 			applyDefaultView: async (summary) => {
 				await sidebarPrefs.init();
@@ -170,7 +180,7 @@ export class DocumentSession {
 		setTimeout(() => (this.saveFlash = null), SAVE_FLASH_MS);
 	};
 
-	private flushCode = async (): Promise<boolean> => {
+	flushCode = async (): Promise<boolean> => {
 		const api = this.deps.code.api();
 		if (this.viewMode === 'code' && this.deps.code.dirty() && api) return api.flush();
 		return true;
@@ -191,17 +201,27 @@ export class DocumentSession {
 			handle: () => this.session.handle,
 			sourceName: () => this.session.sourceName,
 			isDirty: () => this.isDirty,
-			codeDirty: () => this.deps.code.dirty(),
-			flushCodeBuffer: () => this.deps.code.api()?.flush() ?? Promise.resolve(true),
+			uncommittedText: () =>
+				this.deps.code.dirty() ? (this.deps.code.api()?.text() ?? null) : null,
 		});
+		let backedUp = false;
+		const flush = () => {
+			backedUp = true;
+			return backup.flush();
+		};
 
 		$effect(() => {
 			const h = this.session.handle;
 			void this.session.summary?.version;
 			void this.deps.code.dirty();
-			if (!h || !this.isDirty) return;
+			if (!h) return;
+			if (!this.isDirty) {
+				if (backedUp) this.session.clearBackup();
+				backedUp = false;
+				return;
+			}
 			if (this.backupTimer) clearTimeout(this.backupTimer);
-			this.backupTimer = setTimeout(() => void backup.flush(), BACKUP_IDLE_MS);
+			this.backupTimer = setTimeout(() => void flush(), BACKUP_IDLE_MS);
 			return () => {
 				if (this.backupTimer) clearTimeout(this.backupTimer);
 			};
@@ -210,13 +230,13 @@ export class DocumentSession {
 		let prevActive = false;
 		$effect(() => {
 			const nowActive = this.deps.isActive();
-			if (prevActive && !nowActive && this.isDirty) void backup.flush();
+			if (prevActive && !nowActive && this.isDirty) void flush();
 			prevActive = nowActive;
 		});
 
 		$effect(() => {
 			const onBlur = () => {
-				if (this.isDirty) void backup.flush();
+				if (this.isDirty) void flush();
 			};
 			window.addEventListener('blur', onBlur);
 			return () => window.removeEventListener('blur', onBlur);

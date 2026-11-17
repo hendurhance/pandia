@@ -9,7 +9,7 @@ import type { DocHandle, OpenSource } from '$lib/ipc/bindings';
 import type { Handoff } from './handoff';
 import { loadOpenTabs, saveOpenTabs } from './tabs-restore';
 
-export const MAX_TABS = 10;
+export const MAX_TABS = 50;
 export const LARGE_FILE_WARN_BYTES = 200 * 1024 * 1024;
 
 export interface DocContext {
@@ -25,6 +25,7 @@ export interface PaneView {
 	readonly sourceName: string | null;
 	readonly status: DocStatus | null;
 	readonly context: DocContext | null;
+	readonly busy?: boolean;
 }
 
 export interface WorkspacePrompts {
@@ -77,8 +78,11 @@ export class Workspace {
 
 	private views: Record<string, PaneView> = $state.raw({});
 	private slots: Record<string, TabSlot> = {};
+	private openWaiters: Record<string, ((opened: boolean) => void)[]> = {};
+	private closing: Record<string, Promise<boolean>> = {};
 	private idCounter = 1;
 	private restored = false;
+	private restoring = false;
 
 	constructor(private readonly prompts: WorkspacePrompts) {}
 
@@ -156,16 +160,25 @@ export class Workspace {
 	clearPendingOpen = (id: string) => {
 		if (this.pendingOpens[id] == null) return;
 		this.pendingOpens = { ...this.pendingOpens, [id]: null };
+		this.settleOpen(id, !!this.views[id]?.context);
 	};
 
-	close = async (id: string): Promise<boolean> => {
+	whenOpened(tabId: string): Promise<boolean> {
+		if (this.pendingOpens[tabId] == null) return Promise.resolve(!!this.views[tabId]?.context);
+		return new Promise((resolve) => (this.openWaiters[tabId] ??= []).push(resolve));
+	}
+
+	close = (id: string): Promise<boolean> =>
+		(this.closing[id] ??= this.closeOnce(id).finally(() => delete this.closing[id]));
+
+	private async closeOnce(id: string): Promise<boolean> {
 		const tab = this.tabs.find((t) => t.id === id);
 		if (!tab) return false;
 		if (!(await this.resolveUnsaved([id]))) return false;
 		await tab.handoff?.settle(id);
 		this.remove(id);
 		return true;
-	};
+	}
 
 	async closeAll(): Promise<boolean> {
 		if (!(await this.resolveUnsaved(this.tabs.map((t) => t.id)))) return false;
@@ -176,34 +189,46 @@ export class Workspace {
 	async restore(launch: Promise<void>): Promise<void> {
 		if (this.restored) return;
 		this.restored = true;
-		await behaviorPrefs.init();
-		if (!behaviorPrefs.restoreTabsOnLaunch) return;
-		const [{ paths, activeIndex }] = await Promise.all([loadOpenTabs(), launch]);
-		const launched =
-			Object.values(this.views).some((v) => v.context) ||
-			Object.values(this.pendingOpens).some(Boolean);
-		if (paths.length === 0 || launched) return;
-		const tabIds: (string | undefined)[] = [];
-		for (const [i, path] of paths.entries()) {
-			const outcome = await this.open({ kind: 'file', path }, { focus: i === 0 });
-			if (outcome.kind === 'full') break;
-			tabIds.push(outcome.kind === 'opened' ? outcome.tabId : undefined);
+		this.restoring = true;
+		try {
+			await behaviorPrefs.init();
+			if (!behaviorPrefs.restoreTabsOnLaunch) return;
+			const [{ paths, activeIndex }] = await Promise.all([loadOpenTabs(), launch]);
+			const launched =
+				Object.values(this.views).some((v) => v.context) ||
+				Object.values(this.pendingOpens).some(Boolean);
+			if (paths.length === 0 || launched) return;
+			const tabIds: (string | undefined)[] = [];
+			for (const [i, path] of paths.entries()) {
+				const outcome = await this.open({ kind: 'file', path }, { focus: i === 0 });
+				if (outcome.kind === 'full') break;
+				tabIds.push(outcome.kind === 'opened' ? outcome.tabId : undefined);
+			}
+			const active = tabIds[activeIndex];
+			if (active) this.activeId = active;
+		} finally {
+			this.restoring = false;
 		}
-		const active = tabIds[activeIndex];
-		if (active) this.activeId = active;
 	}
 
 	async snapshot(): Promise<void> {
-		if (!behaviorPrefs.restoreTabsOnLaunch) return;
+		if (this.restoring || !behaviorPrefs.restoreTabsOnLaunch) return;
 		const paths: string[] = [];
 		let activeIndex = -1;
 		for (const t of this.tabs) {
-			const ctx = this.views[t.id]?.context;
-			if (!ctx?.fileBacked || !ctx.sourceName) continue;
+			const path = this.restorablePath(t.id);
+			if (!path) continue;
 			if (t.id === this.activeId) activeIndex = paths.length;
-			paths.push(ctx.sourceName);
+			paths.push(path);
 		}
 		await saveOpenTabs(paths, activeIndex);
+	}
+
+	private restorablePath(tabId: string): string | null {
+		const ctx = this.views[tabId]?.context;
+		if (ctx) return ctx.fileBacked ? ctx.sourceName : null;
+		const pending = this.pendingOpens[tabId];
+		return pending?.kind === 'file' ? pending.path : null;
 	}
 
 	create = () => {
@@ -235,6 +260,7 @@ export class Workspace {
 	};
 
 	private async mayOpen(path: string): Promise<boolean> {
+		await behaviorPrefs.init();
 		if (!behaviorPrefs.warnLargeFileOpen) return true;
 		let bytes = 0;
 		try {
@@ -264,7 +290,7 @@ export class Workspace {
 			const ctx = this.views[id]?.context;
 			if (!ctx) continue;
 			if (choice === 'discard') {
-				void ipc.docBackupClear(ctx.handle).catch(() => {});
+				await ipc.docBackupClear(ctx.handle).catch(() => {});
 				continue;
 			}
 			this.activate(id); // a Save As dialog should show which document it is for
@@ -287,6 +313,7 @@ export class Workspace {
 		delete this.slots[id];
 		const { [id]: __, ...pending } = this.pendingOpens;
 		this.pendingOpens = pending;
+		this.settleOpen(id, false);
 		const next = this.tabs.filter((t) => t.id !== id);
 		if (next.length === 0) {
 			const fresh: TabRecord = { id: this.newId(), handoff: null };
@@ -301,6 +328,12 @@ export class Workspace {
 		}
 	}
 
+	private settleOpen(id: string, opened: boolean): void {
+		const waiters = this.openWaiters[id] ?? [];
+		delete this.openWaiters[id];
+		for (const resolve of waiters) resolve(opened);
+	}
+
 	private isEmpty(id: string): boolean {
 		return (this.views[id]?.status ?? null) == null;
 	}
@@ -308,6 +341,7 @@ export class Workspace {
 	private reusable(id: string): boolean {
 		return (
 			this.isEmpty(id) &&
+			!this.views[id]?.busy &&
 			this.pendingOpens[id] == null &&
 			!this.tabs.find((t) => t.id === id)?.handoff?.owes
 		);

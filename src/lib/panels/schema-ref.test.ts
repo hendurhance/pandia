@@ -43,6 +43,13 @@ describe('planSchema', () => {
 		).toMatchObject({ target: { kind: 'file', path: '/work/my schema.json' } });
 	});
 
+	it('reports a malformed file:// URL as a schema problem', () => {
+		expect(planSchema({ cliRef: null, docRef: 'file:///a%zz.json', docPath })).toMatchObject({
+			kind: 'invalid',
+			from: 'document',
+		});
+	});
+
 	it('treats a JSON Schema dialect URI as the file being a schema, not an association', () => {
 		const dialect = 'https://json-schema.org/draft/2020-12/schema';
 		expect(planSchema({ cliRef: null, docRef: dialect, docPath })).toEqual({ kind: 'none' });

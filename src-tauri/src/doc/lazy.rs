@@ -7,10 +7,7 @@ use serde_json::Value;
 use sonic_rs::{FastStr, JsonType, JsonValueTrait, LazyValue, PointerNode};
 
 use super::jobs::CancelFlag;
-use super::search::{
-    prepare as search_prepare, string_match_snippet, substr_contains, MatchField, SearchHit,
-    SearchOptions,
-};
+use super::search::{match_snippet, prepare_matcher, MatchField, SearchHit, SearchOptions};
 use super::typegen::{
     merge as merge_shape, ObjectProp, PrimitiveKind, TypeShape, ARRAY_SAMPLE_CAP,
 };
@@ -33,6 +30,9 @@ impl LazyDoc {
         let repeated_keys = prescan(&text)?;
         sonic_rs::from_str::<serde::de::IgnoredAny>(&text)
             .map_err(|e| DocError::Parse(e.to_string()))?;
+        if has_surrogate_escape(&text) {
+            parse_json::<Decoded>(&text)?;
+        }
         let root_kind = root_kind_of(&text);
 
         let source = if repeated_keys.is_empty() {
@@ -158,21 +158,14 @@ impl LazyDoc {
             .collect())
     }
 
-    pub fn array_field_text_lower(
-        &self,
-        path: &Path,
-        field: &str,
-    ) -> DocResult<Vec<Option<String>>> {
+    pub fn array_field_text(&self, path: &Path, field: &str) -> DocResult<Vec<Option<String>>> {
         let needle = sonic_pointer(&[PathSegment::Key(field.to_string())]);
         let extract = |bytes: &str| -> Option<String> {
             // SAFETY: see `array_field_cells` — same precondition holds.
             let lv = unsafe { sonic_rs::get_from_str_unchecked(bytes, &needle) }.ok()?;
             let raw = lv.as_raw_str();
             match lv.get_type() {
-                JsonType::String => {
-                    let s: String = serde_json::from_str(raw).ok()?;
-                    Some(s.to_lowercase())
-                }
+                JsonType::String => serde_json::from_str(raw).ok(),
                 JsonType::Number | JsonType::Boolean => Some(raw.to_string()),
                 _ => None, // null/object/array — not searchable as text
             }
@@ -189,7 +182,7 @@ impl LazyDoc {
     }
 
     pub fn search(&self, opts: &SearchOptions, cancel: &CancelFlag) -> Vec<SearchHit> {
-        let Some((needle, cap)) = search_prepare(opts) else {
+        let Some((matcher, cap)) = prepare_matcher(opts) else {
             return Vec::new();
         };
         let mut hits = Vec::new();
@@ -198,15 +191,7 @@ impl LazyDoc {
             Err(_) => return hits,
         };
         let mut path = Path::root();
-        walk_lazy(
-            &root,
-            &mut path,
-            &needle,
-            opts.case_sensitive,
-            cap,
-            &mut hits,
-            cancel,
-        );
+        walk_lazy(&root, &mut path, &matcher, cap, &mut hits, cancel);
         hits
     }
 
@@ -535,6 +520,65 @@ pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> DocResul
         .map_err(|e| DocError::Parse(e.to_string()))
 }
 
+fn has_surrogate_escape(text: &str) -> bool {
+    let b = text.as_bytes();
+    text.match_indices('\\').any(|(i, _)| {
+        b.get(i + 1) == Some(&b'u')
+            && matches!(b.get(i + 2), Some(b'd' | b'D'))
+            && matches!(b.get(i + 3), Some(b'8'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+    })
+}
+
+struct Decoded;
+
+impl<'de> serde::Deserialize<'de> for Decoded {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(Decoded)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for Decoded {
+    type Value = Decoded;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _: bool) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_i64<E>(self, _: i64) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_u64<E>(self, _: u64) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_f64<E>(self, _: f64) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_str<E>(self, _: &str) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_unit<E>(self) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Decoded, A::Error> {
+        while seq.next_element::<Decoded>()?.is_some() {}
+        Ok(Decoded)
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Decoded, A::Error> {
+        while map.next_entry::<Decoded, Decoded>()?.is_some() {}
+        Ok(Decoded)
+    }
+}
+
 fn check_literal(bytes: &[u8], i: usize, lit: &[u8]) -> DocResult<usize> {
     if i + lit.len() > bytes.len() || &bytes[i..i + lit.len()] != lit {
         return Err(DocError::Parse(format!(
@@ -680,8 +724,7 @@ fn slice_array_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeVie
 fn walk_lazy(
     lv: &LazyValue<'_>,
     path: &mut Path,
-    needle: &str,
-    case_sensitive: bool,
+    matcher: &regex::Regex,
     cap: usize,
     hits: &mut Vec<SearchHit>,
     cancel: &CancelFlag,
@@ -703,7 +746,7 @@ fn walk_lazy(
                 }
                 let Ok((key, child)) = entry else { return };
                 let key = key.into_owned();
-                if substr_contains(&key, needle, case_sensitive) {
+                if matcher.is_match(&key) {
                     path.push(PathSegment::Key(key.clone()));
                     hits.push(SearchHit {
                         path: path.clone(),
@@ -717,7 +760,7 @@ fn walk_lazy(
                     }
                 }
                 path.push(PathSegment::Key(key));
-                walk_lazy(&child, path, needle, case_sensitive, cap, hits, cancel);
+                walk_lazy(&child, path, matcher, cap, hits, cancel);
                 path.0.pop();
             }
         }
@@ -731,13 +774,13 @@ fn walk_lazy(
                 }
                 let Ok(child) = entry else { return };
                 path.push(PathSegment::Index(i as u32));
-                walk_lazy(&child, path, needle, case_sensitive, cap, hits, cancel);
+                walk_lazy(&child, path, matcher, cap, hits, cancel);
                 path.0.pop();
             }
         }
         JsonType::String => {
             if let Some(s) = lv.as_str() {
-                if let Some(snippet) = string_match_snippet(s, needle, case_sensitive) {
+                if let Some(snippet) = match_snippet(s, matcher) {
                     hits.push(SearchHit {
                         path: path.clone(),
                         kind: NodeKind::String,
@@ -755,23 +798,25 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
     match lv.get_type() {
         JsonType::Null => TypeShape::Primitive(PrimitiveKind::Null),
         JsonType::Boolean => TypeShape::Primitive(PrimitiveKind::Bool),
-        JsonType::Number => {
-            let raw = lv.as_raw_str();
-            if raw.parse::<i64>().is_ok() {
-                TypeShape::Primitive(PrimitiveKind::Integer)
-            } else if raw.parse::<u64>().is_ok() {
-                TypeShape::Primitive(PrimitiveKind::Unsigned)
-            } else {
-                TypeShape::Primitive(PrimitiveKind::Float)
-            }
-        }
+        JsonType::Number => TypeShape::Primitive(super::typegen::number_kind(lv.as_raw_str())),
         JsonType::String => TypeShape::Primitive(PrimitiveKind::String),
         JsonType::Array => {
             let Some(iter) = lv.clone().into_array_iter() else {
-                return TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any)));
+                return TypeShape::Array(Box::new(TypeShape::Unknown));
             };
+            let len = iter.count();
+            let mut picked = super::typegen::sample_indices(len, ARRAY_SAMPLE_CAP).peekable();
             let mut acc: Option<TypeShape> = None;
-            for entry in iter.take(ARRAY_SAMPLE_CAP) {
+            for (i, entry) in lv
+                .clone()
+                .into_array_iter()
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                if picked.next_if_eq(&i).is_none() {
+                    continue;
+                }
                 let Ok(child) = entry else { break };
                 let s = infer_lazy(&child);
                 acc = Some(match acc {
@@ -780,7 +825,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                 });
             }
             match acc {
-                None => TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any))),
+                None => TypeShape::Array(Box::new(TypeShape::Unknown)),
                 Some(a) => TypeShape::Array(Box::new(a)),
             }
         }
@@ -794,6 +839,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                         ObjectProp {
                             shape: infer_lazy(&child),
                             optional: false,
+                            nullable: false,
                         },
                     );
                 }
@@ -871,8 +917,8 @@ impl super::backend::DocumentBackend for LazyDoc {
         self.array_field_cells(path, key)
     }
 
-    fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
-        self.array_field_text_lower(path, key)
+    fn column_text(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
+        self.array_field_text(path, key)
     }
 
     fn for_each_row_field(
@@ -918,6 +964,14 @@ impl super::backend::DocumentBackend for LazyDoc {
     ) -> DocResult<String> {
         match lang {
             super::typegen::TypegenLang::JsonSchema => {
+                let size = self.source.len() as u64;
+                let limit = super::document::EDIT_SIZE_LIMIT;
+                if size > limit {
+                    return Err(DocError::TooLarge {
+                        actual: size,
+                        limit,
+                    });
+                }
                 let v = LazyDoc::get_value(self, &Path::root())?;
                 Ok(super::typegen::generate(&v, lang, type_name))
             }
@@ -940,13 +994,13 @@ impl super::backend::DocumentBackend for LazyDoc {
 
     fn serialize_ndjson(&self) -> Option<String> {
         let spans = self.root_element_spans()?;
-        let src = self.source();
-        let mut out = String::with_capacity(src.len() + spans.len());
+        let src = self.source().as_bytes();
+        let mut out = Vec::with_capacity(src.len() + spans.len());
         for &(a, b) in spans {
-            out.push_str(&src[a as usize..b as usize]);
-            out.push('\n');
+            super::export::reformat_json(&src[a as usize..b as usize], false, &mut out).ok()?;
+            out.push(b'\n');
         }
-        Some(out)
+        String::from_utf8(out).ok()
     }
 
     fn write_json(
@@ -1018,6 +1072,24 @@ mod tests {
 
     fn doc(s: &str) -> LazyDoc {
         LazyDoc::new(FastStr::new(s)).expect("valid JSON in test")
+    }
+
+    #[test]
+    fn json_schema_types_refuse_a_document_over_the_whole_document_limit() {
+        use super::super::backend::DocumentBackend;
+        use super::super::document::EDIT_SIZE_LIMIT;
+        use super::super::typegen::TypegenLang;
+        let limit = EDIT_SIZE_LIMIT as usize;
+        let big = doc(&format!("[{}0]", " ".repeat(limit)));
+        match big.generate_types(TypegenLang::JsonSchema, "Root") {
+            Err(DocError::TooLarge { limit: l, .. }) => assert_eq!(l, EDIT_SIZE_LIMIT),
+            other => panic!("expected TooLarge, got {:?}", other.map(|s| s.len())),
+        }
+        let small = doc("[1, 2]");
+        assert!(small
+            .generate_types(TypegenLang::JsonSchema, "Root")
+            .unwrap()
+            .contains("2020-12"));
     }
 
     #[test]
@@ -1279,14 +1351,14 @@ mod tests {
     }
 
     #[test]
-    fn array_field_text_lower_extracts_lowercased_scalars() {
+    fn array_field_text_extracts_scalars_as_written() {
         let d =
             doc(r#"[{"n": "Hello"}, {"n": 42}, {"n": true}, {"n": null}, {"n": {"k":1}}, {}, 99]"#);
-        let cells = d.array_field_text_lower(&Path::root(), "n").unwrap();
+        let cells = d.array_field_text(&Path::root(), "n").unwrap();
         assert_eq!(
             cells,
             vec![
-                Some("hello".into()),
+                Some("Hello".into()),
                 Some("42".into()),
                 Some("true".into()),
                 None,
@@ -1298,10 +1370,10 @@ mod tests {
     }
 
     #[test]
-    fn array_field_text_lower_handles_escapes() {
+    fn array_field_text_handles_escapes() {
         let d = doc(r#"[{"n": "Hello\nWorld"}, {"n": "Aé"}]"#);
-        let cells = d.array_field_text_lower(&Path::root(), "n").unwrap();
-        assert_eq!(cells, vec![Some("hello\nworld".into()), Some("aé".into())]);
+        let cells = d.array_field_text(&Path::root(), "n").unwrap();
+        assert_eq!(cells, vec![Some("Hello\nWorld".into()), Some("Aé".into())]);
     }
 
     #[test]
@@ -1316,5 +1388,35 @@ mod tests {
         let d = doc(r#"[10, 20, 30, 40, 50]"#);
         assert_eq!(d.root_kind(), NodeKind::Array);
         assert_eq!(d.root_child_count(), Some(5));
+    }
+
+    #[test]
+    fn ndjson_writes_each_pretty_record_on_one_line_like_the_eager_writer() {
+        use crate::doc::backend::DocumentBackend;
+        let text = "[\n  {\n    \"a\": 1,\n    \"b\": [\n      1,\n      2\n    ]\n  },\n  {\n    \"a\": 2\n  }\n]";
+        let eager: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            DocumentBackend::serialize_ndjson(&doc(text)),
+            DocumentBackend::serialize_ndjson(&eager)
+        );
+    }
+
+    #[test]
+    fn a_lone_surrogate_is_refused_at_open_with_the_eager_error() {
+        for text in [
+            r#"{"s":"\ud83d","x":1}"#,
+            r#"{"ok":1,"\ud800":2,"z":3}"#,
+            r#"["\udc00"]"#,
+            r#"["\ud83d\u0041"]"#,
+        ] {
+            let DocError::Parse(eager) = parse_json::<Value>(text).unwrap_err() else {
+                panic!("{text}: eager should refuse with a parse error");
+            };
+            match LazyDoc::new(FastStr::new(text)) {
+                Err(DocError::Parse(lazy)) => assert_eq!(lazy, eager, "{text}"),
+                other => panic!("{text}: lazy open gave {other:?}, eager gave {eager}"),
+            }
+        }
+        doc(r#"["\ud83d\ude00", "\\ud800"]"#);
     }
 }

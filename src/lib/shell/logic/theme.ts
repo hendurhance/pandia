@@ -20,7 +20,6 @@ export interface ThemeColors {
 	syntaxString: string;
 	syntaxNumber: string;
 	syntaxBoolean: string;
-	syntaxNull: string;
 	syntaxPunct: string;
 	syntaxUrl: string;
 	success: string;
@@ -88,7 +87,6 @@ export function applyTheme(theme: Theme): void {
 	r.style.setProperty('--syntax-string', theme.colors.syntaxString);
 	r.style.setProperty('--syntax-number', theme.colors.syntaxNumber);
 	r.style.setProperty('--syntax-boolean', theme.colors.syntaxBoolean);
-	r.style.setProperty('--syntax-null', theme.colors.syntaxNull);
 	r.style.setProperty('--syntax-punct', theme.colors.syntaxPunct);
 	r.style.setProperty('--syntax-url', theme.colors.syntaxUrl);
 	r.style.setProperty('--success', theme.colors.success);

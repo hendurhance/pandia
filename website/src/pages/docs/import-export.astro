@@ -3,7 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 ---
 <DocsLayout
   title="Import & auto-detect"
-  description="Bring data into Pandia from anywhere — paste, drop, open or fetch. Pandia detects the format and converts JSON, YAML, XML, CSV and cURL commands to JSON."
+  description="Bring data into Pandia from anywhere — paste, drop, open or fetch. Pandia detects and converts JSON, YAML, XML and CSV, and sends a pasted cURL command to open its response."
   currentDoc="/docs/import-export"
 >
   <h1>Import &amp; auto-detect</h1>
@@ -23,16 +23,27 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 
   <h2>Auto-detect &amp; convert</h2>
   <p>Pandia detects and converts <strong>JSON</strong>, <strong>YAML</strong>,
-  <strong>XML</strong>, <strong>CSV</strong>, and <strong>cURL</strong> commands. JSON comes
-  through unchanged; the other four are converted to JSON for you.</p>
-  <p>For example, paste a <code>curl</code> command and Pandia pulls out the request and parses
-  its JSON body:</p>
+  <strong>XML</strong> and <strong>CSV</strong>. JSON comes through unchanged; the other three are
+  converted to JSON for you.</p>
+
+  <h2>Paste a cURL command</h2>
+  <p>Paste a <code>curl</code> command, such as one copied from Postman or from your browser's
+  developer tools, and Pandia sends the request and opens the <strong>response</strong>:</p>
   <pre><code><span class="c"># paste this into the start screen box</span>
-<span class="k">curl</span> -X POST https://api.example.com/users \
-  -H <span class="s">"Content-Type: application/json"</span> \
-  -d <span class="s">'&lbrace;"name":"Ada","active":true&rbrace;'</span></code></pre>
-  <p>Pandia tokenizes the command and gives you a JSON document with the URL, method, headers
-  and the parsed body:</p>
+<span class="k">curl</span> https://api.github.com/users/octocat -H <span class="s">"Accept: application/json"</span></code></pre>
+  <ul>
+    <li>A <strong>GET</strong> or <strong>HEAD</strong> request is sent as soon as you paste it.</li>
+    <li>Any other method, or any request with a body, shows the method, URL and header names first
+    (header values stay hidden), with a <strong>Send</strong> button. Nothing that could change data
+    on a server is sent without your click.</li>
+    <li>The response opens in the same tab, with a banner showing the method, URL and status. Error
+    responses still open, because APIs explain the error in the body.</li>
+    <li>Large responses are saved to disk as they arrive, so they open at any size like a file.</li>
+    <li>Options Pandia can't honour, such as <code>-k</code> or file uploads, are refused by name
+    rather than ignored, so the request sent is always the one you pasted.</li>
+  </ul>
+  <p>To see the request itself instead, choose <strong>Open the request as JSON</strong>. Pandia
+  gives you a JSON document with the URL, method, headers and the parsed body:</p>
   <pre><code><span class="p">&lbrace;</span>
   <span class="n">"url"</span><span class="p">:</span> <span class="s">"https://api.example.com/users"</span><span class="p">,</span>
   <span class="n">"method"</span><span class="p">:</span> <span class="s">"POST"</span><span class="p">,</span>

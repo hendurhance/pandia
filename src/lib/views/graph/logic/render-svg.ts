@@ -5,6 +5,7 @@ import {
 	CARD_RADIUS,
 	FONT_PX,
 	HEADER_FONT_WEIGHT,
+	MIN_VALUE_W,
 	ROW_PAD_X,
 	SWATCH_W,
 	SWATCH_GAP,
@@ -35,7 +36,7 @@ export function exportLayoutSVG(
 	parts.push(`<g transform="translate(${n(ox)},${n(oy)})">`);
 
 	parts.push(
-		`<g fill="none" stroke="${esc(theme.rule2)}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`,
+		`<g fill="none" stroke="${esc(theme.textFaint)}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">`,
 	);
 	for (const e of layout.edges) {
 		if (edgeStyle === 'curve') {
@@ -117,11 +118,16 @@ function renderRowSVG(
 ): void {
 	const midY = rowY + ROW_H / 2;
 	let cursorX = card.x + ROW_PAD_X;
+	const portReserve = row.expandable ? PORT_RESERVE : 0;
+	const swatch = row.colorHex ? SWATCH_W + SWATCH_GAP : 0;
+	const valueMin = Math.min(measurer.body.measure(row.value), MIN_VALUE_W);
+	const keyRoom = card.x + card.w - cursorX - ROW_PAD_X - portReserve - swatch;
+	const keyText = fitText(measurer.body, row.key, keyRoom - measurer.body.measure(': ') - valueMin);
 
 	out.push(
-		`<text x="${n(cursorX)}" y="${n(midY)}" fill="${esc(theme.textDim)}" dominant-baseline="middle">${esc(row.key)}</text>`,
+		`<text x="${n(cursorX)}" y="${n(midY)}" fill="${esc(theme.textDim)}" dominant-baseline="middle">${esc(keyText)}</text>`,
 	);
-	cursorX += measurer.body.measure(row.key);
+	cursorX += measurer.body.measure(keyText);
 
 	out.push(
 		`<text x="${n(cursorX)}" y="${n(midY)}" fill="${esc(theme.textFaint)}" dominant-baseline="middle">:</text>`,
@@ -137,9 +143,8 @@ function renderRowSVG(
 	}
 
 	const valColor = valueColor(row, theme);
-	const portReserve = row.expandable ? PORT_RESERVE : 0;
 	const valMax = card.x + card.w - cursorX - ROW_PAD_X - portReserve;
-	const valText = fitText(measurer.body, row.value, Math.max(20, valMax));
+	const valText = fitText(measurer.body, row.value, Math.max(MIN_VALUE_W, valMax));
 	out.push(
 		`<text x="${n(cursorX)}" y="${n(midY)}" fill="${esc(valColor)}" dominant-baseline="middle">${esc(valText)}</text>`,
 	);

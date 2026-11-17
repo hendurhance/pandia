@@ -122,10 +122,34 @@ describe('createEditHandlers', () => {
 	});
 
 	describe('onAreaKeydown (textarea)', () => {
-		it('plain Enter does NOT commit (multi-line string)', () => {
-			const { handlers, callbacks } = setup();
-			handlers.onAreaKeydown(key('Enter'));
+		it('plain Enter commits text with no line break', () => {
+			const { handlers, callbacks } = setup('Bob');
+			const e = key('Enter');
+			handlers.onAreaKeydown(e);
+			expect(callbacks.onCommit).toHaveBeenCalledOnce();
+			expect(e.preventDefault).toHaveBeenCalled();
+		});
+
+		it('plain Enter inserts a newline once the text has one', () => {
+			const { handlers, callbacks } = setup('line 1\nline 2');
+			const e = key('Enter');
+			handlers.onAreaKeydown(e);
 			expect(callbacks.onCommit).not.toHaveBeenCalled();
+			expect(e.preventDefault).not.toHaveBeenCalled();
+		});
+
+		it('Shift+Enter inserts the first newline', () => {
+			const { handlers, callbacks } = setup('Bob');
+			const e = key('Enter', { shiftKey: true });
+			handlers.onAreaKeydown(e);
+			expect(callbacks.onCommit).not.toHaveBeenCalled();
+			expect(e.preventDefault).not.toHaveBeenCalled();
+		});
+
+		it('Cmd+Enter commits a multi-line string', () => {
+			const { handlers, callbacks } = setup('line 1\nline 2');
+			handlers.onAreaKeydown(key('Enter', { metaKey: true }));
+			expect(callbacks.onCommit).toHaveBeenCalledOnce();
 		});
 
 		it('Cmd+Enter commits', () => {

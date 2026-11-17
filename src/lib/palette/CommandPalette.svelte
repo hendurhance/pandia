@@ -22,6 +22,7 @@
 	let listEl: HTMLUListElement | undefined = $state();
 	let pressedBackdrop = false;
 	let ranCommand = false;
+	let lastPointer: { x: number; y: number } | null = null;
 
 	$effect(() => {
 		if (!open) return;
@@ -31,11 +32,16 @@
 		const returnFocus = document.activeElement;
 		queueMicrotask(() => inputEl?.focus());
 		return () => {
-			if (!ranCommand && returnFocus instanceof HTMLElement && returnFocus.isConnected) {
-				returnFocus.focus();
-			}
+			if (!(returnFocus instanceof HTMLElement) || !returnFocus.isConnected) return;
+			if (!ranCommand || document.activeElement === document.body) returnFocus.focus();
 		};
 	});
+
+	function onRowMouseMove(e: MouseEvent, i: number) {
+		if (lastPointer?.x === e.clientX && lastPointer.y === e.clientY) return;
+		lastPointer = { x: e.clientX, y: e.clientY };
+		selectedIdx = i;
+	}
 
 	interface Entry {
 		cmd: Command;
@@ -185,7 +191,7 @@
 									execute(i);
 								}
 							}}
-							onmouseenter={() => (selectedIdx = i)}
+							onmousemove={(e) => onRowMouseMove(e, i)}
 							role="option"
 							aria-selected={i === selectedIdx}
 							tabindex="-1"
@@ -299,7 +305,8 @@
 	}
 	.row.selected {
 		background: var(--accent-soft);
-		color: var(--accent);
+		color: var(--text);
+		box-shadow: inset 2px 0 0 var(--accent);
 	}
 	.label {
 		flex: 1;

@@ -14,6 +14,7 @@
     "core:window:allow-is-fullscreen",
     "core:window:allow-start-dragging",
     "core:window:allow-destroy",
+    "core:window:allow-close",
     "core:app:default",
     "core:resources:default",
     "core:menu:default",

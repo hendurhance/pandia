@@ -16,6 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench:js": "node --expose-gc --experimental-strip-types --disable-warning=ExperimentalWarning bench/js/bench-diff.ts",
+    "e2e:build": "tauri build --debug --bundles app --config src-tauri/tauri.e2e.conf.json",
+    "e2e": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/e2e/cli.ts src-tauri/target/debug/bundle/macos/Pandia.app",
     "tauri": "tauri",
     "prepare": "husky"
   },
@@ -24,7 +26,7 @@
     "@sveltejs/adapter-static": "^3.0.1",
     "@sveltejs/kit": "^2.49.2",
     "@sveltejs/vite-plugin-svelte": "5.0.3",
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.12.5",
     "@testing-library/svelte": "^5.4.2",
     "@tsconfig/svelte": "^5.0.4",
     "@types/node": "^25.6.2",

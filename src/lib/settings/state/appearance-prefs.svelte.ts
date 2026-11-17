@@ -51,7 +51,10 @@ function sanitize(raw: unknown): Persisted {
 	if (!isObject(raw)) return fallback;
 	const r = raw;
 	return {
-		themeId: typeof r.themeId === 'string' && r.themeId in THEMES ? r.themeId : DEFAULT_THEME_ID,
+		themeId:
+			typeof r.themeId === 'string' && Object.hasOwn(THEMES, r.themeId)
+				? r.themeId
+				: DEFAULT_THEME_ID,
 		autoMode: typeof r.autoMode === 'boolean' ? r.autoMode : DEFAULT_AUTO_MODE,
 		fontFamily:
 			typeof r.fontFamily === 'string' && r.fontFamily.trim() ? r.fontFamily.trim() : DEFAULT_MONO,

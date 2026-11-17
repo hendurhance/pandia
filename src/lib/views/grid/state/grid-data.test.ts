@@ -10,7 +10,7 @@ vi.mock('$lib/ipc/client', () => ({
 	ipc: { docGetRows: vi.fn(), docGetRowsFiltered: vi.fn(), cancelJob: vi.fn(async () => true) },
 }));
 
-function controller(rowCount: number, filtering: boolean) {
+function controller(rowCount: number, filtering: boolean, quick = () => '') {
 	return inRoot(
 		() =>
 			new GridDataController({
@@ -21,7 +21,7 @@ function controller(rowCount: number, filtering: boolean) {
 					sortKey: null,
 					sortDesc: false,
 					filterGroups: [],
-					quick: '',
+					quick: quick(),
 					quickKeys: [],
 					filtering,
 				}),
@@ -43,6 +43,26 @@ describe('GridDataController.getCell', () => {
 		expect(data.getCell(1, 'score')).toBe(MISSING);
 		destroy();
 	});
+
+	it("reads only an object row's own keys", async () => {
+		vi.mocked(ipc.docGetRows).mockResolvedValue([
+			asLosslessText('{"a": 1}'),
+			asLosslessText('[1, 2]'),
+			asLosslessText('12345678901234567890'),
+			asLosslessText('{"constructor": 5}'),
+		]);
+		const { result: data, destroy } = controller(4, false);
+		await data.fetchRange(0, 3);
+		for (const key of ['constructor', 'toString', 'valueOf', '__proto__']) {
+			expect(data.getCell(0, key)).toBe(MISSING);
+		}
+		expect(data.getCell(1, 'length')).toBe(MISSING);
+		expect(data.getCell(2, 'value')).toBe(MISSING);
+		expect(data.getCell(3, 'constructor')).toBe(5);
+		expect(data.loadedColumnTexts('constructor')).toEqual(['5']);
+		expect(data.loadedColumnTexts('length')).toEqual([]);
+		destroy();
+	});
 });
 
 describe('GridDataController filtered fetches', () => {
@@ -55,6 +75,22 @@ describe('GridDataController filtered fetches', () => {
 
 		data.reset();
 		expect(vi.mocked(ipc.cancelJob).mock.calls).toEqual(ids.map((id) => [id]));
+		destroy();
+	});
+
+	it('keeps the last total while the same query reloads, and drops it for a new query', async () => {
+		vi.mocked(ipc.docGetRowsFiltered).mockResolvedValue({ rows: [], total: 600 });
+		let quick = 'x';
+		const { result: data, destroy } = controller(1000, true, () => quick);
+		data.reset();
+		await data.fetchRange(0, 1);
+		expect(data.effectiveRowCount).toBe(600);
+
+		data.reset();
+		expect(data.effectiveRowCount).toBe(600);
+		quick = 'y';
+		data.reset();
+		expect(data.effectiveRowCount).toBe(0);
 		destroy();
 	});
 });

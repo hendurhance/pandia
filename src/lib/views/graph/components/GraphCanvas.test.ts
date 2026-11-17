@@ -14,6 +14,16 @@ HTMLCanvasElement.prototype.getBoundingClientRect = () => new DOMRect(200, 100, 
 Object.defineProperty(HTMLElement.prototype, 'clientWidth', { get: () => 800 });
 Object.defineProperty(HTMLElement.prototype, 'clientHeight', { get: () => 600 });
 
+const mediaListeners = new Set<() => void>();
+window.matchMedia = ((media: string) => ({
+	media,
+	matches: true,
+	addEventListener: (_: string, cb: () => void) => mediaListeners.add(cb),
+	removeEventListener: (_: string, cb: () => void) => mediaListeners.delete(cb),
+})) as unknown as typeof window.matchMedia;
+
+const emptyLayout = { cards: [], edges: [], width: 0, height: 0 };
+
 describe('GraphCanvas — zoom buttons', () => {
 	it('keeps the point at the center of the canvas fixed', async () => {
 		let api: GraphCanvasApi | null = null;
@@ -61,5 +71,54 @@ describe('GraphCanvas — the "… N more" card', () => {
 
 		expect(onShowMore).toHaveBeenCalledWith(more);
 		expect(onPickCard).not.toHaveBeenCalled();
+	});
+});
+
+describe('GraphCanvas — a cancelled pointer', () => {
+	it('does not open the card under it', async () => {
+		const card = { id: '[]', path: [], title: 'root', kind: 'object' as const, rows: [], hue: 0 };
+		const layout = {
+			cards: [{ ...card, x: 0, y: 0, w: 140, h: 30 }],
+			edges: [],
+			width: 140,
+			height: 30,
+		};
+		const onPickCard = vi.fn();
+		const { container } = render(GraphCanvas, {
+			props: { layout, onPickCard, onPortToggle: vi.fn(), onShowMore: vi.fn() },
+		});
+		const canvas = container.querySelector('canvas')!;
+		canvas.setPointerCapture = () => {};
+
+		const at = { button: 0, pointerId: 1, clientX: 200 + 40 + 10, clientY: 100 + 40 + 10 };
+		await fireEvent.pointerDown(canvas, at);
+		await fireEvent.pointerCancel(canvas, at);
+
+		expect(onPickCard).not.toHaveBeenCalled();
+	});
+});
+
+describe('GraphCanvas — display scale', () => {
+	it('resizes the backing store when only devicePixelRatio changes', async () => {
+		const { container } = render(GraphCanvas, {
+			props: {
+				layout: emptyLayout,
+				onPickCard: vi.fn(),
+				onPortToggle: vi.fn(),
+				onShowMore: vi.fn(),
+			},
+		});
+		const canvas = container.querySelector('canvas')!;
+		expect(canvas.width).toBe(800);
+
+		const before = window.devicePixelRatio;
+		Object.defineProperty(window, 'devicePixelRatio', { value: 2, configurable: true });
+		try {
+			for (const cb of [...mediaListeners]) cb();
+			expect(canvas.width).toBe(1600);
+			expect(canvas.style.width).toBe('800px');
+		} finally {
+			Object.defineProperty(window, 'devicePixelRatio', { value: before, configurable: true });
+		}
 	});
 });

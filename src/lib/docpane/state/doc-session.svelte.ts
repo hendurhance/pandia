@@ -7,15 +7,17 @@ import type {
 	DetectKind,
 	DocHandle,
 	Op,
+	OpenFailure,
 	OpenNotes,
 	OpenOutcome,
 	OpenSource,
 	Path,
+	ResponseInfo,
 	Summary,
 } from '$lib/ipc/bindings';
-import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
+import { isExpandable } from '$lib/views/tree/logic/model';
 import { basename } from '$lib/util/path';
-import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
+import { fetchRootRow, type TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -33,7 +35,6 @@ const FORMAT_NAMES: Record<DetectKind, string> = {
 	unknown: 'another format',
 };
 
-/** What Pandia changed so a document could be opened, shown in a banner above it. */
 export interface RepairInfo {
 	title: string;
 	notes: string[];
@@ -52,6 +53,11 @@ function repairInfoFrom(notes: OpenNotes): RepairInfo | null {
 	};
 }
 
+/** The request a tab's document came back from, shown in a banner above it. */
+export interface SentResponse extends ResponseInfo {
+	curl: string;
+}
+
 export interface DocSessionDeps {
 	tree: TreeRowsController;
 	find: FindController;
@@ -63,6 +69,8 @@ export interface DocSessionDeps {
 	setSelectedPath: (path: Path | null) => void;
 
 	clearViewState: () => void;
+
+	remapCutMark: (op: Op | undefined) => void;
 
 	flushPendingEdits: () => Promise<boolean>;
 
@@ -81,6 +89,7 @@ export class DocSessionController {
 	sourceName: string | null = $state(null);
 
 	repairInfo: RepairInfo | null = $state(null);
+	response: SentResponse | null = $state(null);
 	diagnosis: Diagnosis | null = $state(null);
 	refreshing = $state(false);
 
@@ -92,7 +101,10 @@ export class DocSessionController {
 
 	constructor(private deps: DocSessionDeps) {}
 
-	private load = async (opener: () => Promise<OpenOutcome>): Promise<boolean> => {
+	private load = async (
+		opener: () => Promise<OpenOutcome>,
+		describeFailure: (f: OpenFailure) => string = describeOpenFailure,
+	): Promise<boolean> => {
 		const seq = ++this.loadSeq;
 		this.deps.setBusy(true);
 		this.deps.setError(null);
@@ -104,7 +116,7 @@ export class DocSessionController {
 				return false;
 			}
 			if (outcome.kind === 'failed') {
-				this.deps.setError(describeOpenFailure(outcome));
+				this.deps.setError(describeFailure(outcome));
 				this.diagnosis = outcome.diagnosis;
 				return false;
 			}
@@ -112,7 +124,8 @@ export class DocSessionController {
 			this.summary = outcome.summary;
 			this.sourceName = outcome.summary.sourcePath ?? '(inline)';
 			this.repairInfo = repairInfoFrom(outcome.notes);
-			const root = rootRow(outcome.summary.rootKind, outcome.summary.rootChildCount);
+			const root = await fetchRootRow(outcome.handle, outcome.summary);
+			if (seq !== this.loadSeq) return false;
 			this.deps.tree.setRows([root]);
 			this.deps.setSelectedPath(root.path);
 			if (isExpandable(root)) {
@@ -145,6 +158,32 @@ export class DocSessionController {
 		return true;
 	};
 
+	loadFromRequest = async (curl: string, jobId: string): Promise<boolean> => {
+		await this.deps.applyDefaultView(null);
+		await behaviorPrefs.init();
+		const repair = behaviorPrefs.autoRepairOnOpen;
+		let response: ResponseInfo | undefined;
+		const opened = await this.load(
+			async () => {
+				const sent = await ipc.curlSend(curl, jobId, { repair });
+				response = sent.response;
+				return sent.outcome;
+			},
+			(f) =>
+				describeOpenFailure(
+					f,
+					`The server answered ${response?.status} ${response?.statusText}, and its response isn't valid JSON`,
+				),
+		);
+		if (!opened || !response) {
+			this.failedName = 'response.json';
+			return false;
+		}
+		this.response = { ...response, curl };
+		await this.deps.applyDefaultView(this.summary);
+		return true;
+	};
+
 	applyDiagnosisFix = async (text: string): Promise<boolean> => {
 		this.diagnosis = null;
 		return this.loadFromSource({ kind: 'text', text, name: this.failedName ?? 'pasted.json' });
@@ -164,6 +203,7 @@ export class DocSessionController {
 		this.summary = null;
 		this.sourceName = null;
 		this.repairInfo = null;
+		this.response = null;
 		this.diagnosis = null;
 		this.deps.tree.setRows([]);
 		this.deps.setSelectedPath(null);
@@ -186,29 +226,31 @@ export class DocSessionController {
 		} catch {}
 	};
 
-	reloadAfter = async (affectedPaths: Path[]) => {
+	reloadAfter = async (affectedPaths: Path[], op?: Op) => {
+		this.deps.remapCutMark(op);
 		this.refreshing = true;
 		try {
 			await this.refreshSummary();
-			await this.deps.tree.refetchAfterOp(affectedPaths);
+			await this.deps.tree.refetchAfterOp(affectedPaths, op);
 		} finally {
 			this.refreshing = false;
 		}
 	};
 
-	private afterMutation = async (result: ApplyResult) => {
-		await this.reloadAfter(result.affectedPaths);
+	private afterMutation = async (result: ApplyResult, op?: Op) => {
+		await this.reloadAfter(result.affectedPaths, op);
 		this.deps.find.refreshAfterEdit();
 	};
 
 	private mutate = async (
 		run: (handle: DocHandle) => Promise<ApplyResult | null>,
+		op?: Op,
 	): Promise<ApplyResult | null> => {
 		if (!this.handle) return null;
 		try {
 			const result = await run(this.handle);
 			if (result === null) return null;
-			await this.afterMutation(result);
+			await this.afterMutation(result, op);
 			return result;
 		} catch (e) {
 			this.deps.setError(describeError(e));
@@ -216,7 +258,7 @@ export class DocSessionController {
 		}
 	};
 
-	applyOp = (op: Op): Promise<ApplyResult | null> => this.mutate((h) => ipc.docApplyOp(h, op));
+	applyOp = (op: Op): Promise<ApplyResult | null> => this.mutate((h) => ipc.docApplyOp(h, op), op);
 
 	commitText = (text: string): Promise<ApplyResult | null> =>
 		this.mutate((h) => ipc.docSetRootText(h, text));

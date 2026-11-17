@@ -50,6 +50,7 @@ export class GridFilterController {
 	valueSearch = $state('');
 	valuesByCol = $state.raw(new Map<string, DecodedColumnValues>());
 	valuesLoading: string | null = $state(null);
+	private valuesGen = 0;
 
 	constructor(private deps: GridFilterDeps) {
 		$effect(() => {
@@ -144,6 +145,7 @@ export class GridFilterController {
 		groups[groupIdx] = nextMap;
 		if (nextMap.size === 0 && groups.length > 1) {
 			groups = groups.filter((_, k) => k !== groupIdx);
+			if (groupIdx < this.activeGroup) this.activeGroup -= 1;
 		}
 		this.groups = groups;
 		this.activeGroup = Math.min(this.activeGroup, this.groups.length - 1);
@@ -163,6 +165,7 @@ export class GridFilterController {
 	};
 
 	removeGroup = (i: number) => {
+		if (i < this.activeGroup) this.activeGroup -= 1;
 		this.groups = this.groups.length <= 1 ? [new Map()] : this.groups.filter((_, k) => k !== i);
 		this.activeGroup = Math.min(this.activeGroup, this.groups.length - 1);
 		this.openCol = null;
@@ -220,9 +223,11 @@ export class GridFilterController {
 
 	private async loadValues(key: string) {
 		if (this.valuesByCol.has(key)) return;
+		const gen = this.valuesGen;
 		this.valuesLoading = key;
 		try {
 			const cv = await ipc.docColumnValues(this.deps.handle(), this.deps.path(), key, VALUE_LIMIT);
+			if (gen !== this.valuesGen) return;
 			const next = new Map(this.valuesByCol);
 			next.set(key, {
 				capped: cv.capped,
@@ -230,9 +235,9 @@ export class GridFilterController {
 			});
 			this.valuesByCol = next;
 		} catch (e) {
-			this.deps.onError(describeError(e));
+			if (gen === this.valuesGen) this.deps.onError(describeError(e));
 		} finally {
-			this.valuesLoading = null;
+			if (gen === this.valuesGen) this.valuesLoading = null;
 		}
 	}
 
@@ -264,7 +269,9 @@ export class GridFilterController {
 	};
 
 	resetValues = () => {
+		this.valuesGen += 1;
 		this.valuesByCol = new Map();
+		this.valuesLoading = null;
 		this.openCol = null;
 	};
 

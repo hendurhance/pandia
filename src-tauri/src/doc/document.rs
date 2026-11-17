@@ -3,25 +3,24 @@ use std::ops::Range;
 use std::path::Path as FsPath;
 use std::sync::Arc;
 
-use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sonic_rs::FastStr;
 
 use super::atomic;
 use super::backend::DocumentBackend;
-use super::eager::{cmp_cell, replace_in_value};
+use super::eager::{cmp_cell, replace_in_value, ReplaceCounts};
 use super::export::{export as export_value, ExportError, ExportFormat};
 use super::format::{self, InputFormat};
-use super::grid_filter::{row_passes, GridFilter};
+use super::grid_filter::{compile_filters, row_passes, GridFilter};
 use super::history::History;
 use super::lazy::{parse_json, LazyDoc};
 use super::ops::{Op, OpDescription, OpOutcome};
 use super::schema_validate::{
     validate as schema_validate_value, SchemaCompileError, SchemaValidationResult,
 };
-use super::search::{SearchHit, SearchOptions};
-use super::typegen::TypegenLang;
+use super::search::{literal_matcher, SearchHit, SearchOptions};
+use super::typegen::{self, TypeShape, TypegenLang};
 use super::types::{DocError, DocResult, FileOp, NodeKind, NodeView, Path, PathSegment};
 use super::wire::LosslessText;
 
@@ -56,6 +55,7 @@ pub struct Document {
     pub version: u64,
     pub saved_version: u64,
     saved_hash: blake3::Hash,
+    opened_lazy: bool,
     hash_cache: parking_lot::Mutex<Option<(u64, blake3::Hash)>>,
     history: History,
     sort_cache: parking_lot::Mutex<Option<SortCache>>,
@@ -130,6 +130,8 @@ pub struct FilteredRows {
 #[serde(rename_all = "camelCase")]
 pub struct ReplaceResult {
     pub count: u32,
+    pub values: u32,
+    pub keys: u32,
     pub applied: Option<ApplyResult>,
 }
 
@@ -196,6 +198,16 @@ impl Document {
         parse_json(text).map(DocumentImpl::Eager)
     }
 
+    fn parse_records(text: &FastStr) -> DocResult<DocumentImpl> {
+        if text.bytes().all(|b| b.is_ascii_whitespace()) {
+            return Ok(DocumentImpl::Eager(Value::Array(Vec::new())));
+        }
+        match Self::parse(text)? {
+            DocumentImpl::Eager(record) => Ok(DocumentImpl::Eager(Value::Array(vec![record]))),
+            DocumentImpl::Lazy(_) => Self::parse(&FastStr::from_string(format!("[{text}]"))),
+        }
+    }
+
     pub fn from_text(text: &str, source_path: Option<String>) -> DocResult<Self> {
         Self::from_source(FastStr::new(text), source_path)
     }
@@ -203,10 +215,15 @@ impl Document {
     pub fn from_source(text: FastStr, source_path: Option<String>) -> DocResult<Self> {
         Self::ensure_within_max(text.len() as u64)?;
 
-        let (inner, size, recovery_note, comments_stripped) = match Self::parse(&text) {
+        let hint = source_path.as_deref().and_then(format::hint_from_path);
+        let parsed = if hint == Some(InputFormat::Ndjson) {
+            Self::parse_records(&text)
+        } else {
+            Self::parse(&text)
+        };
+        let (inner, size, recovery_note, comments_stripped) = match parsed {
             Ok(inner) => (inner, text.len() as u64, None, false),
             Err(strict) => {
-                let hint = source_path.as_deref().and_then(format::hint_from_path);
                 let r = format::recover(&text, hint).ok_or(strict)?;
                 Self::ensure_within_max(r.json.len() as u64)?;
                 let size = r.json.len() as u64;
@@ -220,6 +237,7 @@ impl Document {
         };
 
         let mut doc = Self {
+            opened_lazy: matches!(inner, DocumentImpl::Lazy(_)),
             inner,
             source_path,
             file_path: None,
@@ -287,7 +305,7 @@ impl Document {
             return false;
         }
 
-        if self.source_size > LAZY_THRESHOLD_BYTES {
+        if self.opened_lazy {
             return !self.history.at_saved();
         }
         self.current_hash() != self.saved_hash
@@ -462,6 +480,12 @@ impl Document {
         *self.hash_cache.lock() = Some((self.version, saved_hash));
     }
 
+    pub fn mark_unsaved(&mut self) {
+        self.history.forget_saved();
+        self.saved_version = u64::MAX;
+        self.saved_hash = blake3::Hash::from_bytes([0u8; 32]);
+    }
+
     pub fn get_slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
         self.backend().slice(path, range)
     }
@@ -506,6 +530,18 @@ impl Document {
         descending: bool,
         range: Range<u32>,
     ) -> DocResult<Vec<SortedRow>> {
+        self.with_sorted_perm(path, key, descending, |perm| {
+            self.window_sorted(perm, path, range)
+        })
+    }
+
+    fn with_sorted_perm<R>(
+        &self,
+        path: &Path,
+        key: &str,
+        descending: bool,
+        f: impl FnOnce(&[u32]) -> DocResult<R>,
+    ) -> DocResult<R> {
         {
             let cache = self.sort_cache.lock();
             if let Some(c) = cache.as_ref() {
@@ -514,7 +550,7 @@ impl Document {
                     && c.descending == descending
                     && c.version == self.version
                 {
-                    return self.window_sorted(&c.perm, path, range);
+                    return f(&c.perm);
                 }
             }
         }
@@ -541,7 +577,7 @@ impl Document {
             });
             guard
         };
-        self.window_sorted(&cache.as_ref().expect("just set").perm, path, range)
+        f(&cache.as_ref().expect("just set").perm)
     }
 
     fn window_sorted(
@@ -579,8 +615,8 @@ impl Document {
         self.backend().for_each_row_field(path, cancel, f)
     }
 
-    fn compute_column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
-        self.backend().column_text_lower(path, key)
+    fn compute_column_text(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
+        self.backend().column_text(path, key)
     }
 
     fn quick_text_column(&self, path: &Path, key: &str) -> DocResult<Arc<Vec<Option<String>>>> {
@@ -593,7 +629,7 @@ impl Document {
                 }
             }
         }
-        let text = Arc::new(self.compute_column_text_lower(path, key)?);
+        let text = Arc::new(self.compute_column_text(path, key)?);
         self.quick_text_cache.lock().insert(
             cache_key,
             QuickTextColumn {
@@ -615,9 +651,24 @@ impl Document {
         range: Range<u32>,
         cancel: &crate::doc::jobs::CancelFlag,
     ) -> DocResult<FilteredRows> {
+        self.with_filtered_perm(path, groups, quick, quick_keys, sort, cancel, |perm| {
+            self.window_filtered(perm, path, range)
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn with_filtered_perm<R>(
+        &self,
+        path: &Path,
+        groups: &[Vec<GridFilter>],
+        quick: Option<&str>,
+        quick_keys: &[String],
+        sort: Option<(&str, bool)>,
+        cancel: &crate::doc::jobs::CancelFlag,
+        f: impl FnOnce(&[u32]) -> DocResult<R>,
+    ) -> DocResult<R> {
         let sort_owned = sort.map(|(k, d)| (k.to_string(), d));
         let quick_norm = quick.map(str::trim).filter(|q| !q.is_empty());
-        let quick_lower = quick_norm.map(str::to_lowercase);
         let quick_owned = quick_norm.map(str::to_string);
 
         {
@@ -630,7 +681,7 @@ impl Document {
                     && c.sort == sort_owned
                     && c.version == self.version
                 {
-                    return self.window_filtered(&c.perm, path, range);
+                    return f(&c.perm);
                 }
             }
         }
@@ -648,8 +699,7 @@ impl Document {
                 }
                 match (c.quick.as_deref(), quick_norm) {
                     (Some(prev), Some(curr))
-                        if curr.len() > prev.len()
-                            && curr.to_lowercase().starts_with(&prev.to_lowercase()) =>
+                        if curr.len() > prev.len() && curr.starts_with(prev) =>
                     {
                         Some(c.perm.clone())
                     }
@@ -672,8 +722,13 @@ impl Document {
             }
         }
 
+        let filters = compile_filters(groups).map_err(|e| DocError::Parse(e.to_string()))?;
+        let quick_matcher = quick_norm
+            .map(|q| literal_matcher(q, false))
+            .transpose()
+            .map_err(|e| DocError::Parse(e.to_string()))?;
         let mut quick_text: HashMap<String, Arc<Vec<Option<String>>>> = HashMap::new();
-        if quick_lower.is_some() {
+        if quick_matcher.is_some() {
             for k in quick_keys {
                 if !quick_text.contains_key(k) {
                     quick_text.insert(k.clone(), self.quick_text_column(path, k)?);
@@ -700,7 +755,7 @@ impl Document {
             if checked & 0x0FFF == 0 && cancel.is_cancelled() {
                 return Err(DocError::Cancelled);
             }
-            let pass_filters = row_passes(groups, |k| {
+            let pass_filters = row_passes(&filters, |k| {
                 key_cells
                     .get(k)
                     .and_then(|c| c.get(i as usize))
@@ -709,7 +764,7 @@ impl Document {
             if !pass_filters {
                 continue;
             }
-            let pass_quick = match &quick_lower {
+            let pass_quick = match &quick_matcher {
                 None => true,
                 Some(q) => {
                     quick_keys.is_empty()
@@ -718,7 +773,7 @@ impl Document {
                                 .get(k)
                                 .and_then(|c| c.get(i as usize))
                                 .and_then(|o| o.as_deref())
-                                .map(|t| t.contains(q.as_str()))
+                                .map(|t| q.is_match(t))
                                 .unwrap_or(false)
                         })
                 }
@@ -753,7 +808,7 @@ impl Document {
             });
             guard
         };
-        self.window_filtered(&cache.as_ref().expect("just set").perm, path, range)
+        f(&cache.as_ref().expect("just set").perm)
     }
 
     fn window_filtered(
@@ -776,6 +831,37 @@ impl Document {
             });
         }
         Ok(FilteredRows { total, rows })
+    }
+
+    pub fn get_row_indices(
+        &self,
+        path: &Path,
+        groups: &[Vec<GridFilter>],
+        quick: Option<&str>,
+        quick_keys: &[String],
+        sort: Option<(&str, bool)>,
+        range: Range<u32>,
+    ) -> DocResult<Vec<u32>> {
+        let window = |perm: &[u32]| -> DocResult<Vec<u32>> {
+            let total = perm.len() as u32;
+            Ok((range.start.min(total)..range.end.min(total))
+                .map(|d| perm[d as usize])
+                .collect())
+        };
+        if !groups.is_empty() || quick.is_some() {
+            let never = crate::doc::jobs::CancelFlag::never();
+            return self.with_filtered_perm(path, groups, quick, quick_keys, sort, &never, window);
+        }
+        match sort {
+            Some((key, descending)) => self.with_sorted_perm(path, key, descending, window),
+            None => {
+                let total = match self.kind_at(path)? {
+                    (NodeKind::Array, count) => count.unwrap_or(0),
+                    _ => 0,
+                };
+                Ok((range.start.min(total)..range.end.min(total)).collect())
+            }
+        }
     }
 
     pub fn column_values(&self, path: &Path, key: &str, limit: usize) -> DocResult<ColumnValues> {
@@ -960,19 +1046,21 @@ impl Document {
         if needle.is_empty() {
             return Ok(ReplaceResult {
                 count: 0,
+                values: 0,
+                keys: 0,
                 applied: None,
             });
         }
-        let re = RegexBuilder::new(&regex::escape(needle))
-            .case_insensitive(!case_sensitive)
-            .build()
-            .map_err(|e| DocError::Parse(e.to_string()))?;
+        let re =
+            literal_matcher(needle, case_sensitive).map_err(|e| DocError::Parse(e.to_string()))?;
         let mut root = self.get_value(&Path::root())?;
-        let mut count = 0u32;
+        let mut count = ReplaceCounts::default();
         replace_in_value(&mut root, &re, replacement, &mut count);
-        if count == 0 {
+        if count.matches == 0 {
             return Ok(ReplaceResult {
                 count: 0,
+                values: 0,
+                keys: 0,
                 applied: None,
             });
         }
@@ -981,9 +1069,18 @@ impl Document {
             value: root,
         })?;
         Ok(ReplaceResult {
-            count,
+            count: count.matches,
+            values: count.values,
+            keys: count.keys,
             applied: Some(applied),
         })
+    }
+
+    pub fn infer_shape(&self) -> TypeShape {
+        match &self.inner {
+            DocumentImpl::Eager(v) => typegen::infer(v),
+            DocumentImpl::Lazy(d) => d.infer_shape(),
+        }
     }
 
     pub fn generate_types(&self, lang: TypegenLang, type_name: &str) -> DocResult<String> {
@@ -1170,13 +1267,17 @@ mod tests {
     }
 
     #[test]
-    fn unedited_ndjson_saves_records_verbatim() {
+    fn unedited_ndjson_saves_compact_records_with_their_tokens_as_written() {
         let path = temp_path("verbatim.ndjson");
         let mut body = String::new();
+        let mut want = String::new();
         while body.len() < 11 * 1024 * 1024 {
             body.push_str("{\"id\": 12345678901234567890, \"pad\": \"");
             body.push_str(&"x".repeat(200));
             body.push_str("\"}\n");
+            want.push_str("{\"id\":12345678901234567890,\"pad\":\"");
+            want.push_str(&"x".repeat(200));
+            want.push_str("\"}\n");
         }
         let lines = body.lines().count();
         std::fs::write(&path, &body).unwrap();
@@ -1187,7 +1288,7 @@ mod tests {
 
         let out = temp_path("verbatim-out.ndjson");
         d.save(Some(out.clone())).unwrap();
-        assert_eq!(std::fs::read_to_string(&out).unwrap(), body);
+        assert_eq!(std::fs::read_to_string(&out).unwrap(), want);
 
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(&out);
@@ -1937,23 +2038,12 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_edit_leaves_a_lazy_doc_as_it_was() {
-        let pad = "x".repeat(11 * 1024 * 1024);
-        let json = format!(r#"{{"emoji": "\ud83d", "pad": "{}"}}"#, pad);
-        let mut d = doc(&json);
-        assert!(matches!(d.inner, DocumentImpl::Lazy(_)));
-
-        let op = super::super::ops::Op::InsertKey {
-            path: Path::root(),
-            key: "added".into(),
-            value: serde_json::json!(true),
-            position: None,
+    fn a_lone_surrogate_is_refused_at_open_with_one_error_at_every_size() {
+        let open = |pad: usize| {
+            let json = format!(r#"{{"emoji": "\ud83d", "pad": "{}"}}"#, "x".repeat(pad));
+            Document::from_text(&json, None).unwrap_err().to_string()
         };
-        assert!(d.apply(&op).is_err());
-
-        assert!(matches!(d.inner, DocumentImpl::Lazy(_)));
-        assert_eq!(d.summary().root_kind, NodeKind::Object);
-        assert_eq!(d.get_slice(&Path::root(), 0..10).unwrap().len(), 2);
+        assert_eq!(open(11 * 1024 * 1024), open(1));
     }
 
     #[test]
@@ -2362,6 +2452,126 @@ mod tests {
     }
 
     #[test]
+    fn grid_text_filters_ignore_case_the_way_find_does_on_both_backends() {
+        use super::super::grid_filter::{FilterOp, GridFilter};
+        let rows = r#"[{"t":"ΣΑΣΑ ΟΔΟΣΑ"},{"t":"other"},{"t":"ΟΔΟΣΑ"}]"#;
+        let padded = format!("{rows}{}", " ".repeat(LAZY_THRESHOLD_BYTES as usize));
+        let never = crate::doc::jobs::CancelFlag::never();
+        for (lazy, d) in [(false, doc(rows)), (true, doc(&padded))] {
+            assert_eq!(d.summary().lazy, lazy);
+            let find = SearchOptions {
+                query: "ΟΔΟΣ".into(),
+                case_sensitive: false,
+                max_results: None,
+            };
+            assert_eq!(d.search(&find, &never).unwrap().len(), 2, "lazy={lazy}");
+
+            let shown = |groups: &[Vec<GridFilter>], quick: Option<&str>| -> Vec<u32> {
+                let quick_keys = ["t".to_string()];
+                let r = d.get_rows_filtered(
+                    &Path::root(),
+                    groups,
+                    quick,
+                    &quick_keys,
+                    None,
+                    0..10,
+                    &never,
+                );
+                r.unwrap().rows.iter().map(|x| x.index).collect()
+            };
+            let text = |op| {
+                vec![vec![GridFilter {
+                    key: "t".into(),
+                    op,
+                    value: Some(serde_json::json!("ΟΔΟΣ")),
+                }]]
+            };
+            assert_eq!(shown(&[], Some("ΟΔΟΣ")), [0, 2], "lazy={lazy}");
+            assert_eq!(
+                shown(&text(FilterOp::Contains), None),
+                [0, 2],
+                "lazy={lazy}"
+            );
+            assert_eq!(
+                shown(&text(FilterOp::NotContains), None),
+                [1],
+                "lazy={lazy}"
+            );
+            assert_eq!(shown(&text(FilterOp::StartsWith), None), [2], "lazy={lazy}");
+        }
+    }
+
+    fn grid_docs() -> [(bool, Document); 2] {
+        let rows = format!(
+            "[{}]",
+            (0..40)
+                .map(|i| format!(r#"{{"name":"row-{i}","v":{}}}"#, (i * 7) % 13))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let padded = format!("{rows}{}", " ".repeat(LAZY_THRESHOLD_BYTES as usize));
+        [(false, doc(&rows)), (true, doc(&padded))]
+    }
+
+    #[test]
+    fn row_indices_match_the_filtered_rows_on_both_backends() {
+        use super::super::grid_filter::{FilterOp, GridFilter};
+        let never = crate::doc::jobs::CancelFlag::never();
+        let groups = [vec![GridFilter {
+            key: "v".into(),
+            op: FilterOp::Gt,
+            value: Some(serde_json::json!(3)),
+        }]];
+        let quick_keys = ["name".to_string()];
+        let sort = Some(("v", true));
+        for (lazy, d) in grid_docs() {
+            assert_eq!(d.summary().lazy, lazy);
+            let indices = d
+                .get_row_indices(
+                    &Path::root(),
+                    &groups,
+                    Some("row-1"),
+                    &quick_keys,
+                    sort,
+                    2..9,
+                )
+                .unwrap();
+            let rows = d
+                .get_rows_filtered(
+                    &Path::root(),
+                    &groups,
+                    Some("row-1"),
+                    &quick_keys,
+                    sort,
+                    2..9,
+                    &never,
+                )
+                .unwrap();
+            let shown: Vec<u32> = rows.rows.iter().map(|r| r.index).collect();
+            assert_eq!(indices, shown, "lazy={lazy}");
+            assert_eq!(indices, [16, 1, 14, 12, 10], "lazy={lazy}");
+        }
+    }
+
+    #[test]
+    fn row_indices_without_a_filter_match_the_sorted_and_plain_rows_on_both_backends() {
+        for (lazy, d) in grid_docs() {
+            let indices = d
+                .get_row_indices(&Path::root(), &[], None, &[], Some(("v", false)), 5..12)
+                .unwrap();
+            let rows = d.get_rows_sorted(&Path::root(), "v", false, 5..12).unwrap();
+            let shown: Vec<u32> = rows.iter().map(|r| r.index).collect();
+            assert_eq!(indices, shown, "lazy={lazy}");
+            assert_eq!(
+                d.get_row_indices(&Path::root(), &[], None, &[], None, 38..50)
+                    .unwrap(),
+                [38, 39],
+                "lazy={lazy}"
+            );
+        }
+    }
+
+    #[test]
     fn get_rows_at_fetches_in_order() {
         let d = doc(r#"[{"n":0},{"n":1},{"n":2},{"n":3}]"#);
         let vals = d.get_rows_at(&Path::root(), &[3, 0, 2]).unwrap();
@@ -2514,6 +2724,17 @@ mod tests {
     }
 
     #[test]
+    fn replace_all_counts_each_changed_value_once_on_both_backends() {
+        let text = r#"{"a":"foo foo foo","b":["foo","bar"],"foo":1}"#;
+        let padded = format!("{text}{}", " ".repeat(LAZY_THRESHOLD_BYTES as usize));
+        for (lazy, mut d) in [(false, doc(text)), (true, doc(&padded))] {
+            assert_eq!(d.summary().lazy, lazy);
+            let r = d.replace_all("foo", "x", false).unwrap();
+            assert_eq!((r.count, r.values, r.keys), (5, 2, 1), "lazy={lazy}");
+        }
+    }
+
+    #[test]
     fn a_failed_export_leaves_the_existing_file_untouched() {
         let d = doc(r#"{"not": "an array of objects"}"#);
         let path = temp_path("export-keep.csv");
@@ -2546,5 +2767,125 @@ mod tests {
         let (t2, trunc2) = d2.export_preview(ExportFormat::JsonMin, 5).unwrap();
         assert!(trunc2);
         assert_eq!(t2.chars().count(), 5);
+    }
+
+    #[test]
+    fn a_file_of_exactly_the_lazy_threshold_is_clean_after_edit_then_undo() {
+        let mut text = String::from("[1, 2]");
+        text.push_str(&" ".repeat(LAZY_THRESHOLD_BYTES as usize - text.len()));
+        let mut d = doc(&text);
+        assert!(d.summary().lazy);
+
+        d.apply(&Op::SetValueText {
+            path: Path(vec![PathSegment::Index(0)]),
+            text: "5".into(),
+        })
+        .unwrap();
+        d.undo().unwrap();
+
+        assert!(!d.summary().dirty);
+    }
+
+    #[test]
+    fn a_one_record_ndjson_file_saves_as_one_record() {
+        for (name, body, edit, want) in [
+            (
+                "one.jsonl",
+                "{\"id\":1,\"tags\":[\"a\"]}\n",
+                vec![PathSegment::Index(0), PathSegment::Key("id".into())],
+                "{\"id\":2,\"tags\":[\"a\"]}\n",
+            ),
+            (
+                "one.ndjson",
+                "[1,2,3]\n",
+                vec![PathSegment::Index(0), PathSegment::Index(0)],
+                "[2,2,3]\n",
+            ),
+        ] {
+            let path = temp_path(name);
+            std::fs::write(&path, body).unwrap();
+            let mut d = Document::from_file(&path).unwrap();
+            let s = d.summary();
+            assert_eq!(
+                (s.root_kind, s.root_child_count),
+                (NodeKind::Array, Some(1)),
+                "{name}"
+            );
+
+            d.apply(&Op::SetValueText {
+                path: Path(edit),
+                text: "2".into(),
+            })
+            .unwrap();
+            d.save(None).unwrap();
+
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), want, "{name}");
+            let _ = std::fs::remove_file(&path);
+        }
+
+        let path = temp_path("one-large.ndjson");
+        let body = format!(
+            "{{\"pad\":\"{}\"}}\n",
+            "x".repeat(LAZY_THRESHOLD_BYTES as usize)
+        );
+        std::fs::write(&path, &body).unwrap();
+        let mut d = Document::from_file(&path).unwrap();
+        let s = d.summary();
+        assert!(s.lazy);
+        assert_eq!(
+            (s.root_kind, s.root_child_count),
+            (NodeKind::Array, Some(1))
+        );
+        d.save(None).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), body);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_code_view_commit_keeps_integer_like_keys_where_they_were() {
+        let path = temp_path("order.json");
+        std::fs::write(&path, r#"{"name":"x","10":1,"2":2,"zip":"00501"}"#).unwrap();
+        let mut d = Document::from_file(&path).unwrap();
+
+        let (text, _) = d.canonical_lines().unwrap();
+        d.apply(&Op::SetValueText {
+            path: Path::root(),
+            text: text.replace("\"x\"", "\"y\""),
+        })
+        .unwrap();
+        d.save(None).unwrap();
+
+        let saved: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let keys: Vec<&str> = saved
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(keys, ["name", "10", "2", "zip"]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn an_ndjson_file_with_every_row_deleted_reopens_as_an_empty_array() {
+        let path = temp_path("emptied.ndjson");
+        std::fs::write(&path, "{\"a\":1}\n{\"a\":2}\n").unwrap();
+        let mut d = Document::from_file(&path).unwrap();
+        for _ in 0..2 {
+            d.apply(&Op::DeleteItem {
+                path: Path::root(),
+                index: 0,
+            })
+            .unwrap();
+        }
+        d.save(None).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+
+        for body in ["", " \n\r\n\t"] {
+            std::fs::write(&path, body).unwrap();
+            let d = Document::from_file(&path).unwrap();
+            assert_eq!(d.get_value(&Path::root()).unwrap(), serde_json::json!([]));
+        }
+        let _ = std::fs::remove_file(&path);
     }
 }

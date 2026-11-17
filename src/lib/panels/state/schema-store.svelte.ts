@@ -64,6 +64,7 @@ export class SchemaSession {
 		this.text = text;
 		this.origin = origin;
 		this.cancel();
+		this.seq++;
 		if (!text.trim()) {
 			this.verdict = { kind: 'none' };
 			return;
@@ -78,6 +79,7 @@ export class SchemaSession {
 
 	fail(message: string, origin: SchemaOrigin | null, retry?: () => Promise<void>): void {
 		this.cancel();
+		this.seq++;
 		this.text = '';
 		this.origin = origin;
 		this.verdict = { kind: 'problem', message, retry };
@@ -120,6 +122,7 @@ export class SchemaSession {
 
 	private schedule(): void {
 		this.cancel();
+		this.seq++;
 		const last = lastResult(this.verdict);
 		if (!this.text.trim()) {
 			this.verdict = { kind: 'none' };
@@ -130,7 +133,6 @@ export class SchemaSession {
 			this.verdict = { kind: 'stale', last };
 			return;
 		}
-		this.seq++;
 		this.verdict = { kind: 'checking', last };
 		if (ms === SCHEMA_DEBOUNCE_IMMEDIATE) {
 			void this.validateNow();

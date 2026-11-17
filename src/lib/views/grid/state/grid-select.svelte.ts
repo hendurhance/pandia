@@ -22,6 +22,7 @@ export class GridSelectionController {
 	selectedRows = $state(new Set<number>());
 	private selAnchorPos: number | null = null; // visible position of the last click
 	readonly rowsCopy = new CopyFlag();
+	private clears = 0;
 
 	constructor(private deps: GridSelectDeps) {}
 
@@ -49,17 +50,23 @@ export class GridSelectionController {
 	clearSelection = () => {
 		this.selectedRows = new Set();
 		this.selAnchorPos = null;
+		this.clears += 1;
 	};
 
 	selectRange = async (a: number, b: number) => {
 		const lo = Math.min(a, b);
 		const hi = Math.max(a, b);
-		await this.deps.data.fetchRange(lo, hi);
-		const next = new Set(this.selectedRows);
-		for (let pos = lo; pos <= hi; pos++) {
-			const r = this.deps.data.getRow(pos);
-			if (r) next.add(r.index);
+		const clears = this.clears;
+		let indices: number[];
+		try {
+			indices = await this.deps.data.rowIndices(lo, hi);
+		} catch (e) {
+			this.deps.onError(describeError(e));
+			return;
 		}
+		if (clears !== this.clears) return;
+		const next = new Set(this.selectedRows);
+		for (const i of indices) next.add(i);
 		this.selectedRows = next;
 	};
 
@@ -125,5 +132,6 @@ export class GridSelectionController {
 		this.selected = null;
 		this.selectedRows = new Set();
 		this.selAnchorPos = null;
+		this.clears += 1;
 	};
 }

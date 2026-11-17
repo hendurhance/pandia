@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { untrack } from 'svelte';
 	import { appearancePrefs } from '$lib/settings/state/appearance-prefs.svelte';
 	import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 	import { sidebarPrefs } from '$lib/shell/state/sidebar-prefs.svelte';
@@ -12,12 +13,14 @@
 	let { children } = $props();
 
 	$effect(() => {
-		void appearancePrefs.init();
-		void behaviorPrefs.init();
-		void sidebarPrefs.init();
-		void recentsStore.init();
-		void typegenPrefs.init();
-		void commandUsage.init();
+		untrack(() => {
+			void appearancePrefs.init();
+			void behaviorPrefs.init();
+			void sidebarPrefs.init();
+			void recentsStore.init();
+			void typegenPrefs.init();
+			void commandUsage.init();
+		});
 	});
 
 	$effect(() => {

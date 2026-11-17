@@ -64,14 +64,12 @@
 	});
 
 	const schemaKeyRejected = $derived(
-		schema.origin?.from === 'document' &&
-			(result?.errors.some(
-				(e) =>
-					e.instancePath === '' &&
-					/\/(additional|unevaluated)Properties$/.test(e.schemaPath) &&
-					e.message.includes("'$schema'"),
-			) ??
-				false),
+		result?.errors.some(
+			(e) =>
+				e.instancePath === '' &&
+				/\/(additional|unevaluated)Properties$/.test(e.schemaPath) &&
+				e.message.includes("'$schema'"),
+		) ?? false,
 	);
 
 	const statusText = $derived.by(() => {

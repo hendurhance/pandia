@@ -35,7 +35,12 @@ function resolve(ref: string, baseDir: string | null): SchemaTarget | string {
 		}
 	}
 	if (/^file:\/\//i.test(ref)) {
-		const path = decodeURIComponent(new URL(ref).pathname);
+		let path;
+		try {
+			path = decodeURIComponent(new URL(ref).pathname);
+		} catch {
+			return `"${ref}" isn't a valid file URL.`;
+		}
 		return { kind: 'file', path: /^\/[A-Za-z]:/.test(path) ? path.slice(1) : path };
 	}
 	if (ANY_SCHEME.test(ref) && !WINDOWS_ABSOLUTE.test(ref)) {

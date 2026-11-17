@@ -48,7 +48,10 @@ function row(path: Path): ContentRow {
 }
 
 describe('paste after cut moves the value', () => {
-	beforeEach(() => clipboard.writeText(TEXT));
+	beforeEach(() => {
+		void clipboard.writeText(TEXT);
+		vi.mocked(ipc.docGetValue).mockResolvedValue(asLosslessText(TEXT));
+	});
 
 	it('moves an item down within its own array', async () => {
 		const { actions, ops, cut } = setup(['list', 2]);

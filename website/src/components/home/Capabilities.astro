@@ -26,7 +26,7 @@ const icons: Record<string, string> = {
           <span class="cap-ico" set:html={icons.imp}></span>
           <span class="cap-txt">
             <span class="cap-h">Import &amp; auto-detect</span>
-            <span class="cap-p">Paste, drop, open, or fetch a URL. JSON, YAML, XML, CSV and cURL are detected and converted.</span>
+            <span class="cap-p">Paste, drop, open, or fetch a URL. JSON, YAML, XML and CSV are converted; a pasted cURL command is sent and opens its response.</span>
             <span class="langs"><span>JSON</span><span>YAML</span><span>XML</span><span>CSV</span><span>cURL</span><span>URL fetch</span></span>
           </span>
         </button>
@@ -87,7 +87,7 @@ const icons: Record<string, string> = {
           <div class="spot-head"><span class="fdot"></span><span>Paste · auto-detect</span></div>
           <div class="spot-code">
             <div class="scl"><span class="lno"></span><span class="t-dim">$ curl https://api.acme.dev/v2/users -H "Auth: ***"</span></div>
-            <div class="scl"><span class="lno"></span><span class="t-acc">✓ Detected cURL — converting to JSON…</span></div>
+            <div class="scl"><span class="lno"></span><span class="t-acc">✓ Sent GET · 200 OK — opened the response</span></div>
             <div class="scl" style="margin-top:6px"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
             <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">"users"</span><span class="j-p">:</span> <span class="j-p">[</span> <span class="t-dim">… 109,472</span> <span class="j-p">],</span></span></div>
             <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"page"</span><span class="j-p">:</span> <span class="j-n">1</span><span class="j-p">,</span></span></div>
