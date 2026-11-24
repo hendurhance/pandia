@@ -12,19 +12,19 @@ const { learnMore } = Astro.props;
         <span class="eyebrow"><span class="tick"></span>Built for big</span>
         <div class="scale-stat" style="margin-top:24px"><em>GB</em><span class="un">+</span></div>
         <div class="scale-body" style="margin-top:24px">
-          <p>Most editors choke at a few hundred megabytes. Pandia opens files of
-          <strong>any size</strong> — hundreds of MB, multiple GB — without parsing the whole
-          tree: lazy <strong>zero-copy slicing</strong> engages at <strong>≥&nbsp;10&nbsp;MB</strong>
-          (backed by <strong>sonic-rs</strong>) and the UI only ever fetches the slice on screen.</p>
-          <p>You scroll, search, and navigate instantly — there's <strong>no cap on opening or
-          viewing</strong>. Only whole-document edit, export and validate materialize the root
-          (a 200&nbsp;MB ceiling).</p>
+          <p>Most editors freeze at a few hundred megabytes. Pandia opens files of
+          <strong>any size</strong>, including several gigabytes, because from
+          <strong>10&nbsp;MB</strong> up it skips building the full tree and only decodes the part
+          of the file you're looking at.</p>
+          <p>Opening, scrolling and searching have <strong>no size limit</strong>. Editing the whole
+          document at once, exporting it and validating it need the full file in memory, so those
+          work up to 200&nbsp;MB.</p>
         </div>
         <div class="scale-points">
-          <div class="pt"><span class="lbl">Lazy mode</span><span class="gn">≥ 10 MB</span> &nbsp;zero-copy slicing engages</div>
-          <div class="pt"><span class="lbl">Opening</span><span class="gn">any size</span> &nbsp;multi-GB, no lag, no cap</div>
-          <div class="pt"><span class="lbl">200 MB cap</span>only whole-doc edit / export / validate</div>
-          <div class="pt"><span class="lbl">Recovery</span>auto-save &amp; backups, scan / restore</div>
+          <div class="pt"><span class="lbl">Lazy mode</span><span class="gn">≥ 10 MB</span> &nbsp;only the visible part is decoded</div>
+          <div class="pt"><span class="lbl">Opening</span><span class="gn">any size</span> &nbsp;including multi-GB files</div>
+          <div class="pt"><span class="lbl">200 MB cap</span>whole-document edit, export and validate only</div>
+          <div class="pt"><span class="lbl">Recovery</span>backups while you work, restored after a crash</div>
         </div>
         {learnMore && <p class="scale-more"><a href={learnMore}>The large JSON file viewer, in depth →</a></p>}
       </div>

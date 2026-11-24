@@ -6,11 +6,11 @@ export interface FaqItem {
 export const faqs: FaqItem[] = [
   {
     q: 'Is my data uploaded anywhere?',
-    a: "No. Pandia is a native desktop app and everything is processed locally. The only time it touches the network is when <em>you</em> fetch a document from a URL. No accounts, no cloud, no telemetry.",
+    a: "No. Pandia is a desktop app and processes everything on your computer. It only goes online to check for a new version once a day, and when <em>you</em> fetch a URL or send a cURL request. There are no accounts and no usage tracking.",
   },
   {
     q: 'How large a file can it open?',
-    a: "Any size — hundreds of MB, multiple GB. At <code>≥ 10 MB</code>, lazy zero-copy slicing (via sonic-rs) opens the file without parsing the whole tree, and the UI only fetches what's on screen — so there's no cap on opening or viewing. Only whole-document edit, export and validation materialize the root (a ~200 MB ceiling).",
+    a: "Any size, including files of several gigabytes. From <code>10 MB</code> up, Pandia skips building the full tree and only decodes the part of the file you're looking at, so opening and scrolling have no size limit. Editing the whole document at once, exporting it and validating it need the full file in memory, so those work up to about 200 MB.",
   },
   {
     q: 'Which formats can I import and export?',

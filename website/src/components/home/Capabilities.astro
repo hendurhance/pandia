@@ -14,9 +14,9 @@ const icons: Record<string, string> = {
   <div class="wrap">
     <div class="sec-head iv">
       <span class="eyebrow"><span class="tick"></span>Capabilities</span>
-      <h2>A workbench, not a viewer.</h2>
-      <p>Everything you reach for when JSON gets real — import, generate, compare, repair,
-      validate, review. Pick one to see it in action.</p>
+      <h2>Fix it, check it, and turn it into code.</h2>
+      <p>Pandia repairs broken JSON, checks it against your schema, writes types in 10 languages
+      and converts it to YAML, CSV or XML. Pick a feature to see it work.</p>
     </div>
 
     <div class="cap-layout iv">
@@ -25,16 +25,16 @@ const icons: Record<string, string> = {
         <button class="cap-item" data-cap="import" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.imp}></span>
           <span class="cap-txt">
-            <span class="cap-h">Import &amp; auto-detect</span>
-            <span class="cap-p">Paste, drop, open, or fetch a URL. JSON, YAML, XML and CSV are converted; a pasted cURL command is sent and opens its response.</span>
+            <span class="cap-h">Open anything you paste</span>
+            <span class="cap-p">Paste text, drop a file or fetch a URL. JSON, YAML, XML and CSV all open as JSON, and pasting a cURL command lets you send the request and open the response.</span>
             <span class="langs"><span>JSON</span><span>YAML</span><span>XML</span><span>CSV</span><span>cURL</span><span>URL fetch</span></span>
           </span>
         </button>
         <button class="cap-item" data-cap="repair" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.repair}></span>
           <span class="cap-txt">
-            <span class="cap-h">Repair malformed JSON</span>
-            <span class="cap-p">Trailing commas, unquoted keys, single quotes, comments, NaN/Infinity, BOM/CRLF — fixed.</span>
+            <span class="cap-h">Repair broken JSON</span>
+            <span class="cap-p">Fixes trailing commas, unquoted keys, single quotes, comments, NaN and Infinity, so JSON copied from a log or a JavaScript file opens anyway.</span>
           </span>
         </button>
 
@@ -42,8 +42,8 @@ const icons: Record<string, string> = {
         <button class="cap-item on" data-cap="typegen" role="tab" tabindex="0" aria-selected="true" type="button">
           <span class="cap-ico" set:html={icons.typegen}></span>
           <span class="cap-txt">
-            <span class="cap-h">Generate types — 10 targets</span>
-            <span class="cap-p">Turn any document into ready-to-paste definitions. Optionals are inferred for you.</span>
+            <span class="cap-h">Generate types in 10 languages</span>
+            <span class="cap-p">Get definitions you can paste straight into your code. A field is marked optional when some records leave it out.</span>
             <span class="langs">
               <span class="on">TypeScript</span><span>Rust</span><span>Go</span><span>Kotlin</span><span>Python</span><span>PHP</span><span>Java</span><span>Dart</span><span>Zod</span><span>JSON&nbsp;Schema</span>
             </span>
@@ -52,8 +52,8 @@ const icons: Record<string, string> = {
         <button class="cap-item" data-cap="compare" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.compare}></span>
           <span class="cap-txt">
-            <span class="cap-h">Compare &amp; diff</span>
-            <span class="cap-p">Structural diff against another tab or file — added, removed, changed and moved.</span>
+            <span class="cap-h">Compare two files</span>
+            <span class="cap-p">See what was added, removed, changed or moved between two tabs or files. Pandia compares the structure, so reformatting doesn't count as a change.</span>
           </span>
         </button>
 
@@ -61,22 +61,22 @@ const icons: Record<string, string> = {
         <button class="cap-item" data-cap="validate" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.validate}></span>
           <span class="cap-txt">
-            <span class="cap-h">Validate against a schema</span>
-            <span class="cap-p">JSON Schema draft-07 &amp; 2020-12, with inline clickable errors.</span>
+            <span class="cap-h">Check against a JSON Schema</span>
+            <span class="cap-p">Supports draft-07 and 2020-12. Each error names the value that broke the rule, and clicking it takes you there.</span>
           </span>
         </button>
         <button class="cap-item" data-cap="export" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.exp}></span>
           <span class="cap-txt">
-            <span class="cap-h">Export anywhere</span>
-            <span class="cap-p">JSON, JSON-min, YAML, CSV, XML — copy or save. Graph images as PNG, JPEG or SVG.</span>
+            <span class="cap-h">Export to the format you need</span>
+            <span class="cap-p">Copy or save as JSON, minified JSON, YAML, CSV or XML, and save the graph as a PNG, JPEG or SVG image.</span>
           </span>
         </button>
         <button class="cap-item" data-cap="agents" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.agents}></span>
           <span class="cap-txt">
-            <span class="cap-h">Review what your agent writes</span>
-            <span class="cap-p">A coding agent hands its JSON to Pandia and waits. You check and fix it; the agent gets back what you saved.</span>
+            <span class="cap-h">Review what your AI agent writes</span>
+            <span class="cap-p">A coding agent sends its JSON to Pandia with one terminal command and waits. You check it, fix it and save, and the agent carries on with your saved version.</span>
             <span class="langs"><span>--wait</span><span>--schema</span><span>--diff</span><span>--json</span></span>
           </span>
         </button>
