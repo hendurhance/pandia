@@ -12,6 +12,7 @@ const usedBy = [
   { name: 'Revenue.io', slug: 'revenue-io' },
   { name: 'Gruppo AB', slug: 'gruppoab' },
   { name: 'North Carolina Central University', slug: 'nccu' },
+  { name: 'pub.tech', slug: 'pubtech' },
 ];
 
 const svgs = import.meta.glob<string>('../../assets/logos/*.svg', { query: '?raw', import: 'default', eager: true });
@@ -61,7 +62,7 @@ const logos = usedBy.map(({ name, slug, dy = 0 }: { name: string; slug: string; 
     list-style: none; margin: 0; padding: 0;
     display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px 0;
   }
-  .pandia-page .usedby-list li { display: flex; justify-content: center; flex: 0 0 calc(100% / 6); }
+  .pandia-page .usedby-list li { display: flex; justify-content: center; flex: 0 0 calc(100% / 7); }
   .pandia-page .usedby-logo {
     display: block; width: min(var(--w), 100%); aspect-ratio: var(--ratio);
     translate: 0 calc(var(--dy) * 100%);
