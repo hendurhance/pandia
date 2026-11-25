@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { BackupRecord } from '$lib/ipc/bindings';
+	import type { BackupInfo } from '$lib/ipc/bindings';
 	import { basename } from '$lib/util/path';
 	import { fmtBytes } from '$lib/util/format';
 	import Dialog from '$lib/ui/Dialog.svelte';
@@ -11,8 +11,8 @@
 		onDiscard,
 		onLater,
 	}: {
-		records: BackupRecord[];
-		onRestore: (rec: BackupRecord) => void;
+		records: BackupInfo[];
+		onRestore: (rec: BackupInfo) => void;
 		onRestoreAll: () => void;
 		onDiscard: () => void;
 		onLater: () => void;
@@ -25,7 +25,7 @@
 		return () => clearTimeout(t);
 	});
 
-	function recoveryLabel(rec: BackupRecord): string {
+	function recoveryLabel(rec: BackupInfo): string {
 		return basename(rec.displayName ?? rec.originalPath ?? 'untitled');
 	}
 </script>
@@ -48,7 +48,7 @@
 						title={rec.originalPath ?? rec.displayName ?? 'untitled'}
 					>
 						<span class="rec-name">{recoveryLabel(rec)}</span>
-						<span class="dim text-xs">{fmtBytes(rec.content.length)}</span>
+						<span class="dim text-xs">{fmtBytes(rec.bytes)}</span>
 					</button>
 				</li>
 			{/each}

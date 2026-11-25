@@ -14,7 +14,8 @@ tauri-plugin-fs = "2.5"
 tauri-plugin-dialog = "2.7"
 tauri-plugin-shell = "2.2"
 tauri-plugin-store = "2.4"
-tauri-plugin-http = { version = "2", features = ["gzip", "brotli", "deflate", "zstd"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "charset", "macos-system-configuration", "gzip", "brotli", "deflate", "zstd"] }
+base64 = "0.22"
 tauri-plugin-updater = "2.10"
 tauri-plugin-process = "2"
 tauri-plugin-clipboard-manager = "~2.3"

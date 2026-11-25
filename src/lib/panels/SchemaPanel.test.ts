@@ -4,25 +4,24 @@ import { fireEvent, render } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import { IpcError } from '$lib/ipc/error';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
-import { fetch } from '@tauri-apps/plugin-http';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { autoloadSchema } from './state/schema-autoload';
 import { schemaSessions } from './state/schema-store.svelte';
 import SchemaPanel from './SchemaPanel.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docChildCount: vi.fn(),
 		docGetValue: vi.fn(),
+		fetchSchema: vi.fn(),
 		docValidateSchema: vi.fn(async () => ({
 			valid: true,
 			errors: [],
 			errorCount: 0,
 			truncated: false,
 		})),
-	},
+	}),
 }));
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),
 	loadPersisted: vi.fn(async () => undefined),
@@ -56,7 +55,7 @@ describe('SchemaPanel', () => {
 
 	it('loads an http schema once the user allows http schemas', async () => {
 		vi.mocked(ipc.docGetValue).mockResolvedValue('"http://x.dev/s.json"' as never);
-		vi.mocked(fetch).mockResolvedValue(new Response('{"type":"object"}'));
+		vi.mocked(ipc.fetchSchema).mockResolvedValue('{"type":"object"}');
 		const doc = {
 			tabId: 't2',
 			handle: 'h' as never,

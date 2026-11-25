@@ -3,8 +3,6 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use tauri_plugin_http::reqwest;
-
 use crate::doc::jobs::CancelFlag;
 use crate::doc::types::{DocError, DocResult};
 
@@ -50,6 +48,10 @@ pub enum RequestProblem {
         status: u16,
     },
     Empty {
+        status: u16,
+    },
+    Status {
+        host: String,
         status: u16,
     },
 }
@@ -103,6 +105,9 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_REDIRECTS: usize = 50;
 const CANCEL_POLL: Duration = Duration::from_millis(50);
+pub const SCHEMA_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
+pub const IMAGE_FETCH_TIMEOUT: Duration = Duration::from_secs(10);
+pub const IMAGE_FETCH_LIMIT: u64 = 10 * 1024 * 1024;
 
 const VALUE_OPTIONS: &[&str] = &[
     "-X",
@@ -408,20 +413,7 @@ pub async fn send(req: &CurlRequest, cancel: &CancelFlag, limit: u64) -> DocResu
         return Err(refused(refusal.clone()));
     }
     let target = req.target().ok_or_else(|| refused(Refusal::NoUrl))?;
-    let bad_url = || {
-        DocError::Request(RequestProblem::BadUrl {
-            url: target.clone(),
-        })
-    };
-    let url = reqwest::Url::parse(&target).map_err(|_| bad_url())?;
-    if !matches!(url.scheme(), "http" | "https") {
-        return Err(bad_url());
-    }
-    let host = match (url.host_str(), url.port()) {
-        (Some(h), Some(p)) => format!("{h}:{p}"),
-        (Some(h), None) => h.to_string(),
-        (None, _) => return Err(bad_url()),
-    };
+    let (url, host) = web_url(&target)?;
     let method = reqwest::Method::from_bytes(req.method.as_bytes()).map_err(|_| {
         refused(Refusal::Unsupported {
             option: "-X".into(),
@@ -511,6 +503,94 @@ pub async fn send(req: &CurlRequest, cancel: &CancelFlag, limit: u64) -> DocResu
         status: status.as_u16(),
         status_text: status.canonical_reason().unwrap_or("").to_string(),
         headers,
+    })
+}
+
+fn web_url(target: &str) -> DocResult<(reqwest::Url, String)> {
+    let bad_url = || {
+        DocError::Request(RequestProblem::BadUrl {
+            url: target.to_string(),
+        })
+    };
+    let url = reqwest::Url::parse(target).map_err(|_| bad_url())?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(bad_url());
+    }
+    let host = match (url.host_str(), url.port()) {
+        (Some(h), Some(p)) => format!("{h}:{p}"),
+        (Some(h), None) => h.to_string(),
+        (None, _) => return Err(bad_url()),
+    };
+    Ok((url, host))
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Expect {
+    Data,
+    Image,
+}
+
+pub struct Downloaded {
+    pub bytes: Vec<u8>,
+    pub media_type: String,
+}
+
+pub async fn download(
+    target: &str,
+    expect: Expect,
+    limit: u64,
+    timeout: Duration,
+    cancel: &CancelFlag,
+) -> DocResult<Downloaded> {
+    let (url, host) = web_url(target)?;
+    let fail = |e: reqwest::Error| DocError::Request(classify(&e, host.clone()));
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("Pandia/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::limited(MAX_REDIRECTS))
+        .build()
+        .map_err(fail)?;
+    let mut response = cancellable(client.get(url).send(), cancel)
+        .await?
+        .map_err(fail)?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(DocError::Request(RequestProblem::Status {
+            host,
+            status: status.as_u16(),
+        }));
+    }
+    let media = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(media_type);
+    let accepted = match (expect, media.as_deref()) {
+        (Expect::Data, None) => true,
+        (Expect::Data, Some(m)) => is_data(m),
+        (Expect::Image, m) => m.is_some_and(|m| m.starts_with("image/")),
+    };
+    if !accepted {
+        return Err(DocError::Request(RequestProblem::NotData {
+            content_type: media.unwrap_or_default(),
+            status: status.as_u16(),
+        }));
+    }
+    let too_large = || DocError::Request(RequestProblem::TooLarge { limit });
+    if response.content_length().is_some_and(|n| n > limit) {
+        return Err(too_large());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = cancellable(response.chunk(), cancel).await?.map_err(fail)? {
+        if (bytes.len() + chunk.len()) as u64 > limit {
+            return Err(too_large());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(Downloaded {
+        bytes,
+        media_type: media.unwrap_or_default(),
     })
 }
 
@@ -758,6 +838,111 @@ pub(crate) mod tests {
 
     async fn send_to(cmd: &str, limit: u64) -> DocResult<Sent> {
         send(&request(cmd), &CancelFlag::never(), limit).await
+    }
+
+    #[test]
+    fn a_url_box_command_keeps_quotes_in_the_url_and_headers() {
+        let req = request(
+            r#"curl -L 'https://x.dev/a?b=1&c=it'\''s' -H 'Authorization: Bearer a'\''b' -H 'X-Empty: '"#,
+        );
+        assert_eq!(req.url.as_deref(), Some("https://x.dev/a?b=1&c=it's"));
+        assert_eq!(
+            req.headers,
+            [
+                ("Authorization".to_string(), "Bearer a'b".to_string()),
+                ("X-Empty".to_string(), String::new()),
+            ]
+        );
+        assert!(req.follow_redirects);
+        assert_eq!((req.method.as_str(), req.refusal.as_ref()), ("GET", None));
+    }
+
+    async fn download_from(url: &str, expect: Expect, limit: u64) -> DocResult<Downloaded> {
+        download(
+            url,
+            expect,
+            limit,
+            Duration::from_secs(5),
+            &CancelFlag::never(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_download_returns_the_body_and_its_media_type() {
+        let (url, got) = serve_once(Some(reply("200 OK", "image/png; x=1", "PNGDATA")));
+        let image = download_from(&format!("{url}/a.png"), Expect::Image, 1000)
+            .await
+            .unwrap();
+        assert!(got.recv().unwrap().starts_with("GET /a.png HTTP/1.1\r\n"));
+        assert_eq!(
+            (image.bytes.as_slice(), image.media_type.as_str()),
+            (&b"PNGDATA"[..], "image/png")
+        );
+
+        let (url, _got) = serve_once(Some(reply("200 OK", "application/schema+json", "{}")));
+        let schema = download_from(&url, Expect::Data, 1000).await.unwrap();
+        assert_eq!(schema.bytes, b"{}");
+    }
+
+    #[tokio::test]
+    async fn a_download_refuses_the_wrong_kind_of_content() {
+        let (url, _got) = serve_once(Some(reply("200 OK", "text/html", "<p>")));
+        let err = download_from(&url, Expect::Image, 1000)
+            .await
+            .err()
+            .unwrap();
+        assert!(
+            matches!(&err, DocError::Request(RequestProblem::NotData { content_type, status: 200 }) if content_type == "text/html"),
+            "{err:?}"
+        );
+        let (url, _got) = serve_once(Some(reply("200 OK", "image/png", "PNG")));
+        let err = download_from(&url, Expect::Data, 1000).await.err().unwrap();
+        assert!(
+            matches!(err, DocError::Request(RequestProblem::NotData { .. })),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_download_reports_an_error_status_with_the_host() {
+        let (url, _got) = serve_once(Some(reply("404 Not Found", "application/json", "{}")));
+        let host = url.trim_start_matches("http://").to_string();
+        let err = download_from(&url, Expect::Data, 1000).await.err().unwrap();
+        assert!(
+            matches!(&err, DocError::Request(RequestProblem::Status { host: h, status: 404 }) if *h == host),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_download_over_the_limit_is_refused_with_or_without_a_length() {
+        let body = "x".repeat(4096);
+        let (url, _got) = serve_once(Some(reply("200 OK", "application/json", &body)));
+        let err = download_from(&url, Expect::Data, 1000).await.err().unwrap();
+        assert!(
+            matches!(
+                err,
+                DocError::Request(RequestProblem::TooLarge { limit: 1000 })
+            ),
+            "{err:?}"
+        );
+
+        let streamed = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: image/gif\r\nConnection: close\r\n\r\n{body}"
+        );
+        let (url, _got) = serve_once(Some(streamed.into_bytes()));
+        let err = download_from(&url, Expect::Image, 1000)
+            .await
+            .err()
+            .unwrap();
+        assert!(
+            matches!(
+                err,
+                DocError::Request(RequestProblem::TooLarge { limit: 1000 })
+            ),
+            "{err:?}"
+        );
     }
 
     fn refusal(cmd: &str) -> Option<Refusal> {

@@ -7,8 +7,8 @@ import { asLosslessText } from '$lib/ipc/wire';
 import type { ColumnSchema } from '$lib/ipc/bindings';
 import GridView from './GridView.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docGetRows: vi.fn(async (_h: unknown, _p: unknown, start: number, end: number) =>
 			Array.from({ length: end - start }, () => asLosslessText('{"a": 1}')),
 		),
@@ -23,7 +23,7 @@ vi.mock('$lib/ipc/client', () => ({
 		docColumnValues: vi.fn(async () => ({ values: [], capped: false })),
 		docScanColumns: vi.fn(async () => []),
 		cancelJob: vi.fn(async () => true),
-	},
+	}),
 }));
 
 globalThis.ResizeObserver = class {

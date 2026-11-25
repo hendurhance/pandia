@@ -5,8 +5,12 @@ import { rootRow } from '../logic/model';
 import { TreeRowsController } from './tree-rows.svelte';
 import type { NodeView, Path } from '$lib/ipc/bindings';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { docGetSlice: vi.fn(), docSummary: vi.fn(), docChildCount: vi.fn() },
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetSlice: vi.fn(),
+		docSummary: vi.fn(),
+		docChildCount: vi.fn(),
+	}),
 }));
 
 let doc: Record<string, unknown>;

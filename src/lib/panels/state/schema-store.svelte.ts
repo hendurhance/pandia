@@ -41,6 +41,7 @@ export class SchemaSession {
 
 	private doc: { handle: DocHandle; version: number } | null = null;
 	private timer: ReturnType<typeof setTimeout> | undefined;
+	private job: string | null = null;
 	private seq = 0;
 
 	documentChanged(handle: DocHandle, version: number): void {
@@ -91,12 +92,16 @@ export class SchemaSession {
 		const doc = this.doc;
 		if (!text || !doc) return;
 		const mine = ++this.seq;
+		const job = crypto.randomUUID();
+		this.job = job;
 		this.verdict = { kind: 'checking', last: lastResult(this.verdict) };
 		try {
-			const result = await ipc.docValidateSchema(doc.handle, text);
+			const result = await ipc.docValidateSchema(doc.handle, text, job);
 			if (mine === this.seq) this.verdict = { kind: 'checked', result };
 		} catch (e) {
 			if (mine === this.seq) this.verdict = { kind: 'problem', message: describeError(e) };
+		} finally {
+			if (this.job === job) this.job = null;
 		}
 	}
 
@@ -144,6 +149,8 @@ export class SchemaSession {
 	private cancel(): void {
 		clearTimeout(this.timer);
 		this.timer = undefined;
+		if (this.job) void ipc.cancelJob(this.job).catch(() => {});
+		this.job = null;
 	}
 }
 

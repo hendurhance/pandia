@@ -1,3 +1,7 @@
+import { untrack } from 'svelte';
+import { SvelteMap } from 'svelte/reactivity';
+import { InFlight } from './in-flight';
+
 export interface PagedFetchResult<T> {
 	items: T[];
 	total?: number;
@@ -12,12 +16,12 @@ export interface PagedSourceOptions<T> {
 }
 
 export class PagedSource<T> {
-	pages = $state.raw(new Map<number, T[]>());
+	readonly pages = new SvelteMap<number, T[]>();
 	total: number | null = $state(null);
 	fetching = $state(false);
 
-	private inFlight = new Map<number, Promise<void>>();
-	private generation = 0;
+	private readonly inFlight = new InFlight<number>();
+	private generation = $state(0);
 	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 	private pendingRange: { lo: number; hi: number } | null = null;
 
@@ -59,28 +63,19 @@ export class PagedSource<T> {
 	};
 
 	private fetchPage(start: number): Promise<void> {
-		if (this.pages.has(start)) return Promise.resolve();
-		const existing = this.inFlight.get(start);
-		if (existing) return existing;
-
 		const gen = this.generation;
-		const work = (async () => {
+		if (this.pages.has(start)) return Promise.resolve();
+		const work = this.inFlight.run(start, async () => {
 			try {
 				const result = await this.opts.fetch(start, start + this.opts.pageSize);
-
 				if (gen !== this.generation) return;
 				if (result.total !== undefined) this.total = result.total;
-				const next = new Map(this.pages);
-				next.set(start, result.items);
-				this.pages = next;
+				this.pages.set(start, result.items);
 			} catch (e) {
 				if (gen !== this.generation) return;
 				this.opts.onError(e);
-			} finally {
-				if (gen === this.generation) this.inFlight.delete(start);
 			}
-		})();
-		this.inFlight.set(start, work);
+		});
 		this.fetching = true;
 		void work.finally(() => {
 			if (this.inFlight.size === 0) this.fetching = false;
@@ -88,17 +83,18 @@ export class PagedSource<T> {
 		return work;
 	}
 
-	reset = (): void => {
-		this.generation += 1;
-		this.opts.onReset?.();
-		if (this.debounceTimer != null) {
-			clearTimeout(this.debounceTimer);
-			this.debounceTimer = null;
-		}
-		this.pendingRange = null;
-		this.pages = new Map();
-		this.inFlight.clear();
-		this.total = null;
-		this.fetching = false;
-	};
+	reset = (): void =>
+		untrack(() => {
+			this.generation += 1;
+			this.opts.onReset?.();
+			if (this.debounceTimer != null) {
+				clearTimeout(this.debounceTimer);
+				this.debounceTimer = null;
+			}
+			this.pendingRange = null;
+			this.pages.clear();
+			this.inFlight.clear();
+			this.total = null;
+			this.fetching = false;
+		});
 }

@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetch } from '@tauri-apps/plugin-http';
 import { ipc } from '$lib/ipc/client';
 import { autoloadSchema } from './schema-autoload';
 import { schemaSessions } from './schema-store.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { docGetValue: vi.fn(), readSchemaFile: vi.fn(), docValidateSchema: vi.fn() },
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetValue: vi.fn(),
+		readSchemaFile: vi.fn(),
+		fetchSchema: vi.fn(),
+		docValidateSchema: vi.fn(),
+	}),
 }));
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
 	SCHEMA_DEBOUNCE_IMMEDIATE: 0,
@@ -35,24 +38,24 @@ beforeEach(() => {
 
 describe('autoloadSchema: a schema typed during a slow download', () => {
 	it('is not replaced when the download arrives', async () => {
-		let respond!: (r: Response) => void;
-		vi.mocked(fetch).mockReturnValueOnce(new Promise((r) => (respond = r)));
+		let respond!: (text: string) => void;
+		vi.mocked(ipc.fetchSchema).mockReturnValueOnce(new Promise((r) => (respond = r)));
 		const loading = autoloadSchema(slowCliDoc('typed-ok'), async () => true);
 		const schema = schemaSessions.for('typed-ok');
-		await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+		await vi.waitFor(() => expect(ipc.fetchSchema).toHaveBeenCalled());
 		schema.setText('{"type":"array"}');
 
-		respond(new Response('{"type":"object"}'));
+		respond('{"type":"object"}');
 		await loading;
 		expect(schema.text).toBe('{"type":"array"}');
 	});
 
 	it('is not wiped when the download fails', async () => {
 		let fail!: (e: Error) => void;
-		vi.mocked(fetch).mockReturnValueOnce(new Promise((_, r) => (fail = r)));
+		vi.mocked(ipc.fetchSchema).mockReturnValueOnce(new Promise((_, r) => (fail = r)));
 		const loading = autoloadSchema(slowCliDoc('typed-fail'), async () => true);
 		const schema = schemaSessions.for('typed-fail');
-		await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+		await vi.waitFor(() => expect(ipc.fetchSchema).toHaveBeenCalled());
 		schema.setText('{"type":"array"}');
 
 		fail(new Error('offline'));

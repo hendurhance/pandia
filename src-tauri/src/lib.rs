@@ -59,6 +59,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             e2e::e2e_take_actions,
             commands::curl_preview,
             commands::curl_send,
+            commands::fetch_schema,
+            commands::fetch_image,
+            commands::file_size,
             commands::doc_replace,
             commands::doc_validate_schema,
             commands::read_schema_file,
@@ -69,6 +72,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_backup_text,
             commands::doc_backup_clear,
             commands::doc_backup_scan,
+            commands::doc_backup_read,
             commands::doc_export,
             commands::doc_export_preview,
             commands::doc_export_to_file,
@@ -186,7 +190,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_clipboard_manager::init())

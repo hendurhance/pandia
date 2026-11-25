@@ -5,7 +5,9 @@ import { ipc } from '$lib/ipc/client';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import HistoryPanel from './HistoryPanel.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docHistory: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docHistory: vi.fn() }),
+}));
 
 afterEach(() => cleanup());
 

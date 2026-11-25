@@ -35,16 +35,6 @@ export function describeOpenFailure(
 		: base;
 }
 
-export function describeUrlFetchFailure(url: string): string {
-	let host = url;
-	try {
-		host = new URL(url).host;
-	} catch {
-		// not a parseable URL: name what the user typed
-	}
-	return `Couldn't reach ${host}. Check the URL and your connection.`;
-}
-
 export function describeRefusal(r: Refusal): string {
 	switch (r.reason) {
 		case 'noUrl':
@@ -88,6 +78,8 @@ function describeRequestProblem(p: RequestProblem): string {
 				: `The server sent something that isn't text (status ${p.status}), so there's nothing to open.`;
 		case 'empty':
 			return `The server sent an empty response (status ${p.status}).`;
+		case 'status':
+			return `${p.host} answered ${p.status}. Check the URL.`;
 	}
 }
 
@@ -112,6 +104,9 @@ function describeIpc(e: IpcError): string {
 			return `${where} — it may have been changed or removed by an earlier edit.`;
 		}
 		case 'tooLarge':
+			if (e.path && e.actual != null && e.limit != null) {
+				return `The value at ${pathToString(e.path)} is ${fmtBytes(e.actual)}, more than the ${fmtBytes(e.limit)} Pandia can handle as one value. Select a smaller part of it.`;
+			}
 			return e.actual != null && e.limit != null
 				? `This document is ${fmtBytes(e.actual)} — the limit for this action is ${fmtBytes(e.limit)}. Use a smaller file.`
 				: 'This document is too large for this action. Use a smaller file.';

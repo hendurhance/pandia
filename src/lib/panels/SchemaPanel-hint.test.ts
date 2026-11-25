@@ -5,8 +5,12 @@ import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import { schemaSessions } from './state/schema-store.svelte';
 import SchemaPanel from './SchemaPanel.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docChildCount: vi.fn(), docValidateSchema: vi.fn() } }));
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docChildCount: vi.fn(),
+		docValidateSchema: vi.fn(),
+	}),
+}));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),
 	loadPersisted: vi.fn(async () => undefined),

@@ -43,8 +43,11 @@ export const commands = {
 	e2eTakeActions: () => __TAURI_INVOKE<string[]>("e2e_take_actions"),
 	curlPreview: (text: string) => __TAURI_INVOKE<CurlPreview>("curl_preview", { text }),
 	curlSend: (text: string, jobId: string, options: OpenOptions) => __TAURI_INVOKE<SentRequest>("curl_send", { text, jobId, options }),
+	fetchSchema: (url: string) => __TAURI_INVOKE<string>("fetch_schema", { url }),
+	fetchImage: (url: string) => __TAURI_INVOKE<WebImage>("fetch_image", { url }),
+	fileSize: (path: string) => __TAURI_INVOKE<number>("file_size", { path }),
 	docReplace: (handle: DocHandle, query: string, replacement: string, caseSensitive: boolean) => __TAURI_INVOKE<ReplaceResult>("doc_replace", { handle, query, replacement, caseSensitive }),
-	docValidateSchema: (handle: DocHandle, schema: string) => __TAURI_INVOKE<SchemaValidationResult>("doc_validate_schema", { handle, schema }),
+	docValidateSchema: (handle: DocHandle, schema: string, jobId: string) => __TAURI_INVOKE<SchemaValidationResult>("doc_validate_schema", { handle, schema, jobId }),
 	readSchemaFile: (path: string) => __TAURI_INVOKE<string>("read_schema_file", { path }),
 	docGenerateTypes: (handle: DocHandle, lang: TypegenLang, typeName: string) => __TAURI_INVOKE<string>("doc_generate_types", { handle, lang, typeName }),
 	docHistory: (handle: DocHandle) => __TAURI_INVOKE<HistoryView>("doc_history", { handle }),
@@ -52,7 +55,8 @@ export const commands = {
 	docBackup: (handle: DocHandle, displayName: string | null) => __TAURI_INVOKE<boolean>("doc_backup", { handle, displayName }),
 	docBackupText: (handle: DocHandle, displayName: string | null, text: string) => __TAURI_INVOKE<null>("doc_backup_text", { handle, displayName, text }),
 	docBackupClear: (docId: string) => __TAURI_INVOKE<null>("doc_backup_clear", { docId }),
-	docBackupScan: () => __TAURI_INVOKE<BackupRecord[]>("doc_backup_scan"),
+	docBackupScan: () => __TAURI_INVOKE<BackupInfo[]>("doc_backup_scan"),
+	docBackupRead: (docId: string) => __TAURI_INVOKE<string>("doc_backup_read", { docId }),
 	docExport: (handle: DocHandle, format: ExportFormat) => __TAURI_INVOKE<string>("doc_export", { handle, format }),
 	docExportPreview: (handle: DocHandle, format: ExportFormat, maxChars: number) => __TAURI_INVOKE<ExportPreview>("doc_export_preview", { handle, format, maxChars }),
 	docExportToFile: (handle: DocHandle, format: ExportFormat, path: string) => __TAURI_INVOKE<null>("doc_export_to_file", { handle, format, path }),
@@ -81,12 +85,12 @@ export type ApplyResult = {
 	affectedPaths: Path[],
 };
 
-export type BackupRecord = {
+export type BackupInfo = {
 	docId: string,
 	originalPath: string | null,
 	displayName: string | null,
 	updatedAt: string,
-	content: string,
+	bytes: number,
 };
 
 export type CanonicalRange = {
@@ -305,7 +309,7 @@ export type ReportError = {
 	message: string,
 };
 
-export type RequestProblem = { problem: "refused"; refusal: Refusal } | { problem: "badUrl"; url: string } | { problem: "unreachable"; host: string } | { problem: "timedOut"; host: string } | { problem: "tls"; host: string } | { problem: "interrupted"; host: string } | { problem: "tooLarge"; limit: number } | { problem: "notData"; contentType: string; status: number } | { problem: "empty"; status: number };
+export type RequestProblem = { problem: "refused"; refusal: Refusal } | { problem: "badUrl"; url: string } | { problem: "unreachable"; host: string } | { problem: "timedOut"; host: string } | { problem: "tls"; host: string } | { problem: "interrupted"; host: string } | { problem: "tooLarge"; limit: number } | { problem: "notData"; contentType: string; status: number } | { problem: "empty"; status: number } | { problem: "status"; host: string; status: number };
 
 export type ResponseInfo = {
 	method: string,
@@ -385,6 +389,12 @@ export type TabReport = {
 };
 
 export type TypegenLang = "typescript" | "rust" | "go" | "kotlin" | "json-schema" | "python" | "php" | "java" | "zod" | "dart";
+
+export type WebImage = {
+	dataUrl: string,
+	bytes: number,
+	mediaType: string,
+};
 
 export type WireError = {
 	kind: ErrorKind,

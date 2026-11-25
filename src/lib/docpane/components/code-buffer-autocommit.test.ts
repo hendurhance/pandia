@@ -7,8 +7,8 @@ import type { TabSlot } from '$lib/shell/state/workspace.svelte';
 import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 import DocPane from './DocPane.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
 		docClose: vi.fn(async () => {}),
@@ -23,7 +23,7 @@ vi.mock('$lib/ipc/client', () => ({
 		docColumnSchema: vi.fn(async () => null),
 		docExportPreview: vi.fn(async () => ({ text: '', truncated: false })),
 		e2eRecord: vi.fn(async () => {}),
-	},
+	}),
 }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),

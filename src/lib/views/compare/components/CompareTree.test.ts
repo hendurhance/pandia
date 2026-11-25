@@ -13,13 +13,13 @@ globalThis.ResizeObserver = class {
 	disconnect() {}
 };
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docSummary: vi.fn(async () => ({ rootKind: 'string', rootChildCount: null })),
 		docGetValue: vi.fn(async () => '"hello"'),
 		docGetSlice: vi.fn(),
 		docChildCount: vi.fn(),
-	},
+	}),
 }));
 
 describe('CompareTree', () => {

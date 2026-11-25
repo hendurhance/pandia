@@ -6,8 +6,11 @@ import { IpcError } from '$lib/ipc/error';
 import type { CurlPreview } from '$lib/ipc/bindings';
 import EmptyState from './EmptyState.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { curlPreview: vi.fn(), cancelJob: vi.fn(async () => true) },
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		curlPreview: vi.fn(),
+		cancelJob: vi.fn(async () => true),
+	}),
 }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 vi.mock('$lib/util/persist', async (original) => ({

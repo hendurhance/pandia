@@ -14,7 +14,9 @@ import {
 	type VirtualGapRow,
 } from '../logic/model';
 import { collectExpandedDescendants, remapAfterOp } from '../logic/tree-walk';
-import { findIndexPaged } from '../logic/paging';
+import { findIndexPaged, placeholderChunks } from '../logic/paging';
+import { PathIndex } from '../logic/row-cache';
+import { InFlight } from '$lib/views/shared/in-flight';
 import { decodeLossless, type LosslessText } from '$lib/ipc/wire';
 import type { DocHandle, NodeKind, Op, Path, Summary } from '$lib/ipc/bindings';
 
@@ -51,21 +53,12 @@ export async function fetchRootRow(
 export class TreeRowsController {
 	rows: Row[] = $state.raw([]);
 
-	private inFlight = new Map<string, Promise<void>>();
-
-	private pathIndex = new Map<string, number>();
-	private indexDirty = true;
-	private rebuildIndex() {
-		this.pathIndex.clear();
-		for (let i = 0; i < this.rows.length; i++) {
-			const r = this.rows[i];
-			if (r?.variant === 'content') this.pathIndex.set(pathKey(r.path), i);
-		}
-	}
+	private readonly inFlight = new InFlight<string>();
+	private readonly pathIndex = new PathIndex();
 
 	private pendingFlush = false;
 	private scheduleFlush() {
-		this.indexDirty = true;
+		this.pathIndex.invalidate();
 		if (this.pendingFlush) return;
 		this.pendingFlush = true;
 		requestAnimationFrame(() => {
@@ -79,20 +72,14 @@ export class TreeRowsController {
 	setRows = (rows: Row[]) => {
 		this.rows = rows;
 		this.inFlight.clear();
-		this.indexDirty = true;
+		this.pathIndex.invalidate();
 	};
 
 	clearChunks = () => {
 		this.inFlight.clear();
 	};
 
-	contentRowIdx = (path: Path): number => {
-		if (this.indexDirty) {
-			this.rebuildIndex();
-			this.indexDirty = false;
-		}
-		return this.pathIndex.get(pathKey(path)) ?? -1;
-	};
+	contentRowIdx = (path: Path): number => this.pathIndex.find(this.rows, path);
 
 	siblingCount = (parentPath: Path): number | null => {
 		if (parentPath.length === 0) return this.deps.summary()?.rootChildCount ?? null;
@@ -108,7 +95,7 @@ export class TreeRowsController {
 		return views.map((v) => viewToRow(v, path, depth));
 	}
 
-	private expanding = new Set<string>();
+	private readonly expanding = new InFlight<string>();
 
 	toggleAt = async (index: number) => {
 		if (!this.deps.handle()) return;
@@ -123,8 +110,11 @@ export class TreeRowsController {
 		}
 
 		const key = pathKey(row.path);
-		if (this.expanding.has(key)) return;
-		this.expanding.add(key);
+		if (this.expanding.get(key)) return;
+		await this.expanding.run(key, () => this.expand(row));
+	};
+
+	private async expand(row: ContentRow) {
 		try {
 			const children = await this.fetchInitialChunk(row.path, row.depth);
 			let at = this.contentRowIdx(row.path);
@@ -150,10 +140,8 @@ export class TreeRowsController {
 			this.scheduleFlush();
 		} catch (e) {
 			this.deps.setError(describeError(e));
-		} finally {
-			this.expanding.delete(key);
 		}
-	};
+	}
 
 	private chunkKey(parentPath: Path, chunkStart: number): string {
 		return pathKey(parentPath) + '@' + chunkStart;
@@ -170,20 +158,16 @@ export class TreeRowsController {
 			} catch {}
 			return;
 		}
-		const work = (async () => {
-			this.materializeRange(parentPath, chunkStart, chunkStart + CHUNK);
-			const views = await ipc.docGetSlice(handle, parentPath, chunkStart, chunkStart + CHUNK);
-			const newRows = views.map((v) => viewToRow(v, parentPath, parentDepth));
-			replacePlaceholders(this.rows, parentPath, chunkStart, newRows);
-			this.scheduleFlush();
-		})();
-		this.inFlight.set(key, work);
 		try {
-			await work;
+			await this.inFlight.run(key, async () => {
+				this.materializeRange(parentPath, chunkStart, chunkStart + CHUNK);
+				const views = await ipc.docGetSlice(handle, parentPath, chunkStart, chunkStart + CHUNK);
+				const newRows = views.map((v) => viewToRow(v, parentPath, parentDepth));
+				replacePlaceholders(this.rows, parentPath, chunkStart, newRows);
+				this.scheduleFlush();
+			});
 		} catch (e) {
 			this.deps.setError(describeError(e));
-		} finally {
-			this.inFlight.delete(key);
 		}
 	}
 
@@ -238,15 +222,8 @@ export class TreeRowsController {
 	};
 
 	private fetchInRange(start: number, end: number) {
-		const seen = new Set<string>();
-		for (let i = start; i < end && i < this.rows.length; i++) {
-			const r = this.rows[i];
-			if (!r || r.variant !== 'placeholder') continue;
-			const chunkStart = Math.floor(r.index / CHUNK) * CHUNK;
-			const key = this.chunkKey(r.parentPath, chunkStart);
-			if (seen.has(key)) continue;
-			seen.add(key);
-			void this.fetchChunk(r.parentPath, r.depth - 1, chunkStart);
+		for (const c of placeholderChunks(this.rows, start, end, CHUNK)) {
+			void this.fetchChunk(c.parentPath, c.parentDepth, c.chunkStart);
 		}
 	}
 

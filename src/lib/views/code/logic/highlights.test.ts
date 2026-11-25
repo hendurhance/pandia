@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { highlightsForSide } from './highlights';
+import { diffKindsForSide, highlightsForSide } from './highlights';
 import type { DiffKind, Path } from '$lib/ipc/bindings';
 
 describe('highlightsForSide', () => {
@@ -14,5 +14,30 @@ describe('highlightsForSide', () => {
 	});
 	it('keeps added + changed on the right', () => {
 		expect(highlightsForSide(entries, 'right').map((h) => h.path)).toEqual([['b'], ['c']]);
+	});
+});
+
+describe('diffKindsForSide', () => {
+	const entries = [
+		{ path: ['a'], kind: 'added' as const },
+		{ path: ['b'], kind: 'removed' as const },
+		{ path: ['c'], kind: 'changed' as const },
+		{ path: ['d2'], leftPath: ['d1'], kind: 'moved' as const },
+	];
+
+	it('keys the left side by the old path and skips additions', () => {
+		expect([...diffKindsForSide(entries, 'left')]).toEqual([
+			['["b"]', 'removed'],
+			['["c"]', 'changed'],
+			['["d1"]', 'moved'],
+		]);
+	});
+
+	it('keys the right side by the new path and skips removals', () => {
+		expect([...diffKindsForSide(entries, 'right')]).toEqual([
+			['["a"]', 'added'],
+			['["c"]', 'changed'],
+			['["d2"]', 'moved'],
+		]);
 	});
 });

@@ -59,11 +59,11 @@
 	} from '@codemirror/search';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import { pathKey } from '$lib/views/tree/logic/model';
 	import { noirHighlight, noirTheme } from './logic/codemirror-theme';
 	import type { DocHandle, Path } from '$lib/ipc/bindings';
 	import { diffHighlightExtension, setHighlights, type Highlight } from './logic/highlights';
 	import { searchMarks } from './logic/search-marks';
+	import { OffsetCache } from './logic/offset-cache';
 
 	interface Props {
 		handle: DocHandle | null;
@@ -111,8 +111,7 @@
 
 	let editorView: EditorView | undefined;
 
-	let offsetRanges = new Map<string, [number, number]>();
-	let offsetsInFlight = new Set<string>();
+	const offsets = new OffsetCache();
 
 	let dirty = $state(false);
 	let parseError: string | null = $state(null);
@@ -290,8 +289,7 @@
 			.docCanonicalText(handle)
 			.then((text) => {
 				if (cancelled || !container) return;
-				offsetRanges = new Map();
-				offsetsInFlight = new Set();
+				offsets.clear();
 				baseline = text;
 				setDirty(false);
 				parseError = null;
@@ -355,8 +353,7 @@
 			}
 			view?.destroy();
 			editorView = undefined;
-			offsetRanges = new Map();
-			offsetsInFlight = new Set();
+			offsets.clear();
 		};
 	});
 
@@ -389,19 +386,19 @@
 		if (!editorView) return;
 		const ranges: Array<{ from: number; to: number; kind: Highlight['kind'] }> = [];
 		for (const h of highlights) {
-			const range = offsetRanges.get(pathKey(h.path));
-			if (range) ranges.push({ from: range[0], to: range[1], kind: h.kind });
+			const range = offsets.get(h.path);
+			if (range) ranges.push({ from: range.start, to: range.end, kind: h.kind });
 		}
-		const active = activePath ? (offsetRanges.get(pathKey(activePath)) ?? null) : null;
+		const active = activePath ? (offsets.get(activePath) ?? null) : null;
 		editorView.dispatch({
 			effects: setHighlights.of({
 				ranges,
-				active: active ? { from: active[0], to: active[1] } : null,
+				active: active ? { from: active.start, to: active.end } : null,
 			}),
 		});
 		if (active) {
 			editorView.dispatch({
-				effects: EditorView.scrollIntoView(active[0], {
+				effects: EditorView.scrollIntoView(active.start, {
 					y: 'center',
 				}),
 			});
@@ -411,32 +408,23 @@
 	async function ensureOffsets() {
 		const h = handle;
 		if (!h || !editorView) return;
-		const needed: Path[] = [];
-		const requested = new Set<string>();
-		const want = (p: Path) => {
-			const k = pathKey(p);
-			if (offsetRanges.has(k) || offsetsInFlight.has(k) || requested.has(k)) return;
-			requested.add(k);
-			needed.push(p);
-		};
-		for (const hl of highlights) want(hl.path);
-		if (activePath) want(activePath);
+		const needed = offsets.missing([
+			...highlights.map((hl) => hl.path),
+			...(activePath ? [activePath] : []),
+		]);
 		if (needed.length === 0) {
 			applyDecorations();
 			return;
 		}
-		for (const k of requested) offsetsInFlight.add(k);
 		try {
-			const res = await ipc.docCanonicalOffsets(h, needed);
-			if (handle !== h || !editorView) return;
-			needed.forEach((p, idx) => {
-				const r = res[idx];
-				if (r) offsetRanges.set(pathKey(p), [r.start, r.end]);
-			});
+			const kept = await offsets.load(
+				needed,
+				(paths) => ipc.docCanonicalOffsets(h, paths),
+				() => handle === h && !!editorView,
+			);
+			if (!kept) return;
 		} catch {
 			// Highlights are decorative; the text itself already rendered.
-		} finally {
-			for (const k of requested) offsetsInFlight.delete(k);
 		}
 		applyDecorations();
 	}

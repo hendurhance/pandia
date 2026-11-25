@@ -5,7 +5,7 @@
 		type Command,
 		type CommandCategory,
 	} from './state/command-store.svelte';
-	import { fuzzyMatch, highlightLabel } from './match';
+	import { fuzzyMatch, highlightSegments } from './match';
 	import { fmtKbd } from '$lib/util/platform';
 	import { shortcutKeys } from '$lib/shell/logic/shortcuts';
 
@@ -196,7 +196,11 @@
 							aria-selected={i === selectedIdx}
 							tabindex="-1"
 						>
-							<span class="label">{@html highlightLabel(r.cmd.label, r.ranges)}</span>
+							<span class="label"
+								>{#each highlightSegments(r.cmd.label, r.ranges) as seg, k (k)}{#if seg.hit}<mark
+											>{seg.text}</mark
+										>{:else}{seg.text}{/if}{/each}</span
+							>
 
 							{#if query.trim() || r.section === 'Recent'}
 								<span class="cat">{r.cmd.category}</span>

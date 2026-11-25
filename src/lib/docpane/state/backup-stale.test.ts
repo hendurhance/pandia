@@ -7,13 +7,13 @@ import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import { DocumentSession, type DocumentSessionDeps } from './document-session.svelte';
 import { BACKUP_IDLE_MS } from '../logic/backup-flush';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docBackup: vi.fn(async () => true),
 		docBackupClear: vi.fn(async () => null),
 		docClose: vi.fn(async () => true),
 		docSummary: vi.fn(),
-	},
+	}),
 }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),

@@ -6,7 +6,9 @@ import type { NodeView } from '$lib/ipc/bindings';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import OutlinePanel from './OutlinePanel.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGetSlice: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGetSlice: vi.fn() }),
+}));
 
 afterEach(() => cleanup());
 

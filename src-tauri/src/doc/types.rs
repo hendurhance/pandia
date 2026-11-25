@@ -224,6 +224,9 @@ pub enum DocError {
     #[error("document too large: {actual} bytes (limit {limit} bytes)")]
     TooLarge { actual: u64, limit: u64 },
 
+    #[error("value at {path} too large: {actual} bytes (limit {limit} bytes)")]
+    ValueTooLarge { path: Path, actual: u64, limit: u64 },
+
     #[error("line range too large: {lines} lines requested (limit {limit} per call)")]
     RangeTooLarge { lines: u32, limit: u32 },
 
@@ -369,6 +372,17 @@ impl From<DocError> for WireError {
             DocError::TooLarge { actual, limit } => {
                 (ErrorKind::TooLarge, None, None, Some(*actual), Some(*limit))
             }
+            DocError::ValueTooLarge {
+                path,
+                actual,
+                limit,
+            } => (
+                ErrorKind::TooLarge,
+                None,
+                Some(Box::new(path.clone())),
+                Some(*actual),
+                Some(*limit),
+            ),
             DocError::RangeTooLarge { lines, limit } => (
                 ErrorKind::RangeTooLarge,
                 None,

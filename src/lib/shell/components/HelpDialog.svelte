@@ -5,6 +5,7 @@
 	import { commandRegistry, type CommandCategory } from '$lib/palette/state/command-store.svelte';
 	import { fmtKbd } from '$lib/util/platform';
 	import { shortcutKeys } from '$lib/shell/logic/shortcuts';
+	import { groupBy } from '$lib/util/group';
 
 	interface Props {
 		onClose: () => void;
@@ -54,17 +55,17 @@
 	];
 
 	const commandGroups = $derived.by<Group[]>(() => {
-		const byCategory = new Map<CommandCategory, Shortcut[]>();
-		for (const c of commandRegistry.list) {
+		const withKeys = commandRegistry.list.flatMap((c) => {
 			const keys = shortcutKeys(c.id);
-			if (!keys) continue;
-			const items = byCategory.get(c.category) ?? [];
-			items.push({ keys: splitKeys(keys), label: c.label });
-			byCategory.set(c.category, items);
-		}
+			return keys ? [{ category: c.category, keys: splitKeys(keys), label: c.label }] : [];
+		});
+		const byCategory = groupBy(withKeys, (c) => c.category);
 		return CATEGORY_ORDER.flatMap((cat) => {
-			const items = byCategory.get(cat);
-			return items?.length ? [{ title: CATEGORY_TITLES[cat] ?? cat, items }] : [];
+			const items: Shortcut[] = (byCategory.get(cat) ?? []).map(({ keys, label }) => ({
+				keys,
+				label,
+			}));
+			return items.length ? [{ title: CATEGORY_TITLES[cat] ?? cat, items }] : [];
 		});
 	});
 

@@ -9,8 +9,8 @@ import type { TabSlot } from '$lib/shell/state/workspace.svelte';
 import type { OpenOutcome, Summary } from '$lib/ipc/bindings';
 import DocPane from './DocPane.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
 		docClose: vi.fn(async () => {}),
@@ -31,7 +31,7 @@ vi.mock('$lib/ipc/client', () => ({
 			errorCount: 0,
 			truncated: false,
 		})),
-	},
+	}),
 }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),

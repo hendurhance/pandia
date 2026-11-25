@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use serde_json::Value;
 
+use super::cell::Cell;
 use super::export::ExportError;
 use super::jobs::CancelFlag;
 use super::search::{SearchHit, SearchOptions};
@@ -15,6 +16,7 @@ pub(crate) trait DocumentBackend {
     fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>>;
     fn get_value(&self, path: &Path) -> DocResult<Value>;
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>>;
+    fn column_keys(&self, path: &Path, key: &str) -> DocResult<Vec<Cell<'_>>>;
     fn column_text(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>>;
     fn for_each_row_field(
         &self,
@@ -40,9 +42,9 @@ mod conformance {
 
     const FIXTURE: &str = r#"{
         "users": [
-            {"id": 1075283027435454464, "name": "ada", "active": true, "score": 1.50},
-            {"id": 2, "name": "grace", "active": false, "score": null},
-            {"id": 3, "name": "ε-unicode", "active": true, "score": 0.1}
+            {"id": 1075283027435454464, "name": "ada", "active": true, "score": 1.50, "extra": {"a": [1]}},
+            {"id": 2, "name": "grace", "active": false, "score": null, "extra": "say \"hi\""},
+            {"id": 3, "name": "ε-unicode", "active": true, "score": 0.1, "extra": [1, 2]}
         ],
         "empty_obj": {},
         "empty_arr": [],
@@ -95,7 +97,7 @@ mod conformance {
         let (rows, seen) = fields(&eager);
         assert_eq!((rows, seen.clone()), fields(&lazy));
         assert_eq!(rows, 3);
-        assert_eq!(seen.len(), 12);
+        assert_eq!(seen.len(), 15);
         assert!(seen.contains(&("score".to_string(), NodeKind::Null)));
     }
 
@@ -158,7 +160,7 @@ mod conformance {
     fn column_reads_agree() {
         let (eager, lazy) = backends();
         let users = p(&[k("users")]);
-        for key in ["id", "name", "active", "score", "nope"] {
+        for key in ["id", "name", "active", "score", "extra", "nope"] {
             assert_eq!(
                 DocumentBackend::column_cells(&eager, &users, key).ok(),
                 DocumentBackend::column_cells(&lazy, &users, key).ok(),
@@ -168,6 +170,11 @@ mod conformance {
                 DocumentBackend::column_text(&eager, &users, key).ok(),
                 DocumentBackend::column_text(&lazy, &users, key).ok(),
                 "column_text {key}"
+            );
+            assert_eq!(
+                DocumentBackend::column_keys(&eager, &users, key).ok(),
+                DocumentBackend::column_keys(&lazy, &users, key).ok(),
+                "column_keys {key}"
             );
         }
     }
@@ -250,6 +257,10 @@ mod conformance {
         assert_eq!(
             DocumentBackend::column_cells(&eager, &rows, "x").ok(),
             DocumentBackend::column_cells(&lazy, &rows, "x").ok()
+        );
+        assert_eq!(
+            DocumentBackend::column_keys(&eager, &rows, "x").ok(),
+            DocumentBackend::column_keys(&lazy, &rows, "x").ok()
         );
         for query in ["x", "old", "kept"] {
             let opts = SearchOptions {

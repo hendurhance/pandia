@@ -6,11 +6,12 @@ import type { OpenOutcome, SentRequest } from '$lib/ipc/bindings';
 import { Workspace } from '$lib/shell/state/workspace.svelte';
 import DocPane from './DocPane.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		curlPreview: vi.fn(),
 		curlSend: vi.fn(),
 		cancelJob: vi.fn(async () => true),
+		fileSize: vi.fn(async () => 10),
 		docOpen: vi.fn(),
 		docClose: vi.fn(async () => true),
 		docSummary: vi.fn(),
@@ -21,14 +22,13 @@ vi.mock('$lib/ipc/client', () => ({
 		docColumnSchema: vi.fn(async () => ({ gridSuitable: false })),
 		docBackupClear: vi.fn(async () => null),
 		e2eRecord: vi.fn(async () => {}),
-	},
+	}),
 }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),
 	loadPersisted: vi.fn(async () => undefined),
 	savePersisted: vi.fn(async () => {}),
 }));
-vi.mock('@tauri-apps/plugin-fs', () => ({ stat: vi.fn(async () => ({ size: 10 })) }));
 
 globalThis.ResizeObserver = class {
 	observe() {}

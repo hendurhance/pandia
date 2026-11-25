@@ -219,6 +219,16 @@ impl super::backend::DocumentBackend for Value {
         }
     }
 
+    fn column_keys(&self, path: &Path, key: &str) -> DocResult<Vec<super::cell::Cell<'_>>> {
+        match resolve_eager(self, path) {
+            Ok(Value::Array(arr)) => Ok(arr
+                .iter()
+                .map(|el| super::cell::Cell::from_value(cell(el, key)))
+                .collect()),
+            _ => Ok(Vec::new()),
+        }
+    }
+
     fn for_each_row_field(
         &self,
         path: &Path,

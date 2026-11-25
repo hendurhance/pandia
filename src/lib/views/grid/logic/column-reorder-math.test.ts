@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contentXFromClient, gapForX } from './column-reorder-math';
+import { applyColumnOrder, contentXFromClient, gapForX } from './column-reorder-math';
 
 describe('gapForX', () => {
 	const offsets = [0, 100, 200];
@@ -58,5 +58,17 @@ describe('contentXFromClient', () => {
 	it('returns the offset itself when the pointer is at the rect left', () => {
 		expect(contentXFromClient(100, 100, 0)).toBe(0);
 		expect(contentXFromClient(100, 100, 75)).toBe(75);
+	});
+});
+
+describe('applyColumnOrder', () => {
+	const cols = [{ key: 'a' }, { key: 'b' }, { key: 'c' }];
+
+	it('keeps the schema order when nothing was reordered', () => {
+		expect(applyColumnOrder(cols, [])).toBe(cols);
+	});
+
+	it('puts saved keys first, skips ones that no longer exist, and appends new columns', () => {
+		expect(applyColumnOrder(cols, ['c', 'gone', 'a']).map((c) => c.key)).toEqual(['c', 'a', 'b']);
 	});
 });

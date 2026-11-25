@@ -6,8 +6,8 @@ import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docGetValue: vi.fn(),
 		docApplyOp: vi.fn(),
 		docSetRootText: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock('$lib/ipc/client', () => ({
 		docOpen: vi.fn(),
 		curlSend: vi.fn(),
 		docClose: vi.fn(async () => true),
-	},
+	}),
 }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	behaviorPrefs: { init: async () => {}, autoRepairOnOpen: true },

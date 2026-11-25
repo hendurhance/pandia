@@ -5,7 +5,9 @@ import { ipc } from '$lib/ipc/client';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import TypegenPanel from './TypegenPanel.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGenerateTypes: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGenerateTypes: vi.fn() }),
+}));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),
 	loadPersisted: vi.fn(async () => undefined),

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { listen } from '@tauri-apps/api/event';
 import { ipc } from '$lib/ipc/client';
-import type { BackupRecord, OpenOutcome, OpenSource } from '$lib/ipc/bindings';
+import type { BackupInfo, OpenOutcome, OpenSource } from '$lib/ipc/bindings';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
@@ -65,8 +65,6 @@ vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn(async () => {}) }));
 vi.mock('@tauri-apps/plugin-updater', () => ({ check: vi.fn(async () => null) }));
 vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: vi.fn(async () => {}) }));
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: vi.fn(async () => '1.0.9') }));
-vi.mock('@tauri-apps/plugin-fs', () => ({ stat: vi.fn(async () => ({ size: 10 })) }));
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
 	writeText: vi.fn(async () => {}),
 	readText: vi.fn(async () => ''),
@@ -154,8 +152,7 @@ describe('AppShell startup', () => {
 
 describe('opening a large file', () => {
 	it('offers one cancel button beside "open anyway"', async () => {
-		const { stat } = await import('@tauri-apps/plugin-fs');
-		vi.mocked(stat).mockResolvedValueOnce({ size: 300 * 1024 * 1024 } as never);
+		vi.mocked(ipc.fileSize).mockResolvedValueOnce(300 * 1024 * 1024);
 		vi.mocked(ipc.drainPendingFiles).mockResolvedValueOnce([
 			{
 				path: '/w/big.json',
@@ -177,12 +174,13 @@ describe('opening a large file', () => {
 });
 
 describe('restoring unsaved work after a crash', () => {
-	const record: BackupRecord = {
+	const content = '{"draft":"unsaved words"}';
+	const record: BackupInfo = {
 		docId: 'old-doc',
 		originalPath: '/w/notes.json',
 		displayName: '/w/notes.json',
 		updatedAt: '1',
-		content: '{"draft":"unsaved words"}',
+		bytes: content.length,
 	};
 	function restoredDoc(source: OpenSource): OpenOutcome {
 		return {
@@ -192,7 +190,7 @@ describe('restoring unsaved work after a crash', () => {
 				rootKind: 'object',
 				rootChildCount: 1,
 				sourcePath: '/w/notes.json',
-				sourceSize: record.content.length,
+				sourceSize: content.length,
 				lazy: false,
 				version: 0,
 				dirty: source.kind === 'text' && source.unsaved === true,
@@ -206,6 +204,7 @@ describe('restoring unsaved work after a crash', () => {
 
 	it('keeps the backup until the restored document has opened', async () => {
 		vi.mocked(ipc.docBackupScan).mockResolvedValue([record]);
+		vi.mocked(ipc.docBackupRead).mockResolvedValue(content);
 		let finishOpen!: () => void;
 		vi.mocked(ipc.docOpen).mockImplementation(
 			(source) => new Promise((r) => (finishOpen = () => r(restoredDoc(source)))),
@@ -226,10 +225,16 @@ describe('restoring unsaved work after a crash', () => {
 			false,
 		);
 		expect(ipc.docBackupClear).toHaveBeenCalledWith('old-doc');
+		expect(ipc.docBackupRead).toHaveBeenCalledWith('old-doc');
+		expect(ipc.docOpen).toHaveBeenCalledWith(
+			{ kind: 'text', text: content, name: '/w/notes.json', unsaved: true },
+			expect.anything(),
+		);
 	});
 
 	it('asks before closing a restored document that was never saved', async () => {
 		vi.mocked(ipc.docBackupScan).mockResolvedValue([record]);
+		vi.mocked(ipc.docBackupRead).mockResolvedValue(content);
 		vi.mocked(ipc.docOpen).mockImplementation(async (source) => restoredDoc(source));
 		const { getByText, queryByText, container } = render(AppShell);
 		await vi.waitFor(() => getByText('restore all'));

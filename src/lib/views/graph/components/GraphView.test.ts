@@ -8,7 +8,9 @@ import { HEADER_H, ROW_H, layoutGraph, type PositionedCard } from '../logic/layo
 import { centerOn } from '../logic/viewport';
 import GraphView, { type GraphViewApi } from './GraphView.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGetSlice: vi.fn(), docChildCount: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGetSlice: vi.fn(), docChildCount: vi.fn() }),
+}));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn() }));
 vi.mock('@tauri-apps/plugin-fs', () => ({ writeFile: vi.fn() }));
 const win = vi.hoisted(() => ({

@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetch } from '@tauri-apps/plugin-http';
 import { ipc } from '$lib/ipc/client';
 import { ConfirmController } from '$lib/ui/confirm.svelte';
 import { autoloadSchema } from './schema-autoload';
 import { schemaSessions } from './schema-store.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { docGetValue: vi.fn(), readSchemaFile: vi.fn(), docValidateSchema: vi.fn() },
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetValue: vi.fn(),
+		readSchemaFile: vi.fn(),
+		fetchSchema: vi.fn(),
+		docValidateSchema: vi.fn(),
+	}),
 }));
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
 	SCHEMA_DEBOUNCE_IMMEDIATE: 0,
@@ -32,7 +35,7 @@ describe('autoloadSchema: remote $schema prompts', () => {
 			async (h) =>
 				JSON.stringify(h === 'A' ? 'https://a.dev/s.json' : 'https://b.dev/s.json') as never,
 		);
-		vi.mocked(fetch).mockImplementation(async () => new Response('{"type":"object"}'));
+		vi.mocked(ipc.fetchSchema).mockImplementation(async () => '{"type":"object"}');
 		const confirm = new ConfirmController();
 		const asked: string[] = [];
 		const confirmSchemaFetch = async (host: string) => {

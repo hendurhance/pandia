@@ -1,10 +1,8 @@
-import { fetch } from '@tauri-apps/plugin-http';
 import { ipc } from '$lib/ipc/client';
 import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle } from '$lib/ipc/bindings';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
-import { URL_FETCH_TIMEOUT_MS } from '$lib/shell/logic/url-fetch';
 import { planSchema, type SchemaFrom, type SchemaTarget } from '../schema-ref';
 import { schemaSessions, type SchemaOrigin } from './schema-store.svelte';
 
@@ -78,26 +76,5 @@ async function readTarget(
 		if (!(await confirmRemote(target.host))) return null;
 		approvedUrls.add(target.url);
 	}
-	return download(target.url, target.host);
-}
-
-async function download(url: string, host: string): Promise<string> {
-	const ctrl = new AbortController();
-	const timer = setTimeout(() => ctrl.abort(), URL_FETCH_TIMEOUT_MS);
-	let res: Response;
-	try {
-		res = await fetch(url, { signal: ctrl.signal });
-	} catch {
-		throw new Error(
-			`Couldn't reach ${host} to download the schema. Check your connection and the URL.`,
-		);
-	} finally {
-		clearTimeout(timer);
-	}
-	if (!res.ok) {
-		throw new Error(
-			`Couldn't download the schema from ${host}: the server answered ${res.status}. Check the URL.`,
-		);
-	}
-	return res.text();
+	return ipc.fetchSchema(target.url);
 }

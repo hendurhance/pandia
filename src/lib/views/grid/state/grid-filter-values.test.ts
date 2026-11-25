@@ -5,7 +5,9 @@ import { asLosslessText } from '$lib/ipc/wire';
 import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import { GridFilterController } from './grid-filters.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docColumnValues: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docColumnValues: vi.fn() }),
+}));
 
 const click = () =>
 	({

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import { GridFilterController } from './grid-filters.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: {} }));
+vi.mock('$lib/ipc/client', async () => ({ ipc: (await import('$lib/ipc/fake')).fakeIpc({}) }));
 
 describe('removing an OR group before the active one', () => {
 	it.each([

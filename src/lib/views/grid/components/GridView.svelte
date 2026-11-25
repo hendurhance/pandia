@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ColumnSchema, DocHandle, NodeKind, Op, Path } from '$lib/ipc/bindings';
 	import { tick, untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import {
@@ -12,7 +13,7 @@
 	import { cellClass, cellRender, cellTitle } from '../logic/grid-cell';
 	import { mayBeImage } from '$lib/views/shared/image-source';
 	import { imagePreview } from '$lib/views/shared/image-preview.svelte';
-	import { contentXFromClient, gapForX } from '../logic/column-reorder-math';
+	import { applyColumnOrder, contentXFromClient, gapForX } from '../logic/column-reorder-math';
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import { GridDataController, ROW_HEIGHT } from '../state/grid-data.svelte';
 	import { GridFilterController } from '../state/grid-filters.svelte';
@@ -103,7 +104,7 @@
 
 	$effect(() => filter.coerceCappedOp());
 
-	let colWidth: Map<string, number> = $state.raw(new Map());
+	const colWidth = new SvelteMap<string, number>();
 	// 40px ≈ ~3 chars at the current mono font — narrow enough for a `#`
 	// column but still hit-target friendly for the resize gripper.
 	const MIN_COL_PX = 40;
@@ -112,20 +113,7 @@
 	const MAX_COL_PX = 1200;
 
 	let colOrder: string[] = $state.raw([]);
-	const orderedColumns = $derived.by(() => {
-		if (colOrder.length === 0) return columns;
-		const byKey = new Map(columns.map((c) => [c.key, c]));
-		const out: typeof schema.columns = [];
-		for (const k of colOrder) {
-			const c = byKey.get(k);
-			if (c) {
-				out.push(c);
-				byKey.delete(k);
-			}
-		}
-		for (const c of columns) if (byKey.has(c.key)) out.push(c);
-		return out;
-	});
+	const orderedColumns = $derived(applyColumnOrder(columns, colOrder));
 
 	const columnLayout = $derived(computeColumnLayout(orderedColumns, colWidth));
 
@@ -134,13 +122,13 @@
 
 	function resizeColumn(key: string, dx: number) {
 		const w = Math.min(MAX_COL_PX, Math.max(MIN_COL_PX, resizeStartW + dx));
-		colWidth = new Map(colWidth).set(key, w);
+		colWidth.set(key, w);
 	}
 	function autoFit(key: string) {
 		const col = columns.find((c) => c.key === key);
 		if (!col) return;
 		const w = autoFitWidthPx(col, data.loadedColumnTexts(key), MIN_COL_PX, MAX_COL_PX);
-		colWidth = new Map(colWidth).set(key, w);
+		colWidth.set(key, w);
 		persistWidths();
 	}
 	function onHeaderClick(key: string) {
@@ -247,7 +235,7 @@
 	);
 
 	$effect(() => {
-		void data.chunks;
+		void data.chunks.size;
 		void queryKey;
 		data.fetchVisible();
 	});
@@ -276,13 +264,14 @@
 		void schema;
 		const key = docKey;
 		if (!key) {
-			colWidth = new Map();
+			colWidth.clear();
 			return;
 		}
 		const ac = new AbortController();
 		void loadPersisted<Record<string, number>>(WIDTHS_FILE, key).then((saved) => {
 			if (ac.signal.aborted) return;
-			colWidth = new Map(saved ? Object.entries(saved) : []);
+			colWidth.clear();
+			for (const [k, w] of Object.entries(saved ?? {})) colWidth.set(k, w);
 		});
 		return () => ac.abort();
 	});
@@ -341,6 +330,7 @@
 
 	$effect(() => {
 		const chunks = data.chunks;
+		void chunks.size;
 		const f = follow;
 		if (!f || schema === f.schema || chunks.size === 0) return;
 		follow = null;

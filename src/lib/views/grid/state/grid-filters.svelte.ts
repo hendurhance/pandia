@@ -1,3 +1,4 @@
+import { SvelteMap } from 'svelte/reactivity';
 import { ipc } from '$lib/ipc/client';
 import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
@@ -15,6 +16,8 @@ import type { GridQuery } from './grid-data.svelte';
 
 const VALUE_LIMIT = 200;
 
+const NO_FILTERS: ReadonlyMap<string, ColFilter> = new Map();
+
 export interface GridFilterDeps {
 	handle: () => DocHandle;
 	path: () => Path;
@@ -31,16 +34,11 @@ export class GridFilterController {
 	private debouncedQuickValue = $state('');
 	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-	groups = $state.raw<Map<string, ColFilter>[]>([new Map()]);
+	groups = $state.raw<SvelteMap<string, ColFilter>[]>([new SvelteMap()]);
 	activeGroup = $state(0);
 
-	get colFilters(): Map<string, ColFilter> {
-		return this.groups[this.activeGroup] ?? new Map();
-	}
-	private set colFilters(map: Map<string, ColFilter>) {
-		const next = this.groups.slice();
-		next[this.activeGroup] = map;
-		this.groups = next;
+	get colFilters(): ReadonlyMap<string, ColFilter> {
+		return this.groups[this.activeGroup] ?? NO_FILTERS;
 	}
 
 	openCol: string | null = $state(null);
@@ -48,7 +46,7 @@ export class GridFilterController {
 	openAnchorEl: HTMLElement | null = $state(null); // funnel button (Popover ignores its clicks)
 	openOp: ColOp = $state('is');
 	valueSearch = $state('');
-	valuesByCol = $state.raw(new Map<string, DecodedColumnValues>());
+	readonly valuesByCol = new SvelteMap<string, DecodedColumnValues>();
 	valuesLoading: string | null = $state(null);
 	private valuesGen = 0;
 
@@ -123,50 +121,45 @@ export class GridFilterController {
 		this.deps.columns().find((c) => c.key === key)?.dominantKind ?? 'string';
 
 	updateCol = (key: string, patch: Partial<ColFilter>) => {
-		const next = new Map(this.colFilters);
-		const merged = { ...(next.get(key) ?? {}), ...patch };
-		if (colActive(merged)) next.set(key, merged);
-		else next.delete(key);
-		this.colFilters = next;
+		const group = this.groups[this.activeGroup];
+		if (!group) return;
+		const merged = { ...(group.get(key) ?? {}), ...patch };
+		if (colActive(merged)) group.set(key, merged);
+		else group.delete(key);
 	};
 
 	clearColumn = (key: string) => {
-		const next = new Map(this.colFilters);
-		next.delete(key);
-		this.colFilters = next;
+		this.groups[this.activeGroup]?.delete(key);
 	};
 
 	clearColumnIn = (groupIdx: number, key: string) => {
-		const g = this.groups[groupIdx];
-		if (!g) return;
-		const nextMap = new Map(g);
-		nextMap.delete(key);
-		let groups = this.groups.slice();
-		groups[groupIdx] = nextMap;
-		if (nextMap.size === 0 && groups.length > 1) {
-			groups = groups.filter((_, k) => k !== groupIdx);
+		const group = this.groups[groupIdx];
+		if (!group) return;
+		group.delete(key);
+		if (group.size === 0 && this.groups.length > 1) {
+			this.groups = this.groups.filter((_, k) => k !== groupIdx);
 			if (groupIdx < this.activeGroup) this.activeGroup -= 1;
 		}
-		this.groups = groups;
 		this.activeGroup = Math.min(this.activeGroup, this.groups.length - 1);
 	};
 
 	clearAll = () => {
-		this.groups = [new Map()];
+		this.groups = [new SvelteMap()];
 		this.activeGroup = 0;
 		this.quick = '';
 		this.openCol = null;
 	};
 
 	addGroup = () => {
-		this.groups = [...this.groups, new Map()];
+		this.groups = [...this.groups, new SvelteMap()];
 		this.activeGroup = this.groups.length - 1;
 		this.openCol = null;
 	};
 
 	removeGroup = (i: number) => {
 		if (i < this.activeGroup) this.activeGroup -= 1;
-		this.groups = this.groups.length <= 1 ? [new Map()] : this.groups.filter((_, k) => k !== i);
+		this.groups =
+			this.groups.length <= 1 ? [new SvelteMap()] : this.groups.filter((_, k) => k !== i);
 		this.activeGroup = Math.min(this.activeGroup, this.groups.length - 1);
 		this.openCol = null;
 	};
@@ -228,12 +221,10 @@ export class GridFilterController {
 		try {
 			const cv = await ipc.docColumnValues(this.deps.handle(), this.deps.path(), key, VALUE_LIMIT);
 			if (gen !== this.valuesGen) return;
-			const next = new Map(this.valuesByCol);
-			next.set(key, {
+			this.valuesByCol.set(key, {
 				capped: cv.capped,
 				values: cv.values.map((v) => ({ value: decodeLossless(v.value), count: v.count })),
 			});
-			this.valuesByCol = next;
 		} catch (e) {
 			if (gen === this.valuesGen) this.deps.onError(describeError(e));
 		} finally {
@@ -270,7 +261,7 @@ export class GridFilterController {
 
 	resetValues = () => {
 		this.valuesGen += 1;
-		this.valuesByCol = new Map();
+		this.valuesByCol.clear();
 		this.valuesLoading = null;
 		this.openCol = null;
 	};
@@ -279,7 +270,7 @@ export class GridFilterController {
 		this.sortError = message;
 		this.sortKey = null;
 		this.sortDesc = false;
-		this.groups = [new Map()];
+		this.groups = [new SvelteMap()];
 		this.activeGroup = 0;
 		this.quick = '';
 		this.debouncedQuickValue = '';

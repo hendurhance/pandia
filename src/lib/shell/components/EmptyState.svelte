@@ -212,7 +212,7 @@
 
 		<RecentsBlock {busy} onPick={onClickRecent} />
 
-		<URLFetchBox {busy} onLoad={openFromText} />
+		<URLFetchBox {busy} {onSendRequest} />
 
 		<div class="demo-row">
 			<button class="link dim text-sm" onclick={onLoadDemo} disabled={busy}>load demo data</button>

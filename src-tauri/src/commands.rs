@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::doc::backup::{self, BackupRecord};
+use crate::doc::backup::{self, BackupInfo};
 use crate::doc::curl::{self, CurlPreview, RequestProblem};
 use crate::doc::diff::{compute_diff, DiffEntry};
 use crate::doc::document::{
@@ -310,7 +310,8 @@ pub async fn doc_close(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
 ) -> Result<bool, WireError> {
-    Ok(state.remove(handle))
+    let store = state.inner().clone();
+    run_blocking(move || Ok(store.remove(handle))).await
 }
 
 #[tauri::command]
@@ -322,9 +323,8 @@ pub async fn doc_get_slice(
     start: u32,
     end: u32,
 ) -> Result<Vec<NodeView>, WireError> {
-    state
-        .read(handle, |doc| doc.get_slice(&path, start..end))
-        .map_err(WireError::from)
+    let store = state.inner().clone();
+    run_blocking(move || store.read(handle, |doc| doc.get_slice(&path, start..end))).await
 }
 
 #[tauri::command]
@@ -348,9 +348,8 @@ pub async fn doc_summary(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
 ) -> Result<Summary, WireError> {
-    state
-        .read(handle, |doc| Ok(doc.summary()))
-        .map_err(WireError::from)
+    let store = state.inner().clone();
+    run_blocking(move || store.read(handle, |doc| Ok(doc.summary()))).await
 }
 
 #[tauri::command]
@@ -360,9 +359,8 @@ pub async fn doc_child_count(
     handle: DocHandle,
     path: Path,
 ) -> Result<Option<u32>, WireError> {
-    state
-        .read(handle, |doc| doc.child_count_at(&path))
-        .map_err(WireError::from)
+    let store = state.inner().clone();
+    run_blocking(move || store.read(handle, |doc| doc.child_count_at(&path))).await
 }
 
 #[tauri::command]
@@ -699,9 +697,8 @@ pub async fn doc_column_schema(
     handle: DocHandle,
     path: Path,
 ) -> Result<ColumnSchema, WireError> {
-    state
-        .read(handle, |doc| sniff_columns(doc, &path))
-        .map_err(WireError::from)
+    let store = state.inner().clone();
+    run_blocking(move || store.read(handle, |doc| sniff_columns(doc, &path))).await
 }
 
 #[tauri::command]
@@ -734,7 +731,11 @@ pub async fn doc_apply_op(
     op: Op,
 ) -> Result<ApplyResult, WireError> {
     let store = state.inner().clone();
-    run_blocking(move || store.write(handle, |doc| doc.apply(&op))).await
+    run_blocking(move || {
+        store.read(handle, Document::check_editable)?;
+        store.write(handle, |doc| doc.apply(&op))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -819,6 +820,53 @@ pub async fn cancel_job(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn fetch_schema(url: String) -> Result<String, WireError> {
+    let got = curl::download(
+        &url,
+        curl::Expect::Data,
+        EDIT_SIZE_LIMIT,
+        curl::SCHEMA_FETCH_TIMEOUT,
+        &crate::doc::jobs::CancelFlag::never(),
+    )
+    .await?;
+    String::from_utf8(got.bytes).map_err(|_| {
+        WireError::from(DocError::Request(RequestProblem::NotData {
+            content_type: got.media_type,
+            status: 200,
+        }))
+    })
+}
+
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct WebImage {
+    pub data_url: String,
+    pub bytes: u32,
+    pub media_type: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_image(url: String) -> Result<WebImage, WireError> {
+    use base64::Engine;
+    let got = curl::download(
+        &url,
+        curl::Expect::Image,
+        curl::IMAGE_FETCH_LIMIT,
+        curl::IMAGE_FETCH_TIMEOUT,
+        &crate::doc::jobs::CancelFlag::never(),
+    )
+    .await?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&got.bytes);
+    Ok(WebImage {
+        data_url: format!("data:{};base64,{encoded}", got.media_type),
+        bytes: got.bytes.len() as u32,
+        media_type: got.media_type,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn curl_preview(text: String) -> Result<CurlPreview, WireError> {
     Ok(curl::parse(&text).map_err(DocError::Parse)?.preview())
 }
@@ -844,9 +892,8 @@ pub async fn doc_history(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
 ) -> Result<HistoryView, WireError> {
-    state
-        .read(handle, |doc| Ok(doc.history_view()))
-        .map_err(WireError::from)
+    let store = state.inner().clone();
+    run_blocking(move || store.read(handle, |doc| Ok(doc.history_view()))).await
 }
 
 #[tauri::command]
@@ -934,13 +981,19 @@ pub async fn doc_backup_text(
 #[tauri::command]
 #[specta::specta]
 pub async fn doc_backup_clear(app: tauri::AppHandle, doc_id: String) -> Result<(), WireError> {
-    backup::clear(&app, &doc_id).map_err(WireError::from)
+    run_blocking(move || Ok(backup::clear(&app, &doc_id)?)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn doc_backup_scan(app: tauri::AppHandle) -> Result<Vec<BackupRecord>, WireError> {
-    backup::scan_once(&app).map_err(WireError::from)
+pub async fn doc_backup_scan(app: tauri::AppHandle) -> Result<Vec<BackupInfo>, WireError> {
+    run_blocking(move || Ok(backup::scan_once(&app)?)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn doc_backup_read(app: tauri::AppHandle, doc_id: String) -> Result<String, WireError> {
+    run_blocking(move || Ok(backup::read_content(&app, &doc_id)?)).await
 }
 
 #[tauri::command]
@@ -995,6 +1048,7 @@ pub async fn doc_replace(
 ) -> Result<ReplaceResult, WireError> {
     let store = state.inner().clone();
     run_blocking(move || {
+        store.read(handle, Document::check_editable)?;
         store.write(handle, |doc| {
             doc.replace_all(&query, &replacement, case_sensitive)
         })
@@ -1006,11 +1060,29 @@ pub async fn doc_replace(
 #[specta::specta]
 pub async fn doc_validate_schema(
     state: tauri::State<'_, Arc<DocStore>>,
+    jobs: tauri::State<'_, Arc<crate::doc::jobs::JobRegistry>>,
     handle: DocHandle,
     schema: String,
+    job_id: String,
 ) -> Result<SchemaValidationResult, WireError> {
     let store = state.inner().clone();
-    run_blocking(move || store.read(handle, |doc| doc.validate_schema(&schema))).await
+    let cancel = jobs.register(job_id.clone());
+    let flag = cancel.clone();
+    let result =
+        run_blocking(move || store.read(handle, |doc| doc.validate_schema(&schema, &flag))).await;
+    jobs.unregister(&job_id, &cancel);
+    result
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn file_size(path: String) -> Result<u64, WireError> {
+    run_blocking(move || {
+        std::fs::metadata(&path)
+            .map(|m| m.len())
+            .map_err(|e| DocError::file(FileOp::Open, std::path::Path::new(&path), e))
+    })
+    .await
 }
 
 #[tauri::command]

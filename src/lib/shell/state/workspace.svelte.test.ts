@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
-import { stat } from '@tauri-apps/plugin-fs';
 import { ipc } from '$lib/ipc/client';
 import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -11,16 +10,16 @@ import { Handoff } from './handoff';
 import { loadOpenTabs, saveOpenTabs } from './tabs-restore';
 import { MAX_TABS, Workspace, type PaneView } from './workspace.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		cliWaitDone: vi.fn(async () => {}),
 		cliDiscardPiped: vi.fn(async () => {}),
 		cliReply: vi.fn(async () => {}),
 		docBackupClear: vi.fn(async () => {}),
 		docValidateSchema: vi.fn(),
-	},
+		fileSize: vi.fn(async () => 10),
+	}),
 }));
-vi.mock('@tauri-apps/plugin-fs', () => ({ stat: vi.fn(async () => ({ size: 10 })) }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
 	SCHEMA_DEBOUNCE_IMMEDIATE: 0,
@@ -108,7 +107,7 @@ function waitingHandoff(path: string, wait: string): Handoff {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	vi.mocked(stat).mockResolvedValue({ size: 10 } as never);
+	vi.mocked(ipc.fileSize).mockResolvedValue(10);
 	behaviorPrefs.autoSaveOnIdle = false;
 	behaviorPrefs.restoreTabsOnLaunch = true;
 });
@@ -150,7 +149,7 @@ describe('Workspace: opening', () => {
 	it('asks once about a large file, and cancelling opens nothing', async () => {
 		const p = prompts();
 		const ws = new Workspace(p);
-		vi.mocked(stat).mockResolvedValue({ size: LARGE } as never);
+		vi.mocked(ipc.fileSize).mockResolvedValue(LARGE);
 		p.confirmLargeFile.mockResolvedValue(false);
 
 		expect(await ws.open({ kind: 'file', path: '/w/big.json' })).toEqual({ kind: 'declined' });
@@ -390,9 +389,7 @@ describe('Workspace: restoring tabs', () => {
 			paths: ['/w/a.json', '/w/big.json', '/w/c.json'],
 			activeIndex: 2,
 		});
-		vi.mocked(stat).mockImplementation(
-			async (path) => ({ size: String(path).includes('big') ? LARGE : 10 }) as never,
-		);
+		vi.mocked(ipc.fileSize).mockImplementation(async (path) => (path.includes('big') ? LARGE : 10));
 		p.confirmLargeFile.mockResolvedValue(false);
 
 		await ws.restore(Promise.resolve());
@@ -405,8 +402,8 @@ describe('Workspace: restoring tabs', () => {
 		const ws = new Workspace(prompts());
 		vi.mocked(loadOpenTabs).mockResolvedValue({ paths: ['/w/old.json'], activeIndex: 0 });
 		let statDone!: () => void;
-		vi.mocked(stat).mockImplementationOnce(
-			() => new Promise((r) => (statDone = () => r({ size: 10 } as never))),
+		vi.mocked(ipc.fileSize).mockImplementationOnce(
+			() => new Promise((r) => (statDone = () => r(10))),
 		);
 		const launch = openTab(ws, '/w/from-cli.json').then(() => {});
 		const restoring = ws.restore(launch);
@@ -435,9 +432,7 @@ describe('Workspace: restoring tabs', () => {
 			paths: ['/w/big.json', '/w/b.json'],
 			activeIndex: 0,
 		});
-		vi.mocked(stat).mockImplementation(
-			async (path) => ({ size: String(path).includes('big') ? LARGE : 10 }) as never,
-		);
+		vi.mocked(ipc.fileSize).mockImplementation(async (path) => (path.includes('big') ? LARGE : 10));
 		void ws.restore(Promise.resolve());
 		await vi.waitFor(() => expect(p.confirmLargeFile).toHaveBeenCalled());
 		await ws.snapshot();

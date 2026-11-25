@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
@@ -19,7 +20,7 @@ export class GridSelectionController {
 	selected: { row: number; col: string } | null = $state(null);
 	readonly inspectorCopy = new CopyFlag();
 
-	selectedRows = $state(new Set<number>());
+	readonly selectedRows = new SvelteSet<number>();
 	private selAnchorPos: number | null = null; // visible position of the last click
 	readonly rowsCopy = new CopyFlag();
 	private clears = 0;
@@ -28,13 +29,11 @@ export class GridSelectionController {
 
 	readonly selectedValue = $derived.by(() => {
 		if (!this.selected) return undefined;
-		void this.deps.data.chunks; // re-read when the chunk (re)loads
 		return this.deps.data.getCell(this.selected.row, this.selected.col);
 	});
 
 	readonly selectedPath = $derived.by<Path | null>(() => {
 		if (!this.selected) return null;
-		void this.deps.data.chunks; // re-read once the row's chunk loads
 		const orig = this.deps.data.getRow(this.selected.row)?.index;
 		if (orig == null) return null;
 		return [...this.deps.path(), orig, this.selected.col];
@@ -48,7 +47,7 @@ export class GridSelectionController {
 	rowSelected = (orig: number | undefined): boolean => orig != null && this.selectedRows.has(orig);
 
 	clearSelection = () => {
-		this.selectedRows = new Set();
+		this.selectedRows.clear();
 		this.selAnchorPos = null;
 		this.clears += 1;
 	};
@@ -65,19 +64,15 @@ export class GridSelectionController {
 			return;
 		}
 		if (clears !== this.clears) return;
-		const next = new Set(this.selectedRows);
-		for (const i of indices) next.add(i);
-		this.selectedRows = next;
+		for (const i of indices) this.selectedRows.add(i);
 	};
 
 	onIndexClick = (e: MouseEvent, pos: number, orig: number) => {
 		if (e.shiftKey && this.selAnchorPos != null) {
 			void this.selectRange(this.selAnchorPos, pos);
 		} else {
-			const next = new Set(this.selectedRows);
-			if (next.has(orig)) next.delete(orig);
-			else next.add(orig);
-			this.selectedRows = next;
+			if (this.selectedRows.has(orig)) this.selectedRows.delete(orig);
+			else this.selectedRows.add(orig);
 			this.selAnchorPos = pos;
 		}
 	};
@@ -130,7 +125,7 @@ export class GridSelectionController {
 
 	reset = () => {
 		this.selected = null;
-		this.selectedRows = new Set();
+		this.selectedRows.clear();
 		this.selAnchorPos = null;
 		this.clears += 1;
 	};

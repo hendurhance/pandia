@@ -9,4 +9,11 @@ export function parseHeaders(text: string): Record<string, string> {
 	return out;
 }
 
-export const URL_FETCH_TIMEOUT_MS = 30_000;
+const quote = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
+
+export function urlFetchCommand(url: string, headersText: string): string {
+	const headers = Object.entries(parseHeaders(headersText)).map(
+		([name, value]) => ` -H ${quote(`${name}: ${value}`)}`,
+	);
+	return `curl -L ${quote(url)}${headers.join('')}`;
+}

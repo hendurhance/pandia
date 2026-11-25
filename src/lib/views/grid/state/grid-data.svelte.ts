@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import { untrack } from 'svelte';
 import { ipc } from '$lib/ipc/client';
 import type { DocHandle, GridFilter, Path, RowJson } from '$lib/ipc/bindings';
@@ -57,7 +58,7 @@ export interface GridDataDeps {
 }
 
 export class GridDataController {
-	private readonly filterJobIds = new Set<string>();
+	private readonly filterJobIds = new SvelteSet<string>();
 
 	private readonly source = new PagedSource<GridRow>({
 		pageSize: CHUNK,
@@ -113,7 +114,7 @@ export class GridDataController {
 
 	constructor(private deps: GridDataDeps) {}
 
-	get chunks(): Map<number, GridRow[]> {
+	get chunks(): ReadonlyMap<number, GridRow[]> {
 		return this.source.pages;
 	}
 
@@ -179,7 +180,7 @@ export class GridDataController {
 			if (!row) continue;
 			const patched = [...rows];
 			patched[at] = { index, value: { ...(row.value as object), [colKey]: value } };
-			this.source.pages = new Map(this.source.pages).set(start, patched);
+			this.source.pages.set(start, patched);
 			return;
 		}
 	};

@@ -3,12 +3,12 @@ import { ipc } from '$lib/ipc/client';
 import type { SearchHit } from '$lib/ipc/bindings';
 import { FindController, type FindDeps } from './find.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docSearch: vi.fn(async () => []),
 		docReplace: vi.fn(async () => ({ count: 1, applied: null })),
 		cancelJob: vi.fn(async () => true),
-	},
+	}),
 }));
 
 const hit: SearchHit = {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { findIndexPaged } from './paging';
+import { findIndexPaged, placeholderChunks } from './paging';
+import type { Row } from './model';
 
 function pagedSource<T>(items: T[]) {
 	const calls: Array<[number, number]> = [];
@@ -41,5 +42,22 @@ describe('findIndexPaged', () => {
 	it('returns null on an empty source', async () => {
 		const { fetch } = pagedSource<number>([]);
 		expect(await findIndexPaged(fetch, () => true, 5, 100)).toBeNull();
+	});
+});
+
+describe('placeholderChunks', () => {
+	const ph = (parentPath: (string | number)[], index: number) =>
+		({ variant: 'placeholder', parentPath, depth: parentPath.length + 1, index }) as Row;
+
+	it('lists each unloaded chunk in the range once, with its parent', () => {
+		const rows = [ph(['a'], 0), ph(['a'], 1), ph(['a'], 250), ph(['b'], 3)];
+		expect(placeholderChunks(rows, 0, 10, 200)).toEqual([
+			{ parentPath: ['a'], parentDepth: 1, chunkStart: 0 },
+			{ parentPath: ['a'], parentDepth: 1, chunkStart: 200 },
+			{ parentPath: ['b'], parentDepth: 1, chunkStart: 0 },
+		]);
+		expect(placeholderChunks(rows, 3, 4, 200)).toEqual([
+			{ parentPath: ['b'], parentDepth: 1, chunkStart: 0 },
+		]);
 	});
 });

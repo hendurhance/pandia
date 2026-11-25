@@ -1,4 +1,6 @@
 <script module lang="ts">
+	import type { Attachment } from 'svelte/attachments';
+	import { on } from 'svelte/events';
 	import type { Path } from '$lib/ipc/bindings';
 	import type { ViewportState } from '../logic/viewport';
 
@@ -179,6 +181,19 @@
 		}
 	}
 
+	const panAndZoom: Attachment<HTMLElement> = (node) => {
+		const off = [
+			on(node, 'wheel', onWheel),
+			on(node, 'keydown', onKeydown),
+			on(node, 'pointerdown', onPointerDown),
+			on(node, 'pointermove', onPointerMove),
+			on(node, 'pointerup', onPointerUp),
+			on(node, 'pointercancel', endPan),
+			on(node, 'dblclick', onDblClick),
+		];
+		return () => off.forEach((stop) => stop());
+	};
+
 	function endPan() {
 		if (!canvas) return;
 		if (panStart) {
@@ -308,13 +323,7 @@
 	role="application"
 	aria-label="JSON graph view"
 	tabindex="-1"
-	onwheel={onWheel}
-	onkeydown={onKeydown}
-	onpointerdown={onPointerDown}
-	onpointermove={onPointerMove}
-	onpointerup={onPointerUp}
-	onpointercancel={endPan}
-	ondblclick={onDblClick}
+	{@attach panAndZoom}
 >
 	<canvas bind:this={canvas} aria-hidden="true"></canvas>
 </div>

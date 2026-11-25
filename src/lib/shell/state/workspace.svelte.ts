@@ -1,5 +1,4 @@
 import { untrack } from 'svelte';
-import { stat } from '@tauri-apps/plugin-fs';
 import { ipc } from '$lib/ipc/client';
 import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -264,7 +263,7 @@ export class Workspace {
 		if (!behaviorPrefs.warnLargeFileOpen) return true;
 		let bytes = 0;
 		try {
-			bytes = Number((await stat(path)).size ?? 0);
+			bytes = await ipc.fileSize(path);
 		} catch {
 			return true; // the open itself reports a missing or unreadable file
 		}

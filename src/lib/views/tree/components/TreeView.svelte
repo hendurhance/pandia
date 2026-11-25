@@ -24,6 +24,7 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from '@lucide/svelte';
 	import { DEFAULT_ROW_H, OVERSCAN, scaledOffset } from '$lib/views/shared/scroll-math';
+	import { RowHeights } from '../logic/row-cache';
 	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 	import type { DiffKind, Path } from '$lib/ipc/bindings';
 	import InlineCellEditor from './InlineCellEditor.svelte';
@@ -97,14 +98,14 @@
 	const cutKey = $derived(cutPath ? pathKey(cutPath) : null);
 	const editingKey = $derived(editing ? pathKey(editing.path) : null);
 
-	const tallHeights = new Map<string, number>();
+	const tallHeights = new RowHeights(DEFAULT_ROW_H);
 	let heightsVersion = $state(0);
 
 	function heightAt(i: number): number {
 		const r = rows[i];
 		if (!r) return DEFAULT_ROW_H;
 		if (r.variant === 'vgap') return vgapCount(r) * DEFAULT_ROW_H;
-		return tallHeights.get(rowKey(r)) ?? DEFAULT_ROW_H;
+		return tallHeights.get(rowKey(r));
 	}
 
 	const s = new WindowedScroller({
@@ -118,10 +119,7 @@
 			return r ? rowKey(r) : '';
 		},
 		onWidthChange: () => {
-			if (tallHeights.size > 0) {
-				tallHeights.clear();
-				heightsVersion += 1;
-			}
+			if (tallHeights.clear()) heightsVersion += 1;
 		},
 	});
 	const offsets = $derived(s.offsets);
@@ -189,10 +187,7 @@
 		if (!scroller) return;
 		untrack(() => {
 			if (!editing) {
-				if (tallHeights.size > 0) {
-					tallHeights.clear();
-					heightsVersion += 1;
-				}
+				if (tallHeights.clear()) heightsVersion += 1;
 				return;
 			}
 			let changed = false;
@@ -203,25 +198,14 @@
 				if (h <= 0) continue;
 				const row = rows[ri];
 				if (!row) continue;
-				const key = rowKey(row);
-				if (h > DEFAULT_ROW_H + 1) {
-					if (tallHeights.get(key) !== h) {
-						tallHeights.set(key, h);
-						changed = true;
-					}
-				} else if (tallHeights.delete(key)) {
-					changed = true;
-				}
+				if (tallHeights.record(rowKey(row), h)) changed = true;
 			}
 			if (changed) heightsVersion += 1;
 		});
 	});
 
 	$effect(() => {
-		if (rows.length === 0 && tallHeights.size > 0) {
-			tallHeights.clear();
-			heightsVersion += 1;
-		}
+		if (rows.length === 0 && tallHeights.clear()) heightsVersion += 1;
 	});
 
 	$effect(() => {
@@ -481,6 +465,7 @@
 						<a
 							class="v string url"
 							href={url}
+							rel="external"
 							onclick={(e) => onUrlClick(e, url)}
 							onpointerenter={image ? (e) => onImageHover(e, row) : undefined}
 							onpointerleave={image ? imagePreview.hoverEnd : undefined}>{row.preview}</a

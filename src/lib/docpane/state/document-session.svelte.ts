@@ -12,7 +12,7 @@ import { DocSessionController } from './doc-session.svelte';
 import { DocNavController } from './doc-nav.svelte';
 import { createDocMenuActions } from '../logic/doc-menu-actions';
 import { resolveDefaultView } from '../logic/default-view';
-import { createBackupFlusher, BACKUP_IDLE_MS } from '../logic/backup-flush';
+import { backupDelayMs, createBackupFlusher } from '../logic/backup-flush';
 import { createAutoSaver } from '../logic/auto-save';
 import { sidebarPrefs } from '$lib/shell/state/sidebar-prefs.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -203,11 +203,16 @@ export class DocumentSession {
 			isDirty: () => this.isDirty,
 			uncommittedText: () =>
 				this.deps.code.dirty() ? (this.deps.code.api()?.text() ?? null) : null,
+			bytes: () => this.session.summary?.sourceSize ?? 0,
 		});
 		let backedUp = false;
 		const flush = () => {
 			backedUp = true;
 			return backup.flush();
+		};
+		const flushIfDue = () => {
+			backedUp = true;
+			return backup.flushIfDue();
 		};
 
 		$effect(() => {
@@ -221,7 +226,10 @@ export class DocumentSession {
 				return;
 			}
 			if (this.backupTimer) clearTimeout(this.backupTimer);
-			this.backupTimer = setTimeout(() => void flush(), BACKUP_IDLE_MS);
+			this.backupTimer = setTimeout(
+				() => void flush(),
+				backupDelayMs(this.session.summary?.sourceSize ?? 0),
+			);
 			return () => {
 				if (this.backupTimer) clearTimeout(this.backupTimer);
 			};
@@ -230,13 +238,13 @@ export class DocumentSession {
 		let prevActive = false;
 		$effect(() => {
 			const nowActive = this.deps.isActive();
-			if (prevActive && !nowActive && this.isDirty) void flush();
+			if (prevActive && !nowActive && this.isDirty) void flushIfDue();
 			prevActive = nowActive;
 		});
 
 		$effect(() => {
 			const onBlur = () => {
-				if (this.isDirty) void flush();
+				if (this.isDirty) void flushIfDue();
 			};
 			window.addEventListener('blur', onBlur);
 			return () => window.removeEventListener('blur', onBlur);

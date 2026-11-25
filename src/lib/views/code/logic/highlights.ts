@@ -1,6 +1,7 @@
 import { StateEffect, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import type { DiffKind, Path } from '$lib/ipc/bindings';
+import { pathKey } from '$lib/views/tree/logic/model';
 
 export interface Highlight {
 	path: Path;
@@ -62,4 +63,16 @@ export function highlightsForSide(
 				: e.kind === 'added' || e.kind === 'changed',
 		)
 		.map((e) => ({ path: side === 'left' ? (e.leftPath ?? e.path) : e.path, kind: e.kind }));
+}
+
+export function diffKindsForSide(
+	entries: Array<{ path: Path; leftPath?: Path | null; kind: DiffKind }>,
+	side: 'left' | 'right',
+): Map<string, DiffKind> {
+	const kinds = new Map<string, DiffKind>();
+	for (const e of entries) {
+		if (e.kind === (side === 'left' ? 'added' : 'removed')) continue;
+		kinds.set(pathKey(side === 'left' ? (e.leftPath ?? e.path) : e.path), e.kind);
+	}
+	return kinds;
 }

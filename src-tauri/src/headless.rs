@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
-use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
+use crate::doc::curl::RequestProblem;
 use crate::doc::diff::{compute_diff, DiffKind};
 use crate::doc::document::{Document, EDIT_SIZE_LIMIT, MAX_DOC_BYTES};
 use crate::doc::export::ExportFormat;
@@ -30,7 +30,6 @@ Commands, for scripts and AI agents (print to stdout, open no window):
 ";
 
 const SEARCH_LIMIT: u32 = 1000;
-const SCHEMA_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 
 struct Command {
     name: &'static str,
@@ -380,6 +379,15 @@ fn describe(e: &DocError, name: &str) -> String {
             size(*actual),
             size(*limit)
         ),
+        DocError::ValueTooLarge {
+            path,
+            actual,
+            limit,
+        } => format!(
+            "The value at {path} in {name} is {}, more than the {} this command can read at once. Ask for a smaller part of it.",
+            size(*actual),
+            size(*limit)
+        ),
         DocError::TooDeep { limit } => {
             format!("{name} is nested more than {limit} levels deep, more than Pandia supports.")
         }
@@ -559,7 +567,7 @@ fn validate(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {
     })?;
     let (doc, name) = open_arg(file, stdin)?;
     let result = doc
-        .validate_schema(&schema_text)
+        .validate_schema(&schema_text, &CancelFlag::never())
         .map_err(|e| describe(&e, &name))?;
     let errors: Vec<Value> = result
         .errors
@@ -588,24 +596,25 @@ fn read_schema(schema: &str) -> Result<String, String> {
         .enable_all()
         .build()
         .map_err(|_| unreachable())?;
-    runtime.block_on(async {
-        use tauri_plugin_http::reqwest;
-        let response = reqwest::Client::builder()
-            .timeout(SCHEMA_FETCH_TIMEOUT)
-            .build()
-            .map_err(|_| unreachable())?
-            .get(schema)
-            .send()
-            .await
-            .map_err(|_| unreachable())?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(format!(
-                "Couldn't download the schema from {schema}: the server answered {status}."
-            ));
-        }
-        response.text().await.map_err(|_| unreachable())
-    })
+    let got = runtime
+        .block_on(crate::doc::curl::download(
+            schema,
+            crate::doc::curl::Expect::Data,
+            EDIT_SIZE_LIMIT,
+            crate::doc::curl::SCHEMA_FETCH_TIMEOUT,
+            &CancelFlag::never(),
+        ))
+        .map_err(|e| match e {
+            DocError::Request(RequestProblem::Status { status, .. }) => {
+                format!("Couldn't download the schema from {schema}: the server answered {status}.")
+            }
+            DocError::Request(RequestProblem::TooLarge { limit }) => format!(
+                "The schema at {schema} is larger than {}, more than Pandia can read.",
+                size(limit)
+            ),
+            _ => unreachable(),
+        })?;
+    String::from_utf8(got.bytes).map_err(|_| unreachable())
 }
 
 fn diff(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {

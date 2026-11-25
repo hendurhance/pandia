@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { stat } from '@tauri-apps/plugin-fs';
+import { ipc } from '$lib/ipc/client';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { Workspace } from './workspace.svelte';
 
@@ -18,14 +18,15 @@ vi.mock('$lib/util/persist', async (original) => ({
 	),
 	savePersisted: vi.fn(async () => {}),
 }));
-vi.mock('$lib/ipc/client', () => ({ ipc: {} }));
-vi.mock('@tauri-apps/plugin-fs', () => ({ stat: vi.fn() }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ fileSize: vi.fn() }),
+}));
 
 const LARGE = 300 * 1024 * 1024;
 
 describe('large-file warning on a cold start', () => {
 	it('follows the saved "warn before opening large files" setting for a file handed in at launch', async () => {
-		vi.mocked(stat).mockResolvedValue({ size: LARGE } as never);
+		vi.mocked(ipc.fileSize).mockResolvedValue(LARGE);
 		const confirmLargeFile = vi.fn(async () => true);
 		const ws = new Workspace({ confirmLargeFile, confirmUnsaved: async () => 'cancel' });
 

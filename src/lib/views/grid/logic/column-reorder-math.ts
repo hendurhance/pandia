@@ -22,3 +22,18 @@ export function contentXFromClient(
 ): number {
 	return clientX - headerLeftPx + scrollLeft;
 }
+
+export function applyColumnOrder<C extends { key: string }>(columns: C[], order: string[]): C[] {
+	if (order.length === 0) return columns;
+	const byKey = new Map(columns.map((c) => [c.key, c]));
+	const out: C[] = [];
+	for (const k of order) {
+		const c = byKey.get(k);
+		if (c) {
+			out.push(c);
+			byKey.delete(k);
+		}
+	}
+	for (const c of columns) if (byKey.has(c.key)) out.push(c);
+	return out;
+}

@@ -33,7 +33,7 @@
 	import { MAX_TABS, Workspace } from '$lib/shell/state/workspace.svelte';
 	import { sidebarPrefs } from '../state/sidebar-prefs.svelte';
 	import { ipc } from '$lib/ipc/client';
-	import type { BackupRecord, OpenSource, Path, PendingFile } from '$lib/ipc/bindings';
+	import type { BackupInfo, OpenSource, Path, PendingFile } from '$lib/ipc/bindings';
 	import { Handoff } from '$lib/shell/state/handoff';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 	import { PaneCommandBus } from '$lib/shell/state/pane-bus';
@@ -173,7 +173,7 @@
 		};
 	});
 
-	let recovery: BackupRecord[] = $state([]);
+	let recovery: BackupInfo[] = $state([]);
 	$effect(() => {
 		let cancelled = false;
 		void ipc
@@ -187,9 +187,20 @@
 		};
 	});
 
-	async function restoreOne(rec: BackupRecord) {
+	async function restoreOne(rec: BackupInfo) {
+		let text: string;
+		try {
+			text = await ipc.docBackupRead(rec.docId);
+		} catch (e) {
+			recovery = recovery.filter((r) => r.docId !== rec.docId);
+			await message(`Couldn't restore this backup.\n\n${describeError(e)}`, {
+				title: 'Pandia',
+				kind: 'error',
+			});
+			return;
+		}
 		const name = rec.displayName ?? 'recovered.json';
-		const outcome = await workspace.open({ kind: 'text', text: rec.content, name, unsaved: true });
+		const outcome = await workspace.open({ kind: 'text', text, name, unsaved: true });
 		if (outcome.kind !== 'opened') return;
 		recovery = recovery.filter((r) => r.docId !== rec.docId);
 		void workspace.whenOpened(outcome.tabId).then((opened) => {

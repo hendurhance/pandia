@@ -4,13 +4,13 @@ import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
 import type { PendingFile, SchemaValidationResult, TabReport } from '$lib/ipc/bindings';
 import { Handoff } from './handoff';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		cliWaitDone: vi.fn(async () => {}),
 		cliDiscardPiped: vi.fn(async () => {}),
 		cliReply: vi.fn(async () => {}),
 		docValidateSchema: vi.fn(),
-	},
+	}),
 }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,

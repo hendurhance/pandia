@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+use super::jobs::CancelFlag;
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaValidationResult {
@@ -33,26 +35,45 @@ pub enum SchemaCompileError {
 
 const DEFAULT_MAX_ERRORS: usize = 500;
 
+pub type Validator = jsonschema::Validator;
+
 pub fn validate(
     instance: &Value,
     schema_text: &str,
 ) -> Result<SchemaValidationResult, SchemaCompileError> {
+    let validator = compile(schema_text)?;
+    Ok(run(&validator, instance, &CancelFlag::never()).expect("never cancelled"))
+}
+
+pub fn compile(schema_text: &str) -> Result<Validator, SchemaCompileError> {
     let schema_json: Value =
         serde_json::from_str(schema_text.trim_start_matches('\u{feff}').trim())
             .map_err(|e| SchemaCompileError::Parse(e.to_string()))?;
 
-    let validator = jsonschema::validator_for(&schema_json).map_err(|e| match e.kind() {
+    jsonschema::validator_for(&schema_json).map_err(|e| match e.kind() {
         ValidationErrorKind::Referencing(ReferencingError::Unretrievable { uri, .. }) => {
             SchemaCompileError::ExternalRef(uri.clone())
         }
         _ => SchemaCompileError::Compile(e.to_string()),
-    })?;
+    })
+}
 
+pub fn run(
+    validator: &Validator,
+    instance: &Value,
+    cancel: &CancelFlag,
+) -> Option<SchemaValidationResult> {
+    if cancel.is_cancelled() {
+        return None;
+    }
     let mut errors: Vec<SchemaError> = Vec::new();
     let mut total: u32 = 0;
     let mut truncated = false;
 
     for err in validator.iter_errors(instance) {
+        if cancel.is_cancelled() {
+            return None;
+        }
         total += 1;
         if errors.len() < DEFAULT_MAX_ERRORS {
             errors.push(SchemaError {
@@ -65,7 +86,7 @@ pub fn validate(
         }
     }
 
-    Ok(SchemaValidationResult {
+    Some(SchemaValidationResult {
         valid: total == 0,
         errors,
         error_count: total,

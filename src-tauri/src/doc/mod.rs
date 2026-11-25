@@ -2,6 +2,7 @@ pub mod atomic;
 pub mod backend;
 pub mod backup;
 pub mod canonical;
+pub mod cell;
 pub mod curl;
 pub mod detect;
 pub mod diagnose;

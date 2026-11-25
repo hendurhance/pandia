@@ -10,8 +10,8 @@ import { reactiveBox } from '$lib/views/shared/test-runes.svelte';
 import type { NodeView } from '$lib/ipc/bindings';
 import DocPane from './DocPane.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		e2eRecord: vi.fn(async () => {}),
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('$lib/ipc/client', () => ({
 			errorCount: 0,
 			truncated: false,
 		})),
-	},
+	}),
 }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),

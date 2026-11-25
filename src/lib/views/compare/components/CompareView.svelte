@@ -3,10 +3,10 @@
 	import CodeView from '$lib/views/code/CodeView.svelte';
 	import InlineDiffView from './InlineDiffView.svelte';
 	import CompareTree from './CompareTree.svelte';
-	import { highlightsForSide } from '$lib/views/code/logic/highlights';
+	import { diffKindsForSide, highlightsForSide } from '$lib/views/code/logic/highlights';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DiffEntry, DiffKind, DocHandle, Path } from '$lib/ipc/bindings';
+	import type { DiffEntry, DocHandle, Path } from '$lib/ipc/bindings';
 	import { pathToString, truncatePathMiddle } from '$lib/util/path';
 	import { pathKey } from '$lib/views/tree/logic/model';
 	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
@@ -186,19 +186,8 @@
 	const leftHighlights = $derived(highlightsForSide(entries, 'left'));
 	const rightHighlights = $derived(highlightsForSide(entries, 'right'));
 
-	const leftDiff = $derived.by(() => {
-		const m = new Map<string, DiffKind>();
-		for (const e of entries) {
-			if (e.kind === 'added') continue;
-			m.set(pathKey(leftPathOf(e)), e.kind);
-		}
-		return m;
-	});
-	const rightDiff = $derived.by(() => {
-		const m = new Map<string, DiffKind>();
-		for (const e of entries) if (e.kind !== 'removed') m.set(pathKey(e.path), e.kind);
-		return m;
-	});
+	const leftDiff = $derived(diffKindsForSide(entries, 'left'));
+	const rightDiff = $derived(diffKindsForSide(entries, 'right'));
 	const activePath = $derived<Path | null>(
 		activeIndex >= 0 && activeIndex < entries.length ? (entries[activeIndex]?.path ?? null) : null,
 	);

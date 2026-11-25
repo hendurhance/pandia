@@ -5,7 +5,9 @@ import { asLosslessText } from '$lib/ipc/wire';
 import { pathKey, type ContentRow, type Row } from '$lib/views/tree/logic/model';
 import type { Op } from '$lib/ipc/bindings';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGetValue: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGetValue: vi.fn() }),
+}));
 
 const PI = '3.14159265358979323846264338327950288419716939937510582097494';
 

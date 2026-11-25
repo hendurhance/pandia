@@ -22,6 +22,17 @@ describe('describeError — backend kinds', () => {
 		expect(msg).not.toContain('bytes');
 	});
 
+	it('tooLarge on one value names that value and asks for a smaller part', () => {
+		const e = new IpcError('tooLarge', 'value at $.data too large', {
+			path: ['data'],
+			actual: 314572800,
+			limit: 209715200,
+		});
+		expect(describeError(e)).toBe(
+			'The value at $.data is 300.0 MiB, more than the 200.0 MiB Pandia can handle as one value. Select a smaller part of it.',
+		);
+	});
+
 	it('tooLarge without wire sizes still reads sanely', () => {
 		expect(describeError(new IpcError('tooLarge', 'document too large'))).toBe(
 			'This document is too large for this action. Use a smaller file.',

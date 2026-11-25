@@ -1,43 +1,48 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/svelte';
-import { fetch } from '@tauri-apps/plugin-http';
+import { ipc } from '$lib/ipc/client';
 import URLFetchBox from './URLFetchBox.svelte';
 
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ cancelJob: vi.fn(async () => true) }),
+}));
+
+async function fetchUrl(container: HTMLElement, url: string) {
+	const input = container.querySelector('input') as HTMLInputElement;
+	await fireEvent.input(input, { target: { value: url } });
+	await fireEvent.keyDown(input, { key: 'Enter' });
+}
 
 describe('URLFetchBox', () => {
-	it('says which host it could not reach, not the network library text', async () => {
-		vi.mocked(fetch).mockRejectedValue(
-			'error sending request for url (https://nope.invalid/x.json): dns error: failed to lookup address information',
-		);
-		const { container, findByText } = render(URLFetchBox, {
-			props: { busy: false, onLoad: () => {} },
+	it('sends the URL and headers as a cURL GET that follows redirects', async () => {
+		const onSendRequest = vi.fn(async (_curl: string, _jobId: string) => true);
+		const { container, getByText } = render(URLFetchBox, {
+			props: { busy: false, onSendRequest },
 		});
-		const input = container.querySelector('input') as HTMLInputElement;
-		await fireEvent.input(input, { target: { value: 'https://nope.invalid/x.json' } });
-		await fireEvent.keyDown(input, { key: 'Enter' });
+		await fireEvent.click(getByText('+ headers'));
+		const headers = container.querySelector('textarea.headers') as HTMLTextAreaElement;
+		await fireEvent.input(headers, { target: { value: 'Authorization: Bearer t0k' } });
+		await fetchUrl(container, 'https://api.x.dev/users');
 
-		const err = await findByText(/nope\.invalid/);
-		expect(err.textContent).toBe("Couldn't reach nope.invalid. Check the URL and your connection.");
+		expect(onSendRequest).toHaveBeenCalledWith(
+			"curl -L 'https://api.x.dev/users' -H 'Authorization: Bearer t0k'",
+			expect.any(String),
+		);
+		await vi.waitFor(() =>
+			expect((container.querySelector('input') as HTMLInputElement).value).toBe(''),
+		);
 	});
 
-	it('says "cancelled" when the user cancels, not the plugin text', async () => {
-		// The HTTP plugin rejects a cancelled request with a plain string, not an AbortError.
-		vi.mocked(fetch).mockImplementation(
-			(_url, init) =>
-				new Promise((_, reject) =>
-					init?.signal?.addEventListener('abort', () => reject('Request canceled')),
-				),
-		);
-		const { container, getByText, findByText } = render(URLFetchBox, {
-			props: { busy: false, onLoad: () => {} },
+	it('cancels the running request by its job id', async () => {
+		const onSendRequest = vi.fn((_curl: string, _jobId: string) => new Promise<boolean>(() => {}));
+		const { container, findByText } = render(URLFetchBox, {
+			props: { busy: false, onSendRequest },
 		});
-		const input = container.querySelector('input') as HTMLInputElement;
-		await fireEvent.input(input, { target: { value: 'https://slow.example/x.json' } });
-		await fireEvent.keyDown(input, { key: 'Enter' });
-		await fireEvent.click(getByText('Cancel'));
+		await fetchUrl(container, 'https://slow.example/x.json');
+		await fireEvent.click(await findByText('Cancel'));
 
-		expect(await findByText('cancelled')).toBeTruthy();
+		const jobId = onSendRequest.mock.calls[0]![1];
+		expect(ipc.cancelJob).toHaveBeenCalledWith(jobId);
 	});
 });

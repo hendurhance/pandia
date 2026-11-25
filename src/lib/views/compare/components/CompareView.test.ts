@@ -18,15 +18,15 @@ globalThis.ResizeObserver = class {
 	disconnect() {}
 };
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docDiff: vi.fn(),
 		docCanonicalText: vi.fn(),
 		docCanonicalOffsets: vi.fn(),
 		docSummary: vi.fn(async () => ({ rootKind: 'array', rootChildCount: 0 })),
 		docDiffLines: vi.fn(async () => ({ hunks: [], leftLines: 1, rightLines: 1 })),
 		cancelJob: vi.fn(async () => true),
-	},
+	}),
 }));
 
 let texts: Record<string, string> = {};

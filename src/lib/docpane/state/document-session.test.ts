@@ -8,8 +8,8 @@ import type { Path, SearchHit } from '$lib/ipc/bindings';
 import { asLosslessText } from '$lib/ipc/wire';
 import type { ContentRow } from '$lib/views/tree/logic/model';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docGetValue: vi.fn(),
 		docApplyOp: vi.fn(),
 		docSetRootText: vi.fn(),
@@ -27,8 +27,7 @@ vi.mock('$lib/ipc/client', () => ({
 		docDiff: vi.fn(),
 		docDiffLines: vi.fn(),
 		docSave: vi.fn(),
-		docDiagnose: vi.fn(),
-	},
+	}),
 }));
 
 const clipboard = vi.hoisted(() => {

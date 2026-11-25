@@ -11,14 +11,14 @@ globalThis.ResizeObserver = class {
 	disconnect() {}
 };
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docDiffLines: vi.fn(),
 		docGetLines: vi.fn(async (_h: unknown, start: number, end: number) =>
 			Array.from({ length: end - start }, () => '1,'),
 		),
 		cancelJob: vi.fn(async () => true),
-	},
+	}),
 }));
 
 const VIEWPORT = 600;

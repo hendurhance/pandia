@@ -8,11 +8,11 @@ import type { PromptController } from '$lib/ui/prompt.svelte';
 import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import { DocNavController } from './doc-nav.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docGetValue: vi.fn(async () => asLosslessText('[1, 2, 3]')),
 		docChildCount: vi.fn(),
-	},
+	}),
 }));
 
 const ensurePathVisible = vi.fn(async () => {});

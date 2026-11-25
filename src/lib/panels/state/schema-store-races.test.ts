@@ -4,7 +4,9 @@ import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import type { SchemaValidationResult } from '$lib/ipc/bindings';
 import { schemaSessions } from './schema-store.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docValidateSchema: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docValidateSchema: vi.fn() }),
+}));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
 	SCHEMA_DEBOUNCE_IMMEDIATE: 0,
@@ -88,6 +90,22 @@ describe('SchemaSession: a check that finishes after a newer change', () => {
 		finish(INVALID);
 		await vi.advanceTimersByTimeAsync(0);
 		expect(s.verdict).toEqual({ kind: 'none' });
+	});
+
+	it('a newer change stops the check that is still running', async () => {
+		const { s, running, finish } = manualSessionWithCheckRunning();
+		const firstJob = vi.mocked(ipc.docValidateSchema).mock.calls[0]![2];
+		expect(firstJob).toEqual(expect.any(String));
+		vi.mocked(ipc.docValidateSchema).mockResolvedValueOnce(VALID);
+		void s.validateNow();
+		expect(ipc.cancelJob).toHaveBeenCalledWith(firstJob);
+		const secondJob = vi.mocked(ipc.docValidateSchema).mock.calls[1]![2];
+		expect(secondJob).not.toBe(firstJob);
+
+		s.setText('');
+		expect(ipc.cancelJob).toHaveBeenLastCalledWith(secondJob);
+		finish(INVALID);
+		await running;
 	});
 
 	it('emptying the schema box while a check runs leaves no result behind', async () => {

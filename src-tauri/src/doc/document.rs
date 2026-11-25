@@ -9,6 +9,7 @@ use sonic_rs::FastStr;
 
 use super::atomic;
 use super::backend::DocumentBackend;
+use super::cell::{cmp_cells, Cell};
 use super::eager::{cmp_cell, replace_in_value, ReplaceCounts};
 use super::export::{export as export_value, ExportError, ExportFormat};
 use super::format::{self, InputFormat};
@@ -16,16 +17,13 @@ use super::grid_filter::{compile_filters, row_passes, GridFilter};
 use super::history::History;
 use super::lazy::{parse_json, LazyDoc};
 use super::ops::{Op, OpDescription, OpOutcome};
-use super::schema_validate::{
-    validate as schema_validate_value, SchemaCompileError, SchemaValidationResult,
-};
+use super::schema_validate::{self, SchemaCompileError, SchemaValidationResult, Validator};
 use super::search::{literal_matcher, SearchHit, SearchOptions};
 use super::typegen::{self, TypeShape, TypegenLang};
 use super::types::{DocError, DocResult, FileOp, NodeKind, NodeView, Path, PathSegment};
 use super::wire::LosslessText;
 
 const LAZY_THRESHOLD_BYTES: u64 = 10 * 1024 * 1024;
-const GET_VALUE_ROOT_LIMIT: u64 = 200 * 1024 * 1024;
 pub const EDIT_SIZE_LIMIT: u64 = 200 * 1024 * 1024;
 pub const MAX_DOC_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -62,6 +60,7 @@ pub struct Document {
     filter_cache: parking_lot::Mutex<Option<FilterCache>>,
     quick_text_cache: parking_lot::Mutex<HashMap<(Path, String), QuickTextColumn>>,
     canon_cache: parking_lot::Mutex<Option<CanonCache>>,
+    schema_cache: parking_lot::Mutex<Option<(blake3::Hash, Arc<Validator>)>>,
     save_lock: Arc<parking_lot::Mutex<()>>,
 }
 
@@ -253,9 +252,12 @@ impl Document {
             filter_cache: parking_lot::Mutex::new(None),
             quick_text_cache: parking_lot::Mutex::new(HashMap::new()),
             canon_cache: parking_lot::Mutex::new(None),
+            schema_cache: parking_lot::Mutex::new(None),
             save_lock: Arc::default(),
         };
-        doc.saved_hash = doc.compute_content_hash();
+        if !doc.opened_lazy {
+            doc.saved_hash = doc.compute_content_hash();
+        }
         Ok(doc)
     }
 
@@ -346,10 +348,10 @@ impl Document {
     }
 
     pub fn export(&self, format: ExportFormat) -> DocResult<String> {
-        if self.source_size > GET_VALUE_ROOT_LIMIT {
+        if self.source_size > EDIT_SIZE_LIMIT {
             return Err(DocError::TooLarge {
                 actual: self.source_size,
-                limit: GET_VALUE_ROOT_LIMIT,
+                limit: EDIT_SIZE_LIMIT,
             });
         }
         self.with_root(|v| export_value(v, format))?
@@ -437,7 +439,7 @@ impl Document {
             target,
             text,
             version: self.version,
-            hash: self.current_hash(),
+            hash: self.content_hash_for_dirty_check(),
         })
     }
 
@@ -475,9 +477,16 @@ impl Document {
     fn mark_saved(&mut self) {
         self.history.mark_saved();
         self.saved_version = self.version;
-        let saved_hash = self.compute_content_hash();
+        let saved_hash = self.content_hash_for_dirty_check();
         self.saved_hash = saved_hash;
         *self.hash_cache.lock() = Some((self.version, saved_hash));
+    }
+
+    fn content_hash_for_dirty_check(&self) -> blake3::Hash {
+        if self.opened_lazy {
+            return blake3::Hash::from_bytes([0u8; 32]);
+        }
+        self.current_hash()
     }
 
     pub fn mark_unsaved(&mut self) {
@@ -555,10 +564,10 @@ impl Document {
             }
         }
 
-        let cells = self.column_cells(path, key)?;
+        let cells = self.column_keys(path, key)?;
         let mut perm: Vec<u32> = (0..cells.len() as u32).collect();
         perm.sort_by(|&a, &b| {
-            let ord = cmp_cell(cells[a as usize].as_ref(), cells[b as usize].as_ref());
+            let ord = cmp_cells(&cells[a as usize], &cells[b as usize]);
             if descending {
                 ord.reverse()
             } else {
@@ -604,6 +613,10 @@ impl Document {
 
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
         self.backend().column_cells(path, key)
+    }
+
+    fn column_keys(&self, path: &Path, key: &str) -> DocResult<Vec<Cell<'_>>> {
+        self.backend().column_keys(path, key)
     }
 
     pub fn for_each_row_field(
@@ -708,17 +721,17 @@ impl Document {
             })
         };
 
-        let mut key_cells: HashMap<String, Vec<Option<Value>>> = HashMap::new();
+        let mut key_cells: HashMap<String, Vec<Cell<'_>>> = HashMap::new();
         for grp in groups {
             for f in grp {
                 if !key_cells.contains_key(f.key.as_str()) {
-                    key_cells.insert(f.key.clone(), self.column_cells(path, &f.key)?);
+                    key_cells.insert(f.key.clone(), self.column_keys(path, &f.key)?);
                 }
             }
         }
         if let Some((sk, _)) = sort {
             if !key_cells.contains_key(sk) {
-                key_cells.insert(sk.to_string(), self.column_cells(path, sk)?);
+                key_cells.insert(sk.to_string(), self.column_keys(path, sk)?);
             }
         }
 
@@ -729,6 +742,9 @@ impl Document {
             .map_err(|e| DocError::Parse(e.to_string()))?;
         let mut quick_text: HashMap<String, Arc<Vec<Option<String>>>> = HashMap::new();
         if quick_matcher.is_some() {
+            self.quick_text_cache.lock().retain(|(p, k), entry| {
+                entry.version == self.version && p == path && quick_keys.contains(k)
+            });
             for k in quick_keys {
                 if !quick_text.contains_key(k) {
                     quick_text.insert(k.clone(), self.quick_text_column(path, k)?);
@@ -756,10 +772,7 @@ impl Document {
                 return Err(DocError::Cancelled);
             }
             let pass_filters = row_passes(&filters, |k| {
-                key_cells
-                    .get(k)
-                    .and_then(|c| c.get(i as usize))
-                    .and_then(|o| o.as_ref())
+                key_cells.get(k).and_then(|c| c.get(i as usize))
             });
             if !pass_filters {
                 continue;
@@ -786,7 +799,7 @@ impl Document {
         if let Some((sk, desc)) = sort {
             let cells = &key_cells[sk];
             perm.sort_by(|&a, &b| {
-                let ord = cmp_cell(cells[a as usize].as_ref(), cells[b as usize].as_ref());
+                let ord = cmp_cells(&cells[a as usize], &cells[b as usize]);
                 if desc {
                     ord.reverse()
                 } else {
@@ -865,12 +878,12 @@ impl Document {
     }
 
     pub fn column_values(&self, path: &Path, key: &str, limit: usize) -> DocResult<ColumnValues> {
-        let cells = self.column_cells(path, key)?;
+        let cells = self.column_keys(path, key)?;
         let mut map: std::collections::HashMap<String, (Value, u32)> =
             std::collections::HashMap::new();
         let mut capped = false;
-        for c in cells {
-            let v = c.unwrap_or(Value::Null);
+        for c in &cells {
+            let v = c.to_value();
             let k = v.to_string();
             if let Some(e) = map.get_mut(&k) {
                 e.1 += 1;
@@ -903,10 +916,10 @@ impl Document {
     }
 
     pub fn get_column(&self, path: &Path, key: &str) -> DocResult<Vec<Value>> {
-        if path.is_root() && self.source_size > GET_VALUE_ROOT_LIMIT {
+        if path.is_root() && self.source_size > EDIT_SIZE_LIMIT {
             return Err(DocError::TooLarge {
                 actual: self.source_size,
-                limit: GET_VALUE_ROOT_LIMIT,
+                limit: EDIT_SIZE_LIMIT,
             });
         }
         Ok(self
@@ -917,10 +930,10 @@ impl Document {
     }
 
     pub fn get_value(&self, path: &Path) -> DocResult<Value> {
-        if path.is_root() && self.source_size > GET_VALUE_ROOT_LIMIT {
+        if path.is_root() && self.source_size > EDIT_SIZE_LIMIT {
             return Err(DocError::TooLarge {
                 actual: self.source_size,
-                limit: GET_VALUE_ROOT_LIMIT,
+                limit: EDIT_SIZE_LIMIT,
             });
         }
         self.backend().get_value(path)
@@ -935,10 +948,10 @@ impl Document {
                 }
             }
         }
-        if self.source_size > GET_VALUE_ROOT_LIMIT {
+        if self.source_size > EDIT_SIZE_LIMIT {
             return Err(DocError::TooLarge {
                 actual: self.source_size,
-                limit: GET_VALUE_ROOT_LIMIT,
+                limit: EDIT_SIZE_LIMIT,
             });
         }
         let text = self.with_root(super::canonical::canonical_pretty)?;
@@ -953,10 +966,10 @@ impl Document {
     }
 
     pub fn canonical_offsets(&self, paths: &[Path]) -> DocResult<Vec<Option<(u64, u64)>>> {
-        if self.source_size > GET_VALUE_ROOT_LIMIT {
+        if self.source_size > EDIT_SIZE_LIMIT {
             return Err(DocError::TooLarge {
                 actual: self.source_size,
-                limit: GET_VALUE_ROOT_LIMIT,
+                limit: EDIT_SIZE_LIMIT,
             });
         }
         self.with_root(|v| super::canonical::canonical_offsets(v, paths))
@@ -1087,29 +1100,54 @@ impl Document {
         self.backend().generate_types(lang, type_name)
     }
 
-    pub fn validate_schema(&self, schema_text: &str) -> DocResult<SchemaValidationResult> {
-        if self.source_size > GET_VALUE_ROOT_LIMIT {
+    pub fn validate_schema(
+        &self,
+        schema_text: &str,
+        cancel: &crate::doc::jobs::CancelFlag,
+    ) -> DocResult<SchemaValidationResult> {
+        if self.source_size > EDIT_SIZE_LIMIT {
             return Err(DocError::TooLarge {
                 actual: self.source_size,
-                limit: GET_VALUE_ROOT_LIMIT,
+                limit: EDIT_SIZE_LIMIT,
             });
         }
-        let result = self.with_root(|v| schema_validate_value(v, schema_text))?;
-        result.map_err(|e| match e {
+        let validator = self.compiled_schema(schema_text)?;
+        if cancel.is_cancelled() {
+            return Err(DocError::Cancelled);
+        }
+        self.with_root(|v| schema_validate::run(&validator, v, cancel))?
+            .ok_or(DocError::Cancelled)
+    }
+
+    fn compiled_schema(&self, schema_text: &str) -> DocResult<Arc<Validator>> {
+        let key = blake3::hash(schema_text.as_bytes());
+        if let Some((k, v)) = self.schema_cache.lock().as_ref() {
+            if *k == key {
+                return Ok(Arc::clone(v));
+            }
+        }
+        let validator = Arc::new(schema_validate::compile(schema_text).map_err(|e| match e {
             SchemaCompileError::Parse(s) => DocError::Schema(format!("not valid JSON: {s}")),
             SchemaCompileError::Compile(s) => DocError::Schema(format!("compile error: {s}")),
             SchemaCompileError::ExternalRef(uri) => DocError::SchemaExternalRef(uri),
-        })
+        })?);
+        *self.schema_cache.lock() = Some((key, Arc::clone(&validator)));
+        Ok(validator)
+    }
+
+    pub fn check_editable(&self) -> DocResult<()> {
+        if matches!(self.inner, DocumentImpl::Lazy(_)) && self.source_size > EDIT_SIZE_LIMIT {
+            return Err(DocError::TooLarge {
+                actual: self.source_size,
+                limit: EDIT_SIZE_LIMIT,
+            });
+        }
+        Ok(())
     }
 
     fn ensure_eager(&mut self) -> DocResult<&mut Value> {
         if matches!(self.inner, DocumentImpl::Lazy(_)) {
-            if self.source_size > EDIT_SIZE_LIMIT {
-                return Err(DocError::TooLarge {
-                    actual: self.source_size,
-                    limit: EDIT_SIZE_LIMIT,
-                });
-            }
+            self.check_editable()?;
             let DocumentImpl::Lazy(lazy) = &self.inner else {
                 unreachable!("checked above")
             };
@@ -1125,6 +1163,124 @@ impl Document {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_repeated_schema_check_reuses_the_compiled_schema() {
+        let d = doc(r#"{"id": 1}"#);
+        let schema = r#"{"type": "object", "required": ["id"]}"#;
+        let never = crate::doc::jobs::CancelFlag::never();
+        assert!(d.validate_schema(schema, &never).unwrap().valid);
+        let first = d
+            .schema_cache
+            .lock()
+            .as_ref()
+            .map(|(_, v)| Arc::clone(v))
+            .unwrap();
+        assert!(d.validate_schema(schema, &never).unwrap().valid);
+        let second = d
+            .schema_cache
+            .lock()
+            .as_ref()
+            .map(|(_, v)| Arc::clone(v))
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+
+        assert!(
+            !d.validate_schema(r#"{"type": "array"}"#, &never)
+                .unwrap()
+                .valid
+        );
+        let third = d
+            .schema_cache
+            .lock()
+            .as_ref()
+            .map(|(_, v)| Arc::clone(v))
+            .unwrap();
+        assert!(!Arc::ptr_eq(&first, &third));
+    }
+
+    #[test]
+    fn a_cancelled_schema_check_stops_with_cancelled() {
+        let d = doc(r#"{"id": 1}"#);
+        let cancel = crate::doc::jobs::CancelFlag::default();
+        cancel.cancel();
+        let err = d
+            .validate_schema(r#"{"type": "object"}"#, &cancel)
+            .unwrap_err();
+        assert!(matches!(err, DocError::Cancelled), "{err:?}");
+    }
+
+    #[test]
+    fn the_quick_filter_keeps_only_the_columns_it_is_searching() {
+        let d = Document::from_text(
+            r#"[{"a":"x","b":"y","c":"z"},{"a":"xx","b":"yy","c":"zz"}]"#,
+            None,
+        )
+        .unwrap();
+        let never = crate::doc::jobs::CancelFlag::never();
+        let keys = |ks: &[&str]| ks.iter().map(|k| k.to_string()).collect::<Vec<_>>();
+        let quick = |q: &str, ks: &[&str]| {
+            d.get_rows_filtered(&Path::root(), &[], Some(q), &keys(ks), None, 0..10, &never)
+                .unwrap()
+                .total
+        };
+        assert_eq!(quick("x", &["a", "b"]), 2);
+        assert_eq!(quick("zz", &["c"]), 1);
+        let mut cached: Vec<String> = d
+            .quick_text_cache
+            .lock()
+            .keys()
+            .map(|(_, k)| k.clone())
+            .collect();
+        cached.sort();
+        assert_eq!(cached, ["c"]);
+    }
+
+    #[test]
+    #[ignore = "memory probe; run the test binary under /usr/bin/time -l"]
+    fn probe_grid_sort_and_filter_memory() {
+        use super::super::grid_filter::{FilterOp, GridFilter};
+        use std::fmt::Write;
+        const N: u32 = 2_000_000;
+        let mut s = String::with_capacity(120_000_000);
+        s.push_str("{\"rows\":[");
+        for i in 0..N {
+            if i > 0 {
+                s.push(',');
+            }
+            write!(
+                s,
+                "{{\"id\":{i},\"name\":\"user {}\",\"score\":{}.5}}",
+                N - i,
+                i * 7 % 1000
+            )
+            .unwrap();
+        }
+        s.push_str("]}");
+        let d = Document::from_text(&s, None).unwrap();
+        drop(s);
+        let rows = Path(vec![PathSegment::Key("rows".into())]);
+        let never = crate::doc::jobs::CancelFlag::never();
+        let t = std::time::Instant::now();
+        let sorted = d.get_rows_sorted(&rows, "score", true, 0..3).unwrap();
+        let sort_time = t.elapsed();
+        let over = vec![vec![GridFilter {
+            key: "score".into(),
+            op: FilterOp::Gt,
+            value: Some(serde_json::json!(500)),
+        }]];
+        let t = std::time::Instant::now();
+        let filtered = d
+            .get_rows_filtered(&rows, &over, None, &[], Some(("name", false)), 0..3, &never)
+            .unwrap();
+        let filter_time = t.elapsed();
+        eprintln!(
+            "[probe] sort {} rows in {sort_time:?} (top {:?}); filter+sort in {filter_time:?} ({} match)",
+            N,
+            sorted[0].value["score"],
+            filtered.total
+        );
+    }
+
     use super::*;
 
     fn doc(text: &str) -> Document {
@@ -1454,7 +1610,10 @@ mod tests {
         let d = doc(r#"{"a": 1}"#);
         for uri in ["https://example.com/s.json", "file:///tmp/s.json"] {
             let err = d
-                .validate_schema(&format!(r#"{{"$ref": "{uri}"}}"#))
+                .validate_schema(
+                    &format!(r#"{{"$ref": "{uri}"}}"#),
+                    &crate::doc::jobs::CancelFlag::never(),
+                )
                 .unwrap_err();
             let wire = crate::doc::types::WireError::from(err);
             assert_eq!(wire.kind, crate::doc::types::ErrorKind::SchemaExternalRef);
@@ -2084,9 +2243,14 @@ mod tests {
             path: Path::root(),
             value: serde_json::json!(0),
         };
+        assert!(matches!(
+            big.check_editable(),
+            Err(DocError::TooLarge { .. })
+        ));
         let err = big.apply(&op).unwrap_err();
         assert!(matches!(err, DocError::TooLarge { .. }));
         assert!(matches!(big.inner, DocumentImpl::Lazy(_)));
+        assert!(doc(r#"{"a": 1}"#).check_editable().is_ok());
         assert_eq!(big.version, 0);
         let _ = d;
     }

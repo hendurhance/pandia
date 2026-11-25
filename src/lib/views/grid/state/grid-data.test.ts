@@ -6,8 +6,12 @@ import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import { MISSING } from '../logic/grid-cell';
 import { GridDataController } from './grid-data.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { docGetRows: vi.fn(), docGetRowsFiltered: vi.fn(), cancelJob: vi.fn(async () => true) },
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetRows: vi.fn(),
+		docGetRowsFiltered: vi.fn(),
+		cancelJob: vi.fn(async () => true),
+	}),
 }));
 
 function controller(rowCount: number, filtering: boolean, quick = () => '') {

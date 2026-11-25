@@ -5,12 +5,12 @@ import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import { GridDataController, type GridQuery } from './grid-data.svelte';
 import { GridSelectionController } from './grid-select.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docGetRows: vi.fn(),
 		docGetRowIndices: vi.fn(() => new Promise(() => {})),
 		cancelJob: vi.fn(async () => true),
-	},
+	}),
 }));
 
 function selectionOver(query: Partial<GridQuery> = {}) {

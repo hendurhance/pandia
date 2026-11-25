@@ -10,11 +10,11 @@ Range.prototype.getBoundingClientRect = () => new DOMRect();
 
 const TEXT = '{\n  "a": "x\\ny"\n}';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docCanonicalText: vi.fn(async () => TEXT),
 		docCanonicalOffsets: vi.fn(async () => []),
-	},
+	}),
 }));
 
 async function mount(text = TEXT) {

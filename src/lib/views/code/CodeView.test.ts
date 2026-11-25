@@ -8,11 +8,11 @@ import CodeView, { type CodeViewApi } from './CodeView.svelte';
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
 Range.prototype.getBoundingClientRect = () => new DOMRect();
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docCanonicalText: vi.fn(async () => '{"a": 0}'),
 		docCanonicalOffsets: vi.fn(async () => []),
-	},
+	}),
 }));
 
 describe('CodeView — committing the buffer', () => {

@@ -11,6 +11,7 @@ import {
 	writeFileSync,
 	writeSync,
 } from 'node:fs';
+import { createServer } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -227,6 +228,31 @@ const scenarios: Scenario[] = [
 		},
 	},
 	{
+		name: 'schema-url',
+		doc: '--schema with a web address (http allowed in Settings) downloads the schema in Rust and checks the file against it.',
+		modes: ['cold'],
+		async run(t) {
+			const body = readFileSync(schema, 'utf8');
+			const server = createServer((_req, res) => {
+				res.writeHead(200, { 'content-type': 'application/schema+json' });
+				res.end(body);
+			});
+			await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+			const { port } = server.address() as { port: number };
+			try {
+				await withBehavior({ allowHttpSchemas: true }, async () => {
+					const path = valid();
+					await pandia([path, '--schema', `http://127.0.0.1:${port}/config.schema.json`]);
+					const tab = await t.tab(isFor(path));
+					t.expect('schema source', tab?.schemaFrom, 'cli');
+					t.expect('schema check', [tab?.verdict, tab?.valid], ['checked', true]);
+				});
+			} finally {
+				server.close();
+			}
+		},
+	},
+	{
 		name: 'wait-valid',
 		doc: '--wait exit 0: You closed the tabs and the Schema panel showed no errors.',
 		modes: ['cold', 'warm'],
@@ -425,6 +451,34 @@ const scenarios: Scenario[] = [
 			await sleep(1500);
 			t.expect(
 				'new backups left behind',
+				list().filter((f) => !before.has(f)),
+				[],
+			);
+		},
+	},
+	{
+		name: 'backup-while-dirty',
+		doc: 'An unsaved edit is backed up as a small record plus a separate text file, and both go when the edit is undone and the tab closed.',
+		modes: ['warm'],
+		async run(t) {
+			const list = () => (existsSync(BACKUPS) ? readdirSync(BACKUPS) : []);
+			const before = new Set(list());
+			const path = file(`dirty-${Date.now()}.json`, '{"b":1,"a":2}');
+			await pandia([path]);
+			if (!(await t.tab(isFor(path)))) return t.fail('the tab never opened');
+			await t.act('tree.sortKeysAsc');
+			await sleep(1500);
+			const added = list().filter((f) => !before.has(f));
+			const ids = new Set(added.map((f) => f.replace(/\.(json|content)$/, '')));
+			t.expect('one backup written', ids.size, 1);
+			t.expect('record and text kept apart', added.map((f) => f.slice(f.lastIndexOf('.'))).sort(), [
+				'.content',
+				'.json',
+			]);
+			await t.act('doc.undo', 'tab.close');
+			await sleep(1500);
+			t.expect(
+				'backup removed',
 				list().filter((f) => !before.has(f)),
 				[],
 			);
