@@ -34,7 +34,7 @@ export function colActive(c: ColFilter): boolean {
 	return !!(c.values?.length || c.text?.trim() || c.min?.trim() || c.max?.trim() || c.presence);
 }
 
-export function compileGroups(groups: Map<string, ColFilter>[]): GridFilter[][] {
+export function compileGroups(groups: ReadonlyMap<string, ColFilter>[]): GridFilter[][] {
 	return groups.map(compileFilters).filter((g) => g.length > 0);
 }
 
@@ -45,7 +45,7 @@ function numberOperand(text: string): LosslessText {
 	return JSON_NUMBER.test(t) ? asLosslessText(t) : encodeLossless(t);
 }
 
-export function compileFilters(colFilters: Map<string, ColFilter>): GridFilter[] {
+export function compileFilters(colFilters: ReadonlyMap<string, ColFilter>): GridFilter[] {
 	const out: GridFilter[] = [];
 	for (const [key, c] of colFilters) {
 		const op = c.op ?? 'is';

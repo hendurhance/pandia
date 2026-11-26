@@ -3,12 +3,14 @@
 	import CodeView from '$lib/views/code/CodeView.svelte';
 	import InlineDiffView from './InlineDiffView.svelte';
 	import CompareTree from './CompareTree.svelte';
-	import { highlightsForSide } from '$lib/views/code/logic/highlights';
+	import { diffKindsForSide, highlightsForSide } from '$lib/views/code/logic/highlights';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DiffEntry, DiffKind, DocHandle, Path } from '$lib/ipc/bindings';
+	import type { DiffEntry, DocHandle, Path, Summary } from '$lib/ipc/bindings';
 	import { pathToString, truncatePathMiddle } from '$lib/util/path';
 	import { pathKey } from '$lib/views/tree/logic/model';
+	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
+	import { DEFAULT_ROW_H } from '$lib/views/shared/scroll-math';
 	import { createSyncScrollPair } from '$lib/ui/sync-scroll';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ArrowDownUp } from '@lucide/svelte';
@@ -16,8 +18,8 @@
 	interface Props {
 		leftHandle: DocHandle;
 		rightHandle: DocHandle;
-		leftSourceSize: number;
-		rightSourceSize: number;
+		leftSummary: Pick<Summary, 'sourceSize' | 'capabilities'>;
+		rightSummary: Pick<Summary, 'sourceSize' | 'capabilities'>;
 		leftName: string;
 		rightName: string;
 		leftVersion: number;
@@ -31,8 +33,8 @@
 	let {
 		leftHandle,
 		rightHandle,
-		leftSourceSize,
-		rightSourceSize,
+		leftSummary,
+		rightSummary,
 		leftName,
 		rightName,
 		leftVersion,
@@ -45,7 +47,13 @@
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let activeIndex = $state(-1);
-	let entriesEl: HTMLDivElement | undefined = $state();
+
+	const entryList = new WindowedScroller({
+		rowCount: () => entries.length,
+		rowHeight: DEFAULT_ROW_H,
+	});
+	const firstEntry = $derived(entryList.window.start);
+	const visibleEntries = $derived(entries.slice(firstEntry, entryList.window.end));
 
 	let mode = $state<'split' | 'inline' | 'tree'>('split');
 	let activeHunk = $state(0);
@@ -152,8 +160,9 @@
 	function selectEntry(i: number) {
 		if (i < 0 || i >= entries.length) return;
 		activeIndex = i;
-		const el = entriesEl?.querySelector(`[data-i="${i}"]`) as HTMLElement | null;
-		el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		const el = entryList.el?.querySelector(`[data-i="${i}"]`) as HTMLElement | null;
+		if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		else entryList.scrollToIndex(i);
 	}
 
 	function hunkStep(delta: number) {
@@ -177,19 +186,8 @@
 	const leftHighlights = $derived(highlightsForSide(entries, 'left'));
 	const rightHighlights = $derived(highlightsForSide(entries, 'right'));
 
-	const leftDiff = $derived.by(() => {
-		const m = new Map<string, DiffKind>();
-		for (const e of entries) {
-			if (e.kind === 'added') continue;
-			m.set(pathKey(leftPathOf(e)), e.kind);
-		}
-		return m;
-	});
-	const rightDiff = $derived.by(() => {
-		const m = new Map<string, DiffKind>();
-		for (const e of entries) if (e.kind !== 'removed') m.set(pathKey(e.path), e.kind);
-		return m;
-	});
+	const leftDiff = $derived(diffKindsForSide(entries, 'left'));
+	const rightDiff = $derived(diffKindsForSide(entries, 'right'));
 	const activePath = $derived<Path | null>(
 		activeIndex >= 0 && activeIndex < entries.length ? (entries[activeIndex]?.path ?? null) : null,
 	);
@@ -361,7 +359,7 @@
 					<CodeView
 						handle={leftHandle}
 						version={leftVersion}
-						sourceSize={leftSourceSize}
+						summary={leftSummary}
 						highlights={leftHighlights}
 						activePath={activeEntry && activeEntry.kind !== 'added'
 							? leftPathOf(activeEntry)
@@ -380,7 +378,7 @@
 					<CodeView
 						handle={rightHandle}
 						version={rightVersion}
-						sourceSize={rightSourceSize}
+						summary={rightSummary}
 						highlights={rightHighlights}
 						activePath={activeEntry?.kind === 'removed' ? null : activePath}
 						onScrollerReady={(el) => bindPane('right', el)}
@@ -390,37 +388,42 @@
 		{/if}
 
 		{#if mode === 'split' || mode === 'tree'}
-			<div class="entries rule-t" bind:this={entriesEl}>
+			<div class="entries rule-t" use:entryList.attach>
 				{#if loading}
 					<div class="dim text-sm empty-line">Computing diff…</div>
 				{:else if error}
-					<div class="err text-sm empty-line">{error}</div>
+					<div class="notice">{error}</div>
 				{:else if entries.length === 0}
 					<div class="dim text-sm empty-line">No differences</div>
 				{:else}
-					{#each entries as e, i (i)}
-						<button
-							class="entry"
-							class:active={i === activeIndex}
-							data-i={i}
-							data-kind={e.kind}
-							onclick={() => selectEntry(i)}
-							title={`${kindLabel(e.kind)} ${pathToString(e.path)}`}
-						>
-							<span class="glyph" data-kind={e.kind}>{kindGlyph(e.kind)}</span>
-							<span class="path">{entryPathDisplay(e)}</span>
-							<span class="preview">
-								{#if e.kind === 'moved'}
-									<span class="right">{e.leftPreview ?? ''}</span>
-								{:else}
-									{#if e.leftPreview !== null}<span class="left">{e.leftPreview}</span>{/if}
-									{#if e.leftPreview !== null && e.rightPreview !== null}<span class="arrow">→</span
-										>{/if}
-									{#if e.rightPreview !== null}<span class="right">{e.rightPreview}</span>{/if}
-								{/if}
-							</span>
-						</button>
-					{/each}
+					<div class="entries-spacer" style="height: {entryList.contentHeight}px;">
+						{#each visibleEntries as e, j (firstEntry + j)}
+							{@const i = firstEntry + j}
+							<button
+								class="entry"
+								class:active={i === activeIndex}
+								data-i={i}
+								data-kind={e.kind}
+								style="top: {entryList.offsetAt(i) - entryList.shift}px; height: {DEFAULT_ROW_H}px;"
+								onclick={() => selectEntry(i)}
+								title={`${kindLabel(e.kind)} ${pathToString(e.path)}`}
+							>
+								<span class="glyph" data-kind={e.kind}>{kindGlyph(e.kind)}</span>
+								<span class="path">{entryPathDisplay(e)}</span>
+								<span class="preview">
+									{#if e.kind === 'moved'}
+										<span class="right">{e.leftPreview ?? ''}</span>
+									{:else}
+										{#if e.leftPreview !== null}<span class="left">{e.leftPreview}</span>{/if}
+										{#if e.leftPreview !== null && e.rightPreview !== null}<span class="arrow"
+												>→</span
+											>{/if}
+										{#if e.rightPreview !== null}<span class="right">{e.rightPreview}</span>{/if}
+									{/if}
+								</span>
+							</button>
+						{/each}
+					</div>
 				{/if}
 			</div>
 		{/if}
@@ -469,10 +472,6 @@
 	.counter:empty {
 		display: none;
 	}
-	.err {
-		color: var(--danger);
-	}
-
 	.stale-notice {
 		flex: 1;
 		display: flex;
@@ -585,8 +584,13 @@
 	.empty-line {
 		padding: var(--space-sm);
 	}
+	.entries-spacer {
+		position: relative;
+	}
 
 	.entry {
+		position: absolute;
+		left: 0;
 		display: grid;
 		grid-template-columns: 18px minmax(180px, 1fr) 2fr;
 		gap: var(--space-sm);
@@ -606,7 +610,8 @@
 	}
 	.entry.active {
 		background: var(--accent-soft);
-		color: var(--accent);
+		color: var(--text);
+		box-shadow: inset 2px 0 0 var(--accent);
 	}
 
 	.glyph {

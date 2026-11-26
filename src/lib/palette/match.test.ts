@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fuzzyMatch, highlightLabel } from './match';
+import { fuzzyMatch, highlightSegments } from './match';
 
 describe('fuzzyMatch', () => {
 	it('treats an empty query as a match with no ranges', () => {
@@ -36,22 +36,24 @@ describe('fuzzyMatch', () => {
 	});
 });
 
-describe('highlightLabel', () => {
-	it('escapes the whole label and adds no marks when there are no ranges', () => {
-		expect(highlightLabel('a < b & "c"', [])).toBe('a &lt; b &amp; &quot;c&quot;');
+describe('highlightSegments', () => {
+	it('returns the whole label as one plain segment when nothing matched', () => {
+		expect(highlightSegments('a < b', [])).toEqual([{ text: 'a < b', hit: false }]);
 	});
-	it('wraps a single range in <mark> and escapes the remainder', () => {
-		expect(highlightLabel('foobar', [[0, 3]])).toBe('<mark>foo</mark>bar');
-	});
-	it('handles multiple ranges', () => {
+	it('marks each matched range and keeps the text around it', () => {
 		expect(
-			highlightLabel('foo bar', [
+			highlightSegments('foo bar', [
 				[0, 1],
 				[4, 5],
 			]),
-		).toBe('<mark>f</mark>oo <mark>b</mark>ar');
+		).toEqual([
+			{ text: 'f', hit: true },
+			{ text: 'oo ', hit: false },
+			{ text: 'b', hit: true },
+			{ text: 'ar', hit: false },
+		]);
 	});
-	it('escapes both inside and outside the marks', () => {
-		expect(highlightLabel('<a>', [[0, 1]])).toBe('<mark>&lt;</mark>a&gt;');
+	it('leaves out empty segments at the edges', () => {
+		expect(highlightSegments('foo', [[0, 3]])).toEqual([{ text: 'foo', hit: true }]);
 	});
 });

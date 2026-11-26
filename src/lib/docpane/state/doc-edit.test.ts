@@ -5,7 +5,9 @@ import { asLosslessText } from '$lib/ipc/wire';
 import { pathKey, type ContentRow, type Row } from '$lib/views/tree/logic/model';
 import type { Op } from '$lib/ipc/bindings';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGetValue: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGetValue: vi.fn() }),
+}));
 
 const PI = '3.14159265358979323846264338327950288419716939937510582097494';
 
@@ -170,5 +172,42 @@ describe('DocEditController — rows that move while editing', () => {
 		await ctrl.commit();
 
 		expect(applied).toEqual([{ kind: 'setValueText', path: ['title'], text: '"bye"' }]);
+	});
+});
+
+describe('DocEditController — an invalid value', () => {
+	it('keeps the editor open with the typed text and says why', async () => {
+		const row: ContentRow = {
+			variant: 'content',
+			path: ['port'],
+			depth: 1,
+			key: 'port',
+			kind: 'number',
+			preview: '8080',
+			childCount: null,
+			expanded: false,
+		};
+		const apply = vi.fn(async () => null);
+		const setError = vi.fn();
+		const ctrl = new DocEditController({
+			rows: () => [row],
+			indexOf: () => 0,
+			handle: () => 'h' as never,
+			apply,
+			setError,
+		});
+
+		await ctrl.startValue(0);
+		ctrl.input('80a80');
+		await ctrl.commit();
+
+		expect(apply).not.toHaveBeenCalled();
+		expect(setError).toHaveBeenLastCalledWith(expect.stringContaining('invalid number'));
+		expect(ctrl.state?.buffer).toBe('80a80');
+
+		ctrl.input('8081');
+		await ctrl.commit();
+		expect(apply).toHaveBeenCalledWith({ kind: 'setValueText', path: ['port'], text: '8081' });
+		expect(ctrl.state).toBeNull();
 	});
 });

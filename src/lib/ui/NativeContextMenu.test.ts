@@ -113,3 +113,79 @@ describe('NativeContextMenu — focus', () => {
 		expect(notCancelled).toBe(false);
 	});
 });
+
+describe('NativeContextMenu — placement', () => {
+	it('stays inside the window when opened near its bottom-right corner', async () => {
+		const size = { offsetWidth: 160, offsetHeight: 120 };
+		const restore = Object.entries(size).map(([key, value]) => {
+			const prior = Object.getOwnPropertyDescriptor(HTMLElement.prototype, key)!;
+			Object.defineProperty(HTMLElement.prototype, key, { configurable: true, get: () => value });
+			return () => Object.defineProperty(HTMLElement.prototype, key, prior);
+		});
+		try {
+			const input = document.createElement('input');
+			document.body.append(input);
+			await fireEvent.contextMenu(input, {
+				clientX: window.innerWidth - 4,
+				clientY: window.innerHeight - 4,
+			});
+			const menu = await vi.waitFor(() => {
+				const el = screen.getByRole('menu');
+				expect(parseFloat(el.style.left)).toBeLessThanOrEqual(window.innerWidth - 160 - 8);
+				return el;
+			});
+			expect(parseFloat(menu.style.top)).toBeLessThanOrEqual(window.innerHeight - 120 - 8);
+		} finally {
+			for (const undo of restore) undo();
+		}
+	});
+});
+
+describe('NativeContextMenu — Escape', () => {
+	it('closes the menu and marks the key as handled, so a dialog under it stays open', async () => {
+		const input = document.createElement('input');
+		document.body.append(input);
+		await fireEvent.contextMenu(input);
+		expect(screen.getByRole('menu')).not.toBeNull();
+		const notCancelled = await fireEvent.keyDown(input, { key: 'Escape' });
+		expect(notCancelled).toBe(false);
+		expect(screen.queryByRole('menu')).toBeNull();
+	});
+});
+
+describe('NativeContextMenu — keyboard', () => {
+	function openOnField() {
+		const input = document.createElement('input');
+		const fieldKeys: string[] = [];
+		input.addEventListener('keydown', (e) => fieldKeys.push(e.key));
+		document.body.append(input);
+		input.focus();
+		return { input, fieldKeys, open: () => fireEvent.contextMenu(input) };
+	}
+
+	it('runs the item picked with the arrow keys and Enter, while the field keeps focus', async () => {
+		const { input, fieldKeys, open } = openOnField();
+		await open();
+		expect(screen.getAllByRole('menuitem').map((el) => el.textContent)).toEqual([
+			'Paste',
+			'Select All',
+		]);
+		for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'Enter']) {
+			await fireEvent.keyDown(input, { key });
+		}
+		await vi.waitFor(() => expect(input.value).toBe('X'));
+		expect(screen.queryByRole('menu')).toBeNull();
+		expect(document.activeElement).toBe(input);
+		expect(fieldKeys).toEqual([]);
+	});
+
+	it('starts from the last item on ArrowUp', async () => {
+		const { input, open } = openOnField();
+		input.value = 'abc';
+		await open();
+		await fireEvent.keyDown(input, { key: 'ArrowUp' });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		expect([input.selectionStart, input.selectionEnd]).toEqual([0, 3]);
+		expect(clipboard.readText).not.toHaveBeenCalled();
+	});
+});

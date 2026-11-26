@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
@@ -19,21 +20,20 @@ export class GridSelectionController {
 	selected: { row: number; col: string } | null = $state(null);
 	readonly inspectorCopy = new CopyFlag();
 
-	selectedRows = $state(new Set<number>());
+	readonly selectedRows = new SvelteSet<number>();
 	private selAnchorPos: number | null = null; // visible position of the last click
 	readonly rowsCopy = new CopyFlag();
+	private clears = 0;
 
 	constructor(private deps: GridSelectDeps) {}
 
 	readonly selectedValue = $derived.by(() => {
 		if (!this.selected) return undefined;
-		void this.deps.data.chunks; // re-read when the chunk (re)loads
 		return this.deps.data.getCell(this.selected.row, this.selected.col);
 	});
 
 	readonly selectedPath = $derived.by<Path | null>(() => {
 		if (!this.selected) return null;
-		void this.deps.data.chunks; // re-read once the row's chunk loads
 		const orig = this.deps.data.getRow(this.selected.row)?.index;
 		if (orig == null) return null;
 		return [...this.deps.path(), orig, this.selected.col];
@@ -47,30 +47,32 @@ export class GridSelectionController {
 	rowSelected = (orig: number | undefined): boolean => orig != null && this.selectedRows.has(orig);
 
 	clearSelection = () => {
-		this.selectedRows = new Set();
+		this.selectedRows.clear();
 		this.selAnchorPos = null;
+		this.clears += 1;
 	};
 
 	selectRange = async (a: number, b: number) => {
 		const lo = Math.min(a, b);
 		const hi = Math.max(a, b);
-		await this.deps.data.fetchRange(lo, hi);
-		const next = new Set(this.selectedRows);
-		for (let pos = lo; pos <= hi; pos++) {
-			const r = this.deps.data.getRow(pos);
-			if (r) next.add(r.index);
+		const clears = this.clears;
+		let indices: number[];
+		try {
+			indices = await this.deps.data.rowIndices(lo, hi);
+		} catch (e) {
+			this.deps.onError(describeError(e));
+			return;
 		}
-		this.selectedRows = next;
+		if (clears !== this.clears) return;
+		for (const i of indices) this.selectedRows.add(i);
 	};
 
 	onIndexClick = (e: MouseEvent, pos: number, orig: number) => {
 		if (e.shiftKey && this.selAnchorPos != null) {
 			void this.selectRange(this.selAnchorPos, pos);
 		} else {
-			const next = new Set(this.selectedRows);
-			if (next.has(orig)) next.delete(orig);
-			else next.add(orig);
-			this.selectedRows = next;
+			if (this.selectedRows.has(orig)) this.selectedRows.delete(orig);
+			else this.selectedRows.add(orig);
 			this.selAnchorPos = pos;
 		}
 	};
@@ -123,7 +125,8 @@ export class GridSelectionController {
 
 	reset = () => {
 		this.selected = null;
-		this.selectedRows = new Set();
+		this.selectedRows.clear();
 		this.selAnchorPos = null;
+		this.clears += 1;
 	};
 }

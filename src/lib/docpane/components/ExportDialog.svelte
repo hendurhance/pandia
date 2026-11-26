@@ -2,7 +2,8 @@
 	import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, ExportFormat } from '$lib/ipc/bindings';
+	import { EDIT_SIZE_LIMIT, type DocHandle, type ExportFormat } from '$lib/ipc/bindings';
+	import { fmtBytes } from '$lib/util/format';
 	import { stem } from '$lib/util/path';
 	import { CopyFlag } from '$lib/util/clipboard.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
@@ -12,17 +13,23 @@
 	interface Props {
 		handle: DocHandle;
 		sourceName: string | null;
+		convertible: boolean;
 		onClose: () => void;
 	}
 
-	let { handle, sourceName, onClose }: Props = $props();
+	let { handle, sourceName, convertible, onClose }: Props = $props();
 
-	const FORMATS: ReadonlyArray<{ id: ExportFormat; label: string; ext: string }> = [
-		{ id: 'json', label: 'JSON', ext: 'json' },
-		{ id: 'json-min', label: 'JSON · min', ext: 'json' },
-		{ id: 'yaml', label: 'YAML', ext: 'yaml' },
-		{ id: 'csv', label: 'CSV', ext: 'csv' },
-		{ id: 'xml', label: 'XML', ext: 'xml' },
+	const FORMATS: ReadonlyArray<{
+		id: ExportFormat;
+		label: string;
+		ext: string;
+		converts: boolean;
+	}> = [
+		{ id: 'json', label: 'JSON', ext: 'json', converts: false },
+		{ id: 'json-min', label: 'JSON · min', ext: 'json', converts: false },
+		{ id: 'yaml', label: 'YAML', ext: 'yaml', converts: true },
+		{ id: 'csv', label: 'CSV', ext: 'csv', converts: true },
+		{ id: 'xml', label: 'XML', ext: 'xml', converts: true },
 	];
 
 	const PREVIEW_CAP = 50_000; // chars rendered in the <pre>
@@ -116,8 +123,14 @@
 			<span class="dialog-title">export</span>
 			<div class="formats">
 				{#each FORMATS as f (f.id)}
-					<button class="fmt" class:active={format === f.id} onclick={() => (format = f.id)}
-						>{f.label}</button
+					<button
+						class="fmt"
+						class:active={format === f.id}
+						disabled={f.converts && !convertible}
+						title={f.converts && !convertible
+							? `Files over ${fmtBytes(EDIT_SIZE_LIMIT)} export as JSON only, because converting needs the whole document`
+							: undefined}
+						onclick={() => (format = f.id)}>{f.label}</button
 					>
 				{/each}
 			</div>
@@ -173,7 +186,7 @@
 		color: var(--text);
 	}
 	.fmt.active {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--accent-soft);
 		border-color: var(--accent-line);
 	}

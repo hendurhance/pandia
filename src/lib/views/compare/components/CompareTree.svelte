@@ -2,8 +2,8 @@
 	import { untrack } from 'svelte';
 	import { ipc } from '$lib/ipc/client';
 	import type { DiffKind, DocHandle, Path } from '$lib/ipc/bindings';
-	import { isExpandable, rootRow } from '$lib/views/tree/logic/model';
-	import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
+	import { isExpandable } from '$lib/views/tree/logic/model';
+	import { fetchRootRow, TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 	import TreeView from '$lib/views/tree/components/TreeView.svelte';
 
 	interface Props {
@@ -26,9 +26,12 @@
 
 	let scrollRequest = $state<{ idx: number; nonce: number } | null>(null);
 	let scrollNonce = 0;
+	let revealGen = 0;
 	async function revealActive(target: Path) {
+		const gen = ++revealGen;
 		await tree.ensurePathVisible(target);
 		await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		if (gen !== revealGen) return;
 		const idx = tree.contentRowIdx(target);
 		if (idx >= 0) {
 			scrollNonce++;
@@ -50,14 +53,13 @@
 		void version;
 		let cancelled = false;
 		void (async () => {
-			let sum;
+			let root;
 			try {
-				sum = await ipc.docSummary(h);
+				root = await fetchRootRow(h, await ipc.docSummary(h));
 			} catch {
 				return;
 			}
 			if (cancelled) return;
-			const root = rootRow(sum.rootKind, sum.rootChildCount);
 			tree.setRows([root]);
 			if (isExpandable(root)) await tree.toggleAt(0);
 			if (!cancelled && activePath) await revealActive(activePath);

@@ -117,8 +117,12 @@ a {
 	background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-	background: var(--rule-2);
+	background: var(--text-faint);
 }
-::-webkit-scrollbar-thumb:hover {
-	background: var(--text-ghost);
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+	background: var(--text-dim);
+}
+::-webkit-scrollbar-corner {
+	background: transparent;
 }

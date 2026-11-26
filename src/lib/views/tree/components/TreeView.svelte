@@ -11,6 +11,7 @@
 		vgapCount,
 		type ContentRow,
 		type MenuAction,
+		type PathKey,
 		type Row,
 		type VirtualGapRow,
 	} from '../logic/model';
@@ -23,6 +24,7 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ChevronDown, ChevronRight, GripVertical, MoreHorizontal } from '@lucide/svelte';
 	import { DEFAULT_ROW_H, OVERSCAN, scaledOffset } from '$lib/views/shared/scroll-math';
+	import { RowHeights } from '../logic/row-cache';
 	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
 	import type { DiffKind, Path } from '$lib/ipc/bindings';
 	import InlineCellEditor from './InlineCellEditor.svelte';
@@ -96,14 +98,14 @@
 	const cutKey = $derived(cutPath ? pathKey(cutPath) : null);
 	const editingKey = $derived(editing ? pathKey(editing.path) : null);
 
-	const tallHeights = new Map<string, number>();
+	const tallHeights = new RowHeights(DEFAULT_ROW_H);
 	let heightsVersion = $state(0);
 
 	function heightAt(i: number): number {
 		const r = rows[i];
 		if (!r) return DEFAULT_ROW_H;
 		if (r.variant === 'vgap') return vgapCount(r) * DEFAULT_ROW_H;
-		return tallHeights.get(rowKey(r)) ?? DEFAULT_ROW_H;
+		return tallHeights.get(rowKey(r));
 	}
 
 	const s = new WindowedScroller({
@@ -117,10 +119,7 @@
 			return r ? rowKey(r) : '';
 		},
 		onWidthChange: () => {
-			if (tallHeights.size > 0) {
-				tallHeights.clear();
-				heightsVersion += 1;
-			}
+			if (tallHeights.clear()) heightsVersion += 1;
 		},
 	});
 	const offsets = $derived(s.offsets);
@@ -188,10 +187,7 @@
 		if (!scroller) return;
 		untrack(() => {
 			if (!editing) {
-				if (tallHeights.size > 0) {
-					tallHeights.clear();
-					heightsVersion += 1;
-				}
+				if (tallHeights.clear()) heightsVersion += 1;
 				return;
 			}
 			let changed = false;
@@ -202,25 +198,14 @@
 				if (h <= 0) continue;
 				const row = rows[ri];
 				if (!row) continue;
-				const key = rowKey(row);
-				if (h > DEFAULT_ROW_H + 1) {
-					if (tallHeights.get(key) !== h) {
-						tallHeights.set(key, h);
-						changed = true;
-					}
-				} else if (tallHeights.delete(key)) {
-					changed = true;
-				}
+				if (tallHeights.record(rowKey(row), h)) changed = true;
 			}
 			if (changed) heightsVersion += 1;
 		});
 	});
 
 	$effect(() => {
-		if (rows.length === 0 && tallHeights.size > 0) {
-			tallHeights.clear();
-			heightsVersion += 1;
-		}
+		if (rows.length === 0 && tallHeights.clear()) heightsVersion += 1;
 	});
 
 	$effect(() => {
@@ -298,7 +283,7 @@
 	const DRAG_THRESHOLD = 4; // px of movement before a grip press counts as a drag
 
 	interface DragState {
-		index: number; // flat-list index of the dragged content row
+		key: PathKey;
 		pointerId: number;
 		startY: number;
 		lastY: number;
@@ -306,13 +291,24 @@
 	}
 	let drag = $state<DragState | null>(null);
 	let dropTarget = $state<{ gap: number; y: number; depth: number } | null>(null);
+	const dragIndex = $derived.by(() => {
+		const key = drag?.key;
+		if (key === undefined) return -1;
+		return rows.findIndex((r) => r.variant === 'content' && pathKey(r.path) === key);
+	});
 
-	function onGripDown(e: PointerEvent, i: number) {
+	function onGripDown(e: PointerEvent, path: Path) {
 		if (readOnly || !onReorder || !s.el) return;
 		e.stopPropagation();
 		e.preventDefault();
 		s.el.setPointerCapture(e.pointerId);
-		drag = { index: i, pointerId: e.pointerId, startY: e.clientY, lastY: e.clientY, moved: false };
+		drag = {
+			key: pathKey(path),
+			pointerId: e.pointerId,
+			startY: e.clientY,
+			lastY: e.clientY,
+			moved: false,
+		};
 	}
 
 	function contentY(clientY: number): number {
@@ -325,15 +321,19 @@
 		if (!drag || e.pointerId !== drag.pointerId || !s.el) return;
 		drag.lastY = e.clientY;
 		if (!drag.moved && Math.abs(e.clientY - drag.startY) < DRAG_THRESHOLD) return;
+		if (dragIndex < 0) {
+			onDragCancel();
+			return;
+		}
 		drag.moved = true;
-		dropTarget = gapAt(rows, offsets, drag.index, contentY(e.clientY));
+		dropTarget = gapAt(rows, offsets, dragIndex, contentY(e.clientY));
 		startAutoScroll();
 	}
 
 	function onDragUp(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
 		const moved = drag.moved;
-		const di = drag.index;
+		const di = dragIndex;
 		const target = dropTarget;
 		drag = null;
 		dropTarget = null;
@@ -358,7 +358,11 @@
 		maxStep: ROW_DRAG_MAX_STEP,
 		onTick: () => {
 			if (!drag || !s.el) return;
-			dropTarget = gapAt(rows, offsets, drag.index, contentY(drag.lastY));
+			if (dragIndex < 0) {
+				onDragCancel();
+				return;
+			}
+			dropTarget = gapAt(rows, offsets, dragIndex, contentY(drag.lastY));
 		},
 	});
 	const startAutoScroll = () => autoScroller.start();
@@ -397,7 +401,7 @@
 					class="r"
 					class:expandable
 					class:selected
-					class:dragging={drag?.index === i}
+					class:dragging={dragIndex === i}
 					class:cut
 					data-diff={diff}
 					data-invalid={invalid}
@@ -418,7 +422,7 @@
 							tabindex={-1}
 							aria-label="Drag to reorder"
 							title="Drag to reorder"
-							onpointerdown={(e) => onGripDown(e, i)}
+							onpointerdown={(e) => onGripDown(e, row.path)}
 							onclick={(e) => e.stopPropagation()}><Icon icon={GripVertical} size="xs" /></span
 						>
 					{/if}
@@ -461,6 +465,7 @@
 						<a
 							class="v string url"
 							href={url}
+							rel="external"
 							onclick={(e) => onUrlClick(e, url)}
 							onpointerenter={image ? (e) => onImageHover(e, row) : undefined}
 							onpointerleave={image ? imagePreview.hoverEnd : undefined}>{row.preview}</a
@@ -584,6 +589,13 @@
 		background: var(--moved-soft);
 		box-shadow: inset 2px 0 0 var(--syntax-boolean);
 	}
+	.r[data-diff]:hover {
+		background: var(--bg-elev-2);
+	}
+	.r[data-diff].selected {
+		background: var(--accent-soft);
+		box-shadow: inset 2px 0 0 var(--accent);
+	}
 
 	.r[data-invalid='ancestor'] {
 		box-shadow: inset 2px 0 0 var(--warning);
@@ -614,8 +626,9 @@
 	.guide {
 		display: inline-block;
 		flex-shrink: 0;
+		align-self: stretch;
+		margin-block: -2px;
 		width: 1.2rem;
-		height: 100%;
 		border-right: 1px solid transparent;
 	}
 	.r .guide {
@@ -679,7 +692,7 @@
 		color: var(--syntax-boolean);
 	}
 	.v.null {
-		color: var(--syntax-null);
+		color: var(--text-dim);
 		font-style: italic;
 	}
 	.v.url {

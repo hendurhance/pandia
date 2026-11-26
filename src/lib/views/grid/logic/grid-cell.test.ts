@@ -14,7 +14,7 @@ import {
 
 describe('cellText', () => {
 	it('renders scalars as bare values', () => {
-		expect(cellText(null)).toBe('—');
+		expect(cellText(null)).toBe('null');
 		expect(cellText(true)).toBe('true');
 		expect(cellText(false)).toBe('false');
 		expect(cellText(42)).toBe('42');

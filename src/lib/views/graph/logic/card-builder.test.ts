@@ -4,7 +4,9 @@ import { kindOf } from '$lib/ipc/wire';
 import type { NodeView } from '$lib/ipc/bindings';
 import { buildCard, expandRow, openRows, reopenRows, showMore, toRow } from './card-builder';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGetSlice: vi.fn(), docChildCount: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGetSlice: vi.fn(), docChildCount: vi.fn() }),
+}));
 
 let doc: unknown;
 

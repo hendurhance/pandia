@@ -38,21 +38,21 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'doc.save',
 			label: 'Save Document',
 			category: 'Document',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('export'),
 			run: () => actions.doSave(),
 		},
 		{
 			id: 'doc.saveAs',
 			label: 'Save Document As…',
 			category: 'Document',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('export'),
 			run: () => actions.doSaveAs(),
 		},
 		{
 			id: 'doc.export',
 			label: 'Export (JSON · YAML · CSV · XML)…',
 			category: 'Import / Export',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('export'),
 			run: () => actions.openExport(),
 		},
 		{
@@ -65,7 +65,7 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'view.code',
 			label: 'Code View',
 			category: 'View',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('codeView'),
 			run: () => actions.switchView('code'),
 		},
 		{
@@ -79,21 +79,21 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'view.graph',
 			label: 'Graph View',
 			category: 'View',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('graph'),
 			run: () => actions.switchView('graph'),
 		},
 		{
 			id: 'doc.undo',
 			label: 'Undo',
 			category: 'Document',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('edit'),
 			run: () => actions.undo(),
 		},
 		{
 			id: 'doc.redo',
 			label: 'Redo',
 			category: 'Document',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('edit'),
 			run: () => actions.redo(),
 		},
 		{
@@ -135,7 +135,7 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'find.replace',
 			label: 'Find and Replace…',
 			category: 'Navigate',
-			enabled: actions.hasDoc,
+			enabled: () => actions.can('edit'),
 			run: () => actions.find.openReplace(),
 		},
 		{
@@ -158,7 +158,7 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			category: 'Document',
 			enabled: () => {
 				const r = actions.selectedContentRow();
-				return !!r && r.depth > 0 && actions.moveBounds(r).up;
+				return !!r && r.depth > 0 && actions.can('edit') && actions.moveBounds(r).up;
 			},
 			run: withRow((r) => actions.menuMove(r, -1)),
 		},
@@ -168,7 +168,7 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			category: 'Document',
 			enabled: () => {
 				const r = actions.selectedContentRow();
-				return !!r && r.depth > 0 && actions.moveBounds(r).down;
+				return !!r && r.depth > 0 && actions.can('edit') && actions.moveBounds(r).down;
 			},
 			run: withRow((r) => actions.menuMove(r, 1)),
 		},
@@ -176,14 +176,14 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'tree.sortKeysAsc',
 			label: 'Sort Keys (A→Z)',
 			category: 'Document',
-			enabled: () => actions.selectedContentRow()?.kind === 'object',
+			enabled: () => actions.can('edit') && actions.selectedContentRow()?.kind === 'object',
 			run: withRow((r) => actions.menuSortKeys(r, false)),
 		},
 		{
 			id: 'tree.sortKeysDesc',
 			label: 'Sort Keys (Z→A)',
 			category: 'Document',
-			enabled: () => actions.selectedContentRow()?.kind === 'object',
+			enabled: () => actions.can('edit') && actions.selectedContentRow()?.kind === 'object',
 			run: withRow((r) => actions.menuSortKeys(r, true)),
 		},
 		{
@@ -204,14 +204,14 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'edit.cut',
 			label: 'Cut',
 			category: 'Document',
-			enabled: () => (actions.selectedContentRow()?.depth ?? 0) > 0,
+			enabled: () => actions.can('edit') && (actions.selectedContentRow()?.depth ?? 0) > 0,
 			run: withRow((r) => actions.menuCut(r)),
 		},
 		{
 			id: 'edit.paste',
 			label: 'Paste as Sibling',
 			category: 'Document',
-			enabled: () => (actions.selectedContentRow()?.depth ?? 0) > 0,
+			enabled: () => actions.can('edit') && (actions.selectedContentRow()?.depth ?? 0) > 0,
 			run: withRow((r) => actions.menuPaste(r)),
 		},
 		{
@@ -226,7 +226,7 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 				id: `generate.types.${lang}`,
 				label: `Generate ${label}`,
 				category: 'Generate',
-				enabled: actions.hasDoc,
+				enabled: () => actions.can('typegen'),
 				run: () => actions.showTypegen(lang),
 			}),
 		),
@@ -234,7 +234,7 @@ export function createDocPaneCommands(actions: DocPaneActions): Command[] {
 			id: 'compare.with',
 			label: 'Diff Against File…',
 			category: 'Compare',
-			enabled: () => actions.hasDoc() && !actions.inCompare(),
+			enabled: () => actions.can('compare') && !actions.inCompare(),
 			run: () => actions.onPickCompareFile(),
 		},
 		{

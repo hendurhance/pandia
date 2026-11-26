@@ -1,5 +1,7 @@
 <script lang="ts">
-	import type { ColumnSchema, DocHandle, NodeKind, Path } from '$lib/ipc/bindings';
+	import type { ColumnSchema, DocHandle, NodeKind, Op, Path } from '$lib/ipc/bindings';
+	import { tick, untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import {
@@ -11,11 +13,12 @@
 	import { cellClass, cellRender, cellTitle } from '../logic/grid-cell';
 	import { mayBeImage } from '$lib/views/shared/image-source';
 	import { imagePreview } from '$lib/views/shared/image-preview.svelte';
-	import { contentXFromClient, gapForX } from '../logic/column-reorder-math';
+	import { applyColumnOrder, contentXFromClient, gapForX } from '../logic/column-reorder-math';
 	import { createAutoScroller } from '$lib/ui/auto-scroll';
 	import { GridDataController, ROW_HEIGHT } from '../state/grid-data.svelte';
 	import { GridFilterController } from '../state/grid-filters.svelte';
 	import { GridSelectionController } from '../state/grid-select.svelte';
+	import { GridEditController } from '../state/grid-edit.svelte';
 	import CellInspector from './CellInspector.svelte';
 	import ColumnFilterPopover from './ColumnFilterPopover.svelte';
 	import ColumnHeader from './ColumnHeader.svelte';
@@ -42,6 +45,12 @@
 		onExtract?: (text: string, count: number) => void;
 
 		onError?: (msg: string) => void;
+
+		editable?: boolean;
+
+		sortFilter?: boolean;
+
+		onApply?: (op: Op) => Promise<boolean>;
 	}
 
 	let {
@@ -53,6 +62,9 @@
 		docKey = null,
 		onExtract = () => {},
 		onError = () => {},
+		editable = true,
+		sortFilter = true,
+		onApply = async () => false,
 	}: Props = $props();
 
 	const HEADER_HEIGHT = 26;
@@ -64,15 +76,15 @@
 		const s = schema;
 		const h = handle;
 		const p = path;
-		scannedColumns = [];
-		if (s.sampled >= s.rowCount) return;
+		if (s.sampled >= s.rowCount) {
+			scannedColumns = [];
+			return;
+		}
 		const jobId = crypto.randomUUID();
 		let cancelled = false;
 		void ipc.docScanColumns(h, p, jobId).then(
 			(all) => {
-				if (cancelled) return;
-				const known = new Set(s.columns.map((c) => c.key));
-				scannedColumns = all.filter((c) => !known.has(c.key));
+				if (!cancelled) scannedColumns = all;
 			},
 			(e) => {
 				if (!cancelled) onError(describeError(e));
@@ -83,9 +95,11 @@
 			void ipc.cancelJob(jobId).catch(() => {});
 		};
 	});
-	const columns = $derived(
-		scannedColumns.length > 0 ? [...schema.columns, ...scannedColumns] : schema.columns,
-	);
+	const columns = $derived.by(() => {
+		const known = new Set(schema.columns.map((c) => c.key));
+		const extra = scannedColumns.filter((c) => !known.has(c.key));
+		return extra.length > 0 ? [...schema.columns, ...extra] : schema.columns;
+	});
 
 	const filter = new GridFilterController({
 		handle: () => handle,
@@ -96,7 +110,7 @@
 
 	$effect(() => filter.coerceCappedOp());
 
-	let colWidth: Map<string, number> = $state.raw(new Map());
+	const colWidth = new SvelteMap<string, number>();
 	// 40px ≈ ~3 chars at the current mono font — narrow enough for a `#`
 	// column but still hit-target friendly for the resize gripper.
 	const MIN_COL_PX = 40;
@@ -105,20 +119,7 @@
 	const MAX_COL_PX = 1200;
 
 	let colOrder: string[] = $state.raw([]);
-	const orderedColumns = $derived.by(() => {
-		if (colOrder.length === 0) return columns;
-		const byKey = new Map(columns.map((c) => [c.key, c]));
-		const out: typeof schema.columns = [];
-		for (const k of colOrder) {
-			const c = byKey.get(k);
-			if (c) {
-				out.push(c);
-				byKey.delete(k);
-			}
-		}
-		for (const c of columns) if (byKey.has(c.key)) out.push(c);
-		return out;
-	});
+	const orderedColumns = $derived(applyColumnOrder(columns, colOrder));
 
 	const columnLayout = $derived(computeColumnLayout(orderedColumns, colWidth));
 
@@ -127,13 +128,13 @@
 
 	function resizeColumn(key: string, dx: number) {
 		const w = Math.min(MAX_COL_PX, Math.max(MIN_COL_PX, resizeStartW + dx));
-		colWidth = new Map(colWidth).set(key, w);
+		colWidth.set(key, w);
 	}
 	function autoFit(key: string) {
 		const col = columns.find((c) => c.key === key);
 		if (!col) return;
 		const w = autoFitWidthPx(col, data.loadedColumnTexts(key), MIN_COL_PX, MAX_COL_PX);
-		colWidth = new Map(colWidth).set(key, w);
+		colWidth.set(key, w);
 		persistWidths();
 	}
 	function onHeaderClick(key: string) {
@@ -141,7 +142,7 @@
 			suppressSort = false;
 			return;
 		}
-		filter.toggleSort(key);
+		if (sortFilter) filter.toggleSort(key);
 	}
 
 	let headerEl: HTMLDivElement | undefined = $state();
@@ -233,13 +234,14 @@
 	});
 
 	const queryKey = $derived(JSON.stringify(filter.query));
+	const docIdentity = $derived(handle);
 
 	const colWindow = $derived(
 		columnWindow(columnLayout, data.scroller.scrollLeft, data.scroller.viewportWidth, COL_OVERSCAN),
 	);
 
 	$effect(() => {
-		void data.chunks;
+		void data.chunks.size;
 		void queryKey;
 		data.fetchVisible();
 	});
@@ -249,7 +251,12 @@
 		void schema;
 		void queryKey;
 		data.reset();
-		data.scroller.resetTop();
+	});
+
+	$effect(() => {
+		void docIdentity;
+		void queryKey;
+		untrack(() => data.scroller.resetTop());
 	});
 
 	$effect(() => {
@@ -263,13 +270,14 @@
 		void schema;
 		const key = docKey;
 		if (!key) {
-			colWidth = new Map();
+			colWidth.clear();
 			return;
 		}
 		const ac = new AbortController();
 		void loadPersisted<Record<string, number>>(WIDTHS_FILE, key).then((saved) => {
 			if (ac.signal.aborted) return;
-			colWidth = new Map(saved ? Object.entries(saved) : []);
+			colWidth.clear();
+			for (const [k, w] of Object.entries(saved ?? {})) colWidth.set(k, w);
 		});
 		return () => ac.abort();
 	});
@@ -307,11 +315,125 @@
 	});
 
 	$effect(() => {
-		void handle;
-		void schema;
+		void docIdentity;
 		void queryKey;
-		selection.reset();
+		untrack(() => {
+			selection.reset();
+			edit.cancel();
+		});
 	});
+
+	const edit = new GridEditController({
+		path: () => path,
+		getRow: (rowIdx) => data.getRow(rowIdx),
+		apply: (op) => onApply(op),
+		setCell: (index, col, value) => data.setCell(index, col, value),
+		openInTree: (cellPath) => onOpenInTree(cellPath),
+		setError: (msg) => onError(msg ?? ''),
+	});
+
+	let follow: { orig: number; col: string; dRow: number; schema: ColumnSchema } | null = null;
+
+	$effect(() => {
+		const chunks = data.chunks;
+		void chunks.size;
+		const f = follow;
+		if (!f || schema === f.schema || chunks.size === 0) return;
+		follow = null;
+		if (edit.state) return;
+		let at: number | null = null;
+		for (const [start, rows] of chunks) {
+			const i = rows.findIndex((r) => r.index === f.orig);
+			if (i >= 0) at = start + i;
+		}
+		const row = Math.min(
+			Math.max((at ?? selection.selected?.row ?? 0) + f.dRow, 0),
+			data.effectiveRowCount - 1,
+		);
+		if (row < 0) return;
+		selection.selectCell(row, f.col);
+		revealRow(row);
+		void focusCell(row, f.col);
+	});
+
+	function revealRow(row: number) {
+		const el = data.scroller.el;
+		if (!el) return;
+		const top = data.rowTop(row) - el.scrollTop;
+		if (top < 0) el.scrollTop += top;
+		else if (top + ROW_HEIGHT > el.clientHeight) el.scrollTop += top + ROW_HEIGHT - el.clientHeight;
+	}
+
+	async function focusCell(row: number, col: string) {
+		await tick();
+		const cells = data.scroller.el?.querySelectorAll<HTMLElement>(`[data-cell-row="${row}"]`);
+		[...(cells ?? [])].find((c) => c.dataset.cellCol === col)?.focus();
+	}
+
+	function startEdit(row: number, col: string) {
+		if (!editable) return;
+		selection.selectCell(row, col);
+		edit.start(row, col, data.getCell(row, col));
+	}
+
+	async function finishEdit(dRow: number, dCol: number) {
+		const s = edit.state;
+		if (!s) return;
+		const colIdx = orderedColumns.findIndex((c) => c.key === s.col);
+		const nextCol = orderedColumns[Math.min(Math.max(colIdx + dCol, 0), orderedColumns.length - 1)];
+		const before = schema;
+		const changed = s.buffer !== s.initial;
+		const saved = await edit.commit();
+		if (edit.state) return;
+		const col = nextCol?.key ?? s.col;
+		if (saved && changed && schema === before) {
+			follow = { orig: s.index, col, dRow, schema: before };
+			return;
+		}
+		const row = Math.min(Math.max(s.row + dRow, 0), Math.max(data.effectiveRowCount - 1, 0));
+		selection.selectCell(row, col);
+		revealRow(row);
+		void focusCell(row, col);
+	}
+
+	async function commitOnBlur(input: HTMLInputElement) {
+		await edit.commit();
+		if (edit.state?.error && input.isConnected) input.focus();
+	}
+
+	function cancelEdit() {
+		const s = edit.state;
+		edit.cancel();
+		if (s) void focusCell(s.row, s.col);
+	}
+
+	function onEditorKeydown(e: KeyboardEvent) {
+		e.stopPropagation();
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			void finishEdit(e.shiftKey ? -1 : 1, 0);
+		} else if (e.key === 'Tab') {
+			e.preventDefault();
+			void finishEdit(0, e.shiftKey ? -1 : 1);
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			cancelEdit();
+		}
+	}
+
+	function onCellKeydown(e: KeyboardEvent, row: number, col: string) {
+		if (e.key === 'Enter' || e.key === 'F2') {
+			e.preventDefault();
+			startEdit(row, col);
+			return;
+		}
+		selection.onCellKeydown(e, row, col);
+	}
+
+	function focusEditor(el: HTMLInputElement) {
+		el.focus();
+		el.select();
+	}
 
 	$effect(() => {
 		const path = selection.selectedPath;
@@ -322,6 +444,7 @@
 <div class="grid-root">
 	<GridToolbar
 		bind:quick={filter.quick}
+		canFilter={sortFilter}
 		groups={filter.groupColumns}
 		activeGroup={filter.activeGroup}
 		hasFilter={filter.hasFilter}
@@ -372,6 +495,7 @@
 							active={filter.sortKey === col.key}
 							sortDesc={filter.sortDesc}
 							hasFilter={filter.colFilters.has(col.key)}
+							sortable={sortFilter}
 							dragging={colDrag?.key === col.key}
 							onClick={() => onHeaderClick(col.key)}
 							onPointerDown={(e) => onColPointerDown(e, col.key, i)}
@@ -422,7 +546,7 @@
 						class:row-selected={selection.rowSelected(data.getRow(rowIdx)?.index)}
 						style="top: {data.rowTop(
 							rowIdx,
-						)}px; height: {ROW_HEIGHT}px; width: {columnLayout.total}px;"
+						)}px; height: {ROW_HEIGHT}px; line-height: {ROW_HEIGHT}px; width: {columnLayout.total}px;"
 					>
 						{#each orderedColumns as col, i (col.key)}
 							{#if i >= colWindow.start && i < colWindow.end}
@@ -437,14 +561,32 @@
 									title={image ? undefined : cellTitle(v)}
 									role="button"
 									tabindex="0"
+									data-cell-row={rowIdx}
+									data-cell-col={col.key}
 									onclick={() => selection.selectCell(rowIdx, col.key)}
-									onkeydown={(e) => selection.onCellKeydown(e, rowIdx, col.key)}
+									ondblclick={() => startEdit(rowIdx, col.key)}
+									onkeydown={(e) => onCellKeydown(e, rowIdx, col.key)}
 									onpointerenter={image
 										? (e) => imagePreview.hoverStart(e.currentTarget, async () => v)
 										: undefined}
 									onpointerleave={image ? imagePreview.hoverEnd : undefined}
 								>
-									{#if text.includes('\n') || text.includes('\r')}
+									{#if edit.state?.row === rowIdx && edit.state.col === col.key}
+										<input
+											class="cell-editor"
+											class:invalid={!!edit.state.error}
+											value={edit.state.buffer}
+											spellcheck="false"
+											aria-label="Edit {col.key}"
+											aria-invalid={!!edit.state.error}
+											use:focusEditor
+											oninput={(e) => edit.input(e.currentTarget.value)}
+											onkeydown={onEditorKeydown}
+											onblur={(e) => void commitOnBlur(e.currentTarget)}
+											onclick={(e) => e.stopPropagation()}
+											ondblclick={(e) => e.stopPropagation()}
+										/>
+									{:else if text.includes('\n') || text.includes('\r')}
 										{@const parts = text.replace(/\r\n|\r/g, '\n').split('\n')}
 										{#each parts as seg, j (j)}
 											{#if j > 0}<span class="nl">↵</span>{/if}{seg}
@@ -465,6 +607,7 @@
 		<CellInspector
 			value={selection.selectedValue}
 			location={`[${data.getRow(selection.selected.row)?.index ?? selection.selected.row}] · ${selection.selected.col}`}
+			error={edit.state?.error ?? null}
 			copied={selection.inspectorCopy.done}
 			onCopy={selection.copyInspector}
 			onOpenInTree={selection.openSelectedInTree}
@@ -594,7 +737,7 @@
 		background: var(--bg-elev-2);
 	}
 	.index-cell.row-selected {
-		color: var(--accent);
+		color: var(--text);
 		background: var(--accent-soft);
 		box-shadow: inset 2px 0 0 var(--accent);
 	}
@@ -623,12 +766,25 @@
 		background: var(--accent-soft);
 	}
 
+	.cell-editor {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		padding: 0 0.6ch;
+		border: 1px solid var(--accent);
+		border-radius: 0;
+		background: var(--bg);
+		font: inherit;
+		color: var(--text);
+	}
+	.cell-editor.invalid {
+		border-color: var(--danger);
+	}
 	.cell {
 		position: absolute;
 		top: 0;
 		bottom: 0;
-		display: flex;
-		align-items: center;
+		display: block;
 		padding: 0 0.6ch;
 		white-space: nowrap;
 		overflow: hidden;
@@ -636,7 +792,7 @@
 		border-right: 1px solid var(--rule);
 	}
 	.cell.right {
-		justify-content: flex-end;
+		text-align: right;
 	}
 	.cell.string {
 		color: var(--text);
@@ -648,7 +804,8 @@
 		color: var(--syntax-boolean);
 	}
 	.cell.null {
-		color: var(--syntax-null);
+		color: var(--text-dim);
+		font-style: italic;
 	}
 	.cell.object,
 	.cell.array {

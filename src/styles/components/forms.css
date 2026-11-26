@@ -88,3 +88,9 @@
 .switch[aria-checked='true'] .switch-text {
 	color: var(--text);
 }
+.switch:disabled {
+	cursor: default;
+}
+.switch:disabled .switch-knob {
+	opacity: 0.5;
+}

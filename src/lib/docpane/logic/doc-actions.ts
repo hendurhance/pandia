@@ -1,11 +1,12 @@
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { ContentRow } from '$lib/views/tree/logic/model';
-import type { TypegenLang } from '$lib/ipc/bindings';
+import type { Capabilities, TypegenLang } from '$lib/ipc/bindings';
 
 export type SwitchableView = 'tree' | 'code' | 'grid' | 'graph';
 
 export interface DocPaneActions {
 	hasDoc: () => boolean;
+	can: (capability: keyof Capabilities) => boolean;
 	isCodeView: () => boolean;
 	expandAllDisabled: () => boolean;
 	inCompare: () => boolean;

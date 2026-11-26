@@ -3,6 +3,7 @@
 	import { ipc } from '$lib/ipc/client';
 	import type { OpenedDoc, NodeView, Op, Path } from '$lib/ipc/bindings';
 	import { fmtBytes } from '$lib/util/format';
+	import { resolve } from '$app/paths';
 	import { SANDBOX_ENABLED } from '$lib/util/flags';
 
 	if (!SANDBOX_ENABLED && typeof window !== 'undefined') {
@@ -256,7 +257,7 @@
 
 <section class="page">
 	<header class="rule top">
-		<a href="/" class="back">← /</a>
+		<a href={resolve('/')} class="back">← /</a>
 		<span class="label">sandbox</span>
 		<span class="dim">raw IPC surface for v1 commands</span>
 	</header>

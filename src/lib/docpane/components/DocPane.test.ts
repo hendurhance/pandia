@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { flushSync } from 'svelte';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
@@ -10,8 +11,9 @@ import { reactiveBox } from '$lib/views/shared/test-runes.svelte';
 import type { NodeView } from '$lib/ipc/bindings';
 import DocPane from './DocPane.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		e2eRecord: vi.fn(async () => {}),
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
 		docDiff: vi.fn(async () => []),
@@ -30,7 +32,7 @@ vi.mock('$lib/ipc/client', () => ({
 			errorCount: 0,
 			truncated: false,
 		})),
-	},
+	}),
 }));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),
@@ -72,6 +74,7 @@ describe('DocPane', () => {
 				fileBacked: false,
 				recoveryNote: null,
 				commentsStripped: false,
+				...SMALL_TIER,
 			},
 			notes: { convertedFrom: null, repairs: [] },
 		});
@@ -98,6 +101,7 @@ describe('DocPane', () => {
 			fileBacked: true,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',
@@ -121,6 +125,7 @@ describe('DocPane', () => {
 					version: bVersion.value,
 					sourceName: 'b.json',
 					fileBacked: false,
+					capabilities: SMALL_TIER.capabilities,
 					save: async () => true,
 				};
 			},
@@ -160,6 +165,7 @@ describe('DocPane', () => {
 			fileBacked: true,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',
@@ -226,6 +232,7 @@ describe('DocPane', () => {
 			fileBacked: true,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',
@@ -266,6 +273,8 @@ describe('DocPane', () => {
 		slow = true;
 		vi.mocked(ipc.docReplace).mockResolvedValue({
 			count: 1,
+			values: 1,
+			keys: 0,
 			applied: { version: 2, affectedPaths: [['items']] },
 		});
 		const pane = within(container);

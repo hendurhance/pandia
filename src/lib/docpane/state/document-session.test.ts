@@ -4,10 +4,13 @@ import { ipc } from '$lib/ipc/client';
 import { DocumentSession, type DocumentSessionDeps } from './document-session.svelte';
 import { inRoot } from '$lib/views/shared/test-runes.svelte';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
-import type { SearchHit } from '$lib/ipc/bindings';
+import type { Path, SearchHit } from '$lib/ipc/bindings';
+import { asLosslessText } from '$lib/ipc/wire';
+import type { ContentRow } from '$lib/views/tree/logic/model';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetValue: vi.fn(),
 		docApplyOp: vi.fn(),
 		docSetRootText: vi.fn(),
 		docUndo: vi.fn(),
@@ -24,10 +27,17 @@ vi.mock('$lib/ipc/client', () => ({
 		docDiff: vi.fn(),
 		docDiffLines: vi.fn(),
 		docSave: vi.fn(),
-		docDiagnose: vi.fn(),
-	},
+	}),
 }));
 
+const clipboard = vi.hoisted(() => {
+	let text = '';
+	return {
+		writeText: async (t: string) => void (text = t),
+		readText: async () => text,
+	};
+});
+vi.mock('@tauri-apps/plugin-clipboard-manager', () => clipboard);
 function stubDeps(overrides: Partial<DocumentSessionDeps> = {}): DocumentSessionDeps {
 	return {
 		isActive: () => true,
@@ -250,6 +260,97 @@ describe('DocumentSession — Find after an edit', () => {
 			await doc.switchView('tree');
 			doc.find.syncActiveView();
 			expect(ipc.docSearch).toHaveBeenCalledTimes(1);
+		} finally {
+			destroy();
+		}
+	});
+});
+
+describe('DocumentSession — the cut follows its item', () => {
+	const RESULT = { version: 2, affectedPaths: [] };
+	const row = (path: Path) =>
+		({ path, key: path[path.length - 1], depth: path.length, kind: 'object' }) as ContentRow;
+
+	function withItems(names: string[]) {
+		const items = names.map((name) => JSON.stringify({ name }));
+		vi.mocked(ipc.docGetValue).mockImplementation(async (_h, p: Path) =>
+			asLosslessText(items[p[0] as number] ?? 'null'),
+		);
+		vi.mocked(ipc.docApplyOp).mockImplementation(async (_h, op) => {
+			if (op.kind === 'deleteItem') items.splice(op.index, 1);
+			else if (op.kind === 'insertItemText') items.splice(op.index, 0, op.text);
+			else if (op.kind === 'setValueText') items[op.path[0] as number] = `{"name":${op.text}}`;
+			else throw new Error(`unexpected ${op.kind}`);
+			return RESULT as never;
+		});
+		vi.mocked(ipc.docSummary).mockResolvedValue({ version: 2 } as never);
+		const { result: doc, destroy } = inRoot(() => new DocumentSession(stubDeps()));
+		doc.session.handle = 'h' as never;
+		return { doc, destroy, names: () => items.map((t) => JSON.parse(t).name) };
+	}
+
+	it('keeps the cut on its item when an earlier item is removed, so paste moves it', async () => {
+		const { doc, destroy, names } = withItems(['a', 'b', 'c', 'd']);
+		try {
+			await doc.nodeActions.cut(row([2]));
+			await doc.nodeActions.remove(row([0]));
+			expect(doc.cutMark?.path).toEqual([1]);
+			await doc.nodeActions.paste(row([0]));
+			expect(names()).toEqual(['b', 'c', 'd']);
+			expect(doc.cutMark).toBeNull();
+		} finally {
+			destroy();
+		}
+	});
+
+	it('drops the cut when its item is removed', async () => {
+		const { doc, destroy } = withItems(['a', 'b', 'c']);
+		try {
+			await doc.nodeActions.cut(row([1]));
+			await doc.nodeActions.remove(row([1]));
+			expect(doc.cutMark).toBeNull();
+		} finally {
+			destroy();
+		}
+	});
+
+	it.each([
+		['an undo', (doc: DocumentSession) => doc.session.undo()],
+		['a redo', (doc: DocumentSession) => doc.session.redo()],
+		['a code commit', (doc: DocumentSession) => doc.session.commitText('[]')],
+		[
+			'Replace All',
+			(doc: DocumentSession) => {
+				doc.find.query = 'a';
+				return doc.find.replaceAll();
+			},
+		],
+		['opening another document', (doc: DocumentSession) => doc.session.reset()],
+	])('drops the cut after %s, which it cannot follow', async (_, change) => {
+		const { doc, destroy } = withItems(['a', 'b', 'c']);
+		vi.mocked(ipc.docUndo).mockResolvedValue(RESULT as never);
+		vi.mocked(ipc.docRedo).mockResolvedValue(RESULT as never);
+		vi.mocked(ipc.docSetRootText).mockResolvedValue(RESULT as never);
+		vi.mocked(ipc.docReplace).mockResolvedValue({ count: 1, applied: RESULT } as never);
+		try {
+			await doc.nodeActions.cut(row([1]));
+			expect(doc.cutMark?.path).toEqual([1]);
+			await change(doc);
+			expect(doc.cutMark).toBeNull();
+		} finally {
+			destroy();
+		}
+	});
+
+	it('refuses to paste when the cut item changed, and leaves the document as it was', async () => {
+		const { doc, destroy, names } = withItems(['a', 'b', 'c']);
+		try {
+			await doc.nodeActions.cut(row([2]));
+			await doc.session.applyOp({ kind: 'setValueText', path: [2, 'name'], text: '"z"' });
+			await doc.nodeActions.paste(row([0]));
+			expect(names()).toEqual(['a', 'b', 'z']);
+			expect(doc.error).toBe('The cut item changed. Cut it again.');
+			expect(doc.cutMark).toBeNull();
 		} finally {
 			destroy();
 		}

@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::cell::Cell;
+use super::search::literal_matcher;
 use super::wire::cmp_number_tokens;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, specta::Type)]
@@ -33,16 +36,43 @@ pub struct GridFilter {
     pub value: Option<Value>,
 }
 
-pub fn matches(cell: Option<&Value>, f: &GridFilter) -> bool {
+pub struct CompiledFilter<'a> {
+    filter: &'a GridFilter,
+    text: Option<Regex>,
+}
+
+pub fn compile_filters(
+    groups: &[Vec<GridFilter>],
+) -> Result<Vec<Vec<CompiledFilter<'_>>>, regex::Error> {
+    groups
+        .iter()
+        .map(|grp| grp.iter().map(compile).collect())
+        .collect()
+}
+
+fn compile(filter: &GridFilter) -> Result<CompiledFilter<'_>, regex::Error> {
+    let text = match filter.op {
+        FilterOp::Contains | FilterOp::NotContains | FilterOp::StartsWith => {
+            Some(literal_matcher(&operand_string(filter), false)?)
+        }
+        _ => None,
+    };
+    Ok(CompiledFilter { filter, text })
+}
+
+#[cfg(test)]
+fn matches(cell: Option<&Value>, f: &GridFilter) -> bool {
+    passes(&Cell::from_value(cell), &compile(f).unwrap())
+}
+
+fn passes(cell: &Cell, compiled: &CompiledFilter) -> bool {
+    let f = compiled.filter;
+    let found_at = || Some(compiled.text.as_ref()?.find(&cell.scalar_text()?)?.start());
     match f.op {
         FilterOp::IsEmpty => is_empty(cell),
         FilterOp::IsNotEmpty => !is_empty(cell),
-        FilterOp::Contains => cell_string(cell)
-            .map(|s| contains_ci(&s, &operand_string(f)))
-            .unwrap_or(false),
-        FilterOp::NotContains => !cell_string(cell)
-            .map(|s| contains_ci(&s, &operand_string(f)))
-            .unwrap_or(false),
+        FilterOp::Contains => found_at().is_some(),
+        FilterOp::NotContains => found_at().is_none(),
         FilterOp::Eq => value_eq(cell, f.value.as_ref()),
         FilterOp::Ne => !value_eq(cell, f.value.as_ref()),
         FilterOp::Gt => num_cmp(cell, f) == Some(Ordering::Greater),
@@ -57,40 +87,24 @@ pub fn matches(cell: Option<&Value>, f: &GridFilter) -> bool {
             Some(Value::Array(opts)) => !opts.iter().any(|o| value_eq(cell, Some(o))),
             _ => true,
         },
-        FilterOp::StartsWith => cell_string(cell)
-            .map(|s| {
-                s.to_lowercase()
-                    .starts_with(&operand_string(f).to_lowercase())
-            })
-            .unwrap_or(false),
+        FilterOp::StartsWith => found_at() == Some(0),
     }
 }
 
-pub fn row_passes<'a, F>(groups: &[Vec<GridFilter>], cell_for: F) -> bool
+pub fn row_passes<'a, 'b, F>(groups: &[Vec<CompiledFilter>], cell_for: F) -> bool
 where
-    F: Fn(&str) -> Option<&'a Value>,
+    'a: 'b,
+    F: Fn(&str) -> Option<&'b Cell<'a>>,
 {
     groups.is_empty()
-        || groups
-            .iter()
-            .any(|grp| grp.iter().all(|f| matches(cell_for(&f.key), f)))
+        || groups.iter().any(|grp| {
+            grp.iter()
+                .all(|f| passes(cell_for(&f.filter.key).unwrap_or(&Cell::Null), f))
+        })
 }
 
-fn is_empty(cell: Option<&Value>) -> bool {
-    match cell {
-        None | Some(Value::Null) => true,
-        Some(Value::String(s)) => s.is_empty(),
-        _ => false,
-    }
-}
-
-fn cell_string(cell: Option<&Value>) -> Option<Cow<'_, str>> {
-    match cell? {
-        Value::String(s) => Some(Cow::Borrowed(s)),
-        Value::Number(n) => Some(Cow::Owned(n.to_string())),
-        Value::Bool(b) => Some(Cow::Owned(b.to_string())),
-        _ => None,
-    }
+fn is_empty(cell: &Cell) -> bool {
+    cell.is_null() || cell.text().is_some_and(str::is_empty)
 }
 
 fn operand_string(f: &GridFilter) -> Cow<'_, str> {
@@ -102,30 +116,25 @@ fn operand_string(f: &GridFilter) -> Cow<'_, str> {
     }
 }
 
-fn contains_ci(haystack: &str, needle: &str) -> bool {
-    haystack.to_lowercase().contains(&needle.to_lowercase())
-}
-
-fn value_eq(cell: Option<&Value>, operand: Option<&Value>) -> bool {
-    let has_number =
-        matches!(cell, Some(Value::Number(_))) || matches!(operand, Some(Value::Number(_)));
+fn value_eq(cell: &Cell, operand: Option<&Value>) -> bool {
+    let has_number = cell.number().is_some() || matches!(operand, Some(Value::Number(_)));
     if let (true, Some(a), Some(b)) = (
         has_number,
-        cell.and_then(numeric_token),
+        cell_number_token(cell),
         operand.and_then(numeric_token),
     ) {
-        if let Some(ord) = cmp_number_tokens(&a, &b) {
+        if let Some(ord) = cmp_number_tokens(a, &b) {
             return ord == Ordering::Equal;
         }
     }
-    let (a, b) = (
-        cell.unwrap_or(&Value::Null),
-        operand.unwrap_or(&Value::Null),
-    );
-    match (scalar_str(a), scalar_str(b)) {
+    match (cell.scalar_text(), operand.and_then(scalar_str)) {
         (Some(x), Some(y)) => x == y,
-        _ => a == b,
+        _ => cell.equals_value(operand),
     }
+}
+
+fn cell_number_token<'c>(cell: &'c Cell) -> Option<&'c str> {
+    cell.number().or_else(|| cell.text().map(str::trim))
 }
 
 fn numeric_token(v: &Value) -> Option<Cow<'_, str>> {
@@ -145,10 +154,10 @@ fn scalar_str(v: &Value) -> Option<String> {
     }
 }
 
-fn num_cmp(cell: Option<&Value>, f: &GridFilter) -> Option<Ordering> {
-    let c = numeric_token(cell?)?;
+fn num_cmp(cell: &Cell, f: &GridFilter) -> Option<Ordering> {
+    let c = cell_number_token(cell)?;
     let o = numeric_token(f.value.as_ref()?)?;
-    cmp_number_tokens(&c, &o)
+    cmp_number_tokens(c, &o)
 }
 
 #[cfg(test)]
@@ -292,7 +301,11 @@ mod tests {
             ("signup", json!(2021)),
             ("active", json!(true)),
         ]);
-        let cell = |k: &str| row.get(k);
+        let cells: HashMap<&str, Cell> = row
+            .iter()
+            .map(|(k, v)| (*k, Cell::from_value(Some(v))))
+            .collect();
+        let cell = |k: &str| cells.get(k);
 
         let eq = |key: &str, v: Value| GridFilter {
             key: key.into(),
@@ -313,11 +326,12 @@ mod tests {
             value: Some(json!(2023)),
         };
 
-        assert!(row_passes(&[], &cell));
-        assert!(row_passes(&[vec![admin.clone(), active.clone()]], &cell));
-        assert!(!row_passes(&[vec![editor.clone(), active]], &cell));
-        assert!(row_passes(&[vec![editor.clone()], vec![pre2023]], &cell));
-        assert!(!row_passes(&[vec![editor], vec![post2023]], &cell));
+        let pass = |groups: &[Vec<GridFilter>]| row_passes(&compile_filters(groups).unwrap(), cell);
+        assert!(pass(&[]));
+        assert!(pass(&[vec![admin.clone(), active.clone()]]));
+        assert!(!pass(&[vec![editor.clone(), active]]));
+        assert!(pass(&[vec![editor.clone()], vec![pre2023]]));
+        assert!(!pass(&[vec![editor], vec![post2023]]));
     }
 
     #[test]

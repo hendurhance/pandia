@@ -7,6 +7,7 @@
 	import {
 		createEditHandlers,
 		editSize,
+		isMultiline,
 		nextNumberValue,
 		valueTypeLabel,
 	} from '../logic/edit-handlers';
@@ -145,7 +146,7 @@
 			onblur={onCommit}
 			spellcheck="false"
 		></textarea>
-		{@render microBar('Str', fmtKbd('⌘⏎'))}
+		{@render microBar('Str', fmtKbd(isMultiline(buffer) ? '⌘⏎' : '⏎'))}
 	</span>
 {:else}
 	<input
@@ -189,7 +190,7 @@
 		color: var(--syntax-boolean);
 	}
 	.edit-input.v-input.null {
-		color: var(--syntax-null);
+		color: var(--text-dim);
 		font-style: italic;
 	}
 

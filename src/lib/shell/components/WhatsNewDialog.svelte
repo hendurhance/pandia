@@ -122,7 +122,7 @@
 	}
 	.date {
 		font-size: var(--font-size-xs);
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 
 	.notes {
@@ -145,12 +145,12 @@
 	}
 	.meta {
 		font-size: var(--font-size-xs);
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 
 	.foot {
 		gap: var(--space-sm);
 		font-size: var(--font-size-xs);
-		color: var(--text-faint);
+		color: var(--text-dim);
 	}
 </style>

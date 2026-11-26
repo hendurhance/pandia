@@ -33,6 +33,8 @@ pub const COMMENTS_STRIPPED_NOTE: &str =
 
 const NULLED_NOTE: &str = "Replaced undefined, NaN or Infinity values with null";
 
+pub const LEADING_JUNK_NOTE: &str = "Removed an invisible character before the first value";
+
 impl Recovered {
     fn noted(json: String, note: &'static str) -> Self {
         Self {
@@ -44,15 +46,23 @@ impl Recovered {
 }
 
 pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
+    let (mut recovered, from_records) = recover_value(text, hint)?;
+    if hint == Some(InputFormat::Ndjson) && !from_records {
+        recovered.json = format!("[{}]", recovered.json);
+    }
+    Some(recovered)
+}
+
+fn recover_value(text: &str, hint: Option<InputFormat>) -> Option<(Recovered, bool)> {
     let (body, note) = strip_leading_junk(text);
     if let Some(note) = note {
         if is_valid_json(body) {
-            return Some(Recovered::noted(body.to_string(), note));
+            return Some((Recovered::noted(body.to_string(), note), false));
         }
     }
     if let Some(unwrapped) = unwrap_quoted(body) {
         if is_valid_json(&unwrapped.json) {
-            return Some(unwrapped);
+            return Some((unwrapped, false));
         }
     }
 
@@ -71,9 +81,10 @@ pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
                 (ndjson_to_array(&json)?, comments, nulled)
             }
         };
-        is_valid_json(&json).then_some((json, comments, nulled))
+        let from_records = !matches!(attempt, Attempt::Relaxed);
+        is_valid_json(&json).then_some((json, comments, nulled, from_records))
     });
-    if let Some((json, comments_stripped, nulled)) = dialect {
+    if let Some((json, comments_stripped, nulled, from_records)) = dialect {
         let note = if nulled {
             Some(NULLED_NOTE)
         } else if comments_stripped {
@@ -81,18 +92,20 @@ pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
         } else {
             note
         };
-        return Some(Recovered {
+        let recovered = Recovered {
             json,
             note,
             comments_stripped,
-        });
+        };
+        return Some((recovered, from_records));
     }
 
     let inner = unwrap_quoted(body)?;
-    let (json, comments_stripped, nulled) = relaxed_to_json(&inner.json)
-        .or_else(|| ndjson_to_array(&inner.json).map(|json| (json, false, false)))
+    let (json, comments_stripped, nulled, from_records) = relaxed_to_json(&inner.json)
+        .map(|(json, comments, nulled)| (json, comments, nulled, false))
+        .or_else(|| ndjson_to_array(&inner.json).map(|json| (json, false, false, true)))
         .filter(|(c, ..)| is_valid_json(c))?;
-    Some(Recovered {
+    let recovered = Recovered {
         json,
         note: if nulled {
             Some(NULLED_NOTE)
@@ -100,7 +113,8 @@ pub fn recover(text: &str, hint: Option<InputFormat>) -> Option<Recovered> {
             inner.note
         },
         comments_stripped,
-    })
+    };
+    Some((recovered, from_records))
 }
 
 const LEADING_JUNK: &[char] = &[
@@ -120,10 +134,7 @@ fn strip_leading_junk(text: &str) -> (&str, Option<&'static str>) {
     if body.len() == text.len() {
         return (text, None);
     }
-    (
-        body,
-        Some("Removed an invisible character before the first value"),
-    )
+    (body, Some(LEADING_JUNK_NOTE))
 }
 
 fn closing_quote_for(open: char) -> Option<char> {
@@ -251,7 +262,8 @@ fn top_level_spans(text: &str) -> Vec<(usize, usize)> {
                 }
             }
             _ => {
-                while i < b.len() && !b[i].is_ascii_whitespace() && b[i] != 0x1e {
+                i += 1;
+                while i < b.len() && !b[i].is_ascii_whitespace() && !matches!(b[i], 0x1e | b',') {
                     i += 1;
                 }
             }
@@ -308,6 +320,7 @@ fn relaxed_to_json(text: &str) -> Option<(String, bool, bool)> {
                 changed = true;
                 saw_comment = true;
                 i += 2;
+                out.push(' ');
                 while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
                     if b[i] == b'\n' {
                         out.push('\n');
@@ -417,6 +430,9 @@ fn normalize_number(tok: &str) -> Cow<'_, str> {
     } else {
         (false, tok)
     };
+    if !body.bytes().any(|c| c.is_ascii_digit()) {
+        return Cow::Borrowed(tok);
+    }
 
     if let Some(hex) = body
         .strip_prefix("0x")
@@ -709,6 +725,17 @@ mod tests {
     }
 
     #[test]
+    fn comma_separated_rows_are_not_flattened_into_one_array() {
+        for hint in [None, Some(InputFormat::Ndjson)] {
+            assert_eq!(
+                recover("1,2\n3,4\n", hint).map(|r| r.json),
+                None,
+                "{hint:?}"
+            );
+        }
+    }
+
+    #[test]
     fn ndjson_accepts_rfc7464_record_separators() {
         let v = value("\u{1e}{\"a\":1}\n\u{1e}{\"a\":2}\n");
         assert_eq!(v, serde_json::json!([{"a": 1}, {"a": 2}]));
@@ -730,6 +757,23 @@ mod tests {
     fn block_comments_are_stripped() {
         let v = value("{/* lead */ \"a\": /* mid */ 1}");
         assert_eq!(v, serde_json::json!({"a": 1}));
+    }
+
+    #[test]
+    fn a_block_comment_between_two_tokens_does_not_join_them() {
+        assert_eq!(recover("[1/**/2]", None).map(|r| r.json), None);
+        assert_eq!(
+            recover(
+                r#"{"port": 80/* was 8080 */80}"#,
+                Some(InputFormat::Relaxed)
+            )
+            .map(|r| r.json),
+            None
+        );
+        assert_eq!(
+            value(r#"{"a": "1/**/2", /* c */}"#),
+            serde_json::json!({"a": "1/**/2"})
+        );
     }
 
     #[test]
@@ -763,6 +807,13 @@ mod tests {
             v,
             serde_json::json!({"a": 255, "b": 0.5, "c": 5.0, "d": 7, "e": -16})
         );
+    }
+
+    #[test]
+    fn a_sign_or_dot_without_digits_is_not_turned_into_a_value() {
+        for text in ["{\"a\": .}", "[.]", "[+]", "[-.]"] {
+            assert_eq!(recover(text, None).map(|r| r.json), None, "{text:?}");
+        }
     }
 
     #[test]

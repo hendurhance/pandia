@@ -1,383 +1,240 @@
 <p align="center">
-  <img src="website/public/logo.svg" alt="Pandia" width="120" />
+  <img src="website/public/logo.svg" alt="Pandia" width="110" />
 </p>
 
 <h1 align="center">Pandia</h1>
 
 <p align="center">
-  <strong>A JSON IDE built for files the rest of your tools choke on.</strong>
+  A desktop app for reading, editing and checking JSON, from small config files to exports of several gigabytes.
 </p>
 
 <p align="center">
-  Open multi-gigabyte documents instantly. Navigate as a tree, code, table, or node graph.<br/>
-  Diff, search, filter, generate types, validate against schemas — all locally, nothing leaves your machine.
-</p>
-
-<p align="center">
-  <a href="https://github.com/hendurhance/pandia/releases/latest">
-    <img src="https://img.shields.io/github/v/release/hendurhance/pandia?style=flat-square&color=D6571F" alt="Latest release" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square" alt="License" />
-  </a>
-  <a href="https://github.com/hendurhance/pandia/releases">
-    <img src="https://img.shields.io/github/downloads/hendurhance/pandia/total?style=flat-square" alt="Downloads" />
-  </a>
-  <a href="https://github.com/sponsors/hendurhance">
-    <img src="https://img.shields.io/badge/sponsor-D6571F?style=flat-square&logo=githubsponsors&logoColor=white" alt="Sponsor" />
-  </a>
+  <a href="https://github.com/hendurhance/pandia/releases/latest"><img src="https://img.shields.io/github/v/release/hendurhance/pandia?style=flat-square&color=D6571F" alt="Latest release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/hendurhance/pandia/releases"><img src="https://img.shields.io/github/downloads/hendurhance/pandia/total?style=flat-square" alt="Downloads" /></a>
+  <a href="https://github.com/sponsors/hendurhance"><img src="https://img.shields.io/badge/sponsor-D6571F?style=flat-square&logo=githubsponsors&logoColor=white" alt="Sponsor" /></a>
 </p>
 
 <p align="center">
   <a href="https://www.pandia.app">Website</a> ·
-  <a href="#installation">Installation</a> ·
-  <a href="#features">Features</a> ·
+  <a href="#install">Install</a> ·
   <a href="https://www.pandia.app/docs">Docs</a> ·
-  <a href="#building-from-source">Build</a> ·
-  <a href="https://github.com/hendurhance/pandia/issues/new/choose">Report issue</a> ·
-  <a href="#support">Support</a>
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="https://github.com/hendurhance/pandia/issues/new/choose">Report an issue</a>
 </p>
 
----
+<p align="center">
+  <img src=".github/assets/screenshots/tree.png" alt="An orders export open in Pandia's Tree view" width="900" />
+</p>
 
 ## Why Pandia
 
-Most JSON editors hit a wall around 50–100 MB — the tab freezes, the scrollbar dies, "expand all" never finishes. Pandia's document model lives in Rust with a lazy parser that keeps the UI responsive on **multi-gigabyte files**. Everything you need to interrogate a JSON document — open, browse, search, diff, validate, transform — lives in one window. No popups. No network round-trips. No telemetry.
+Text editors and browser tools slow down or give up once a JSON file passes a few hundred megabytes, and online formatters ask you to paste your data into someone else's website. Pandia keeps the document in a Rust engine on your own computer and only sends the part you're looking at to the screen, so a large file stays responsive while you scroll, search and edit it. It works offline, needs no account, and collects no usage data.
 
-## Features
+## What you can do with it
 
-### Open anything, at any size
+### Read the same document five ways
 
-- **Lazy parsing above 10 MB.** Children parsed on demand; a root-array offset index gives O(slice) random access regardless of file size.
-- **Big-number safe.** Snowflake IDs, BigQuery int64s, Stripe IDs, nanosecond timestamps — preserved literally, never coerced through `f64`.
-- **Every JSON dialect opens.** `.json` · `.jsonl` · `.ndjson` · `.jsonc` · `.json5` · `.geojson` — comments, trailing commas, bare keys, hex numbers and UTF-8 BOMs read without complaint. NDJSON loads as an array of its records and saves back one record per line.
-- **Survives the clipboard.** JSON wrapped in quotes — copied out of code, a shell command or a spreadsheet cell — or led by an invisible character opens anyway, and tells you what it removed.
-- **Multi-format detect on paste.** YAML · XML · CSV · cURL — converted to JSON automatically.
-- **Errors worth reading.** A failed paste keeps your text on screen and names the actual problem — *One comma too many*, *This looks like YAML, not JSON* — with a one-click fix where one exists.
-- **Repair broken JSON.** Trailing commas, unquoted keys, single quotes, comments, BOMs, JSONP wrappers, unterminated strings — fixed before the editor gives up on you.
-
-### Four lenses on the same document
-
-| View | What it's for |
+| View | Use it to |
 |---|---|
-| **Tree** | Virtualised, click-to-menu editing, indentation guides, path breadcrumb, jump-to-anywhere |
-| **Code** | CodeMirror 6 with syntax highlighting, fold/unfold, inline find / replace |
-| **Grid** | Homogeneous arrays as a spreadsheet — column filters, sort, multi-row select, type-aware cells |
-| **Graph** | Node-link visualisation with click-through to tree; export PNG · JPEG · SVG |
-
-### Compare and contrast
-
-- Split-canvas diff against another open tab or any file on disk.
-- Three modes: **side-by-side**, **unified inline**, **tree-with-highlights**.
-- Sync scroll, jump-to-next-change, 50-line LCS chunking so even gigabyte-scale diffs stay navigable.
-
-### Generate types
-
-One click, **ten targets**:
+| **Tree** | Expand, edit and reorder values, with the path of the selected value always on screen |
+| **Code** | Read and edit the raw text, with syntax highlighting, folding and find and replace |
+| **Grid** | Treat an array of objects as a spreadsheet: sort, filter, select rows and edit cells |
+| **Graph** | See the structure as connected nodes, and export it as PNG, JPEG or SVG |
+| **Compare** | Diff two files or tabs side by side, inline, or as a highlighted tree |
 
 <p align="center">
-  TypeScript · Zod · Go · Rust · Kotlin · Python · PHP · Java · Dart · JSON Schema
+  <img src=".github/assets/screenshots/grid.png" alt="The Grid view sorting and filtering an array of orders" width="440" />
+  <img src=".github/assets/screenshots/compare.png" alt="Two versions of an orders export compared side by side" width="440" />
 </p>
 
-### Validate against schemas
+### Open what you have
 
-Inline JSON Schema validation against **draft-07** and **2020-12**. Debounce is user-tunable: immediate, 250 ms, 500 ms, 1 s, 2 s, or manual. Load a schema automatically with `--schema <path|https-url>` or a document's top-level `$schema`; remote schemas from a document ask before downloading.
+- Open `.json`, `.jsonc`, `.json5`, `.jsonl`, `.ndjson` and `.geojson` files. YAML, XML and CSV are converted to JSON when you open them.
+- Paste text, drop a file, or fetch a URL. Paste a cURL command to send the request and open the response.
+- Open broken JSON anyway. Trailing commas, comments, single quotes and unquoted keys are repaired on open, and Pandia tells you what it changed.
+- Keep every digit of large numbers, such as 64-bit IDs and nanosecond timestamps.
+
+### Check and convert
+
+- Validate against a JSON Schema (draft-07 or 2020-12). Pandia picks up a schema from `--schema` on the command line or from the document's `$schema` field.
+- Generate types in 10 languages: TypeScript, Zod, Go, Rust, Kotlin, Python, PHP, Java, Dart and JSON Schema. A field is marked optional when some records leave it out.
+- Export to JSON, minified JSON, YAML, CSV or XML.
 
 ### Work from the terminal
 
-Install the `pandia` command from **Settings → Behavior** (Homebrew adds it for you). `pandia data.json` opens a tab in the running window, `curl … | pandia -` opens piped input, `pandia --diff a.json b.json` opens Compare, and `--wait` makes it usable as `git difftool` or in scripts, exiting 1 when the schema fails. For scripts and AI agents, `… | pandia --wait - > out.json` turns Pandia into a review step: save to send the edited JSON back, and `--json` prints a report with each schema error as a JSON Pointer.
-
-### Privacy-first by design
-
-100% local. No telemetry. No cloud sync. No account. Preferences and per-document state live in plain-store files in your OS app-data directory; nothing leaves the machine.
-
-## Installation
-
-Download the latest version for your platform from [releases](https://github.com/hendurhance/pandia/releases/latest):
-
-### macOS
-
-| Chip | Download |
-|---|---|
-| Apple Silicon (M1 / M2 / M3 / M4 / M5 / M6 and newer) | [`Pandia_1.0.8_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_aarch64.dmg) |
-| Intel | [`Pandia_1.0.8_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_x64.dmg) |
-
-The macOS bundle is signed and notarised.
-
-Or install with [Homebrew](https://brew.sh):
+Install the `pandia` command from **Settings → Behavior**. Homebrew installs it for you.
 
 ```bash
-# Install
-brew tap hendurhance/tap
-brew install --cask pandia
-
-# Upgrade
-brew update
-brew upgrade --cask pandia
-
-# Uninstall
-brew uninstall --cask pandia
-brew untap hendurhance/tap
+pandia data.json                         # open a file in the running window
+curl -s https://api.example.com | pandia -   # open whatever is piped in
+pandia --diff old.json new.json          # open two files in Compare
+pandia --wait - < draft.json > out.json  # edit piped JSON, save to send it back
 ```
 
-### Windows
+`--wait` makes Pandia a review step for scripts and AI coding agents: the command waits until you close the tab, and exits with `1` if the Schema panel shows errors. Add `--json` for a machine-readable report.
 
-| Type | Download |
+A set of commands answers without opening a window: `get`, `shape`, `validate`, `diff`, `search`, `types`, `convert` and `repair`. Run `pandia <command> --help` for details.
+
+```bash
+pandia get orders.json '$.orders[0].customer.email'
+pandia validate config.json --schema config.schema.json
+```
+
+## Large files
+
+How Pandia handles a file depends on its size.
+
+| Size | What works |
 |---|---|
-| Installer | [`Pandia_1.0.8_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_x64-setup.exe) |
-| MSI | [`Pandia_1.0.8_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_x64_en-US.msi) |
+| Up to 10 MB | Everything |
+| 10 MB to 200 MB | Everything. The Code view is available up to 50 MB. |
+| 200 MB to 2 GB | Browse, search, Grid sort and filter, the Graph, type generation and JSON export. Editing, schema validation and Compare are turned off. |
+| 2 GB to 10 GB | A read-only view, read straight from disk so the file doesn't have to fit in memory. You can browse it in the Tree and Grid and search it, with progress and a Cancel button. |
+| Over 10 GB | Not supported. Pandia tells you the file is over the limit. |
 
-### Linux
+On a 5 GB file, opening takes under a minute and a full search about half a minute, depending on your disk.
 
-| Format | Download |
+## Install
+
+Download Pandia for your platform from the [latest release](https://github.com/hendurhance/pandia/releases/latest).
+
+| Platform | Download |
 |---|---|
-| AppImage | [`Pandia_1.0.8_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_amd64.AppImage) |
-| Debian / Ubuntu | [`Pandia_1.0.8_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.8_amd64.deb) |
+| macOS, Apple silicon | [`Pandia_1.0.9_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_aarch64.dmg) |
+| macOS, Intel | [`Pandia_1.0.9_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_x64.dmg) |
+| Windows, installer | [`Pandia_1.0.9_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_x64-setup.exe) |
+| Windows, MSI | [`Pandia_1.0.9_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_x64_en-US.msi) |
+| Linux, AppImage | [`Pandia_1.0.9_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_amd64.AppImage) |
+| Linux, Debian and Ubuntu | [`Pandia_1.0.9_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_amd64.deb) |
+| Linux, Fedora and RHEL | [`Pandia-1.0.9-1.x86_64.rpm`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia-1.0.9-1.x86_64.rpm) |
 
-Linux bundles are GPG-signed; the public key is published with each release.
+The macOS app is signed and notarized.
 
-> **System requirements:** macOS 10.15+, Windows 10+ (64-bit), Ubuntu 22.04+ / Fedora 38+ (or any glibc 2.35+ distro with WebKitGTK 4.1).
+On macOS you can also use [Homebrew](https://brew.sh):
 
-## Quick start
+```bash
+brew tap hendurhance/tap
+brew install --cask pandia
+```
 
-1. Launch Pandia.
-2. Drag a JSON file onto the canvas — or paste / fetch by URL from the empty state.
-3. Switch between **Tree · Code · Grid · Graph** from the top bar (`⌘1` … `⌘4`).
-4. Press `⌘K` for the command palette. Every action is reachable from there.
+Pandia runs on macOS 10.15 or later, 64-bit Windows 10 or later, and Linux with glibc 2.35 or later and WebKitGTK 4.1 (for example Ubuntu 22.04 or Fedora 38).
 
-## Keyboard reference
+## Getting started
 
-| | |
+1. Open Pandia.
+2. Drop a JSON file onto the window, or paste JSON into the empty tab.
+3. Switch views with `⌘1` to `⌘4` (Tree, Code, Grid, Graph).
+4. Press `⌘K` to open the command palette. Every action is listed there.
+
+### Keyboard shortcuts
+
+On Windows and Linux, use `Ctrl` instead of `⌘`.
+
+| Shortcut | Action |
 |---|---|
 | `⌘K` | Command palette |
-| `⌘O` | Open file |
-| `⌘T` / `⌘W` | New tab / Close tab |
-| `⌘⇧]` / `⌘⇧[` | Next / previous tab |
+| `⌘O` | Open a file |
+| `⌘T` / `⌘W` | New tab / close tab |
+| `⌘⇧]` / `⌘⇧[` | Next tab / previous tab |
 | `⌘F` | Find |
-| `⌘G` / `⌘⇧G` | Find next / previous |
+| `⌘G` / `⌘⇧G` | Next match / previous match |
 | `⌘⌥F` | Find and replace (`Ctrl+H` on Windows and Linux) |
-| `⌘D` | Compare against tab or file |
-| `⌘B` | Toggle sidebar |
-| `⌘S` / `⌘⇧S` | Save / Save As |
+| `⌘D` | Compare with another tab or file |
+| `⌘S` / `⌘⇧S` | Save / save as |
 | `⌘E` | Export |
-| `⌘Z` / `⌘⇧Z` | Undo / Redo |
-| `⌘1` / `⌘2` / `⌘3` / `⌘4` | Tree / Code / Grid / Graph |
-| `⌘⇧V` | Validate JSON |
-| `⌘/` | Keyboard shortcuts |
+| `⌘Z` / `⌘⇧Z` | Undo / redo |
+| `⌘1` to `⌘4` | Tree, Code, Grid, Graph |
+| `⌘⇧V` | Open the Schema panel |
+| `⌘B` | Show or hide the sidebar |
+| `⌘/` | All keyboard shortcuts |
 | `⌘,` | Settings |
 
-Use `Ctrl` on Linux / Windows.
+## How it works
 
-## Architecture at a glance
+Each open document lives in Rust, and the interface asks for the slice it needs to draw. Rust owns the parsed document and everything that changes or reads it as a whole: edits, undo and redo, search, diff, repair, validation, type generation and export. The Svelte interface owns what you're looking at: the selection, which rows are expanded, scroll positions, and layout.
 
-> The pitch in one paragraph: **the document lives in Rust. The UI renders slices of it.**
-
-| Rust owns | UI owns |
-|---|---|
-| Parsed document, one per tab, addressed by handle | Expansion state, selection, scroll position |
-| All structural ops (set · insert · delete · sort · move) | Current edit-in-progress buffer until commit |
-| Query · diff · repair · validate · typegen · format · export | Active search query, current match index |
-| Search indexing and execution | Layout, theme, panel and sidebar visibility |
-| Undo / redo (op log, per tab, 500-op cap) | Tab list and active-tab indicator |
-| Document version counter | — |
-
-Anything that's *where the user is looking* stays in Svelte. Anything that's *what the document is* lives in Rust.
-
-### File-size tiers
-
-| Size | Behaviour |
-|---|---|
-| < 10 MB | Eager parse — full feature set |
-| 10 MB – 200 MB | Lazy mode — full feature set |
-| 200 MB –  GB | Lazy mode — browse, search, diff, export; whole-document edit / validate disabled |
-| > 2 GB | Refused in v1 — streaming view planned for v1.x |
-
-## Tech stack
+Files of 10 MB and up open without being parsed into a full tree. Pandia indexes where each item starts and decodes only the items on screen. Files over 2 GB are memory-mapped, so the operating system reads the parts you open from disk instead of loading the whole file.
 
 | Layer | Technology |
 |---|---|
-| Frontend | [Svelte 5](https://svelte.dev) (runes) · [SvelteKit](https://kit.svelte.dev) · TypeScript |
-| Backend | [Rust](https://www.rust-lang.org) · [Tauri 2](https://tauri.app) |
-| JSON parser | [`sonic-rs`](https://github.com/cloudwego/sonic-rs) (lazy mode) with `serde_json` fallback |
+| Interface | [Svelte 5](https://svelte.dev), [SvelteKit](https://kit.svelte.dev), TypeScript |
+| App shell | [Tauri 2](https://tauri.app), [Rust](https://www.rust-lang.org) |
+| JSON parsing | [`sonic-rs`](https://github.com/cloudwego/sonic-rs) for large files, [`serde_json`](https://github.com/serde-rs/json) otherwise |
 | Code view | [CodeMirror 6](https://codemirror.net) |
 | Schema validation | [`jsonschema`](https://crates.io/crates/jsonschema) |
-| Concurrency | `parking_lot` · `dashmap` |
-| Build | [Vite](https://vitejs.dev) |
-| Docs site | [Astro](https://astro.build) |
-| Bundle size | < 500 KB gzipped JS |
+| Website and docs | [Astro](https://astro.build) |
 
-## Building from source
+## Build from source
 
-### Prerequisites
-
-- **Node.js** LTS — [nodejs.org](https://nodejs.org)
-- **Rust** stable — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Tauri 2 system prerequisites** — see [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/)
+You need [Node.js](https://nodejs.org) (LTS), [Rust](https://www.rust-lang.org/tools/install) (stable), and the [Tauri system prerequisites](https://tauri.app/start/prerequisites/) for your platform.
 
 <details>
-<summary><strong>macOS</strong></summary>
+<summary>Platform setup</summary>
+
+**macOS**
 
 ```bash
 xcode-select --install
 ```
-</details>
 
-<details>
-<summary><strong>Windows</strong></summary>
+**Windows**: install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "C++ build tools" workload. WebView2 comes with Windows 11.
 
-Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "C++ build tools" workload, plus WebView2 (preinstalled on Windows 11).
-</details>
-
-<details>
-<summary><strong>Linux (Ubuntu / Debian)</strong></summary>
+**Ubuntu or Debian**
 
 ```bash
 sudo apt update
-sudo apt install -y \
-  libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+sudo apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
   build-essential curl wget file libssl-dev libgtk-3-dev
 ```
-</details>
 
-### Setup
+</details>
 
 ```bash
 git clone https://github.com/hendurhance/pandia
 cd pandia
 npm ci
 
-npm run tauri dev      # development build, hot-reload (pastel dev icon)
-npm run tauri build -- --config src-tauri/tauri.prod.conf.json    # release build with the real icon
+npm run tauri dev                                                # development build with hot reload
+npm run tauri build -- --config src-tauri/tauri.prod.conf.json   # release build
 ```
 
-### Useful commands
+Before you open a pull request, run the same checks CI runs:
 
 ```bash
-# Frontend
-npm run check          # svelte-check (TypeScript)
-npm run lint           # eslint
-npm run format:check   # prettier
-npm run test           # vitest
-
-# Backend
-cd src-tauri
-cargo test --lib       # rust unit tests
-cargo fmt --check      # rustfmt
-cargo clippy --all-targets
+npm run check && npm run lint && npm run format:check && npm run test
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets && cargo test --lib
 ```
 
-CI runs all of the above on every push to `main` and every pull request.
-
-### Project layout
+### Where to start reading
 
 ```
-pandia/
-├── src/                                 SvelteKit frontend
-│   ├── lib/
-│   │   ├── docpane/                     per-tab editor shell
-│   │   ├── views/{tree,code,grid,graph,compare}/   the four lenses + diff
-│   │   ├── shell/                       app shell, tab store, menu, status bar
-│   │   ├── panels/                      sidebar tabs (outline, schema, types, history)
-│   │   ├── settings/                    settings route + per-panel state
-│   │   ├── find/                        find / replace controller
-│   │   ├── palette/                     command palette
-│   │   ├── ipc/                         typed wrappers around Tauri commands
-│   │   └── util/                        shared utilities
-│   └── routes/                          SvelteKit routes (single SPA shell)
-├── src-tauri/
-│   └── src/
-│       ├── doc/                         document model, ops, lazy parser
-│       ├── commands.rs                  Tauri command surface
-│       └── lib.rs                       Tauri app setup, menus, file associations
-└── website/                             marketing + docs (separate Astro project)
+src/                       Svelte interface
+  lib/docpane/             the editor inside each tab
+  lib/views/               Tree, Code, Grid, Graph and Compare
+  lib/shell/               window, tabs, menus and status bar
+  lib/ipc/                 generated, typed bindings to the Rust commands
+src-tauri/src/
+  doc/                     the document engine: parsing, edits, search, export
+  commands.rs              the commands the interface can call
+  cli.rs, headless.rs      the pandia command
+website/                   pandia.app (a separate Astro project)
 ```
 
-Want to read the code? Start here:
-
-- `src-tauri/src/doc/document.rs` — the document model and size-tier behaviours
-- `src-tauri/src/doc/lazy.rs` — the lazy parser and slice protocol
-- `src/lib/docpane/components/DocPane.svelte` — the per-tab editor
-- `src/lib/shell/components/AppShell.svelte` — the application shell
-
-## Roadmap
-
-### v1.x
-
-- Drag-to-reorder tree nodes
-- File watcher for auto-reload on disk change
-- Schema-driven autocomplete in tree edits
-- Op-log crash recovery (currently snapshot-based)
-- Optional JSONPath / jq-style expression bar
-- Batch operations mode
-- Streaming view for files > 1 GB
-
-### v2
-
-Not currently scoped. Open an issue if you have a request.
-
-See [open issues](https://github.com/hendurhance/pandia/issues) for what's being worked on now.
-
-## Support
-
-Pandia is free, Apache-2.0 licensed, and has no paid tier — that will not change. If it saves
-you an afternoon, you can help keep it maintained:
-
-- **[GitHub Sponsors](https://github.com/sponsors/hendurhance)** — recurring or one-off.
-- **[Buy me a coffee](https://buymeacoffee.com/hendurhance)** — one-off, no account needed.
-
-Not in a position to sponsor? Starring the repo, filing a
-[good bug report](https://github.com/hendurhance/pandia/issues/new/choose), or passing it to
-someone who wrangles JSON all day helps just as much.
+Good first files are `src-tauri/src/doc/document.rs` for the document model, `src-tauri/src/doc/tier.rs` for the size limits, and `src/lib/docpane/components/DocPane.svelte` for the editor.
 
 ## Contributing
 
-Pull requests and bug reports are welcome. For non-trivial changes, please open an issue first to discuss the approach.
+Bug reports and pull requests are welcome. For a larger change, open an issue first so we can agree on the approach. The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Before opening a PR:
+## Support the project
 
-- All Rust code passes `cargo fmt`, `cargo clippy --all-targets`, and `cargo test`.
-- All frontend code passes `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test`.
-- PR titles should read like a release-note line.
+Pandia is free, with no paid tier. If it saves you time, you can support its development through [GitHub Sponsors](https://github.com/sponsors/hendurhance) or [Buy Me a Coffee](https://buymeacoffee.com/hendurhance). A star, a clear [bug report](https://github.com/hendurhance/pandia/issues/new/choose), or telling a colleague who works with JSON all day helps too.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+## Acknowledgments
+
+Pandia is built on [Tauri](https://tauri.app), [Svelte](https://svelte.dev), [`sonic-rs`](https://github.com/cloudwego/sonic-rs), [`serde_json`](https://github.com/serde-rs/json), [`jsonschema`](https://crates.io/crates/jsonschema), [CodeMirror](https://codemirror.net) and [Lucide](https://github.com/lucide-icons/lucide) icons. The tree interactions take after [JSON Editor Online](https://jsoneditoronline.org) and the repair rules after [`jsonrepair`](https://github.com/josdejong/jsonrepair), both by Jos de Jong. The bundled code fonts come from the [Fontsource](https://fontsource.org) project.
 
 ## License
 
 Pandia is licensed under the [Apache License 2.0](LICENSE).
-
-## Acknowledgments
-
-Pandia stands on the shoulders of giants. Particular thanks to:
-
-### Runtime and framework
-
-- [Tauri](https://tauri.app) — makes this a real desktop app, not an Electron box
-- [Svelte](https://svelte.dev) — runes made the reactive controllers in `src/lib/**/state/*.svelte.ts` actually pleasant to write
-- [SvelteKit](https://kit.svelte.dev) — the SPA scaffolding
-
-### JSON processing
-
-- [`sonic-rs`](https://github.com/cloudwego/sonic-rs) — the lazy parser doing the heavy lifting
-- [`serde_json`](https://github.com/serde-rs/json) — the fallback eager parser
-- [`jsonschema`](https://crates.io/crates/jsonschema) — JSON Schema validation
-- [`jaq`](https://github.com/01mf02/jaq) — jq engine reference for future query support
-
-### Editing
-
-- [CodeMirror 6](https://codemirror.net) — the code view foundation
-- [`@lucide/svelte`](https://github.com/lucide-icons/lucide) — icon set
-
-### Reference and inspiration
-
-- [jsoneditoronline.org](https://jsoneditoronline.org) by **Jos de Jong** — the reference target for tree-mode interactions
-- [`jsonrepair`](https://github.com/josdejong/jsonrepair) by **Jos de Jong** — algorithm reference for the Rust port
-
-### Typography
-
-- IBM Plex Mono, plus bundled Cascadia Code, Fira Code, Geist Mono, JetBrains Mono, DM Mono, Inconsolata, Roboto Mono, Source Code Pro, Space Mono, Ubuntu Mono, Victor Mono — via the `@fontsource` packages.
-
----
-
-<p align="center">
-  Made by <a href="https://github.com/hendurhance">hendurhance</a> · <a href="https://www.pandia.app">pandia.app</a>
-</p>

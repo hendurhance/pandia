@@ -46,9 +46,15 @@ export interface EditDeps extends EditCallbacks {
 	buffer: () => string;
 }
 
+export function isMultiline(text: string): boolean {
+	return text.includes('\n');
+}
+
 export function createEditHandlers(deps: EditDeps) {
 	function onAreaKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+		const commits =
+			e.metaKey || e.ctrlKey || (!e.shiftKey && !e.altKey && !isMultiline(deps.buffer()));
+		if (e.key === 'Enter' && commits) {
 			e.preventDefault();
 			e.stopPropagation();
 			deps.onCommit();

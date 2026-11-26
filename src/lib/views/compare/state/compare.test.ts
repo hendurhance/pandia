@@ -3,12 +3,12 @@ import { ipc } from '$lib/ipc/client';
 import type { OpenOutcome } from '$lib/ipc/bindings';
 import { CompareController, type CompareDeps } from './compare.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docOpen: vi.fn(),
 		docSummary: vi.fn(),
 		docClose: vi.fn(async () => true),
-	},
+	}),
 }));
 
 function opened(handle: string): OpenOutcome {

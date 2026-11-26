@@ -73,50 +73,80 @@ pub fn write_json_value<W: Write>(
 pub fn write_json_source<W: Write>(
     source: &str,
     pretty: bool,
-    writer: W,
+    mut writer: W,
 ) -> Result<(), ExportError> {
-    let mut de = serde_json::Deserializer::from_str(source);
-
-    de.disable_recursion_limit();
-    let mut writer = KeepWriteError {
-        inner: writer,
-        error: None,
-    };
-    let r = if pretty {
-        let mut ser = serde_json::Serializer::pretty(&mut writer);
-        serde_transcode::transcode(&mut de, &mut ser).map(|_| ())
-    } else {
-        let mut ser = serde_json::Serializer::new(&mut writer);
-        serde_transcode::transcode(&mut de, &mut ser).map(|_| ())
-    };
-    r.map_err(|e| writer.error.map_or_else(|| json_error(e), ExportError::Io))
+    reformat_json(source.as_bytes(), pretty, &mut writer).map_err(ExportError::Io)
 }
 
-// serde_transcode turns a write error into plain text, so the writer keeps the original.
-struct KeepWriteError<W> {
-    inner: W,
-    error: Option<io::Error>,
+pub(crate) fn reformat_json(src: &[u8], pretty: bool, w: &mut impl Write) -> io::Result<()> {
+    let mut depth = 0;
+    let mut i = 0;
+    while i < src.len() {
+        let start = i;
+        i += 1;
+        match src[start] {
+            b if b.is_ascii_whitespace() => {}
+            b'"' => {
+                i = string_end(src, i);
+                w.write_all(&src[start..i])?;
+            }
+            open @ (b'{' | b'[') => {
+                let close = if open == b'{' { b'}' } else { b']' };
+                let next = i + src[i..]
+                    .iter()
+                    .take_while(|b| b.is_ascii_whitespace())
+                    .count();
+                if src.get(next) == Some(&close) {
+                    w.write_all(&[open, close])?;
+                    i = next + 1;
+                } else {
+                    depth += 1;
+                    w.write_all(&[open])?;
+                    line_break(w, pretty, depth)?;
+                }
+            }
+            close @ (b'}' | b']') => {
+                depth -= 1;
+                line_break(w, pretty, depth)?;
+                w.write_all(&[close])?;
+            }
+            b',' => {
+                w.write_all(b",")?;
+                line_break(w, pretty, depth)?;
+            }
+            b':' => w.write_all(if pretty { b": " } else { b":" })?,
+            _ => {
+                while i < src.len()
+                    && !(src[i].is_ascii_whitespace() || matches!(src[i], b',' | b']' | b'}'))
+                {
+                    i += 1;
+                }
+                w.write_all(&src[start..i])?;
+            }
+        }
+    }
+    Ok(())
 }
 
-impl<W> KeepWriteError<W> {
-    fn keep<T>(&mut self, r: io::Result<T>) -> io::Result<T> {
-        r.map_err(|e| {
-            let kind = e.kind();
-            self.error = Some(e);
-            kind.into()
-        })
+fn string_end(src: &[u8], mut i: usize) -> usize {
+    while i < src.len() {
+        match src[i] {
+            b'"' => return i + 1,
+            b'\\' => i += 2,
+            _ => i += 1,
+        }
     }
+    src.len()
 }
 
-impl<W: Write> Write for KeepWriteError<W> {
-    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        let r = self.inner.write(data);
-        self.keep(r)
+fn line_break(w: &mut impl Write, pretty: bool, depth: usize) -> io::Result<()> {
+    if pretty {
+        w.write_all(b"\n")?;
+        for _ in 0..depth {
+            w.write_all(b"  ")?;
+        }
     }
-    fn flush(&mut self) -> io::Result<()> {
-        let r = self.inner.flush();
-        self.keep(r)
-    }
+    Ok(())
 }
 
 struct CappedWriter {
@@ -206,7 +236,7 @@ fn to_csv(value: &Value) -> Result<String, ExportError> {
     }
 
     let mut wtr = csv::WriterBuilder::new().from_writer(Vec::new());
-    wtr.write_record(&columns)
+    wtr.write_record(columns.iter().map(|c| formula_safe(c)))
         .map_err(|e| ExportError::Serialize(e.to_string()))?;
     for item in arr {
         let obj = item.as_object().unwrap();
@@ -226,12 +256,18 @@ fn to_csv(value: &Value) -> Result<String, ExportError> {
 fn cell_to_string(v: &Value) -> String {
     match v {
         Value::Null => String::new(),
-        // Spreadsheets run text that starts like this as a formula (OWASP CSV injection).
-        Value::String(s) if s.starts_with(['=', '+', '-', '@', '\t', '\r']) => format!("'{s}"),
-        Value::String(s) => s.clone(),
+        Value::String(s) => formula_safe(s),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => n.to_string(),
         other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
+fn formula_safe(s: &str) -> String {
+    if s.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{s}")
+    } else {
+        s.to_string()
     }
 }
 
@@ -351,7 +387,7 @@ fn write_xml_element(out: &mut String, tag: &str, attrs: &str, value: &Value, de
                 let attrs = if name == *k {
                     String::new()
                 } else {
-                    format!(" name=\"{}\"", escape_xml(k))
+                    format!(" name=\"{}\"", escape_xml(k, true))
                 };
                 write_xml_element(out, &name, &attrs, v, depth + 1);
             }
@@ -368,7 +404,11 @@ fn write_xml_element(out: &mut String, tag: &str, attrs: &str, value: &Value, de
             let _ = writeln!(out, "{indent}<{tag}{attrs}/>");
         }
         Value::String(s) => {
-            let _ = writeln!(out, "{indent}<{tag}{attrs}>{}</{tag}>", escape_xml(s));
+            let _ = writeln!(
+                out,
+                "{indent}<{tag}{attrs}>{}</{tag}>",
+                escape_xml(s, false)
+            );
         }
         Value::Bool(b) => {
             let _ = writeln!(out, "{indent}<{tag}{attrs}>{b}</{tag}>");
@@ -396,7 +436,7 @@ fn sanitize_tag(key: &str) -> String {
     s
 }
 
-fn escape_xml(s: &str) -> String {
+fn escape_xml(s: &str, in_attr: bool) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
@@ -405,6 +445,9 @@ fn escape_xml(s: &str) -> String {
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
             '\'' => out.push_str("&apos;"),
+            '\r' => out.push_str("&#13;"),
+            '\n' if in_attr => out.push_str("&#10;"),
+            '\t' if in_attr => out.push_str("&#9;"),
             '\u{0}'..='\u{8}'
             | '\u{B}'
             | '\u{C}'
@@ -488,6 +531,15 @@ mod tests {
     }
 
     #[test]
+    fn csv_header_cells_get_the_same_formula_guard_as_values() {
+        let v: Value = serde_json::from_str(r#"[{"=cmd|x":1,"+h":"v","a":"x"}]"#).unwrap();
+        let out = export(&v, ExportFormat::Csv).unwrap();
+        let mut reader = csv::Reader::from_reader(out.as_bytes());
+        let header: Vec<String> = reader.headers().unwrap().iter().map(String::from).collect();
+        assert_eq!(header, ["'=cmd|x", "'+h", "a"]);
+    }
+
+    #[test]
     fn json_write_failures_keep_the_io_error() {
         struct DiskFull;
         impl Write for DiskFull {
@@ -568,6 +620,20 @@ mod tests {
     fn xml_replaces_control_characters_xml_forbids() {
         let xml = export(&json!({"s": "a\u{1}b\tc"}), ExportFormat::Xml).unwrap();
         assert!(xml.contains("<s>a\u{FFFD}b\tc</s>"), "{xml}");
+    }
+
+    #[test]
+    fn xml_writes_whitespace_a_reader_would_normalize_as_references() {
+        let xml = export(
+            &json!({"s": "a\r\nb\rc", "k\ny\tz\r": "v"}),
+            ExportFormat::Xml,
+        )
+        .unwrap();
+        assert!(xml.contains("<s>a&#13;\nb&#13;c</s>"), "{xml}");
+        assert!(
+            xml.contains("<k_y_z_ name=\"k&#10;y&#9;z&#13;\">v</k_y_z_>"),
+            "{xml}"
+        );
     }
 
     #[test]
@@ -663,6 +729,30 @@ mod tests {
         let mut out = Vec::new();
         write_json_source(src, false, &mut out).unwrap();
         assert_eq!(String::from_utf8(out).unwrap(), src);
+    }
+
+    #[test]
+    fn write_json_source_keeps_every_number_and_string_token() {
+        let src = "{\"f\":1.5,\"big\":123456789012345678901234567890,\"e\":1E5,\"neg\":-0.0,\"long\":0.1000000000000000055511151231257827,\"s\":\"a\\u00e9\\ud83d\\ude00\\/\"}";
+        let mut min = Vec::new();
+        write_json_source(src, false, &mut min).unwrap();
+        assert_eq!(String::from_utf8(min).unwrap(), src);
+        let mut pretty = Vec::new();
+        write_json_source(src, true, &mut pretty).unwrap();
+        assert_eq!(
+            String::from_utf8(pretty).unwrap(),
+            "{\n  \"f\": 1.5,\n  \"big\": 123456789012345678901234567890,\n  \"e\": 1E5,\n  \"neg\": -0.0,\n  \"long\": 0.1000000000000000055511151231257827,\n  \"s\": \"a\\u00e9\\ud83d\\ude00\\/\"\n}"
+        );
+
+        let nested =
+            r#" { "a" : [ ] , "b" : { } , "c" : [ 1 , { "d" : null } ] , "e" : "x\" , y" } "#;
+        let mut out = Vec::new();
+        write_json_source(nested, true, &mut out).unwrap();
+        let v: Value = serde_json::from_str(nested).unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            serde_json::to_string_pretty(&v).unwrap()
+        );
     }
 
     #[test]

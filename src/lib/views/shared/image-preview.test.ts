@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetch } from '@tauri-apps/plugin-http';
+import { ipc } from '$lib/ipc/client';
+import { IpcError } from '$lib/ipc/error';
+import type { RequestProblem } from '$lib/ipc/bindings';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { imagePreview } from './image-preview.svelte';
 
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ fetchImage: vi.fn() }),
+}));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	behaviorPrefs: { init: async () => {}, loadWebImages: false, setLoadWebImages: vi.fn() },
 }));
@@ -13,8 +17,10 @@ const el = {
 	getBoundingClientRect: () => ({ left: 10, top: 20, bottom: 40 }),
 } as unknown as Element;
 
-function reply(status = 200, type = 'image/png') {
-	return new Response(new Uint8Array([1, 2, 3]), { status, headers: { 'content-type': type } });
+const IMAGE = { dataUrl: 'data:image/png;base64,AQID', bytes: 3, mediaType: 'image/png' };
+
+function refused(request: RequestProblem) {
+	return new IpcError('request', 'refused', { request });
 }
 
 async function hover(value: string) {
@@ -25,8 +31,6 @@ async function hover(value: string) {
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.clearAllMocks();
-	URL.createObjectURL = vi.fn(() => 'blob:preview');
-	URL.revokeObjectURL = vi.fn();
 	behaviorPrefs.loadWebImages = false;
 	imagePreview.hide();
 });
@@ -39,26 +43,26 @@ describe('imagePreview', () => {
 	it('shows an embedded image straight away without any network request', async () => {
 		await hover('data:image/png;base64,AAAA');
 		expect(imagePreview.state).toMatchObject({ phase: 'ready', image: { type: 'image/png' } });
-		expect(fetch).not.toHaveBeenCalled();
+		expect(ipc.fetchImage).not.toHaveBeenCalled();
 	});
 
 	it('asks before loading a web image, loads on request, then reuses it', async () => {
 		await hover('https://cdn.x.dev/a.png');
 		expect(imagePreview.state).toMatchObject({ phase: 'ask', host: 'cdn.x.dev' });
-		expect(fetch).not.toHaveBeenCalled();
+		expect(ipc.fetchImage).not.toHaveBeenCalled();
 
-		vi.mocked(fetch).mockResolvedValue(reply());
+		vi.mocked(ipc.fetchImage).mockResolvedValue(IMAGE);
 		imagePreview.load();
 		await vi.advanceTimersByTimeAsync(0);
 		expect(imagePreview.state).toMatchObject({
 			phase: 'ready',
-			image: { src: 'blob:preview', bytes: 3, type: 'image/png' },
+			image: { src: 'data:image/png;base64,AQID', bytes: 3, type: 'image/png' },
 		});
 
 		imagePreview.hide();
 		await hover('https://cdn.x.dev/a.png');
 		expect(imagePreview.state.phase).toBe('ready');
-		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(ipc.fetchImage).toHaveBeenCalledTimes(1);
 	});
 
 	it('never opens the card for a quick pass over a value', async () => {
@@ -70,15 +74,30 @@ describe('imagePreview', () => {
 
 	it('explains plainly when a link is not an image or the server refuses', async () => {
 		behaviorPrefs.loadWebImages = true;
-		vi.mocked(fetch).mockResolvedValue(reply(200, 'text/html'));
+		vi.mocked(ipc.fetchImage).mockRejectedValue(
+			refused({ problem: 'notData', contentType: 'text/html', status: 200 }),
+		);
 		await hover('https://x.dev/page.png');
 		expect(imagePreview.state).toMatchObject({
 			phase: 'error',
 			message: "This link doesn't point to an image.",
 		});
 
-		vi.mocked(fetch).mockResolvedValue(reply(404));
+		vi.mocked(ipc.fetchImage).mockRejectedValue(
+			refused({ problem: 'status', host: 'x.dev', status: 404 }),
+		);
 		await hover('https://x.dev/missing.png');
 		expect(imagePreview.state).toMatchObject({ phase: 'error', message: 'x.dev answered 404.' });
+
+		vi.mocked(ipc.fetchImage).mockRejectedValue(refused({ problem: 'tooLarge', limit: 10485760 }));
+		await hover('https://x.dev/huge.png');
+		expect(imagePreview.state).toMatchObject({
+			phase: 'error',
+			message: 'This image is over 10.0 MiB. Open the link to view it.',
+		});
+
+		vi.mocked(ipc.fetchImage).mockRejectedValue(refused({ problem: 'unreachable', host: 'x.dev' }));
+		await hover('https://x.dev/gone.png');
+		expect(imagePreview.state).toMatchObject({ phase: 'error', message: "Couldn't reach x.dev." });
 	});
 });

@@ -33,6 +33,7 @@
 			<span class="lbl">size</span>
 			<span class="val">{status.sizeDisplay ?? '—'}</span>
 			{#if status.lazy}<span class="kbd">lazy</span>{/if}
+			{#if status.readOnly}<span class="kbd">read-only</span>{/if}
 		</div>
 		{#if status.rootCountDisplay}
 			<div class="sb-cell">

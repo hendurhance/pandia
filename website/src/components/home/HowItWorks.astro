@@ -4,42 +4,42 @@
   <div class="wrap">
     <div class="sec-head center iv">
       <span class="eyebrow"><span class="tick"></span>How it works</span>
-      <h2>Open it. See it. Shape it. <em>Ship</em> it.</h2>
-      <p>Four steps, no ceremony between them. From a file on disk to clean output, in one window.</p>
+      <h2>Four steps, <em>one</em> window.</h2>
+      <p>Opening, reading, editing and exporting all happen in the same app, so you never copy JSON from one tool into another.</p>
     </div>
 
     <div class="flow iv">
       <div class="flow-step">
         <div class="fnum"><span class="v">01</span> OPEN</div>
         <h3>Open</h3>
-        <p>Drag in a file, paste, or fetch a URL. It loads instantly — no spinner, no upload.</p>
+        <p>Drop a file, paste text or fetch a URL. Nothing gets uploaded, so the file never leaves your computer.</p>
         <div class="demo">
           <div class="ln"><span class="mut">⇲</span> users-2026-05.json</div>
           <div class="ln ok">✓ 1.2 GB · ready</div>
         </div>
       </div>
       <div class="flow-step">
-        <div class="fnum"><span class="v">02</span> SEE</div>
-        <h3>Navigate</h3>
-        <p>Tree, code, grid, graph — virtualized so it stays smooth. The status bar tracks your path.</p>
+        <div class="fnum"><span class="v">02</span> FIND</div>
+        <h3>Find</h3>
+        <p>Scroll and search in any view. Scrolling stays smooth at any file size, and the status bar shows the path to the selected value.</p>
         <div class="demo">
           <div class="ln am">$[2].name</div>
           <div class="ln"><span class="mut">→</span> <span style="color:var(--s-string)">"Carmen Herzog"</span></div>
         </div>
       </div>
       <div class="flow-step">
-        <div class="fnum"><span class="v">03</span> SHAPE</div>
-        <h3>Transform</h3>
-        <p>Edit, sort keys, repair, filter the grid, or generate types. Every change is reversible.</p>
+        <div class="fnum"><span class="v">03</span> EDIT</div>
+        <h3>Edit</h3>
+        <p>Edit values, sort keys, repair the file, filter the grid or generate types, and undo up to 500 steps if you change your mind.</p>
         <div class="demo">
           <div class="ln"><span class="mut">⌘Z</span> undo · <span class="mut">⌘⇧Z</span> redo</div>
           <div class="ln ok">✓ 500-op history</div>
         </div>
       </div>
       <div class="flow-step">
-        <div class="fnum"><span class="v">04</span> SHIP</div>
+        <div class="fnum"><span class="v">04</span> EXPORT</div>
         <h3>Export</h3>
-        <p>Out to JSON, YAML, XML, CSV — or generated types for your codebase.</p>
+        <p>Save the result as JSON, YAML, XML or CSV, or copy the generated types into your codebase.</p>
         <div class="demo">
           <div class="ln"><span class="mut">⌘E</span> → User.ts</div>
           <div class="ln ok">✓ copied to clipboard</div>
@@ -51,7 +51,7 @@
 
 <style is:global>
   .pandia-page .flow { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--page-rule); overflow: hidden; }
-  .pandia-page .flow-step { padding: 28px 26px 30px; border-right: 1px solid var(--page-rule); background: var(--page-card); position: relative; }
+  .pandia-page .flow-step { padding: 28px 26px 30px; border-right: 1px solid var(--page-rule); background: var(--page-card); position: relative; display: flex; flex-direction: column; }
   .pandia-page .flow-step:last-child { border-right: 0; }
   .pandia-page .flow-step .fnum {
     font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--page-faint);
@@ -59,7 +59,7 @@
   }
   .pandia-page .flow-step .fnum .v { color: var(--accent-text); }
   .pandia-page .flow-step h3 { font-family: var(--disp); font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--page-text); }
-  .pandia-page .flow-step p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 8px; line-height: 1.55; }
+  .pandia-page .flow-step p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 8px; line-height: 1.55; flex: 1; }
   .pandia-page .flow-step .demo {
     margin-top: 18px; padding: 12px 14px; border: 1px solid var(--app-rule); background: var(--app-edit);
     font-family: var(--mono); font-size: 11.5px; line-height: 1.85; color: var(--app-dim);

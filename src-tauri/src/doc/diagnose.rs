@@ -57,13 +57,23 @@ pub fn diagnose(text: &str, fixable: bool) -> Diagnosis {
         return d;
     }
 
-    let offset = offset_of(text, err.line(), err.column());
+    let (offset, line) = match offset_of(text, err.line(), err.column()) {
+        o if err.column() == 0
+            && err.classify() == Category::Syntax
+            && text[..o].ends_with('\n') =>
+        {
+            (o - 1, err.line() - 1)
+        }
+        o => (o, err.line()),
+    };
+    let line_start = text[..offset].rfind('\n').map_or(0, |i| i + 1);
+    let column = text[line_start..offset].chars().count() + 1;
     let (title, detail) = explain(text, &err, offset);
 
     Diagnosis {
         title,
         detail,
-        excerpt: build_excerpt(text, offset, err.line() as u32, err.column() as u32),
+        excerpt: build_excerpt(text, offset, line as u32, column as u32),
         fix: fixable.then(|| repair_fix(text)).flatten(),
     }
 }
@@ -295,12 +305,16 @@ fn build_excerpt(text: &str, offset: usize, line: u32, column: u32) -> Option<Di
         .last()
         .map_or(offset, |(i, _)| i);
 
-    let end = text[offset..]
-        .char_indices()
-        .take_while(|&(i, c)| c != '\n' && (i == 0 || !text[offset + i..].starts_with("\r\n")))
-        .take(EXCERPT_RADIUS)
-        .last()
-        .map_or(offset, |(i, c)| offset + i + c.len_utf8());
+    let end = if text[offset..].starts_with('\n') {
+        offset + 1
+    } else {
+        text[offset..]
+            .char_indices()
+            .take_while(|&(i, c)| c != '\n' && (i == 0 || !text[offset + i..].starts_with("\r\n")))
+            .take(EXCERPT_RADIUS)
+            .last()
+            .map_or(offset, |(i, c)| offset + i + c.len_utf8())
+    };
 
     Some(DiagnosisExcerpt {
         text: text[start..end].chars().map(visible).collect(),
@@ -308,7 +322,8 @@ fn build_excerpt(text: &str, offset: usize, line: u32, column: u32) -> Option<Di
         line,
         column,
         clipped_start: text[..start].ends_with(|c: char| c != '\n'),
-        clipped_end: text[end..].starts_with(|c: char| c != '\n')
+        clipped_end: !text[..end].ends_with('\n')
+            && text[end..].starts_with(|c: char| c != '\n')
             && !text[end..].starts_with("\r\n"),
     })
 }
@@ -530,6 +545,25 @@ mod tests {
         );
         let r = d(r#"{"n": "😀😀😀", "x": ]}"#).excerpt.expect("excerpt");
         assert_eq!(r.text.chars().nth(r.caret as usize), Some(']'));
+    }
+
+    #[test]
+    fn a_raw_line_break_in_a_string_points_at_the_break_not_the_next_line() {
+        let r = d("{\n  \"a\": \"one\ntwo\"\n}").excerpt.expect("excerpt");
+        assert_eq!((r.line, r.column), (2, 12));
+        assert_eq!(r.text, "  \"a\": \"one·");
+        assert_eq!(r.text.chars().nth(r.caret as usize), Some('·'));
+        assert!(!r.clipped_end);
+    }
+
+    #[test]
+    fn the_column_counts_characters_not_bytes() {
+        let r = d(r#"{"n": "日本語日本語", "x": ]}"#)
+            .excerpt
+            .expect("excerpt");
+        assert_eq!((r.line, r.column), (1, 22));
+        let r = d("{\"a\":\t\"x\ty\"}").excerpt.expect("excerpt");
+        assert_eq!((r.line, r.column), (1, 9));
     }
 
     #[test]

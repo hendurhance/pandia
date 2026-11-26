@@ -16,18 +16,19 @@ interface ActiveRequest extends ConfirmRequest {
 
 export class ConfirmController {
 	state: ActiveRequest | null = $state(null);
+	private waiting: ActiveRequest[] = [];
 
-	ask = (req: ConfirmRequest): Promise<ConfirmChoice> => {
-		if (this.state) this.state.resolve('cancel');
-		return new Promise((resolve) => {
-			this.state = { ...req, resolve };
+	ask = (req: ConfirmRequest): Promise<ConfirmChoice> =>
+		new Promise((resolve) => {
+			const request = { ...req, resolve };
+			if (this.state) this.waiting.push(request);
+			else this.state = request;
 		});
-	};
 
 	pick = (choice: ConfirmChoice) => {
 		const s = this.state;
 		if (!s) return;
-		this.state = null;
+		this.state = this.waiting.shift() ?? null;
 		s.resolve(choice);
 	};
 }

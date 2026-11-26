@@ -1,60 +1,35 @@
 <script lang="ts">
-	import { fetch } from '@tauri-apps/plugin-http';
-	import { parseHeaders, URL_FETCH_TIMEOUT_MS } from '../logic/url-fetch';
-	import { describeError, describeUrlFetchFailure } from '$lib/ipc/error-copy';
+	import { ipc } from '$lib/ipc/client';
+	import { urlFetchCommand } from '../logic/url-fetch';
 
 	interface Props {
 		busy: boolean;
-
-		onLoad: (text: string, sourceName: string) => void;
+		onSendRequest: (curl: string, jobId: string) => Promise<boolean>;
 	}
 
-	let { busy, onLoad }: Props = $props();
+	let { busy, onSendRequest }: Props = $props();
 
 	let urlText = $state('');
-	let urlBusy = $state(false);
-	let urlError: string | null = $state(null);
-	let urlAbort: AbortController | null = null;
+	let sendingJob: string | null = $state(null);
 	let showHeaders = $state(false);
 	let headersText = $state('');
+	const HEADERS_PLACEHOLDER = 'Authorization: Bearer …\nX-Api-Key: …';
+	$effect(() => cancelFetch);
 
 	async function onFetchUrl() {
 		const url = urlText.trim();
-		if (!url) return;
-		urlError = null;
-		urlBusy = true;
-		const ctrl = new AbortController();
-		urlAbort = ctrl;
-		let timedOut = false;
-		const timer = setTimeout(() => {
-			timedOut = true;
-			ctrl.abort();
-		}, URL_FETCH_TIMEOUT_MS);
+		if (!url || sendingJob) return;
+		const jobId = crypto.randomUUID();
+		sendingJob = jobId;
 		try {
-			const headers = parseHeaders(headersText);
-			const r = await fetch(url, { signal: ctrl.signal, headers });
-			if (!r.ok) {
-				urlError = describeError(`HTTP ${r.status} ${r.statusText}`);
-				return;
-			}
-			const text = await r.text();
-			onLoad(text, url);
-		} catch {
-			// The HTTP plugin rejects with raw reqwest text, and a cancel isn't an AbortError.
-			urlError = ctrl.signal.aborted
-				? timedOut
-					? `timed out after ${URL_FETCH_TIMEOUT_MS / 1000}s`
-					: 'cancelled'
-				: describeUrlFetchFailure(url);
+			if (await onSendRequest(urlFetchCommand(url, headersText), jobId)) urlText = '';
 		} finally {
-			clearTimeout(timer);
-			urlBusy = false;
-			urlAbort = null;
+			if (sendingJob === jobId) sendingJob = null;
 		}
 	}
 
 	function cancelFetch() {
-		urlAbort?.abort();
+		if (sendingJob) void ipc.cancelJob(sendingJob).catch(() => {});
 	}
 </script>
 
@@ -69,12 +44,12 @@
 		<input
 			bind:value={urlText}
 			placeholder="https://api.example.com/data.json"
-			disabled={busy || urlBusy}
+			disabled={busy || sendingJob !== null}
 			onkeydown={(e) => {
 				if (e.key === 'Enter') onFetchUrl();
 			}}
 		/>
-		{#if urlBusy}
+		{#if sendingJob}
 			<button class="btn" onclick={cancelFetch}>Cancel</button>
 		{:else}
 			<button class="btn btn-primary" onclick={onFetchUrl} disabled={busy || !urlText.trim()}
@@ -86,13 +61,10 @@
 		<textarea
 			class="headers"
 			bind:value={headersText}
-			placeholder={'Authorization: Bearer …\nX-Api-Key: …'}
+			placeholder={HEADERS_PLACEHOLDER}
 			rows="3"
 			spellcheck="false"
 		></textarea>
-	{/if}
-	{#if urlError}
-		<div class="err text-sm">{urlError}</div>
 	{/if}
 </section>
 
@@ -135,9 +107,5 @@
 		font-size: var(--font-size-sm);
 		min-height: 60px;
 		resize: vertical;
-	}
-	.err {
-		color: var(--danger);
-		padding-top: var(--space-2xs);
 	}
 </style>

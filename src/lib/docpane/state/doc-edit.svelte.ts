@@ -94,6 +94,13 @@ export class DocEditController {
 		if (!this.state) return;
 		const { path, field, buffer, initial } = this.state;
 		const row = this.rowAt(path);
+		if (row && field === 'value' && row.kind !== 'object' && row.kind !== 'array') {
+			const result = valueCommitOp(row.kind, row.path, row.preview, buffer);
+			if (result !== null && 'error' in result) {
+				this.deps.setError(result.error);
+				return;
+			}
+		}
 		this.state = null;
 		if (!row || buffer === initial) return;
 
@@ -111,11 +118,8 @@ export class DocEditController {
 
 		if (row.kind === 'object' || row.kind === 'array') return;
 		const result = valueCommitOp(row.kind, row.path, row.preview, buffer);
-		if (result === null) return;
-		if ('error' in result) {
-			this.deps.setError(result.error);
-			return;
-		}
+		if (result === null || 'error' in result) return;
+		this.deps.setError(null);
 		await this.deps.apply(result.op);
 	};
 

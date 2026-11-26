@@ -1,6 +1,10 @@
 mod cli;
 mod commands;
 pub(crate) mod doc;
+mod e2e;
+mod headless;
+#[cfg(target_os = "macos")]
+mod macos_quit;
 mod shell_command;
 mod shortcuts;
 
@@ -31,10 +35,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_get_rows,
             commands::doc_get_rows_sorted,
             commands::doc_get_rows_filtered,
+            commands::doc_get_row_indices,
             commands::doc_column_values,
             commands::doc_get_rows_at,
             commands::doc_get_column,
             commands::doc_summary,
+            commands::doc_root_preview,
             commands::doc_child_count,
             commands::doc_column_schema,
             commands::doc_scan_columns,
@@ -49,6 +55,15 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_canonical_offsets,
             commands::doc_search,
             commands::cancel_job,
+            e2e::e2e_record,
+            e2e::e2e_enabled,
+            e2e::e2e_take_actions,
+            quit_cancelled,
+            commands::curl_preview,
+            commands::curl_send,
+            commands::fetch_schema,
+            commands::fetch_image,
+            commands::file_size,
             commands::doc_replace,
             commands::doc_validate_schema,
             commands::read_schema_file,
@@ -56,8 +71,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_history,
             commands::doc_save,
             commands::doc_backup,
+            commands::doc_backup_text,
             commands::doc_backup_clear,
             commands::doc_backup_scan,
+            commands::doc_backup_read,
             commands::doc_export,
             commands::doc_export_preview,
             commands::doc_export_to_file,
@@ -74,8 +91,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .disable_serde_phases()
         .dangerously_cast_bigints_to_number()
         .constant("LINE_FETCH_MAX", doc::linediff::LINE_FETCH_MAX)
-        .constant("EDIT_SIZE_LIMIT", doc::document::EDIT_SIZE_LIMIT)
-        .constant("MAX_DOC_BYTES", doc::document::MAX_DOC_BYTES)
+        .constant("CODE_VIEW_MAX_BYTES", doc::tier::CODE_VIEW_MAX_BYTES)
+        .constant("EDIT_SIZE_LIMIT", doc::tier::EDIT_SIZE_LIMIT)
+        .constant("MAPPED_THRESHOLD_BYTES", doc::tier::MAPPED_THRESHOLD_BYTES)
+        .constant("MAX_DOC_BYTES", doc::tier::MAX_DOC_BYTES)
         .constant("SHORTCUTS", shortcuts::SHORTCUTS)
 }
 
@@ -108,14 +127,16 @@ fn emit_file_open(app: &AppHandle, paths: Vec<String>) {
 
     queue_files(
         app,
+        "macos-open",
         supported_paths.into_iter().map(PendingFile::file).collect(),
     );
 }
 
-fn queue_files(app: &AppHandle, files: Vec<PendingFile>) {
+fn queue_files(app: &AppHandle, origin: &str, files: Vec<PendingFile>) {
     if files.is_empty() {
         return;
     }
+    e2e::record(&serde_json::json!({ "event": "queued", "origin": origin, "files": files }));
     if let Some(state) = app.try_state::<AppState>() {
         if let Ok(mut pending) = state.pending_files.lock() {
             pending.extend(files);
@@ -166,14 +187,13 @@ pub fn run() {
                 std::path::Path::new(&cwd),
                 &app.state::<AppState>().handoffs,
             );
-            queue_files(app, files);
+            queue_files(app, "forwarded", files);
             focus_main_window(app);
         }))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -186,9 +206,11 @@ pub fn run() {
         .invoke_handler(specta_builder().invoke_handler())
         .setup(move |app| {
             cli::hold_instance(&app.config().identifier);
+            #[cfg(target_os = "macos")]
+            macos_quit::ask_before_quit(app.handle());
             let cwd = std::env::current_dir().unwrap_or_default();
             let files = cli::pending_from(args, &cwd, &app.state::<AppState>().handoffs);
-            queue_files(app.handle(), files);
+            queue_files(app.handle(), "launch", files);
 
             let menu = build_menu(app.handle(), &[])?;
             app.set_menu(menu)?;
@@ -221,6 +243,17 @@ pub fn run() {
 
                 emit_file_open(app, paths);
             }
+            #[cfg(target_os = "macos")]
+            if let RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::Destroyed,
+                ..
+            } = &event
+            {
+                if label == "main" {
+                    macos_quit::finish_quit(true);
+                }
+            }
             if let RunEvent::Exit = event {
                 app.state::<AppState>().handoffs.finish_all();
             }
@@ -251,7 +284,7 @@ fn build_menu(
         .item(&PredefinedMenuItem::hide_others(app, Some("Hide Others"))?)
         .item(&PredefinedMenuItem::show_all(app, Some("Show All"))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Pandia"))?)
+        .item(&item(app, "app.quit", "Quit Pandia")?)
         .build()?;
 
     let new_file = item(app, "doc.new", "New File")?;
@@ -302,9 +335,7 @@ fn build_menu(
         .item(&close_tab);
 
     #[cfg(not(target_os = "macos"))]
-    let file_menu = file_menu
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?);
+    let file_menu = file_menu.separator().item(&item(app, "app.quit", "Exit")?);
 
     let file_menu = file_menu.build()?;
 
@@ -431,6 +462,15 @@ fn build_menu(
     )?;
 
     Ok(menu)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn quit_cancelled(app: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.run_on_main_thread(|| macos_quit::finish_quit(false));
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 }
 
 #[tauri::command]

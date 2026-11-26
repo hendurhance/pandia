@@ -9,7 +9,8 @@
 	import { whatsNew } from '$lib/shell/state/whats-new.svelte';
 	import ReleaseNotes from './ReleaseNotes.svelte';
 
-	let { update }: { update: Update } = $props();
+	let { update, prepareToQuit }: { update: Update; prepareToQuit: () => Promise<boolean> } =
+		$props();
 
 	// The body comes from latest.json, which is not signed: parse it, never render it as HTML.
 	const groups = $derived(fromMarkdown(update.body ?? ''));
@@ -23,7 +24,7 @@
 	async function install() {
 		// The user read these notes here, so the new version should not offer them again.
 		await whatsNew.markSeen(update.version);
-		await updateCheck.install();
+		await updateCheck.install(prepareToQuit);
 	}
 </script>
 

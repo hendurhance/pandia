@@ -1,19 +1,24 @@
 // @vitest-environment jsdom
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
+import { SMALL_TIER } from '$lib/ipc/fake';
+import type { Capabilities } from '$lib/ipc/bindings';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import TypegenPanel from './TypegenPanel.svelte';
+import { typegenPrefs } from './state/typegen-prefs.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGenerateTypes: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGenerateTypes: vi.fn() }),
+}));
 vi.mock('$lib/util/persist', async (original) => ({
 	...(await original()),
 	loadPersisted: vi.fn(async () => undefined),
 	savePersisted: vi.fn(async () => {}),
 }));
 
-function ctx(handle: string): DocContext {
-	return { handle, version: 1, sourceName: null } as unknown as DocContext;
+function ctx(handle: string, capabilities: Capabilities = SMALL_TIER.capabilities): DocContext {
+	return { handle, version: 1, sourceName: null, capabilities } as unknown as DocContext;
 }
 
 describe('TypegenPanel', () => {
@@ -26,5 +31,25 @@ describe('TypegenPanel', () => {
 
 		await rerender({ context: ctx('big') });
 		await findByText('Generating TypeScript…');
+	});
+
+	it('says why a file read straight from disk has no types, and asks for none', async () => {
+		vi.mocked(ipc.docGenerateTypes).mockClear();
+		const capabilities = { ...SMALL_TIER.capabilities, typegen: false };
+		const { findByText } = render(TypegenPanel, { props: { context: ctx('huge', capabilities) } });
+		await findByText('Type generation is off for files over 2.00 GiB.');
+		expect(ipc.docGenerateTypes).not.toHaveBeenCalled();
+	});
+
+	it('explains that JSON Schema needs the whole document on a file over 200 MB', async () => {
+		vi.mocked(ipc.docGenerateTypes).mockClear();
+		await typegenPrefs.setLang('json-schema');
+		const capabilities = { ...SMALL_TIER.capabilities, typegenSchema: false };
+		const { findByText } = render(TypegenPanel, { props: { context: ctx('large', capabilities) } });
+		await findByText(
+			'JSON Schema needs the whole document, so it is off for files over 200.0 MiB. Pick another language.',
+		);
+		expect(ipc.docGenerateTypes).not.toHaveBeenCalled();
+		await typegenPrefs.setLang('typescript');
 	});
 });

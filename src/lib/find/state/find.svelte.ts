@@ -1,10 +1,20 @@
+import { Channel } from '@tauri-apps/api/core';
 import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
-import type { DocHandle, Path, SearchHit } from '$lib/ipc/bindings';
+import type { DocHandle, Path, ReplaceResult, SearchHit, SearchProgress } from '$lib/ipc/bindings';
 import { pathKey } from '$lib/views/tree/logic/model';
 
 const FIND_DEBOUNCE_MS = 160;
+const SEARCH_HIT_CAP = 10_000;
+
+function replacedStatus({ count, values, keys }: ReplaceResult): string {
+	if (count === 0) return 'no matches';
+	const places: string[] = [];
+	if (values > 0) places.push(`${values} value${values === 1 ? '' : 's'}`);
+	if (keys > 0) places.push(`${keys} key${keys === 1 ? '' : 's'}`);
+	return `replaced ${count} match${count === 1 ? '' : 'es'} in ${places.join(' and ')}`;
+}
 
 export interface FindDeps {
 	handle: () => DocHandle | null;
@@ -38,39 +48,56 @@ export class FindController {
 	replaceOpen = $state(false);
 	codeMatchCount = $state(0);
 	codeActiveIdx = $state(0);
+	scanned: number | null = $state(null);
+	stopped = $state(false);
 
 	private seq = 0;
+	private streamed = $state(false);
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private hitsQuery: string | null = null;
 	private activeJobId: string | null = null;
+	private replacing = false;
 
 	constructor(private deps: FindDeps) {}
 
+	private needle = $derived(this.query.trim() ? this.query : '');
+
 	counter = $derived.by(() => {
 		if (this.error) return this.error;
-		if (!this.query.trim()) return '';
+		if (!this.needle) return '';
 		if (this.deps.isCodeView()) {
 			return this.codeMatchCount === 0
 				? 'no matches'
 				: `${this.codeActiveIdx} / ${this.codeMatchCount}`;
 		}
-		if (this.busy) return 'searching…';
-		return this.hits.length === 0 ? 'no matches' : `${this.activeIdx + 1} / ${this.hits.length}`;
+		const at = this.scanned === null ? '' : ` · ${Math.floor(this.scanned * 100)}%`;
+		if (this.busy && !this.streamed) return `searching…${at}`;
+		if (this.hits.length === 0) return this.stopped ? `stopped${at}` : 'no matches';
+		const more = this.hits.length >= SEARCH_HIT_CAP ? '+' : '';
+		const shown = `${this.activeIdx + 1} / ${this.hits.length}${more}`;
+		if (this.busy) return `${shown}${at}`;
+		return this.stopped ? `${shown} · stopped${at}` : shown;
 	});
 
 	navDisabled = $derived.by(() =>
 		this.deps.isCodeView() ? this.codeMatchCount === 0 : this.hits.length === 0,
 	);
 
+	private showCodeMatch = ({ count, current }: { count: number; current: number }) => {
+		this.codeMatchCount = count;
+		this.codeActiveIdx = current;
+	};
+
+	private searchCode = (api: CodeViewApi | null) => {
+		this.showCodeMatch(api?.cmSearch(this.needle, false) ?? { count: 0, current: 0 });
+	};
+
 	openFind = () => {
 		if (!this.deps.canOpen()) return;
 		if (this.deps.isCodeView()) {
 			this.open = true;
 			const api = this.deps.codeApi();
-			if (api) {
-				this.codeMatchCount = api.cmSearch(this.query.trim(), false);
-				this.codeActiveIdx = this.codeMatchCount > 0 ? 1 : 0;
-			}
+			if (api) this.searchCode(api);
 			return;
 		}
 		if (this.deps.isGraphView()) {
@@ -91,20 +118,20 @@ export class FindController {
 		if (this.activeJobId !== null || this.busy) this.cancel();
 		this.open = false;
 		this.error = null;
+		if (this.deps.isCodeView()) this.deps.codeApi()?.cmSearch('', false);
 	};
 
 	syncActiveView = () => {
-		const q = this.query.trim();
+		const q = this.needle;
 		if (!this.open || !q) return;
 		if (this.deps.isCodeView()) {
 			const api = this.deps.codeApi();
 			if (!api) return; // editor still mounting — re-fires when codeApi is ready
-			this.codeMatchCount = api.cmSearch(q, false);
-			this.codeActiveIdx = this.codeMatchCount > 0 ? 1 : 0;
+			this.searchCode(api);
 			return;
 		}
 		if (this.hitsQuery === q) return; // cached tree hits already match
-		void this.runSearch(q);
+		void this.runSearch(q, true);
 	};
 
 	onQueryChange = (q: string) => {
@@ -112,13 +139,11 @@ export class FindController {
 		this.error = null;
 		this.replaceStatus = null; // a new search invalidates the prior replace count
 		if (this.deps.isCodeView()) {
-			const api = this.deps.codeApi();
-			this.codeMatchCount = api ? api.cmSearch(q.trim(), false) : 0;
-			this.codeActiveIdx = this.codeMatchCount > 0 ? 1 : 0;
+			this.searchCode(this.deps.codeApi());
 			return;
 		}
 		if (this.timer != null) clearTimeout(this.timer);
-		if (!q.trim()) {
+		if (!this.needle) {
 			this.hits = [];
 			this.hitsQuery = '';
 			this.activeIdx = 0;
@@ -132,20 +157,20 @@ export class FindController {
 	};
 
 	refreshAfterEdit = () => {
-		if (!this.open || !this.query.trim()) {
+		if (!this.open || !this.needle) {
 			this.hitsQuery = null; // reopening the bar searches the edited document
 			return;
 		}
 		if (this.deps.isCodeView()) {
 			const api = this.deps.codeApi();
 			if (api) {
-				this.codeMatchCount = api.cmCount(this.query.trim(), false);
+				this.codeMatchCount = api.cmCount(this.needle, false);
 				this.codeActiveIdx = Math.min(Math.max(this.codeActiveIdx, 1), this.codeMatchCount);
 			}
 			this.hitsQuery = null; // the tree hits predate the edit
 			return;
 		}
-		void this.runSearch(this.query, true);
+		void this.runSearch(this.needle, true);
 	};
 
 	runSearch = async (q: string, keepActive = false) => {
@@ -162,12 +187,37 @@ export class FindController {
 		const seq = ++this.seq;
 		const jobId = crypto.randomUUID();
 		this.activeJobId = jobId;
+		this.scanned = null;
+		this.stopped = false;
+		this.streamed = false;
+		const streamInto = !keepActive || this.hits.length === 0;
+		let done = false;
+		const progress = new Channel<SearchProgress>((p) => {
+			if (done || seq !== this.seq) return;
+			this.scanned = p.scanned / p.total;
+			if (!streamInto || p.hits.length === 0) return;
+			if (this.streamed) {
+				this.hits.push(...p.hits);
+				return;
+			}
+			this.streamed = true;
+			this.hits = p.hits;
+			this.activeIdx = 0;
+			void this.jumpToHit(0);
+		});
 		try {
-			const hits = await ipc.docSearch(handle, { query: q, caseSensitive: false }, jobId);
+			const hits = await ipc.docSearch(
+				handle,
+				{ query: q, caseSensitive: false, maxResults: SEARCH_HIT_CAP },
+				jobId,
+				progress,
+			);
+			done = true;
 			if (seq !== this.seq) return; // a newer query started — drop stale.
 			const prev = this.hits[this.activeIdx];
 			this.hits = hits;
-			this.hitsQuery = q.trim();
+			this.hitsQuery = q;
+			if (this.streamed) return;
 			if (keepActive) {
 				const same = prev
 					? hits.findIndex(
@@ -185,9 +235,29 @@ export class FindController {
 			this.hits = [];
 			this.hitsQuery = null;
 		} finally {
+			done = true;
 			if (this.activeJobId === jobId) this.activeJobId = null;
-			if (seq === this.seq) this.busy = false;
+			if (seq === this.seq) {
+				this.busy = false;
+				this.streamed = false;
+				this.scanned = null;
+			}
 		}
+	};
+
+	stop = () => {
+		if (!this.streamed && this.scanned === null) {
+			this.cancel();
+			return;
+		}
+		const id = this.activeJobId;
+		this.activeJobId = null;
+		this.seq++;
+		this.busy = false;
+		this.streamed = false;
+		this.stopped = true;
+		this.hitsQuery = null;
+		if (id) void ipc.cancelJob(id).catch(() => {});
 	};
 
 	cancel = () => {
@@ -196,6 +266,11 @@ export class FindController {
 		this.activeJobId = null;
 		this.seq++; // make any in-flight resolve a stale response
 		this.busy = false;
+		this.hits = [];
+		this.hitsQuery = null;
+		this.scanned = null;
+		this.stopped = false;
+		this.streamed = false;
 		if (id) {
 			void ipc.cancelJob(id).catch(() => {});
 		}
@@ -212,10 +287,7 @@ export class FindController {
 	next = () => {
 		if (this.deps.isCodeView()) {
 			const api = this.deps.codeApi();
-			if (api && this.codeMatchCount > 0) {
-				api.cmFindNext();
-				this.codeActiveIdx = this.codeActiveIdx >= this.codeMatchCount ? 1 : this.codeActiveIdx + 1;
-			}
+			if (api && this.codeMatchCount > 0) this.showCodeMatch(api.cmFindNext(this.needle, false));
 			return;
 		}
 		if (this.hits.length === 0) return;
@@ -225,10 +297,7 @@ export class FindController {
 	prev = () => {
 		if (this.deps.isCodeView()) {
 			const api = this.deps.codeApi();
-			if (api && this.codeMatchCount > 0) {
-				api.cmFindPrev();
-				this.codeActiveIdx = this.codeActiveIdx <= 1 ? this.codeMatchCount : this.codeActiveIdx - 1;
-			}
+			if (api && this.codeMatchCount > 0) this.showCodeMatch(api.cmFindPrev(this.needle, false));
 			return;
 		}
 		if (this.hits.length === 0) return;
@@ -237,30 +306,32 @@ export class FindController {
 
 	replaceAll = async () => {
 		const handle = this.deps.handle();
-		if (!handle) return;
-		const q = this.query.trim();
+		if (!handle || this.replacing) return;
+		const q = this.needle;
 		if (!q) return;
 		if (this.deps.isCodeView()) {
 			const api = this.deps.codeApi();
 			if (api) {
 				const n = api.cmReplaceAll(q, this.replaceValue, false);
 				this.replaceStatus = n === 0 ? 'no matches' : `replaced ${n}`;
-				this.codeMatchCount = api.cmSearch(q, false);
-				this.codeActiveIdx = this.codeMatchCount > 0 ? 1 : 0;
+				this.searchCode(api);
 			}
 			return;
 		}
 		this.replaceStatus = 'replacing…';
+		this.replacing = true;
 		try {
 			const res = await ipc.docReplace(handle, q, this.replaceValue, false);
 			if (res.applied) {
 				await this.deps.afterReplace(res.applied.affectedPaths);
 			}
-			this.replaceStatus = res.count === 0 ? 'no matches' : `replaced ${res.count}`;
+			this.replaceStatus = replacedStatus(res);
 			if (this.open && q) void this.runSearch(q); // refresh the hit count
 		} catch (e) {
 			this.error = describeError(e);
 			this.replaceStatus = null;
+		} finally {
+			this.replacing = false;
 		}
 	};
 

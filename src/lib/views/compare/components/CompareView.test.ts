@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushSync } from 'svelte';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import type { DiffEntry, Path } from '$lib/ipc/bindings';
 import { reactiveBox } from '$lib/views/shared/test-runes.svelte';
 import CompareView from './CompareView.svelte';
@@ -18,15 +19,15 @@ globalThis.ResizeObserver = class {
 	disconnect() {}
 };
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docDiff: vi.fn(),
 		docCanonicalText: vi.fn(),
 		docCanonicalOffsets: vi.fn(),
 		docSummary: vi.fn(async () => ({ rootKind: 'array', rootChildCount: 0 })),
 		docDiffLines: vi.fn(async () => ({ hunks: [], leftLines: 1, rightLines: 1 })),
 		cancelJob: vi.fn(async () => true),
-	},
+	}),
 }));
 
 let texts: Record<string, string> = {};
@@ -36,8 +37,8 @@ let entries: DiffEntry[] = [];
 const props = {
 	leftHandle: 'L' as never,
 	rightHandle: 'R' as never,
-	leftSourceSize: 20,
-	rightSourceSize: 20,
+	leftSummary: { sourceSize: 20, ...SMALL_TIER },
+	rightSummary: { sourceSize: 20, ...SMALL_TIER },
 	leftName: 'left.json',
 	rightName: 'right.json',
 	leftVersion: 1,
@@ -214,6 +215,28 @@ describe('CompareView — side-by-side', () => {
 		left.value = 3;
 		flushSync();
 		await vi.waitFor(() => expect(ipc.docDiffLines).toHaveBeenCalledTimes(2));
+	});
+});
+
+describe('CompareView — a large diff', () => {
+	it('renders only a window of the entries list', async () => {
+		const n = 10_000;
+		texts = { L: `[${'"a",'.repeat(n - 1)}"a"]`, R: `[${'"b",'.repeat(n - 1)}"b"]` };
+		entries = Array.from({ length: n }, (_, i) => entry({ path: [i], kind: 'changed' }));
+		const { container } = render(CompareView, { props });
+
+		await vi.waitFor(() =>
+			expect(container.querySelector('.summary')?.textContent).toMatch(/^10000 entries/),
+		);
+		await vi.waitFor(() => expect(container.querySelector('.entry')).not.toBeNull());
+
+		expect(container.querySelectorAll('.entry').length).toBeLessThan(100);
+
+		const list = container.querySelector<HTMLElement>('.entries')!;
+		list.scrollTo = vi.fn() as never;
+		await fireEvent.click(within(container).getByTitle('Previous diff'));
+		expect(container.querySelector('.counter')?.textContent?.trim()).toBe('#10000 / 10000');
+		expect(list.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: (n - 1) * 22 }));
 	});
 });
 

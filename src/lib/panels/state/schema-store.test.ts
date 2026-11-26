@@ -4,7 +4,9 @@ import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import type { SchemaValidationResult } from '$lib/ipc/bindings';
 import { lastResult, schemaSessions } from './schema-store.svelte';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docValidateSchema: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docValidateSchema: vi.fn() }),
+}));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
 	SCHEMA_DEBOUNCE_IMMEDIATE: 0,
@@ -51,7 +53,7 @@ describe('SchemaSession', () => {
 		expect(ipc.docValidateSchema).not.toHaveBeenCalled();
 
 		await vi.advanceTimersByTimeAsync(500);
-		expect(ipc.docValidateSchema).toHaveBeenCalledWith(H, '{"type":"object"}');
+		expect(ipc.docValidateSchema).toHaveBeenCalledWith(H, '{"type":"object"}', expect.any(String));
 		expect(s.verdict).toEqual({ kind: 'checked', result: VALID });
 	});
 

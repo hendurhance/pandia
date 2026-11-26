@@ -34,16 +34,10 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
-    # Release build flags — consumed by src/lib/util/flags.ts (Vite import.meta.env)
-    env:
-      VITE_BLOCK_CONTEXT_MENU: 'true'
-      VITE_ENABLE_SANDBOX: 'false'
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # ── Linux dependencies ──────────────────────────────────────────────
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -51,19 +45,16 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf
 
-      # ── Import GPG key for Linux signing ────────────────────────────────
       - name: Import GPG key (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          # Extract the key ID
           GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format long 2>/dev/null \
             | grep "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
           echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
 
-      # ── Write Apple API key file (macOS) ────────────────────────────────
       - name: Write Apple API key (macOS)
         if: matrix.platform == 'macos-latest'
         env:
@@ -73,29 +64,26 @@ jobs:
           echo "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> "$GITHUB_ENV"
 
-      # ── Node.js ─────────────────────────────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: lts/*
           cache: npm
 
-      # ── Rust ────────────────────────────────────────────────────────────
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.rust_targets }}
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: './src-tauri -> target'
 
-      # ── Install frontend dependencies ───────────────────────────────────
       - name: Install dependencies
         run: npm ci
 
-      # ── Release notes ───────────────────────────────────────────────────
       - name: Release notes
         id: notes
         shell: bash
@@ -109,28 +97,23 @@ jobs:
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      # ── Build and release ───────────────────────────────────────────────
       - name: Build and upload release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # ── macOS code signing ──
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
-          # ── macOS notarization (API key method) ──
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
-          # ── Linux AppImage signing ──
           SIGN: ${{ matrix.platform == 'ubuntu-22.04' && '1' || '' }}
           SIGN_KEY: ${{ env.GPG_KEY_ID }}
           APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-          # ── Tauri updater signing (all platforms) ──
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -141,42 +124,55 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }} --config src-tauri/tauri.prod.conf.json
 
-      # ── AppImage .DirIcon
-      - name: AppImage .DirIcon
+      - name: Repack AppImage
+        id: appimage
         if: matrix.platform == 'ubuntu-22.04'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SIGN_KEY: ${{ env.GPG_KEY_ID }}
           APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
         run: |
           set -euo pipefail
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
 
           APPIMAGE=$(find src-tauri/target/release/bundle/appimage \
             -maxdepth 1 -name '*.AppImage' ! -name '*.tar.gz*' | head -1)
           [ -z "$APPIMAGE" ] && { echo "No AppImage found"; exit 0; }
 
-          NAME=$(basename "$APPIMAGE")
-          DIR=$(dirname "$APPIMAGE")
-
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
+          find squashfs-root -name 'libwayland-*' -print -delete
           rm -f squashfs-root/.DirIcon
           cp src-tauri/icons/128x128@2x.png squashfs-root/.DirIcon
 
           chmod -R u=rwX,go=rX squashfs-root
 
-          curl -fsSL -o /tmp/appimagetool \
-            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-          chmod +x /tmp/appimagetool
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" "$APPIMAGETOOL_URL"
+          echo "$APPIMAGETOOL_SHA256  $RUNNER_TEMP/appimagetool" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/appimagetool"
 
-          ARCH=x86_64 SIGN=1 /tmp/appimagetool --appimage-extract-and-run \
+          ARCH=x86_64 "$RUNNER_TEMP/appimagetool" --appimage-extract-and-run \
+            --sign --sign-key "$SIGN_KEY" \
             -u "gh-releases-zsync|hendurhance|pandia|latest|Pandia_*_amd64.AppImage.zsync" \
             squashfs-root "$APPIMAGE"
 
-          tar -czf "${APPIMAGE}.tar.gz" -C "$DIR" "$NAME"
+          NAME=$(basename "$APPIMAGE")
+          tar -czf "${APPIMAGE}.tar.gz" -C "$(dirname "$APPIMAGE")" "$NAME"
+          rm -rf squashfs-root "$RUNNER_TEMP/appimagetool"
+          echo "path=$APPIMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Sign and upload AppImage
+        if: steps.appimage.outputs.path != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPIMAGE: ${{ steps.appimage.outputs.path }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          NAME=$(basename "$APPIMAGE")
+
           npx tauri signer sign "${APPIMAGE}.tar.gz"
 
           for S in "" ".tar.gz" ".tar.gz.sig" ".zsync"; do
@@ -185,4 +181,4 @@ jobs:
           gh release upload "$TAG" \
             "$APPIMAGE" "${APPIMAGE}.tar.gz" "${APPIMAGE}.tar.gz.sig" "${NAME}.zsync"
 
-          rm -rf squashfs-root /tmp/appimagetool "${NAME}.zsync"
+          rm -f "${NAME}.zsync"

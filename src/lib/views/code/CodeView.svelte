@@ -4,13 +4,15 @@
 
 		revert: () => void;
 
+		text: () => string;
+
 		undo: () => boolean;
 		redo: () => boolean;
 
-		cmSearch: (query: string, caseSensitive: boolean) => number;
+		cmSearch: (query: string, caseSensitive: boolean) => { count: number; current: number };
 		cmCount: (query: string, caseSensitive: boolean) => number;
-		cmFindNext: () => void;
-		cmFindPrev: () => void;
+		cmFindNext: (query: string, caseSensitive: boolean) => { count: number; current: number };
+		cmFindPrev: (query: string, caseSensitive: boolean) => { count: number; current: number };
 
 		cmReplaceAll: (query: string, replacement: string, caseSensitive: boolean) => number;
 	}
@@ -52,22 +54,21 @@
 		search,
 		SearchQuery,
 		setSearchQuery,
-		findNext as cmFindNextCmd,
-		findPrevious as cmFindPrevCmd,
 		replaceAll as cmReplaceAllCmd,
 		SearchCursor,
 	} from '@codemirror/search';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import { pathKey } from '$lib/views/tree/logic/model';
 	import { noirHighlight, noirTheme } from './logic/codemirror-theme';
-	import type { DocHandle, Path } from '$lib/ipc/bindings';
+	import { CODE_VIEW_MAX_BYTES, type DocHandle, type Path, type Summary } from '$lib/ipc/bindings';
 	import { diffHighlightExtension, setHighlights, type Highlight } from './logic/highlights';
+	import { searchMarks } from './logic/search-marks';
+	import { OffsetCache } from './logic/offset-cache';
 
 	interface Props {
 		handle: DocHandle | null;
 		version?: number;
-		sourceSize: number;
+		summary: Pick<Summary, 'sourceSize' | 'capabilities'>;
 		highlights?: Highlight[];
 		activePath?: Path | null;
 
@@ -89,7 +90,7 @@
 	let {
 		handle,
 		version,
-		sourceSize,
+		summary,
 		highlights = [],
 		activePath = null,
 		onScrollerReady,
@@ -101,8 +102,7 @@
 		onOpenTree,
 	}: Props = $props();
 
-	const SIZE_CAP = 50 * 1024 * 1024;
-	const tooBig = $derived(sourceSize > SIZE_CAP);
+	const tooBig = $derived(!summary.capabilities.codeView);
 
 	let container: HTMLDivElement | undefined = $state();
 	let loading = $state(false);
@@ -110,8 +110,7 @@
 
 	let editorView: EditorView | undefined;
 
-	let offsetRanges = new Map<string, [number, number]>();
-	let offsetsInFlight = new Set<string>();
+	const offsets = new OffsetCache();
 
 	let dirty = $state(false);
 	let parseError: string | null = $state(null);
@@ -182,48 +181,91 @@
 		setDirty(false);
 	}
 
-	function countMatches(view: EditorView, query: string, caseSensitive: boolean): number {
+	function matchCursor(view: EditorView, query: string, caseSensitive: boolean): SearchCursor {
 		const doc = view.state.doc;
-		const cursor = new SearchCursor(
+		return new SearchCursor(
 			doc,
 			query,
 			0,
 			doc.length,
 			caseSensitive ? undefined : (s: string) => s.toLowerCase(),
 		);
+	}
+
+	function countMatches(view: EditorView, query: string, caseSensitive: boolean): number {
+		const cursor = matchCursor(view, query, caseSensitive);
 		let n = 0;
 		while (!cursor.next().done) n++;
 		return n;
 	}
 
+	function selectMatch(
+		view: EditorView,
+		query: string,
+		caseSensitive: boolean,
+		step: 0 | 1 | -1,
+	): { count: number; current: number } {
+		const sel = view.state.selection.main;
+		const at = step === 1 ? sel.to : sel.from;
+		const cursor = matchCursor(view, query, caseSensitive);
+		let count = 0;
+		let current = 0;
+		let first: { from: number; to: number } | null = null;
+		let last: { from: number; to: number } | null = null;
+		let pick: { from: number; to: number } | null = null;
+		while (!cursor.next().done) {
+			count++;
+			first ??= cursor.value;
+			last = cursor.value;
+			if (step === -1 ? cursor.value.to <= at : !pick && cursor.value.from >= at) {
+				pick = cursor.value;
+				current = count;
+			}
+		}
+		if (!pick && first) {
+			pick = step === -1 ? last : first;
+			current = step === -1 ? count : 1;
+		}
+		if (pick) {
+			const line = view.state.doc.lineAt(pick.from).number;
+			view.dispatch({
+				selection: { anchor: pick.from, head: pick.to },
+				scrollIntoView: true,
+				userEvent: 'select.search',
+				effects:
+					step === 0 ? [] : EditorView.announce.of(`match ${current} of ${count}, line ${line}`),
+			});
+		}
+		return { count, current };
+	}
+
 	const api: CodeViewApi = {
 		flush: () => commit(),
 		revert,
+		text: () => editorView?.state.doc.toString() ?? baseline,
 		undo: () => (editorView ? undo(editorView) : false),
 		redo: () => (editorView ? redo(editorView) : false),
 		cmSearch: (query, caseSensitive) => {
-			if (!editorView) return 0;
+			if (!editorView) return { count: 0, current: 0 };
 			editorView.dispatch({
-				effects: setSearchQuery.of(new SearchQuery({ search: query, caseSensitive })),
+				effects: setSearchQuery.of(
+					new SearchQuery({ search: query, caseSensitive, literal: true }),
+				),
 			});
-			if (!query) return 0;
-			const count = countMatches(editorView, query, caseSensitive);
-			if (count > 0) cmFindNextCmd(editorView); // land on the first match
-			return count;
+			if (!query) return { count: 0, current: 0 };
+			return selectMatch(editorView, query, caseSensitive, 0);
 		},
 		cmCount: (query, caseSensitive) =>
 			editorView ? countMatches(editorView, query, caseSensitive) : 0,
-		cmFindNext: () => {
-			if (editorView) cmFindNextCmd(editorView);
-		},
-		cmFindPrev: () => {
-			if (editorView) cmFindPrevCmd(editorView);
-		},
+		cmFindNext: (query, caseSensitive) =>
+			editorView ? selectMatch(editorView, query, caseSensitive, 1) : { count: 0, current: 0 },
+		cmFindPrev: (query, caseSensitive) =>
+			editorView ? selectMatch(editorView, query, caseSensitive, -1) : { count: 0, current: 0 },
 		cmReplaceAll: (query, replacement, caseSensitive) => {
 			if (!editorView || !query) return 0;
 			editorView.dispatch({
 				effects: setSearchQuery.of(
-					new SearchQuery({ search: query, replace: replacement, caseSensitive }),
+					new SearchQuery({ search: query, replace: replacement, caseSensitive, literal: true }),
 				),
 			});
 			const count = countMatches(editorView, query, caseSensitive);
@@ -246,8 +288,7 @@
 			.docCanonicalText(handle)
 			.then((text) => {
 				if (cancelled || !container) return;
-				offsetRanges = new Map();
-				offsetsInFlight = new Set();
+				offsets.clear();
 				baseline = text;
 				setDirty(false);
 				parseError = null;
@@ -268,6 +309,7 @@
 							json(),
 							diffHighlightExtension(),
 							search(),
+							searchMarks,
 							keymap.of([
 								{ key: 'Mod-[', run: foldCode },
 								{ key: 'Mod-]', run: unfoldCode },
@@ -310,8 +352,7 @@
 			}
 			view?.destroy();
 			editorView = undefined;
-			offsetRanges = new Map();
-			offsetsInFlight = new Set();
+			offsets.clear();
 		};
 	});
 
@@ -344,19 +385,19 @@
 		if (!editorView) return;
 		const ranges: Array<{ from: number; to: number; kind: Highlight['kind'] }> = [];
 		for (const h of highlights) {
-			const range = offsetRanges.get(pathKey(h.path));
-			if (range) ranges.push({ from: range[0], to: range[1], kind: h.kind });
+			const range = offsets.get(h.path);
+			if (range) ranges.push({ from: range.start, to: range.end, kind: h.kind });
 		}
-		const active = activePath ? (offsetRanges.get(pathKey(activePath)) ?? null) : null;
+		const active = activePath ? (offsets.get(activePath) ?? null) : null;
 		editorView.dispatch({
 			effects: setHighlights.of({
 				ranges,
-				active: active ? { from: active[0], to: active[1] } : null,
+				active: active ? { from: active.start, to: active.end } : null,
 			}),
 		});
 		if (active) {
 			editorView.dispatch({
-				effects: EditorView.scrollIntoView(active[0], {
+				effects: EditorView.scrollIntoView(active.start, {
 					y: 'center',
 				}),
 			});
@@ -366,32 +407,23 @@
 	async function ensureOffsets() {
 		const h = handle;
 		if (!h || !editorView) return;
-		const needed: Path[] = [];
-		const requested = new Set<string>();
-		const want = (p: Path) => {
-			const k = pathKey(p);
-			if (offsetRanges.has(k) || offsetsInFlight.has(k) || requested.has(k)) return;
-			requested.add(k);
-			needed.push(p);
-		};
-		for (const hl of highlights) want(hl.path);
-		if (activePath) want(activePath);
+		const needed = offsets.missing([
+			...highlights.map((hl) => hl.path),
+			...(activePath ? [activePath] : []),
+		]);
 		if (needed.length === 0) {
 			applyDecorations();
 			return;
 		}
-		for (const k of requested) offsetsInFlight.add(k);
 		try {
-			const res = await ipc.docCanonicalOffsets(h, needed);
-			if (handle !== h || !editorView) return;
-			needed.forEach((p, idx) => {
-				const r = res[idx];
-				if (r) offsetRanges.set(pathKey(p), [r.start, r.end]);
-			});
+			const kept = await offsets.load(
+				needed,
+				(paths) => ipc.docCanonicalOffsets(h, paths),
+				() => handle === h && !!editorView,
+			);
+			if (!kept) return;
 		} catch {
 			// Highlights are decorative; the text itself already rendered.
-		} finally {
-			for (const k of requested) offsetsInFlight.delete(k);
 		}
 		applyDecorations();
 	}
@@ -407,7 +439,11 @@
 	<div class="empty-state">
 		<div class="empty-state-inner">
 			<div class="label">code view unavailable</div>
-			<p>this document is {fmtBytes(sourceSize)} — code view is capped at {fmtBytes(SIZE_CAP)}.</p>
+			<p>
+				this document is {fmtBytes(summary.sourceSize)} — code view is capped at {fmtBytes(
+					CODE_VIEW_MAX_BYTES,
+				)}.
+			</p>
 			<p class="dim text-sm">use tree view: it streams slices from Rust regardless of size.</p>
 			{#if onOpenTree}
 				<button class="btn btn-primary self-start" onclick={onOpenTree}>Open in Tree view</button>
@@ -460,7 +496,7 @@
 		color: var(--text-dim);
 	}
 	.status.err {
-		color: var(--danger);
+		color: var(--text);
 		border-color: var(--danger);
 	}
 
@@ -473,23 +509,22 @@
 		background: var(--bg-elev);
 		border-top: var(--rule-width) solid var(--danger);
 		font-size: var(--font-size-sm);
-		color: var(--danger);
+		color: var(--text);
 	}
 	.eb-msg {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-sm);
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.eb-dot {
+		display: inline-block;
+		vertical-align: middle;
 		width: 6px;
 		height: 6px;
+		margin-right: var(--space-sm);
 		border-radius: 50%;
 		background: var(--danger);
-		flex-shrink: 0;
 	}
 
 	.cm-wrap :global(.cm-diff-added) {

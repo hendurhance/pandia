@@ -6,7 +6,9 @@ import type { PromptController } from '$lib/ui/prompt.svelte';
 import { createNodeActions, type CutMark } from './node-actions';
 import type { ContentRow } from './model';
 
-vi.mock('$lib/ipc/client', () => ({ ipc: { docGetValue: vi.fn() } }));
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({ docGetValue: vi.fn() }),
+}));
 
 const clipboard = vi.hoisted(() => {
 	let text = '';
@@ -48,7 +50,10 @@ function row(path: Path): ContentRow {
 }
 
 describe('paste after cut moves the value', () => {
-	beforeEach(() => clipboard.writeText(TEXT));
+	beforeEach(() => {
+		void clipboard.writeText(TEXT);
+		vi.mocked(ipc.docGetValue).mockResolvedValue(asLosslessText(TEXT));
+	});
 
 	it('moves an item down within its own array', async () => {
 		const { actions, ops, cut } = setup(['list', 2]);

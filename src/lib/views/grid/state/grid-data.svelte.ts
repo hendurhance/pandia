@@ -1,6 +1,8 @@
+import { SvelteSet } from 'svelte/reactivity';
+import { untrack } from 'svelte';
 import { ipc } from '$lib/ipc/client';
 import type { DocHandle, GridFilter, Path, RowJson } from '$lib/ipc/bindings';
-import { decodeLossless } from '$lib/ipc/wire';
+import { decodeLossless, kindOf } from '$lib/ipc/wire';
 import { IpcError } from '$lib/ipc/error';
 import { describeError } from '$lib/ipc/error-copy';
 import { PagedSource } from '$lib/views/shared/paged-source.svelte';
@@ -17,6 +19,12 @@ export interface GridRow {
 	value: unknown;
 }
 
+function cellOf(v: unknown, colKey: string): unknown {
+	return kindOf(v) === 'object' && Object.hasOwn(v as object, colKey)
+		? (v as Record<string, unknown>)[colKey]
+		: MISSING;
+}
+
 export interface GridQuery {
 	sortKey: string | null;
 	sortDesc: boolean;
@@ -26,6 +34,16 @@ export interface GridQuery {
 	quick: string;
 	quickKeys: string[];
 	filtering: boolean;
+}
+
+function engineQuery(q: GridQuery) {
+	return {
+		groups: q.filterGroups,
+		quick: q.quick.trim() || null,
+		quickKeys: q.quickKeys,
+		sortKey: q.sortKey,
+		descending: q.sortDesc,
+	};
 }
 
 export interface GridDataDeps {
@@ -40,7 +58,7 @@ export interface GridDataDeps {
 }
 
 export class GridDataController {
-	private readonly filterJobIds = new Set<string>();
+	private readonly filterJobIds = new SvelteSet<string>();
 
 	private readonly source = new PagedSource<GridRow>({
 		pageSize: CHUNK,
@@ -57,20 +75,7 @@ export class GridDataController {
 				const jobId = crypto.randomUUID();
 				this.filterJobIds.add(jobId);
 				try {
-					const res = await ipc.docGetRowsFiltered(
-						handle,
-						path,
-						start,
-						end,
-						{
-							groups: q.filterGroups,
-							quick: q.quick.trim() || null,
-							quickKeys: q.quickKeys,
-							sortKey: q.sortKey,
-							descending: q.sortDesc,
-						},
-						jobId,
-					);
+					const res = await ipc.docGetRowsFiltered(handle, path, start, end, engineQuery(q), jobId);
 					return { items: res.rows.map(decodeRow), total: res.total };
 				} finally {
 					this.filterJobIds.delete(jobId);
@@ -104,14 +109,17 @@ export class GridDataController {
 		rowHeight: ROW_HEIGHT,
 	});
 
+	private heldTotal: number | null = $state(null);
+	private heldFor = '';
+
 	constructor(private deps: GridDataDeps) {}
 
-	get chunks(): Map<number, GridRow[]> {
+	get chunks(): ReadonlyMap<number, GridRow[]> {
 		return this.source.pages;
 	}
 
 	get filteredTotal(): number | null {
-		return this.source.total;
+		return this.source.total ?? this.heldTotal;
 	}
 
 	get fetching(): boolean {
@@ -162,21 +170,27 @@ export class GridDataController {
 	getCell = (rowIdx: number, colKey: string): unknown => {
 		const row = this.getRow(rowIdx);
 		if (!row) return UNLOADED;
-		const v = row.value;
-		if (v === null || typeof v !== 'object') return MISSING;
-		const cell = (v as Record<string, unknown>)[colKey];
-		return cell === undefined ? MISSING : cell;
+		return cellOf(row.value, colKey);
+	};
+
+	setCell = (index: number, colKey: string, value: unknown) => {
+		for (const [start, rows] of this.source.pages) {
+			const at = rows.findIndex((r) => r.index === index);
+			const row = rows[at];
+			if (!row) continue;
+			const patched = [...rows];
+			patched[at] = { index, value: { ...(row.value as object), [colKey]: value } };
+			this.source.pages.set(start, patched);
+			return;
+		}
 	};
 
 	loadedColumnTexts = (colKey: string): string[] => {
 		const out: string[] = [];
 		for (const rows of this.chunks.values()) {
 			for (const row of rows) {
-				const v = row.value;
-				if (v === null || typeof v !== 'object') continue;
-				const cell = (v as Record<string, unknown>)[colKey];
-				if (cell === undefined) continue;
-				out.push(cellText(cell));
+				const cell = cellOf(row.value, colKey);
+				if (cell !== MISSING) out.push(cellText(cell));
 			}
 		}
 		return out;
@@ -191,7 +205,21 @@ export class GridDataController {
 		await this.source.ensureRange(lo, hi + 1);
 	};
 
+	rowIndices = (lo: number, hi: number): Promise<number[]> =>
+		ipc.docGetRowIndices(
+			this.deps.handle(),
+			this.deps.path(),
+			lo,
+			hi + 1,
+			engineQuery(this.deps.query()),
+		);
+
 	reset = () => {
+		untrack(() => {
+			const key = JSON.stringify([this.deps.handle(), this.deps.query()]);
+			this.heldTotal = key === this.heldFor ? this.filteredTotal : null;
+			this.heldFor = key;
+		});
 		this.source.reset();
 	};
 }

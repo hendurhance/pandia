@@ -1,12 +1,11 @@
-import { fetch } from '@tauri-apps/plugin-http';
+import { ipc } from '$lib/ipc/client';
+import { IpcError } from '$lib/ipc/error';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { fmtBytes } from '$lib/util/format';
 import { imageSource } from './image-source';
 
 const OPEN_DELAY_MS = 400;
 const CLOSE_DELAY_MS = 150;
-const FETCH_TIMEOUT_MS = 10_000;
-const MAX_BYTES = 10 * 1024 * 1024;
 const CACHE_SIZE = 30;
 
 export interface Anchor {
@@ -128,29 +127,30 @@ class ImagePreview {
 	private remember(url: string, image: LoadedImage) {
 		this.cache.set(url, image);
 		if (this.cache.size <= CACHE_SIZE) return;
-		const [oldUrl, oldest] = this.cache.entries().next().value!;
-		this.cache.delete(oldUrl);
-		URL.revokeObjectURL(oldest.src);
+		this.cache.delete(this.cache.keys().next().value!);
 	}
 }
 
 async function fetchImage({ url, host }: WebImage): Promise<LoadedImage> {
-	const ctrl = new AbortController();
-	const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
 	try {
-		const res = await fetch(url, { signal: ctrl.signal }).catch(() => {
-			throw new Error(`Couldn't reach ${host}.`);
-		});
-		if (!res.ok) throw new Error(`${host} answered ${res.status}.`);
-		const type = res.headers.get('content-type') ?? '';
-		if (!type.startsWith('image/')) throw new Error("This link doesn't point to an image.");
-		const tooLarge = `This image is over ${fmtBytes(MAX_BYTES)}. Open the link to view it.`;
-		if (Number(res.headers.get('content-length') ?? 0) > MAX_BYTES) throw new Error(tooLarge);
-		const blob = await res.blob();
-		if (blob.size > MAX_BYTES) throw new Error(tooLarge);
-		return { src: URL.createObjectURL(blob), bytes: blob.size, type: type.split(';')[0]! };
-	} finally {
-		clearTimeout(timer);
+		const image = await ipc.fetchImage(url);
+		return { src: image.dataUrl, bytes: image.bytes, type: image.mediaType };
+	} catch (e) {
+		throw new Error(imageFailure(e, host));
+	}
+}
+
+function imageFailure(e: unknown, host: string): string {
+	const problem = e instanceof IpcError ? e.request : undefined;
+	switch (problem?.problem) {
+		case 'notData':
+			return "This link doesn't point to an image.";
+		case 'tooLarge':
+			return `This image is over ${fmtBytes(problem.limit)}. Open the link to view it.`;
+		case 'status':
+			return `${host} answered ${problem.status}.`;
+		default:
+			return `Couldn't reach ${host}.`;
 	}
 }
 

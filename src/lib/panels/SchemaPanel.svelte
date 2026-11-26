@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { DocContext } from '$lib/shell/state/workspace.svelte';
-	import type { Path } from '$lib/ipc/bindings';
+	import { EDIT_SIZE_LIMIT, type Path } from '$lib/ipc/bindings';
+	import { fmtBytes } from '$lib/util/format';
 	import { ipc } from '$lib/ipc/client';
 	import { lastResult, schemaSessions } from './state/schema-store.svelte';
 	import { behaviorPrefs, SCHEMA_DEBOUNCE_MANUAL } from '$lib/settings/state/behavior-prefs.svelte';
@@ -64,18 +65,19 @@
 	});
 
 	const schemaKeyRejected = $derived(
-		schema.origin?.from === 'document' &&
-			(result?.errors.some(
-				(e) =>
-					e.instancePath === '' &&
-					/\/(additional|unevaluated)Properties$/.test(e.schemaPath) &&
-					e.message.includes("'$schema'"),
-			) ??
-				false),
+		result?.errors.some(
+			(e) =>
+				e.instancePath === '' &&
+				/\/(additional|unevaluated)Properties$/.test(e.schemaPath) &&
+				e.message.includes("'$schema'"),
+		) ?? false,
 	);
 
 	const statusText = $derived.by(() => {
 		if (!context) return 'no document in this tab';
+		if (!context.capabilities.validate) {
+			return `validation is off for files over ${fmtBytes(EDIT_SIZE_LIMIT)}`;
+		}
 		if (busy) return 'validating…';
 		if (problem) return problem;
 		if (!schema.text.trim()) return 'paste a schema below';
@@ -135,7 +137,7 @@
 			class="btn"
 			class:btn-primary={manual}
 			onclick={onValidateNow}
-			disabled={!context || !schema.text.trim() || busy}
+			disabled={!context?.capabilities.validate || !schema.text.trim() || busy}
 			title="Validate now">Validate</button
 		>
 		<button

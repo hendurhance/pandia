@@ -1,5 +1,14 @@
 import { IpcError } from './error';
-import { EDIT_SIZE_LIMIT, type FileOp, type IoProblem, type OpenFailure } from './bindings';
+import {
+	EDIT_SIZE_LIMIT,
+	MAPPED_THRESHOLD_BYTES,
+	type BigFileProblem,
+	type FileOp,
+	type IoProblem,
+	type OpenFailure,
+	type Refusal,
+	type RequestProblem,
+} from './bindings';
 import { fmtBytes } from '$lib/util/format';
 import { basename, pathToString } from '$lib/util/path';
 
@@ -18,21 +27,77 @@ function withDetail(lead: string, detail: string | undefined): string {
 	return detail ? sentence(`${lead}: ${detail}`) : sentence(lead);
 }
 
-export function describeOpenFailure(f: Pick<OpenFailure, 'detail' | 'tooLargeToFix'>): string {
-	const base = withDetail("This isn't valid JSON", f.detail);
+export function describeOpenFailure(
+	f: Pick<OpenFailure, 'detail' | 'tooLargeToFix'>,
+	lead = "This isn't valid JSON",
+): string {
+	const base = withDetail(lead, f.detail);
 	return f.tooLargeToFix
 		? `${base} It's over ${fmtBytes(EDIT_SIZE_LIMIT)}, so Pandia can't repair or convert it automatically.`
 		: base;
 }
 
-export function describeUrlFetchFailure(url: string): string {
-	let host = url;
-	try {
-		host = new URL(url).host;
-	} catch {
-		// not a parseable URL: name what the user typed
+export function describeRefusal(r: Refusal): string {
+	switch (r.reason) {
+		case 'noUrl':
+			return "This cURL command has no URL, so there's nothing to send.";
+		case 'insecure':
+			return `Pandia won't send this: ${r.option} turns off certificate checks. Remove ${r.option} to send it.`;
+		case 'readsFile':
+			return `Pandia can't send this: ${r.option} reads from a file. Put the content in the command instead.`;
+		case 'noPassword':
+			return "Pandia can't send this: -u has no password, and Pandia can't ask for one. Use -u user:password.";
+		case 'unsupported':
+			return `Pandia can't send this: it doesn't support ${r.option}. Remove ${r.option} to send the rest.`;
 	}
-	return `Couldn't reach ${host}. Check the URL and your connection.`;
+}
+
+export function describeCurlError(e: unknown): string {
+	return e instanceof IpcError && e.kind === 'parse' && e.detail
+		? sentence(e.detail)
+		: describeError(e);
+}
+
+function describeRequestProblem(p: RequestProblem): string {
+	switch (p.problem) {
+		case 'refused':
+			return describeRefusal(p.refusal);
+		case 'badUrl':
+			return `${p.url} isn't a web address Pandia can send to. Use an http:// or https:// URL.`;
+		case 'unreachable':
+			return `Couldn't reach ${p.host}. Check the URL and your connection.`;
+		case 'timedOut':
+			return `${p.host} didn't answer in time. Try again later.`;
+		case 'tls':
+			return `Couldn't make a secure connection to ${p.host}. Its certificate may be invalid or expired.`;
+		case 'interrupted':
+			return `The connection to ${p.host} dropped before the response finished. Try again.`;
+		case 'tooLarge':
+			return `The response is larger than ${fmtBytes(p.limit)}, the most Pandia opens from a request. Save it to a file with curl -o, then open the file.`;
+		case 'notData':
+			return p.contentType
+				? `The server sent ${p.contentType} (status ${p.status}), not JSON, YAML, XML or CSV.`
+				: `The server sent something that isn't text (status ${p.status}), so there's nothing to open.`;
+		case 'empty':
+			return `The server sent an empty response (status ${p.status}).`;
+		case 'status':
+			return `${p.host} answered ${p.status}. Check the URL.`;
+	}
+}
+
+function describeBigFile(p: BigFileProblem): string {
+	const name = `“${basename(p.file)}”`;
+	const over = fmtBytes(MAPPED_THRESHOLD_BYTES);
+	switch (p.problem) {
+		case 'tooLarge':
+			return `${name} is ${fmtBytes(p.actual)}, more than the ${fmtBytes(p.limit)} Pandia can open. Split it into smaller files.`;
+		case 'repeatedKeys':
+			return `${name} repeats a key inside an object. Pandia reads files over ${over} straight from disk, so it can't make the copy that drops the repeats. Remove the repeated keys, or split the file into parts under ${over}.`;
+		case 'linePerValue':
+			return `${name} has one JSON value per line. Pandia reads files over ${over} straight from disk, so it can't join the lines into one array. Split the file into parts under ${over}.`;
+		case 'changedOnDisk':
+			return `${name} changed on disk after Pandia opened it. Close this tab and open the file again.`;
+	}
 }
 
 export const UPDATE_FAILED =
@@ -56,11 +121,16 @@ function describeIpc(e: IpcError): string {
 			return `${where} — it may have been changed or removed by an earlier edit.`;
 		}
 		case 'tooLarge':
+			if (e.path && e.actual != null && e.limit != null) {
+				return `The value at ${pathToString(e.path)} is ${fmtBytes(e.actual)}, more than the ${fmtBytes(e.limit)} Pandia can handle as one value. Select a smaller part of it.`;
+			}
 			return e.actual != null && e.limit != null
 				? `This document is ${fmtBytes(e.actual)} — the limit for this action is ${fmtBytes(e.limit)}. Use a smaller file.`
 				: 'This document is too large for this action. Use a smaller file.';
 		case 'tooDeep':
 			return `This JSON is nested more than ${(e.limit ?? 1000).toLocaleString('en-US')} levels deep, which is more than Pandia supports. Reduce the nesting and try again.`;
+		case 'tooManyItems':
+			return `This JSON has an array with more than ${(e.limit ?? 0).toLocaleString('en-US')} items, which is more than Pandia supports. Split the array into smaller files.`;
 		case 'rangeTooLarge':
 			return e.actual != null && e.limit != null
 				? `Pandia requested ${e.actual} lines at once (the limit is ${e.limit}). This is a bug in Pandia, not a problem with your document.`
@@ -79,6 +149,10 @@ function describeIpc(e: IpcError): string {
 			return describeIo(e);
 		case 'cancelled':
 			return 'Cancelled.';
+		case 'request':
+			return e.request ? describeRequestProblem(e.request) : INTERNAL;
+		case 'bigFile':
+			return e.bigFile ? describeBigFile(e.bigFile) : INTERNAL;
 		default:
 			return e.message.trim() ? sentence(e.message.trim()) : FALLBACK;
 	}

@@ -27,9 +27,10 @@ export const noirTheme = EditorView.theme(
 			backgroundColor: 'var(--bg-elev-2)',
 			color: 'var(--text)',
 		},
-		'&.cm-focused .cm-selectionBackground, ::selection': {
-			backgroundColor: 'var(--accent-fill)',
-		},
+		'&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
+			{
+				backgroundColor: 'var(--accent-fill)',
+			},
 		'.cm-matchingBracket': {
 			backgroundColor: 'var(--accent-soft)',
 			color: 'var(--accent)',
@@ -74,7 +75,7 @@ export const noirHighlight = HighlightStyle.define([
 	{ tag: t.string, color: 'var(--syntax-string)' },
 	{ tag: t.number, color: 'var(--syntax-number)' },
 	{ tag: t.bool, color: 'var(--syntax-boolean)' },
-	{ tag: t.null, color: 'var(--syntax-null)', fontStyle: 'italic' },
+	{ tag: t.null, color: 'var(--text-dim)', fontStyle: 'italic' },
 	{ tag: t.propertyName, color: 'var(--text)' },
 	{ tag: t.brace, color: 'var(--syntax-punct)' },
 	{ tag: t.bracket, color: 'var(--syntax-punct)' },

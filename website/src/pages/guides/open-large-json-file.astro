@@ -8,7 +8,7 @@ const path = `/guides/${g.slug}`;
 const faqItems = [
   {
     q: 'What is the largest JSON file I can open?',
-    a: "With a native streaming viewer like Pandia there is no cap on opening or viewing — hundreds of MB or multiple GB open instantly, because only the slice on screen is ever loaded into memory.",
+    a: "Pandia opens JSON files up to 10 GB. Files under 2 GB load into memory with the full feature set. Files from 2 GB to 10 GB are read straight from disk in a read-only view, where you can browse them in the Tree and Grid and search them.",
   },
   {
     q: 'Can I open a large JSON file without uploading it?',
@@ -55,8 +55,9 @@ const faqItems = [
   multi-gigabyte file instantly instead of waiting — or crashing.</p>
   <p><a href="/large-json-viewer">Pandia</a> is a free, native desktop app built for exactly this. At 10 MB and
   up it switches to lazy, zero-copy slicing (powered by <code>sonic-rs</code>): it opens the file without parsing
-  the whole tree and only ever loads the slice on screen. A 2 GB file opens about as fast as a 2 KB one, and
-  there is <strong>no cap on opening or viewing</strong>.</p>
+  the whole tree and only ever loads the slice on screen. A 500 MB file opens in under two seconds. Files from
+  2 GB up to <strong>10 GB</strong> are read straight from disk instead of memory, so they open without running
+  your machine out of RAM.</p>
 
   <h3>Open a large JSON file in three steps</h3>
   <ol>
@@ -96,10 +97,11 @@ const faqItems = [
 
   <h2>A note on editing very large files</h2>
   <div class="callout">
-    <p>Opening and viewing are uncapped at any size. A few <strong>whole-document</strong> operations — full edit,
-    export and schema validation — need the entire document in memory, so Pandia caps those at 200&nbsp;MB. You can
-    still open, browse, search and generate types on a multi-gigabyte file; only those specific whole-document
-    actions have the ceiling. <a href="/docs/performance">More on how large files work →</a></p>
+    <p>Pandia opens files up to 10&nbsp;GB. Full edits and schema validation need the whole document parsed in
+    memory, so they stop at 200&nbsp;MB. Files over 2&nbsp;GB open in a <strong>read-only</strong> view: you can
+    browse them in the Tree and Grid and search them, but editing, sorting, export and type generation are off.
+    Search reads the whole file, so on a 5&nbsp;GB file expect it to take about half a minute.
+    <a href="/docs/performance">More on how large files work →</a></p>
   </div>
 
   <h2>Frequently asked questions</h2>

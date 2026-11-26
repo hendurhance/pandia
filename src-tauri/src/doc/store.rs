@@ -39,6 +39,7 @@ impl DocStore {
     ) -> DocResult<T> {
         let doc = self.get(handle)?;
         let guard = doc.read();
+        guard.check_source()?;
         f(&guard)
     }
 
@@ -211,6 +212,28 @@ mod tests {
                 .recv_timeout(std::time::Duration::from_secs(10))
                 .expect("read_both deadlocked");
         }
+    }
+
+    #[test]
+    fn reads_of_a_mapped_document_stop_once_its_file_changes() {
+        let file = crate::doc::mapped::TempFile::new("store.json", r#"{"a": 1}"#);
+        let store = DocStore::new();
+        let handle = store.insert(Document::from_mapped(file.map(), None).unwrap());
+        assert!(store
+            .read(handle, |d| d.get_slice(&Path::root(), 0..1))
+            .is_ok());
+
+        std::fs::write(&file.0, r#"{"a": 1, "b": 2}"#).unwrap();
+        let err = store
+            .read(handle, |d| d.get_slice(&Path::root(), 0..1))
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                DocError::BigFile(crate::doc::types::BigFileProblem::ChangedOnDisk { .. })
+            ),
+            "{err:?}"
+        );
     }
 
     #[test]

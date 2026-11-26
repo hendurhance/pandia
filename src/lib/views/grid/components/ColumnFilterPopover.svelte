@@ -232,7 +232,7 @@
 		border-color: var(--rule-2);
 	}
 	.cf-toggle.on {
-		color: var(--accent);
+		color: var(--text);
 		border-color: var(--accent);
 		background: var(--accent-soft);
 	}

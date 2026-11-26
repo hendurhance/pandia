@@ -4,13 +4,13 @@ import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
 import type { PendingFile, SchemaValidationResult, TabReport } from '$lib/ipc/bindings';
 import { Handoff } from './handoff';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		cliWaitDone: vi.fn(async () => {}),
 		cliDiscardPiped: vi.fn(async () => {}),
 		cliReply: vi.fn(async () => {}),
 		docValidateSchema: vi.fn(),
-	},
+	}),
 }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
@@ -177,10 +177,10 @@ describe('Handoff', () => {
 
 	it('answers a launch that never got a tab and deletes its piped input', async () => {
 		const h = new Handoff(launch({ piped: true, path: '/tmp/pandia-stdin-2.json', wait: WAIT }));
-		await h.abandon('Pandia already has 10 tabs open.');
+		await h.abandon('Pandia already has 50 tabs open.');
 		expect(ipc.cliWaitDone).toHaveBeenCalledWith(
 			WAIT,
-			report({ path: null, opened: false, problem: 'Pandia already has 10 tabs open.' }),
+			report({ path: null, opened: false, problem: 'Pandia already has 50 tabs open.' }),
 		);
 		expect(ipc.cliDiscardPiped).toHaveBeenCalledWith('/tmp/pandia-stdin-2.json');
 	});

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { EditorView } from '@codemirror/view';
 	import { selectAll } from '@codemirror/commands';
 	import { BLOCK_CONTEXT_MENU } from '$lib/util/flags';
@@ -10,6 +10,16 @@
 	let open = $state(false);
 	let x = $state(0);
 	let y = $state(0);
+	let menuEl: HTMLElement | undefined = $state();
+
+	const EDGE_MARGIN_PX = 8;
+
+	async function keepInWindow() {
+		await tick();
+		if (!menuEl) return;
+		x = Math.min(x, Math.max(0, window.innerWidth - menuEl.offsetWidth - EDGE_MARGIN_PX));
+		y = Math.min(y, Math.max(0, window.innerHeight - menuEl.offsetHeight - EDGE_MARGIN_PX));
+	}
 	let canCut = $state(false);
 	let canCopy = $state(false);
 	let canPaste = $state(false);
@@ -17,6 +27,17 @@
 	let editableTarget: Editable | null = $state(null);
 	let editorTarget: EditorView | null = $state(null);
 	let selectAllTarget: HTMLElement | null = $state(null);
+	let active = $state(-1);
+
+	type Item = { label: string; run: () => void };
+	const editItems: Item[] = $derived([
+		...(canCut ? [{ label: 'Cut', run: doCut }] : []),
+		...(canCopy ? [{ label: 'Copy', run: doCopy }] : []),
+		...(canPaste ? [{ label: 'Paste', run: doPaste }] : []),
+	]);
+	const items: Item[] = $derived(
+		canSelectAll ? [...editItems, { label: 'Select All', run: doSelectAll }] : editItems,
+	);
 
 	function isEditable(el: EventTarget | null): el is Editable {
 		return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
@@ -33,6 +54,7 @@
 
 	function close() {
 		open = false;
+		active = -1;
 		editableTarget = null;
 		editorTarget = null;
 		selectAllTarget = null;
@@ -177,29 +199,50 @@
 					editable.selectionStart !== editable.selectionEnd);
 			canPaste = !!editable || !!editor;
 			canSelectAll = !!editable || !!editor || (target?.textContent?.length ?? 0) > 0;
+			active = -1;
 			open = true;
+			void keepInWindow();
 		};
 
 		const onDocClick = () => {
 			if (open) close();
 		};
 		const onKey = (e: KeyboardEvent) => {
-			if (open && e.key === 'Escape') close();
+			if (!open || e.key !== 'Escape') return;
+			e.preventDefault();
+			close();
+		};
+		const onNavKey = (e: KeyboardEvent) => {
+			if (!open || items.length === 0) return;
+			const n = items.length;
+			if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+				const down = e.key === 'ArrowDown';
+				active = active < 0 ? (down ? 0 : n - 1) : (active + (down ? 1 : n - 1)) % n;
+			} else if (e.key === 'Enter' && active >= 0) {
+				items[active]!.run();
+			} else {
+				return;
+			}
+			e.preventDefault();
+			e.stopPropagation();
 		};
 
 		document.addEventListener('contextmenu', onContextMenu);
 		document.addEventListener('click', onDocClick);
 		document.addEventListener('keydown', onKey);
+		document.addEventListener('keydown', onNavKey, true);
 		return () => {
 			document.removeEventListener('contextmenu', onContextMenu);
 			document.removeEventListener('click', onDocClick);
 			document.removeEventListener('keydown', onKey);
+			document.removeEventListener('keydown', onNavKey, true);
 		};
 	});
 </script>
 
 {#if open}
 	<div
+		bind:this={menuEl}
 		class="ctx"
 		style="left: {x}px; top: {y}px"
 		role="menu"
@@ -208,21 +251,18 @@
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.key === 'Escape' && close()}
 	>
-		{#if canCut}
-			<button class="ctx-item" onclick={doCut}>Cut</button>
-		{/if}
-		{#if canCopy}
-			<button class="ctx-item" onclick={doCopy}>Copy</button>
-		{/if}
-		{#if canPaste}
-			<button class="ctx-item" onclick={doPaste}>Paste</button>
-		{/if}
-		{#if (canCut || canCopy || canPaste) && canSelectAll}
-			<div class="ctx-sep"></div>
-		{/if}
-		{#if canSelectAll}
-			<button class="ctx-item" onclick={doSelectAll}>Select All</button>
-		{/if}
+		{#each items as item, i (item.label)}
+			{#if i > 0 && i === editItems.length}
+				<div class="ctx-sep"></div>
+			{/if}
+			<button
+				class="ctx-item"
+				class:active={i === active}
+				role="menuitem"
+				tabindex="-1"
+				onclick={item.run}>{item.label}</button
+			>
+		{/each}
 	</div>
 {/if}
 
@@ -250,7 +290,8 @@
 		color: inherit;
 		cursor: pointer;
 	}
-	.ctx-item:hover {
+	.ctx-item:hover,
+	.ctx-item.active {
 		background: var(--bg-elev-2);
 		color: var(--text);
 	}

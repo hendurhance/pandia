@@ -1,10 +1,8 @@
-import { fetch } from '@tauri-apps/plugin-http';
 import { ipc } from '$lib/ipc/client';
 import { decodeLossless } from '$lib/ipc/wire';
 import { describeError } from '$lib/ipc/error-copy';
 import type { DocHandle } from '$lib/ipc/bindings';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
-import { URL_FETCH_TIMEOUT_MS } from '$lib/shell/logic/url-fetch';
 import { planSchema, type SchemaFrom, type SchemaTarget } from '../schema-ref';
 import { schemaSessions, type SchemaOrigin } from './schema-store.svelte';
 
@@ -29,7 +27,11 @@ export async function autoloadSchema(
 ): Promise<void> {
 	const docRef = doc.rootIsObject ? await readDocSchemaRef(doc.handle) : null;
 	const plan = planSchema({ cliRef: doc.cliSchema, docRef, docPath: doc.path });
-	if (plan.kind === 'none') return;
+	if (plan.kind === 'none') {
+		const previous = schemaSessions.existing(doc.tabId);
+		if (previous?.origin) previous.clear();
+		return;
+	}
 
 	const origin: SchemaOrigin = {
 		from: plan.from,
@@ -43,13 +45,16 @@ export async function autoloadSchema(
 	if (plan.target.kind === 'url' && !plan.target.secure && !behaviorPrefs.allowHttpSchemas) {
 		return schema.fail(HTTP_BLOCKED, origin, () => autoloadSchema(doc, confirmRemote));
 	}
+	const before = { text: schema.text, origin: schema.origin };
+	const edited = () => schema.text !== before.text || schema.origin !== before.origin;
 	let text: string | null;
 	try {
 		text = await readTarget(plan.target, plan.from, confirmRemote);
 	} catch (e) {
-		return schema.fail(describeError(e), origin);
+		if (!edited()) schema.fail(describeError(e), origin);
+		return;
 	}
-	await schema.load(text ?? '', origin);
+	if (!edited()) await schema.load(text ?? '', origin);
 }
 
 async function readDocSchemaRef(handle: DocHandle): Promise<string | null> {
@@ -71,26 +76,5 @@ async function readTarget(
 		if (!(await confirmRemote(target.host))) return null;
 		approvedUrls.add(target.url);
 	}
-	return download(target.url, target.host);
-}
-
-async function download(url: string, host: string): Promise<string> {
-	const ctrl = new AbortController();
-	const timer = setTimeout(() => ctrl.abort(), URL_FETCH_TIMEOUT_MS);
-	let res: Response;
-	try {
-		res = await fetch(url, { signal: ctrl.signal });
-	} catch {
-		throw new Error(
-			`Couldn't reach ${host} to download the schema. Check your connection and the URL.`,
-		);
-	} finally {
-		clearTimeout(timer);
-	}
-	if (!res.ok) {
-		throw new Error(
-			`Couldn't download the schema from ${host}: the server answered ${res.status}. Check the URL.`,
-		);
-	}
-	return res.text();
+	return ipc.fetchSchema(target.url);
 }

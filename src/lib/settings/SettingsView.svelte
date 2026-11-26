@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dragWindowFrom } from '$lib/shell/logic/window-drag';
 	import { getVersion } from '@tauri-apps/api/app';
 	import { open as openInBrowser } from '@tauri-apps/plugin-shell';
 	import AppearancePanel from '$lib/settings/AppearancePanel.svelte';
@@ -6,6 +7,7 @@
 	import LayoutPanel from '$lib/settings/LayoutPanel.svelte';
 	import DataPanel from '$lib/settings/DataPanel.svelte';
 	import { SETTINGS_TABS, type SettingsTab } from '$lib/settings/tabs';
+	import { isDialogOpen } from '$lib/ui/Dialog.svelte';
 
 	interface Props {
 		onClose: () => void;
@@ -22,14 +24,15 @@
 	});
 
 	function onKey(e: KeyboardEvent) {
-		if (e.key === 'Escape') onClose();
+		if (e.key !== 'Escape' || e.defaultPrevented || isDialogOpen()) return;
+		onClose();
 	}
 </script>
 
 <svelte:window onkeydown={onKey} />
 
 <div class="settings">
-	<header class="top">
+	<header class="top" role="toolbar" tabindex="-1" onpointerdown={dragWindowFrom}>
 		<span class="title">Settings</span>
 		<span class="grow"></span>
 		<button class="back" onclick={onClose} title="Back to canvas (esc)">← Back</button>

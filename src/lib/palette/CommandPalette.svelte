@@ -5,7 +5,7 @@
 		type Command,
 		type CommandCategory,
 	} from './state/command-store.svelte';
-	import { fuzzyMatch, highlightLabel } from './match';
+	import { fuzzyMatch, highlightSegments } from './match';
 	import { fmtKbd } from '$lib/util/platform';
 	import { shortcutKeys } from '$lib/shell/logic/shortcuts';
 
@@ -22,6 +22,7 @@
 	let listEl: HTMLUListElement | undefined = $state();
 	let pressedBackdrop = false;
 	let ranCommand = false;
+	let lastPointer: { x: number; y: number } | null = null;
 
 	$effect(() => {
 		if (!open) return;
@@ -31,11 +32,16 @@
 		const returnFocus = document.activeElement;
 		queueMicrotask(() => inputEl?.focus());
 		return () => {
-			if (!ranCommand && returnFocus instanceof HTMLElement && returnFocus.isConnected) {
-				returnFocus.focus();
-			}
+			if (!(returnFocus instanceof HTMLElement) || !returnFocus.isConnected) return;
+			if (!ranCommand || document.activeElement === document.body) returnFocus.focus();
 		};
 	});
+
+	function onRowMouseMove(e: MouseEvent, i: number) {
+		if (lastPointer?.x === e.clientX && lastPointer.y === e.clientY) return;
+		lastPointer = { x: e.clientX, y: e.clientY };
+		selectedIdx = i;
+	}
 
 	interface Entry {
 		cmd: Command;
@@ -185,12 +191,16 @@
 									execute(i);
 								}
 							}}
-							onmouseenter={() => (selectedIdx = i)}
+							onmousemove={(e) => onRowMouseMove(e, i)}
 							role="option"
 							aria-selected={i === selectedIdx}
 							tabindex="-1"
 						>
-							<span class="label">{@html highlightLabel(r.cmd.label, r.ranges)}</span>
+							<span class="label"
+								>{#each highlightSegments(r.cmd.label, r.ranges) as seg, k (k)}{#if seg.hit}<mark
+											>{seg.text}</mark
+										>{:else}{seg.text}{/if}{/each}</span
+							>
 
 							{#if query.trim() || r.section === 'Recent'}
 								<span class="cat">{r.cmd.category}</span>
@@ -299,7 +309,8 @@
 	}
 	.row.selected {
 		background: var(--accent-soft);
-		color: var(--accent);
+		color: var(--text);
+		box-shadow: inset 2px 0 0 var(--accent);
 	}
 	.label {
 		flex: 1;

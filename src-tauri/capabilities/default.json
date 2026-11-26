@@ -14,31 +14,14 @@
     "core:window:allow-is-fullscreen",
     "core:window:allow-start-dragging",
     "core:window:allow-destroy",
+    "core:window:allow-close",
     "core:app:default",
     "core:resources:default",
     "core:menu:default",
     "core:tray:default",
-    {
-      "identifier": "fs:default",
-      "allow": [
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$HOME/**" }
-      ]
-    },
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-write-file",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-stat",
-      "allow": [{ "path": "**" }]
-    },
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
@@ -50,10 +33,6 @@
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",
-    {
-      "identifier": "http:default",
-      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
-    },
     "updater:default",
     "updater:allow-check",
     "updater:allow-download-and-install",

@@ -10,7 +10,6 @@
 	border-color: var(--rule-2);
 }
 .btn:disabled {
-	opacity: 0.5;
 	color: var(--text-faint);
 	cursor: default;
 }
@@ -20,6 +19,10 @@
 	color: var(--on-accent);
 	border-color: var(--accent);
 	padding: var(--space-xs) var(--space-md);
+}
+.btn-primary:focus-visible {
+	outline-color: var(--on-accent);
+	outline-offset: -3px;
 }
 .btn-primary:hover:not(:disabled) {
 	background: var(--accent-hover);
@@ -64,7 +67,7 @@
 
 .btn-active {
 	background: var(--accent-soft);
-	color: var(--accent);
+	color: var(--text);
 	border-color: var(--accent-line);
 }
 
@@ -90,5 +93,6 @@
 }
 .seg > button.active {
 	background: var(--accent-soft);
-	color: var(--accent);
+	color: var(--text);
+	box-shadow: inset 0 -2px 0 var(--accent);
 }

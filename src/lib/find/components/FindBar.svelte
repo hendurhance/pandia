@@ -19,6 +19,7 @@
 		onClose: () => void;
 
 		onCancel?: () => void;
+		canReplace?: boolean;
 		replaceValue: string;
 		onReplaceChange: (v: string) => void;
 		onReplaceAll: () => void;
@@ -39,6 +40,7 @@
 		onNext,
 		onClose,
 		onCancel,
+		canReplace = true,
 		replaceValue,
 		onReplaceChange,
 		onReplaceAll,
@@ -46,6 +48,15 @@
 		replaceOpen,
 		onToggleReplace,
 	}: Props = $props();
+
+	$effect(() => {
+		if (!open) return;
+		const returnFocus = document.activeElement;
+		return () => {
+			if (!(returnFocus instanceof HTMLElement) || !returnFocus.isConnected) return;
+			if (document.activeElement === document.body) returnFocus.focus();
+		};
+	});
 
 	function onReplaceInput(e: Event) {
 		onReplaceChange((e.target as HTMLInputElement).value);
@@ -64,15 +75,17 @@
 
 {#if open}
 	<div class="find" role="dialog" aria-label="find and replace in document">
-		<button
-			class="expander"
-			onclick={onToggleReplace}
-			aria-expanded={replaceOpen}
-			aria-label={replaceOpen ? 'hide replace' : 'show replace'}
-			title={replaceOpen ? 'hide replace' : 'show replace'}
-		>
-			<span class="chev" class:open={replaceOpen}><Icon icon={ChevronRight} size="xs" /></span>
-		</button>
+		{#if canReplace}
+			<button
+				class="expander"
+				onclick={onToggleReplace}
+				aria-expanded={replaceOpen}
+				aria-label={replaceOpen ? 'hide replace' : 'show replace'}
+				title={replaceOpen ? 'hide replace' : 'show replace'}
+			>
+				<span class="chev" class:open={replaceOpen}><Icon icon={ChevronRight} size="xs" /></span>
+			</button>
+		{/if}
 		<div class="cols">
 			<div class="row">
 				<SearchField
@@ -93,7 +106,7 @@
 				/>
 			</div>
 
-			{#if replaceOpen}
+			{#if canReplace && replaceOpen}
 				<div class="row replace">
 					<div class="field">
 						<input

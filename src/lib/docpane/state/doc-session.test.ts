@@ -1,21 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { ipc } from '$lib/ipc/client';
 import { DocSessionController, type DocSessionDeps } from './doc-session.svelte';
 import type { OpenNotes, OpenOutcome, Summary } from '$lib/ipc/bindings';
-import type { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
+import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetValue: vi.fn(),
 		docApplyOp: vi.fn(),
 		docSetRootText: vi.fn(),
 		docUndo: vi.fn(),
 		docRedo: vi.fn(),
 		docSummary: vi.fn(),
 		docOpen: vi.fn(),
+		curlSend: vi.fn(),
 		docClose: vi.fn(async () => true),
-	},
+	}),
 }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	behaviorPrefs: { init: async () => {}, autoRepairOnOpen: true },
@@ -56,6 +59,7 @@ function setup() {
 		getError: () => null,
 		setSelectedPath: () => {},
 		clearViewState: () => {},
+		remapCutMark: () => {},
 		flushPendingEdits: async () => true,
 		applyDefaultView: async () => {},
 		flash: () => {},
@@ -84,6 +88,13 @@ describe('DocSessionController — the post-mutation protocol', () => {
 		const r = await session.applyOp({ kind: 'deleteKey', path: [], key: 'x' });
 		expect(r).toEqual(RESULT);
 		expect(calls).toEqual(['summary', 'refetch', 'find']);
+	});
+
+	it('applyOp hands the op to the tree so expanded items follow an array edit', async () => {
+		const { session, deps } = setup();
+		const op = { kind: 'deleteItem' as const, path: [], index: 0 };
+		await session.applyOp(op);
+		expect(deps.tree.refetchAfterOp).toHaveBeenCalledWith(RESULT.affectedPaths, op);
 	});
 
 	it('undo and redo follow the same protocol — stale Find hits refresh too', async () => {
@@ -125,6 +136,7 @@ function summary(sourcePath: string | null): Summary {
 		fileBacked: sourcePath?.startsWith('/') ?? false,
 		recoveryNote: null,
 		commentsStripped: false,
+		...SMALL_TIER,
 	} as Summary;
 }
 
@@ -188,6 +200,41 @@ describe('DocSessionController — opening a source', () => {
 		expect(session.repairInfo).toBeNull();
 	});
 
+	it('leaves no half-open tab when the root row cannot be read', async () => {
+		const { session, deps } = fresh();
+		vi.mocked(ipc.docOpen).mockResolvedValue({
+			kind: 'opened',
+			handle: 'h9' as never,
+			summary: { ...summary('/w/big.json'), rootKind: 'string', rootChildCount: null },
+			notes: { convertedFrom: null, repairs: [] },
+		});
+		vi.mocked(ipc.docRootPreview).mockRejectedValue(new Error('the file changed on disk'));
+		expect(await session.loadFromSource({ kind: 'file', path: '/w/big.json' })).toBe(false);
+		expect(session.handle).toBeNull();
+		expect(session.summary).toBeNull();
+		expect(ipc.docClose).toHaveBeenCalledWith('h9');
+		expect(deps.setError).toHaveBeenCalledWith(expect.stringContaining('changed on disk'));
+	});
+
+	it('shows the real value of a scalar root', async () => {
+		const { session, deps } = fresh();
+		const tree = new TreeRowsController({
+			handle: () => session.handle,
+			summary: () => session.summary,
+			setError: vi.fn(),
+		});
+		deps.tree = tree;
+		vi.mocked(ipc.docOpen).mockResolvedValue({
+			kind: 'opened',
+			handle: 'h1' as never,
+			summary: { ...summary('/w/s.json'), rootKind: 'string', rootChildCount: null },
+			notes: { convertedFrom: null, repairs: [] },
+		});
+		vi.mocked(ipc.docRootPreview).mockResolvedValue('"hello"');
+		expect(await session.loadFromSource({ kind: 'file', path: '/w/s.json' })).toBe(true);
+		expect(tree.rows).toEqual([expect.objectContaining({ kind: 'string', preview: '"hello"' })]);
+	});
+
 	it('shows what repair changed and names the tab after the repaired copy', async () => {
 		const { session } = fresh();
 		vi.mocked(ipc.docOpen).mockResolvedValue(
@@ -224,6 +271,28 @@ describe('DocSessionController — opening a source', () => {
 		);
 		expect(session.diagnosis).toEqual(diagnosis);
 		expect(session.handle).toBeNull();
+	});
+
+	it('names the HTTP status when a response is not valid JSON', async () => {
+		const { session, deps } = fresh();
+		vi.mocked(ipc.curlSend).mockResolvedValue({
+			outcome: {
+				kind: 'failed',
+				detail: 'EOF at line 1 column 12',
+				tooLargeToFix: false,
+				diagnosis: { title: 'Cut off', detail: 'x', excerpt: null, fix: null },
+			},
+			response: {
+				method: 'GET',
+				url: 'https://api.example.com/users',
+				status: 502,
+				statusText: 'Bad Gateway',
+			},
+		});
+		expect(await session.loadFromRequest('curl https://api.example.com/users', 'job')).toBe(false);
+		expect(deps.setError).toHaveBeenLastCalledWith(
+			"The server answered 502 Bad Gateway, and its response isn't valid JSON: EOF at line 1 column 12.",
+		);
 	});
 
 	it('keeps the file name when the suggested fix for a failed open is applied', async () => {

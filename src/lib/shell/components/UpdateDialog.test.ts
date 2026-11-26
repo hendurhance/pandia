@@ -49,11 +49,17 @@ function fakeUpdate(
 	} as unknown as Update;
 }
 
-async function offer(update = fakeUpdate(NOTES)) {
+async function offer(
+	update = fakeUpdate(NOTES),
+	prepareToQuit = async () => {
+		events.push('prepare to quit');
+		return true;
+	},
+) {
 	settings.set('lastSeenRelease', '1.0.8');
 	await whatsNew.init();
 	updateCheck.offer(update);
-	return render(UpdateDialog, { props: { update } });
+	return render(UpdateDialog, { props: { update, prepareToQuit } });
 }
 
 beforeEach(() => {
@@ -104,8 +110,27 @@ describe('Update dialog', () => {
 		const { getByRole } = await offer();
 		await fireEvent.click(getByRole('button', { name: 'Install and restart' }));
 		await vi.waitFor(() => expect(events).toContain('relaunch'));
-		expect(events).toEqual(['save lastSeenRelease', 'install', 'relaunch']);
+		expect(events).toEqual(['save lastSeenRelease', 'install', 'prepare to quit', 'relaunch']);
 		expect(settings.get('lastSeenRelease')).toBe('1.0.9');
+	});
+
+	it('stays open when quitting is cancelled, and a second press restarts without downloading again', async () => {
+		const update = fakeUpdate(NOTES);
+		let allow = false;
+		const { getByRole } = await offer(update, async () => allow);
+		await fireEvent.click(getByRole('button', { name: 'Install and restart' }));
+		await vi.waitFor(() => expect(update.downloadAndInstall).toHaveBeenCalledOnce());
+		await vi.waitFor(() =>
+			expect(
+				(getByRole('button', { name: 'Install and restart' }) as HTMLButtonElement).disabled,
+			).toBe(false),
+		);
+		expect(relaunch).not.toHaveBeenCalled();
+
+		allow = true;
+		await fireEvent.click(getByRole('button', { name: 'Install and restart' }));
+		await vi.waitFor(() => expect(relaunch).toHaveBeenCalledOnce());
+		expect(update.downloadAndInstall).toHaveBeenCalledOnce();
 	});
 
 	it('reads "Downloading…" and cannot be pressed again while it installs', async () => {

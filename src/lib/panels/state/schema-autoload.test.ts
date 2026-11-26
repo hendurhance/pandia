@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetch } from '@tauri-apps/plugin-http';
 import { ipc } from '$lib/ipc/client';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { autoloadSchema } from './schema-autoload';
 import { schemaSessions } from './schema-store.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { docGetValue: vi.fn(), readSchemaFile: vi.fn(), docValidateSchema: vi.fn() },
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docGetValue: vi.fn(),
+		readSchemaFile: vi.fn(),
+		fetchSchema: vi.fn(),
+		docValidateSchema: vi.fn(),
+	}),
 }));
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 vi.mock('$lib/settings/state/behavior-prefs.svelte', () => ({
 	SCHEMA_DEBOUNCE_MANUAL: -1,
 	SCHEMA_DEBOUNCE_IMMEDIATE: 0,
@@ -37,7 +40,7 @@ beforeEach(() => {
 describe('autoloadSchema', () => {
 	it('asks before downloading a document URL, then validates; a second open does not ask', async () => {
 		docSchema('https://x.dev/s.json');
-		vi.mocked(fetch).mockResolvedValue(new Response('{"type":"object"}'));
+		vi.mocked(ipc.fetchSchema).mockResolvedValue('{"type":"object"}');
 		const confirm = vi.fn(async () => true);
 
 		await autoloadSchema(doc('t1', '/w/a.json'), confirm);
@@ -55,7 +58,7 @@ describe('autoloadSchema', () => {
 	it('loads nothing when the user declines, but still shows where the schema points', async () => {
 		docSchema('https://y.dev/s.json');
 		await autoloadSchema(doc('t3', '/w/a.json'), async () => false);
-		expect(fetch).not.toHaveBeenCalled();
+		expect(ipc.fetchSchema).not.toHaveBeenCalled();
 		expect(schemaSessions.for('t3')).toMatchObject({
 			text: '',
 			verdict: { kind: 'none' },
@@ -68,7 +71,7 @@ describe('autoloadSchema', () => {
 		const confirm = vi.fn(async () => true);
 		await autoloadSchema(doc('t4', '/w/a.json'), confirm);
 		expect(confirm).not.toHaveBeenCalled();
-		expect(fetch).not.toHaveBeenCalled();
+		expect(ipc.fetchSchema).not.toHaveBeenCalled();
 		expect(schemaSessions.for('t4').verdict).toMatchObject({
 			kind: 'problem',
 			message: expect.stringMatching(/only loads schemas over HTTPS/),

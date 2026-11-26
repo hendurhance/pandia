@@ -1,4 +1,6 @@
 <script module lang="ts">
+	import type { Attachment } from 'svelte/attachments';
+	import { on } from 'svelte/events';
 	import type { Path } from '$lib/ipc/bindings';
 	import type { ViewportState } from '../logic/viewport';
 
@@ -179,10 +181,21 @@
 		}
 	}
 
-	function onPointerUp(e: PointerEvent) {
+	const panAndZoom: Attachment<HTMLElement> = (node) => {
+		const off = [
+			on(node, 'wheel', onWheel),
+			on(node, 'keydown', onKeydown),
+			on(node, 'pointerdown', onPointerDown),
+			on(node, 'pointermove', onPointerMove),
+			on(node, 'pointerup', onPointerUp),
+			on(node, 'pointercancel', endPan),
+			on(node, 'dblclick', onDblClick),
+		];
+		return () => off.forEach((stop) => stop());
+	};
+
+	function endPan() {
 		if (!canvas) return;
-		const wasPanning = panStart !== null;
-		const moved = panMoved;
 		if (panStart) {
 			try {
 				canvas.releasePointerCapture(panStart.pointerId);
@@ -190,6 +203,14 @@
 			panStart = null;
 			panMoved = false;
 		}
+		canvas.style.cursor = 'grab';
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (!canvas) return;
+		const wasPanning = panStart !== null;
+		const moved = panMoved;
+		endPan();
 		if (wasPanning && !moved) {
 			const rect = canvas.getBoundingClientRect();
 			const hit = hitAtScreen(e.clientX - rect.left, e.clientY - rect.top);
@@ -198,7 +219,6 @@
 				else onPickCard(hit.card.path);
 			}
 		}
-		canvas.style.cursor = 'grab';
 	}
 
 	function onDblClick(e: MouseEvent) {
@@ -267,6 +287,15 @@
 		const onDprChange = () => syncCanvasSize();
 		window.addEventListener('resize', onDprChange);
 
+		let dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+		const onDprQuery = () => {
+			syncCanvasSize();
+			dprQuery.removeEventListener('change', onDprQuery);
+			dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+			dprQuery.addEventListener('change', onDprQuery);
+		};
+		dprQuery.addEventListener('change', onDprQuery);
+
 		const onAppearanceChange = () => {
 			theme = readGraphTheme();
 			requestPaint();
@@ -277,6 +306,7 @@
 		return () => {
 			ro.disconnect();
 			window.removeEventListener('resize', onDprChange);
+			dprQuery.removeEventListener('change', onDprQuery);
 			window.removeEventListener(APPEARANCE_CHANGE_EVENT, onAppearanceChange);
 			if (pendingFrame) cancelAnimationFrame(pendingFrame);
 			pendingFrame = 0;
@@ -293,13 +323,7 @@
 	role="application"
 	aria-label="JSON graph view"
 	tabindex="-1"
-	onwheel={onWheel}
-	onkeydown={onKeydown}
-	onpointerdown={onPointerDown}
-	onpointermove={onPointerMove}
-	onpointerup={onPointerUp}
-	onpointercancel={onPointerUp}
-	ondblclick={onDblClick}
+	{@attach panAndZoom}
 >
 	<canvas bind:this={canvas} aria-hidden="true"></canvas>
 </div>

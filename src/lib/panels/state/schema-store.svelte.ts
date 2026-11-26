@@ -41,6 +41,7 @@ export class SchemaSession {
 
 	private doc: { handle: DocHandle; version: number } | null = null;
 	private timer: ReturnType<typeof setTimeout> | undefined;
+	private job: string | null = null;
 	private seq = 0;
 
 	documentChanged(handle: DocHandle, version: number): void {
@@ -64,6 +65,7 @@ export class SchemaSession {
 		this.text = text;
 		this.origin = origin;
 		this.cancel();
+		this.seq++;
 		if (!text.trim()) {
 			this.verdict = { kind: 'none' };
 			return;
@@ -78,6 +80,7 @@ export class SchemaSession {
 
 	fail(message: string, origin: SchemaOrigin | null, retry?: () => Promise<void>): void {
 		this.cancel();
+		this.seq++;
 		this.text = '';
 		this.origin = origin;
 		this.verdict = { kind: 'problem', message, retry };
@@ -89,12 +92,16 @@ export class SchemaSession {
 		const doc = this.doc;
 		if (!text || !doc) return;
 		const mine = ++this.seq;
+		const job = crypto.randomUUID();
+		this.job = job;
 		this.verdict = { kind: 'checking', last: lastResult(this.verdict) };
 		try {
-			const result = await ipc.docValidateSchema(doc.handle, text);
+			const result = await ipc.docValidateSchema(doc.handle, text, job);
 			if (mine === this.seq) this.verdict = { kind: 'checked', result };
 		} catch (e) {
 			if (mine === this.seq) this.verdict = { kind: 'problem', message: describeError(e) };
+		} finally {
+			if (this.job === job) this.job = null;
 		}
 	}
 
@@ -120,6 +127,7 @@ export class SchemaSession {
 
 	private schedule(): void {
 		this.cancel();
+		this.seq++;
 		const last = lastResult(this.verdict);
 		if (!this.text.trim()) {
 			this.verdict = { kind: 'none' };
@@ -130,7 +138,6 @@ export class SchemaSession {
 			this.verdict = { kind: 'stale', last };
 			return;
 		}
-		this.seq++;
 		this.verdict = { kind: 'checking', last };
 		if (ms === SCHEMA_DEBOUNCE_IMMEDIATE) {
 			void this.validateNow();
@@ -142,6 +149,8 @@ export class SchemaSession {
 	private cancel(): void {
 		clearTimeout(this.timer);
 		this.timer = undefined;
+		if (this.job) void ipc.cancelJob(this.job).catch(() => {});
+		this.job = null;
 	}
 }
 

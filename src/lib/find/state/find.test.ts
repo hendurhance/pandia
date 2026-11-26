@@ -1,12 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ipc } from '$lib/ipc/client';
+import type { SearchHit, SearchProgress } from '$lib/ipc/bindings';
 import { FindController, type FindDeps } from './find.svelte';
 
-vi.mock('$lib/ipc/client', () => ({
-	ipc: { docSearch: vi.fn(async () => []), cancelJob: vi.fn(async () => true) },
+const progress = vi.hoisted(() => ({ send: (_: SearchProgress) => {} }));
+vi.mock('@tauri-apps/api/core', () => ({
+	Channel: class {
+		constructor(onmessage: (p: SearchProgress) => void) {
+			progress.send = onmessage;
+		}
+	},
 }));
 
-function controller(handle: string | null = null) {
+vi.mock('$lib/ipc/client', async () => ({
+	ipc: (await import('$lib/ipc/fake')).fakeIpc({
+		docSearch: vi.fn(async () => []),
+		docReplace: vi.fn(async () => ({ count: 1, applied: null })),
+		cancelJob: vi.fn(async () => true),
+	}),
+}));
+
+const hit: SearchHit = {
+	path: ['foo'],
+	kind: 'string',
+	matchField: 'key',
+	snippet: 'foo',
+};
+
+function controller(handle: string | null = null, over: Partial<FindDeps> = {}) {
 	return new FindController({
 		handle: () => handle,
 		canOpen: () => true,
@@ -17,6 +38,7 @@ function controller(handle: string | null = null) {
 		openGraphSearch: () => {},
 		navigateToHit: () => {},
 		afterReplace: async () => {},
+		...over,
 	} as FindDeps);
 }
 
@@ -51,6 +73,249 @@ describe('FindController — the typing debounce', () => {
 			stop(find);
 			await vi.runAllTimersAsync();
 			expect(ipc.docSearch).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe('FindController — closing in the Code view', () => {
+	it('clears the code search, so its match marks go away', () => {
+		const cmSearch = vi.fn(() => 0);
+		const find = new FindController({
+			handle: () => 'h',
+			canOpen: () => true,
+			isCodeView: () => true,
+			isGraphView: () => false,
+			switchToTree: () => {},
+			codeApi: () => ({ cmSearch }) as never,
+			openGraphSearch: () => {},
+			navigateToHit: () => {},
+			afterReplace: async () => {},
+		} as FindDeps);
+		find.close();
+		expect(cmSearch).toHaveBeenLastCalledWith('', false);
+	});
+});
+
+describe('FindController — the query', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('Replace All in the tree replaces the text the search looked for, spaces included', async () => {
+		const find = controller('h');
+		vi.useFakeTimers();
+		try {
+			find.openFind();
+			find.onQueryChange(' id');
+			await vi.runAllTimersAsync();
+		} finally {
+			vi.useRealTimers();
+		}
+		await find.replaceAll();
+		expect(ipc.docReplace).toHaveBeenCalledWith('h', ' id', '', false);
+		expect(vi.mocked(ipc.docSearch).mock.calls.map((c) => c[1].query)).toEqual([' id', ' id']);
+	});
+
+	it('the Code view finds and replaces the text as typed, spaces included', () => {
+		const cmSearch = vi.fn(() => ({ count: 1, current: 1 }));
+		const cmReplaceAll = vi.fn(() => 1);
+		const find = controller('h', {
+			isCodeView: () => true,
+			codeApi: () => ({ cmSearch, cmReplaceAll }) as never,
+		});
+		find.openFind();
+		find.onQueryChange(' id');
+		void find.replaceAll();
+		expect(cmSearch.mock.calls.slice(1)).toEqual([
+			[' id', false],
+			[' id', false],
+		]);
+		expect(cmReplaceAll).toHaveBeenCalledWith(' id', '', false);
+	});
+});
+
+describe('FindController — switching views with find open', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('searches the tree for the new view without jumping to a hit', async () => {
+		vi.mocked(ipc.docSearch).mockResolvedValueOnce([hit]);
+		let code = true;
+		const navigateToHit = vi.fn();
+		const find = controller('h', {
+			isCodeView: () => code,
+			codeApi: () => ({ cmSearch: () => ({ count: 1, current: 1 }) }) as never,
+			navigateToHit,
+		});
+		find.openFind();
+		find.onQueryChange('foo');
+		code = false;
+		find.syncActiveView();
+		await vi.waitFor(() => expect(find.hits).toHaveLength(1));
+		expect(navigateToHit).not.toHaveBeenCalled();
+	});
+});
+
+describe('FindController — the Code view counter', () => {
+	it('shows the number of the match the editor selected', () => {
+		const find = controller('h', {
+			isCodeView: () => true,
+			codeApi: () => ({ cmSearch: () => ({ count: 3, current: 2 }) }) as never,
+		});
+		find.openFind();
+		find.onQueryChange('foo');
+		expect(find.counter).toBe('2 / 3');
+	});
+
+	it('Next and Previous show the number of the match the editor selected', () => {
+		const cmFindNext = vi.fn(() => ({ count: 3, current: 1 }));
+		const cmFindPrev = vi.fn(() => ({ count: 3, current: 2 }));
+		const find = controller('h', {
+			isCodeView: () => true,
+			codeApi: () =>
+				({ cmSearch: () => ({ count: 3, current: 1 }), cmFindNext, cmFindPrev }) as never,
+		});
+		find.openFind();
+		find.onQueryChange('foo');
+		find.next();
+		expect(cmFindNext).toHaveBeenCalledWith('foo', false);
+		expect(find.counter).toBe('1 / 3');
+		find.prev();
+		expect(cmFindPrev).toHaveBeenCalledWith('foo', false);
+		expect(find.counter).toBe('2 / 3');
+	});
+});
+
+describe('FindController — Replace All', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('ignores a second press while the first is still replacing', async () => {
+		const find = controller('h');
+		find.openFind();
+		find.query = 'a';
+		find.replaceValue = 'aa';
+		await Promise.all([find.replaceAll(), find.replaceAll()]);
+		expect(ipc.docReplace).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		[5, 3, 0, 'replaced 5 matches in 3 values'],
+		[1, 1, 0, 'replaced 1 match in 1 value'],
+		[4, 2, 1, 'replaced 4 matches in 2 values and 1 key'],
+		[2, 0, 2, 'replaced 2 matches in 2 keys'],
+	])('reports count %i, values %i, keys %i as "%s"', async (count, values, keys, status) => {
+		vi.mocked(ipc.docReplace).mockResolvedValueOnce({ count, values, keys, applied: null });
+		const find = controller('h');
+		find.openFind();
+		find.query = 'a';
+		await find.replaceAll();
+		expect(find.replaceStatus).toBe(status);
+	});
+});
+
+describe('FindController — cancelling a search', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('drops the hits of the previous query', async () => {
+		vi.mocked(ipc.docSearch).mockResolvedValueOnce([hit]);
+		vi.useFakeTimers();
+		try {
+			const find = controller('h');
+			find.openFind();
+			find.onQueryChange('foo');
+			await vi.runAllTimersAsync();
+			expect(find.counter).toBe('1 / 1');
+			find.onQueryChange('foobar');
+			find.cancel();
+			await vi.runAllTimersAsync();
+			expect(find.hits).toEqual([]);
+			expect(find.counter).toBe('no matches');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe('FindController — a long search', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	const at = (n: number): SearchHit => ({ ...hit, path: ['rows', n] });
+
+	const settle = () => new Promise((r) => setTimeout(r));
+
+	async function searching() {
+		let finish: (hits: SearchHit[]) => void = () => {};
+		vi.mocked(ipc.docSearch).mockReturnValueOnce(new Promise((r) => (finish = r)));
+		const navigateToHit = vi.fn();
+		const find = controller('h', { navigateToHit });
+		find.openFind();
+		vi.useFakeTimers();
+		try {
+			find.onQueryChange('foo');
+			await vi.runAllTimersAsync();
+		} finally {
+			vi.useRealTimers();
+		}
+		return { find, navigateToHit, finish: (hits: SearchHit[]) => finish(hits) };
+	}
+
+	it('shows each hit as it is found, with the share of the file scanned', async () => {
+		const { find, navigateToHit, finish } = await searching();
+		progress.send({ hits: [], scanned: 10, total: 100 });
+		expect(find.counter).toBe('searching… · 10%');
+
+		progress.send({ hits: [at(1), at(2)], scanned: 40, total: 100 });
+		expect(find.counter).toBe('1 / 2 · 40%');
+		expect(navigateToHit).toHaveBeenCalledWith(['rows', 1]);
+
+		progress.send({ hits: [at(3)], scanned: 70, total: 100 });
+		expect(find.hits.map((h) => h.path)).toEqual([
+			['rows', 1],
+			['rows', 2],
+			['rows', 3],
+		]);
+
+		finish([at(1), at(2), at(3), at(4)]);
+		await settle();
+		expect(find.counter).toBe('1 / 4');
+		expect(navigateToHit).toHaveBeenCalledTimes(1);
+	});
+
+	it('Cancel stops the scan and keeps the hits found so far', async () => {
+		const { find, finish } = await searching();
+		progress.send({ hits: [at(1), at(2)], scanned: 40, total: 100 });
+		find.stop();
+		expect(ipc.cancelJob).toHaveBeenCalledTimes(1);
+		expect(find.busy).toBe(false);
+		expect(find.counter).toBe('1 / 2 · stopped · 40%');
+
+		progress.send({ hits: [at(3)], scanned: 50, total: 100 });
+		finish([at(1), at(2), at(3)]);
+		await settle();
+		expect(find.hits).toHaveLength(2);
+	});
+
+	it('Cancel before anything is found drops the search like before', async () => {
+		const find = controller('h');
+		find.openFind();
+		find.onQueryChange('foo');
+		find.stop();
+		expect(find.busy).toBe(false);
+		expect(find.counter).toBe('no matches');
+	});
+});
+
+describe('FindController — the tree counter at the search cap', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('shows the total as a lower bound when the engine stops at 10,000 hits', async () => {
+		vi.mocked(ipc.docSearch).mockResolvedValueOnce(Array.from({ length: 10_000 }, () => hit));
+		vi.useFakeTimers();
+		try {
+			const find = controller('h');
+			find.openFind();
+			find.onQueryChange('foo');
+			await vi.runAllTimersAsync();
+			expect(find.counter).toBe('1 / 10000+');
 		} finally {
 			vi.useRealTimers();
 		}

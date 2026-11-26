@@ -6,6 +6,7 @@ import {
 	CARD_RADIUS,
 	FONT_PX,
 	HEADER_FONT_WEIGHT,
+	MIN_VALUE_W,
 	ROW_PAD_X,
 	SWATCH_W,
 	SWATCH_GAP,
@@ -107,7 +108,7 @@ function paintEdges(
 	theme: GraphTheme,
 	edgeStyle: EdgeStyle,
 ): void {
-	ctx.strokeStyle = theme.rule2;
+	ctx.strokeStyle = theme.textFaint;
 	ctx.lineWidth = 1.5 / scale; // keep visual weight constant across zoom
 	ctx.lineJoin = 'round';
 	ctx.lineCap = 'round';
@@ -258,10 +259,15 @@ function paintRow(
 ): void {
 	const midY = rowY + ROW_H / 2;
 	let cursorX = card.x + ROW_PAD_X;
+	const portReserve = row.expandable ? 18 : 0;
+	const swatch = row.colorHex ? SWATCH_W + SWATCH_GAP : 0;
+	const valueMin = Math.min(ctx.measureText(row.value).width, MIN_VALUE_W);
+	const keyRoom = card.x + card.w - cursorX - ROW_PAD_X - portReserve - swatch;
+	const keyText = fitText(ctx, row.key, keyRoom - ctx.measureText(': ').width - valueMin);
 
 	ctx.fillStyle = theme.textDim;
-	ctx.fillText(row.key, cursorX, midY);
-	cursorX += ctx.measureText(row.key).width;
+	ctx.fillText(keyText, cursorX, midY);
+	cursorX += ctx.measureText(keyText).width;
 
 	ctx.fillStyle = theme.textFaint;
 	ctx.fillText(':', cursorX, midY);
@@ -278,9 +284,8 @@ function paintRow(
 
 	const valColor = valueColor(row, theme);
 	ctx.fillStyle = valColor;
-	const portReserve = row.expandable ? 18 : 0;
 	const valMaxWidth = card.x + card.w - cursorX - ROW_PAD_X - portReserve;
-	const valText = fitText(ctx, row.value, Math.max(20, valMaxWidth));
+	const valText = fitText(ctx, row.value, Math.max(MIN_VALUE_W, valMaxWidth));
 	ctx.fillText(valText, cursorX, midY);
 
 	if (row.expandable) {

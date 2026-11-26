@@ -4,53 +4,207 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use serde_json::Value;
-use sonic_rs::{FastStr, JsonType, JsonValueTrait, LazyValue, PointerNode};
-
-use super::jobs::CancelFlag;
-use super::search::{
-    prepare as search_prepare, string_match_snippet, substr_contains, MatchField, SearchHit,
-    SearchOptions,
+use sonic_rs::{
+    ArrayJsonIter, FastStr, JsonType, JsonValueTrait, LazyValue, ObjectJsonIter, PointerNode,
 };
+
+use super::cell::Cell;
+use super::jobs::CancelFlag;
+use super::mapped::MappedText;
+use super::search::{match_snippet, prepare_matcher, MatchField, SearchHit, SearchOptions};
+use super::tier::EDIT_SIZE_LIMIT;
 use super::typegen::{
     merge as merge_shape, ObjectProp, PrimitiveKind, TypeShape, ARRAY_SAMPLE_CAP,
 };
-use super::types::{quote_preview, DocError, DocResult, NodeKind, NodeView, Path, PathSegment};
+use super::types::{
+    quote_preview, BigFileProblem, DocError, DocResult, NodeKind, NodeView, Path, PathSegment,
+};
 
 const COUNT_BUDGET_BYTES: usize = 64 * 1024;
+const INDEX_STRIDE: usize = 64;
+const PROGRESS_MIN_STEP: usize = 1024 * 1024;
 
-type ElementSpans = Arc<Vec<(u32, u32)>>;
+#[derive(Debug)]
+enum Source {
+    Owned(FastStr),
+    Mapped(Arc<MappedText>),
+}
+
+impl Source {
+    fn as_str(&self) -> &str {
+        match self {
+            Source::Owned(text) => text.as_str(),
+            Source::Mapped(text) => text.as_str(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ArrayIndex {
+    len: u32,
+    checkpoints: Vec<u64>,
+}
+
+impl ArrayIndex {
+    fn build(bytes: &[u8], start: usize) -> DocResult<Self> {
+        let mut i = skip_ws(bytes, start);
+        if i >= bytes.len() || bytes[i] != b'[' {
+            return Err(DocError::Parse("expected array".into()));
+        }
+        i = skip_ws(bytes, i + 1);
+
+        let mut index = Self {
+            len: 0,
+            checkpoints: Vec::new(),
+        };
+        if i < bytes.len() && bytes[i] == b']' {
+            return Ok(index);
+        }
+
+        loop {
+            if (index.len as usize).is_multiple_of(INDEX_STRIDE) {
+                index.checkpoints.push(i as u64);
+            }
+            i = skip_value(bytes, i)?;
+            index.len = index
+                .len
+                .checked_add(1)
+                .ok_or(DocError::TooManyItems { limit: u32::MAX })?;
+
+            i = skip_ws(bytes, i);
+            if i >= bytes.len() {
+                return Err(DocError::Parse("unterminated array".into()));
+            }
+            match bytes[i] {
+                b',' => {
+                    i = skip_ws(bytes, i + 1);
+                }
+                b']' => return Ok(index),
+                other => {
+                    return Err(DocError::Parse(format!(
+                        "expected ',' or ']' at byte {}, found {:?}",
+                        i, other as char
+                    )))
+                }
+            }
+        }
+    }
+
+    fn len(&self) -> u32 {
+        self.len
+    }
+
+    fn elements<'a>(&self, bytes: &'a [u8], range: Range<u32>) -> Elements<'a> {
+        let end = range.end.min(self.len);
+        let start = range.start.min(end);
+        let k = start as usize / INDEX_STRIDE;
+        let mut elements = Elements {
+            bytes,
+            next: self.checkpoints.get(k).map_or(0, |&at| at as usize),
+            left: end - (k * INDEX_STRIDE) as u32,
+        };
+        for _ in 0..start as usize % INDEX_STRIDE {
+            elements.next();
+        }
+        elements
+    }
+
+    fn element(&self, bytes: &[u8], i: u32) -> Option<Range<usize>> {
+        self.elements(bytes, i..i.saturating_add(1)).next()
+    }
+
+    fn rows<'a>(&self, src: &'a str) -> impl Iterator<Item = &'a str> {
+        self.elements(src.as_bytes(), 0..self.len)
+            .map(move |span| &src[span])
+    }
+}
+
+struct Elements<'a> {
+    bytes: &'a [u8],
+    next: usize,
+    left: u32,
+}
+
+impl Iterator for Elements<'_> {
+    type Item = Range<usize>;
+
+    fn next(&mut self) -> Option<Range<usize>> {
+        if self.left == 0 {
+            return None;
+        }
+        self.left -= 1;
+        let start = self.next;
+        let end = skip_value(self.bytes, start).expect("validated JSON");
+        self.next = skip_ws(self.bytes, skip_ws(self.bytes, end) + 1);
+        Some(start..end)
+    }
+}
+
+type ElementIndex = Arc<ArrayIndex>;
 
 #[derive(Debug)]
 pub struct LazyDoc {
-    source: FastStr,
+    source: Source,
     root_kind: NodeKind,
-    root_index: Option<ElementSpans>,
-    nested_index: parking_lot::Mutex<HashMap<Path, ElementSpans>>,
+    root_index: Option<ElementIndex>,
+    nested_index: parking_lot::Mutex<HashMap<Path, ElementIndex>>,
 }
 
 impl LazyDoc {
     pub fn new(text: FastStr) -> DocResult<Self> {
-        let repeated_keys = prescan(&text)?;
-        sonic_rs::from_str::<serde::de::IgnoredAny>(&text)
-            .map_err(|e| DocError::Parse(e.to_string()))?;
-        let root_kind = root_kind_of(&text);
+        Self::open(Source::Owned(text))
+    }
 
-        let source = if repeated_keys.is_empty() {
-            text
+    pub fn mapped(text: Arc<MappedText>) -> DocResult<Self> {
+        Self::open(Source::Mapped(text))
+    }
+
+    fn open(source: Source) -> DocResult<Self> {
+        let text = source.as_str();
+        let root_kind = root_kind_of(text);
+        let repeated_keys = prescan(text)?;
+        if let (Source::Mapped(mapped), false) = (&source, repeated_keys.is_empty()) {
+            return Err(DocError::BigFile(BigFileProblem::RepeatedKeys {
+                file: mapped.name(),
+            }));
+        }
+        let index_early = root_kind == NodeKind::Array && repeated_keys.is_empty();
+        let (validated, surrogate, early_index) = std::thread::scope(|scope| {
+            let surrogate = scope.spawn(|| has_surrogate_escape(text));
+            let index = index_early.then(|| scope.spawn(|| ArrayIndex::build(text.as_bytes(), 0)));
+            (
+                validate_json(text),
+                join_scoped(surrogate),
+                index.map(join_scoped),
+            )
+        });
+        validated?;
+        if surrogate {
+            parse_json::<Decoded>(text)?;
+        }
+
+        // Collapse repeated keys the way serde_json reads them (first position,
+        // last value) so every lazy read agrees with the eager backend.
+        let deduped = if repeated_keys.is_empty() {
+            None
         } else {
-            // Collapse repeated keys the way serde_json reads them (first position,
-            // last value) so every lazy read agrees with the eager backend.
             let start = skip_ws(text.as_bytes(), 0);
             let end = skip_value(text.as_bytes(), start)?;
             let mut deduped = String::with_capacity(text.len());
-            write_deduped(&text, start..end, &repeated_keys, &mut deduped);
-            FastStr::from_string(deduped)
+            write_deduped(text, start..end, &repeated_keys, &mut deduped);
+            Some(deduped)
+        };
+        let source = match deduped {
+            Some(deduped) => Source::Owned(FastStr::from_string(deduped)),
+            None => source,
         };
 
-        let root_index = if root_kind == NodeKind::Array {
-            Some(Arc::new(build_array_index(source.as_bytes(), 0)?))
-        } else {
-            None
+        let root_index = match early_index {
+            Some(index) => Some(Arc::new(index?)),
+            None if root_kind == NodeKind::Array => {
+                Some(Arc::new(ArrayIndex::build(source.as_str().as_bytes(), 0)?))
+            }
+            None => None,
         };
 
         Ok(Self {
@@ -69,39 +223,54 @@ impl LazyDoc {
         self.source.as_str()
     }
 
-    pub fn root_element_spans(&self) -> Option<&[(u32, u32)]> {
-        self.root_index.as_deref().map(Vec::as_slice)
+    pub fn is_mapped(&self) -> bool {
+        matches!(self.source, Source::Mapped(_))
+    }
+
+    pub fn check_unchanged(&self) -> DocResult<()> {
+        match &self.source {
+            Source::Mapped(text) => text.check_unchanged(),
+            Source::Owned(_) => Ok(()),
+        }
     }
 
     pub fn root_child_count(&self) -> Option<u32> {
         if let Some(idx) = &self.root_index {
-            return Some(idx.len() as u32);
+            return Some(idx.len());
         }
         if self.root_kind != NodeKind::Object {
             return None;
         }
-        if self.source.len() > COUNT_BUDGET_BYTES * 16 {
+        if self.source().len() > COUNT_BUDGET_BYTES * 16 {
             return None;
         }
-        let lv = root_lv(&self.source).ok()?;
+        let lv = root_lv(self.source()).ok()?;
         let iter = lv.into_object_iter()?;
         Some(iter.filter_map(Result::ok).count() as u32)
     }
 
     pub fn slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
-        if path.is_root() {
-            if let Some(idx) = &self.root_index {
-                return Ok(slice_root_array(&self.source, idx, range));
-            }
+        if let Some(index) = self.cached_index(path) {
+            return Ok(slice_indexed_array(self.source(), &index, range));
         }
-
+        if path.is_root() {
+            return slice_raw(self.source(), self.root_kind, range);
+        }
         let lv = self.lookup(path)?;
-        slice_lazy_value(lv, range)
+        if lv.get_type() == JsonType::Array {
+            let index = self.index_array(path, &lv)?;
+            return Ok(slice_indexed_array(self.source(), &index, range));
+        }
+        slice_raw(
+            lv.as_raw_str(),
+            json_type_to_node_kind(lv.get_type()),
+            range,
+        )
     }
 
     pub fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)> {
-        if let Some(spans) = self.array_spans(path)? {
-            return Ok((NodeKind::Array, Some(spans.len() as u32)));
+        if let Some(index) = self.array_index(path)? {
+            return Ok((NodeKind::Array, Some(index.len())));
         }
         let lv = self.lookup(path)?;
         let kind = json_type_to_node_kind(lv.get_type());
@@ -110,11 +279,8 @@ impl LazyDoc {
     }
 
     pub fn child_count_uncapped(&self, path: &Path) -> DocResult<Option<u32>> {
-        // Root array's child count is already memoised at construction.
-        if path.is_root() {
-            if let Some(idx) = &self.root_index {
-                return Ok(Some(idx.len() as u32));
-            }
+        if let Some(index) = self.array_index(path)? {
+            return Ok(Some(index.len()));
         }
         let lv = self.lookup(path)?;
         let kind = json_type_to_node_kind(lv.get_type());
@@ -123,17 +289,17 @@ impl LazyDoc {
 
     pub fn get_value(&self, path: &Path) -> DocResult<Value> {
         if let Some((PathSegment::Index(i), parent)) = path.0.split_last() {
-            if let Ok(Some(spans)) = self.array_spans(&Path(parent.to_vec())) {
-                let (begin, fin) = *spans
-                    .get(*i as usize)
+            if let Ok(Some(index)) = self.array_index(&Path(parent.to_vec())) {
+                let src = self.source();
+                let span = index
+                    .element(src.as_bytes(), *i)
                     .ok_or_else(|| DocError::InvalidPath(path.clone()))?;
-                let bytes = &self.source.as_str()[begin as usize..fin as usize];
-                return parse_json(bytes);
+                return parse_within_limit(path, &src[span]);
             }
         }
 
         let lv = self.lookup(path)?;
-        parse_json(lv.as_raw_str())
+        parse_within_limit(path, lv.as_raw_str())
     }
 
     pub fn array_field_cells(&self, path: &Path, field: &str) -> DocResult<Vec<Option<Value>>> {
@@ -148,118 +314,161 @@ impl LazyDoc {
             }
         };
 
-        let Some(spans) = self.array_spans(path)? else {
+        let Some(index) = self.array_index(path)? else {
             return Ok(Vec::new());
         };
-        let src = self.source.as_str();
-        Ok(spans
-            .iter()
-            .map(|(b, e)| extract(&src[*b as usize..*e as usize]))
-            .collect())
+        Ok(index.rows(self.source()).map(extract).collect())
     }
 
-    pub fn array_field_text_lower(
-        &self,
-        path: &Path,
-        field: &str,
-    ) -> DocResult<Vec<Option<String>>> {
+    pub fn array_field_keys(&self, path: &Path, field: &str) -> DocResult<Vec<Cell<'_>>> {
+        let needle = sonic_pointer(&[PathSegment::Key(field.to_string())]);
+        let Some(index) = self.array_index(path)? else {
+            return Ok(Vec::new());
+        };
+        let src = self.source();
+        let mut out = Vec::with_capacity(index.len() as usize);
+        for element in index.rows(src) {
+            out.push(
+                match unsafe { sonic_rs::get_from_str_unchecked(element, &needle) } {
+                    Ok(lv) => lazy_cell(src, &lv)?,
+                    Err(_) => Cell::Null,
+                },
+            );
+        }
+        Ok(out)
+    }
+
+    pub fn array_field_text(&self, path: &Path, field: &str) -> DocResult<Vec<Option<String>>> {
         let needle = sonic_pointer(&[PathSegment::Key(field.to_string())]);
         let extract = |bytes: &str| -> Option<String> {
             // SAFETY: see `array_field_cells` — same precondition holds.
             let lv = unsafe { sonic_rs::get_from_str_unchecked(bytes, &needle) }.ok()?;
             let raw = lv.as_raw_str();
             match lv.get_type() {
-                JsonType::String => {
-                    let s: String = serde_json::from_str(raw).ok()?;
-                    Some(s.to_lowercase())
-                }
+                JsonType::String => serde_json::from_str(raw).ok(),
                 JsonType::Number | JsonType::Boolean => Some(raw.to_string()),
                 _ => None, // null/object/array — not searchable as text
             }
         };
 
-        let Some(spans) = self.array_spans(path)? else {
+        let Some(index) = self.array_index(path)? else {
             return Ok(Vec::new());
         };
-        let src = self.source.as_str();
-        Ok(spans
-            .iter()
-            .map(|(b, e)| extract(&src[*b as usize..*e as usize]))
-            .collect())
+        Ok(index.rows(self.source()).map(extract).collect())
     }
 
-    pub fn search(&self, opts: &SearchOptions, cancel: &CancelFlag) -> Vec<SearchHit> {
-        let Some((needle, cap)) = search_prepare(opts) else {
+    pub fn search(
+        &self,
+        opts: &SearchOptions,
+        cancel: &CancelFlag,
+        report: &mut dyn FnMut(&[SearchHit], u64),
+    ) -> Vec<SearchHit> {
+        let Some((matcher, cap)) = prepare_matcher(opts) else {
             return Vec::new();
         };
         let mut hits = Vec::new();
-        let root = match root_lv(&self.source) {
-            Ok(lv) => lv,
-            Err(_) => return hits,
+        let src = self.source();
+        let mut walk = Walk {
+            matcher: &matcher,
+            cap,
+            cancel,
+            progress: Progress::new(src, report),
         };
         let mut path = Path::root();
-        walk_lazy(
-            &root,
-            &mut path,
-            &needle,
-            opts.case_sensitive,
-            cap,
-            &mut hits,
-            cancel,
-        );
+        match self.root_kind {
+            NodeKind::Object => {
+                let entries = unsafe { sonic_rs::to_object_iter_unchecked(src) };
+                walk.object(entries, &mut path, &mut hits);
+            }
+            NodeKind::Array => {
+                let items = unsafe { sonic_rs::to_array_iter_unchecked(src) };
+                walk.array(items, &mut path, &mut hits);
+            }
+            _ => {
+                if let Ok(root) = root_lv(src) {
+                    walk.value(&root, &mut path, &mut hits);
+                }
+            }
+        }
         hits
     }
 
     pub fn infer_shape(&self) -> TypeShape {
-        match root_lv(&self.source) {
+        match root_lv(self.source()) {
             Ok(lv) => infer_lazy(&lv),
             Err(_) => TypeShape::Unknown,
         }
     }
 
-    // Element offsets of the array at `path`, so reading element i doesn't rescan the ones
     // before it. A nested array is indexed on first use and kept: the source never changes.
-    fn array_spans(&self, path: &Path) -> DocResult<Option<ElementSpans>> {
+    fn array_index(&self, path: &Path) -> DocResult<Option<ElementIndex>> {
         if path.is_root() {
             return Ok(self.root_index.clone());
         }
-        if let Some(spans) = self.nested_index.lock().get(path) {
-            return Ok(Some(Arc::clone(spans)));
+        if let Some(index) = self.cached_index(path) {
+            return Ok(Some(index));
         }
         let lv = self.lookup(path)?;
         if lv.get_type() != JsonType::Array {
             return Ok(None);
         }
+        self.index_array(path, &lv).map(Some)
+    }
+
+    fn cached_index(&self, path: &Path) -> Option<ElementIndex> {
+        if path.is_root() {
+            return self.root_index.clone();
+        }
+        self.nested_index.lock().get(path).cloned()
+    }
+
+    fn index_array(&self, path: &Path, lv: &LazyValue<'_>) -> DocResult<ElementIndex> {
         // `lookup` returns a slice of the source, so its distance from the start is its offset.
-        let start = lv.as_raw_str().as_ptr() as usize - self.source.as_str().as_ptr() as usize;
-        let spans = Arc::new(build_array_index(self.source.as_bytes(), start)?);
+        let start = lv.as_raw_str().as_ptr() as usize - self.source().as_ptr() as usize;
+        let index = Arc::new(ArrayIndex::build(self.source().as_bytes(), start)?);
         self.nested_index
             .lock()
-            .insert(path.clone(), Arc::clone(&spans));
-        Ok(Some(spans))
+            .insert(path.clone(), Arc::clone(&index));
+        Ok(index)
+    }
+
+    fn indexed_ancestor(&self, path: &Path) -> Option<(usize, ElementIndex)> {
+        let cache = self.nested_index.lock();
+        for (k, seg) in path.0.iter().enumerate().rev() {
+            if !matches!(seg, PathSegment::Index(_)) {
+                continue;
+            }
+            let index = if k == 0 {
+                self.root_index.clone()
+            } else {
+                cache.get(&Path(path.0[..k].to_vec())).cloned()
+            };
+            if let Some(index) = index {
+                return Some((k, index));
+            }
+        }
+        None
     }
 
     fn lookup(&self, path: &Path) -> DocResult<LazyValue<'_>> {
-        if let Some(idx) = &self.root_index {
-            if let Some(PathSegment::Index(i)) = path.0.first() {
-                let (begin, fin) = *idx
-                    .get(*i as usize)
-                    .ok_or_else(|| DocError::InvalidPath(path.clone()))?;
-                let bytes = &self.source.as_str()[begin as usize..fin as usize];
-
-                if path.0.len() == 1 {
-                    return unsafe { sonic_rs::get_from_str_unchecked(bytes, EMPTY_PATH) }
-                        .map_err(|_| DocError::InvalidPath(path.clone()));
-                }
-                let pointer = sonic_pointer(&path.0[1..]);
-                return unsafe { sonic_rs::get_from_str_unchecked(bytes, &pointer) }
-                    .map_err(|_| DocError::InvalidPath(path.clone()));
-            }
+        let invalid = || DocError::InvalidPath(path.clone());
+        let src = self.source();
+        let Some((k, index)) = self.indexed_ancestor(path) else {
+            let pointer = sonic_pointer(&path.0);
+            return unsafe { sonic_rs::get_from_str_unchecked(src, &pointer) }
+                .map_err(|_| invalid());
+        };
+        let PathSegment::Index(i) = path.0[k] else {
+            unreachable!("indexed_ancestor returns an index segment")
+        };
+        let bytes = &src[index.element(src.as_bytes(), i).ok_or_else(invalid)?];
+        let rest = &path.0[k + 1..];
+        if rest.is_empty() {
+            return unsafe { sonic_rs::get_from_str_unchecked(bytes, EMPTY_PATH) }
+                .map_err(|_| invalid());
         }
-
-        let pointer = sonic_pointer(&path.0);
-        unsafe { sonic_rs::get_from_str_unchecked(self.source.as_str(), &pointer) }
-            .map_err(|_| DocError::InvalidPath(path.clone()))
+        let pointer = sonic_pointer(rest);
+        unsafe { sonic_rs::get_from_str_unchecked(bytes, &pointer) }.map_err(|_| invalid())
     }
 }
 
@@ -301,8 +510,8 @@ fn sonic_pointer(segments: &[PathSegment]) -> Vec<PointerNode> {
         .collect()
 }
 
-fn root_lv(source: &FastStr) -> DocResult<LazyValue<'_>> {
-    unsafe { sonic_rs::get_from_faststr_unchecked(source, EMPTY_PATH) }
+fn root_lv(source: &str) -> DocResult<LazyValue<'_>> {
+    unsafe { sonic_rs::get_from_str_unchecked(source, EMPTY_PATH) }
         .map_err(|e| DocError::Parse(e.to_string()))
 }
 
@@ -370,42 +579,10 @@ fn key_text(raw: &str) -> Cow<'_, str> {
     }
 }
 
-fn build_array_index(bytes: &[u8], start: usize) -> DocResult<Vec<(u32, u32)>> {
-    let mut i = skip_ws(bytes, start);
-
-    if i >= bytes.len() || bytes[i] != b'[' {
-        return Err(DocError::Parse("expected array".into()));
-    }
-    i += 1;
-    i = skip_ws(bytes, i);
-
-    let mut index = Vec::new();
-    if i < bytes.len() && bytes[i] == b']' {
-        return Ok(index); // empty array
-    }
-
-    loop {
-        let start = i;
-        i = skip_value(bytes, i)?;
-        index.push((start as u32, i as u32));
-
-        i = skip_ws(bytes, i);
-        if i >= bytes.len() {
-            return Err(DocError::Parse("unterminated array".into()));
-        }
-        match bytes[i] {
-            b',' => {
-                i = skip_ws(bytes, i + 1);
-            }
-            b']' => return Ok(index),
-            other => {
-                return Err(DocError::Parse(format!(
-                    "expected ',' or ']' at byte {}, found {:?}",
-                    i, other as char
-                )))
-            }
-        }
-    }
+fn join_scoped<T>(handle: std::thread::ScopedJoinHandle<'_, T>) -> T {
+    handle
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 fn skip_ws(bytes: &[u8], mut i: usize) -> usize {
@@ -535,6 +712,80 @@ pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> DocResul
         .map_err(|e| DocError::Parse(e.to_string()))
 }
 
+fn validate_json(text: &str) -> DocResult<()> {
+    let checked = if text.len() > u32::MAX as usize {
+        let mut de = serde_json::Deserializer::from_str(text);
+        de.disable_recursion_limit();
+        <serde::de::IgnoredAny as serde::Deserialize>::deserialize(&mut de)
+            .and_then(|_| de.end())
+            .map_err(|e| e.to_string())
+    } else {
+        sonic_rs::from_str::<serde::de::IgnoredAny>(text)
+            .map(drop)
+            .map_err(|e| e.to_string())
+    };
+    checked.map_err(DocError::Parse)
+}
+
+fn has_surrogate_escape(text: &str) -> bool {
+    let b = text.as_bytes();
+    text.match_indices('\\').any(|(i, _)| {
+        b.get(i + 1) == Some(&b'u')
+            && matches!(b.get(i + 2), Some(b'd' | b'D'))
+            && matches!(b.get(i + 3), Some(b'8'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+    })
+}
+
+struct Decoded;
+
+impl<'de> serde::Deserialize<'de> for Decoded {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(Decoded)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for Decoded {
+    type Value = Decoded;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _: bool) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_i64<E>(self, _: i64) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_u64<E>(self, _: u64) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_f64<E>(self, _: f64) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_str<E>(self, _: &str) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_unit<E>(self) -> Result<Decoded, E> {
+        Ok(Decoded)
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Decoded, A::Error> {
+        while seq.next_element::<Decoded>()?.is_some() {}
+        Ok(Decoded)
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Decoded, A::Error> {
+        while map.next_entry::<Decoded, Decoded>()?.is_some() {}
+        Ok(Decoded)
+    }
+}
+
 fn check_literal(bytes: &[u8], i: usize, lit: &[u8]) -> DocResult<usize> {
     if i + lit.len() > bytes.len() || &bytes[i..i + lit.len()] != lit {
         return Err(DocError::Parse(format!(
@@ -553,39 +804,42 @@ fn skip_number(bytes: &[u8], mut i: usize) -> usize {
     i
 }
 
-#[allow(clippy::needless_range_loop)]
-fn slice_root_array(source: &FastStr, index: &[(u32, u32)], range: Range<u32>) -> Vec<NodeView> {
-    let start = range.start as usize;
-    let end = (range.end as usize).min(index.len());
-    if start >= end {
-        return Vec::new();
-    }
-
-    let source_str = source.as_str();
-    let mut out = Vec::with_capacity(end - start);
-    for i in start..end {
-        let (begin, fin) = index[i];
-        let bytes = &source_str[begin as usize..fin as usize];
-        let lv = unsafe { sonic_rs::get_from_str_unchecked(bytes, EMPTY_PATH) }
-            .expect("element bytes must be valid JSON (validated at open)");
-        out.push(node_view(PathSegment::Index(i as u32), &lv));
-    }
-    out
+fn slice_indexed_array(source: &str, index: &ArrayIndex, range: Range<u32>) -> Vec<NodeView> {
+    (range.start..)
+        .zip(index.elements(source.as_bytes(), range))
+        .map(|(i, span)| {
+            raw_node_view(PathSegment::Index(i), &source[span])
+                .expect("element bytes must be valid JSON (validated at open)")
+        })
+        .collect()
 }
 
-fn slice_lazy_value(lv: LazyValue<'_>, range: Range<u32>) -> DocResult<Vec<NodeView>> {
+fn slice_raw(raw: &str, kind: NodeKind, range: Range<u32>) -> DocResult<Vec<NodeView>> {
     let start = range.start as usize;
     let end = range.end as usize;
     if end <= start {
         return Ok(Vec::new());
     }
-
-    let raw = lv.as_raw_str();
-    match lv.get_type() {
-        JsonType::Object => slice_object_raw(raw, start, end),
-        JsonType::Array => slice_array_raw(raw, start, end),
+    match kind {
+        NodeKind::Object => slice_object_raw(raw, start, end),
+        NodeKind::Array => slice_array_raw(raw, start, end),
         _ => Ok(Vec::new()),
     }
+}
+
+fn raw_node_view(key: PathSegment, raw: &str) -> DocResult<NodeView> {
+    let kind = root_kind_of(raw);
+    if raw.len() > COUNT_BUDGET_BYTES && matches!(kind, NodeKind::Object | NodeKind::Array) {
+        return Ok(NodeView {
+            key,
+            kind,
+            preview: container_preview(kind, None),
+            child_count: None,
+        });
+    }
+    let lv = unsafe { sonic_rs::get_from_str_unchecked(raw, EMPTY_PATH) }
+        .map_err(|e| DocError::Parse(e.to_string()))?;
+    Ok(node_view(key, &lv))
 }
 
 fn slice_object_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeView>> {
@@ -620,10 +874,10 @@ fn slice_object_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeVi
         if idx >= start {
             let key: String = serde_json::from_str(&raw[key_start..key_end])
                 .map_err(|e| DocError::Parse(e.to_string()))?;
-            let lv =
-                unsafe { sonic_rs::get_from_str_unchecked(&raw[val_start..val_end], EMPTY_PATH) }
-                    .map_err(|e| DocError::Parse(e.to_string()))?;
-            out.push(node_view(PathSegment::Key(key), &lv));
+            out.push(raw_node_view(
+                PathSegment::Key(key),
+                &raw[val_start..val_end],
+            )?);
         }
         idx += 1;
         if idx >= end {
@@ -658,10 +912,10 @@ fn slice_array_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeVie
         let val_end = i;
 
         if idx >= start {
-            let lv =
-                unsafe { sonic_rs::get_from_str_unchecked(&raw[val_start..val_end], EMPTY_PATH) }
-                    .map_err(|e| DocError::Parse(e.to_string()))?;
-            out.push(node_view(PathSegment::Index(idx as u32), &lv));
+            out.push(raw_node_view(
+                PathSegment::Index(idx as u32),
+                &raw[val_start..val_end],
+            )?);
         }
         idx += 1;
         if idx >= end {
@@ -677,77 +931,114 @@ fn slice_array_raw(raw: &str, start: usize, end: usize) -> DocResult<Vec<NodeVie
     }
 }
 
-fn walk_lazy(
-    lv: &LazyValue<'_>,
-    path: &mut Path,
-    needle: &str,
-    case_sensitive: bool,
+struct Progress<'r> {
+    base: usize,
+    step: usize,
+    next_at: usize,
+    sent: usize,
+    report: &'r mut dyn FnMut(&[SearchHit], u64),
+}
+
+impl<'r> Progress<'r> {
+    fn new(src: &str, report: &'r mut dyn FnMut(&[SearchHit], u64)) -> Self {
+        let step = (src.len() / 100).max(PROGRESS_MIN_STEP);
+        Self {
+            base: src.as_ptr() as usize,
+            step,
+            next_at: step,
+            sent: 0,
+            report,
+        }
+    }
+
+    fn reached(&mut self, lv: &LazyValue<'_>, hits: &[SearchHit]) {
+        let offset = lv.as_raw_str().as_ptr() as usize - self.base;
+        if offset < self.next_at {
+            return;
+        }
+        self.next_at = offset + self.step;
+        (self.report)(&hits[self.sent..], offset as u64);
+        self.sent = hits.len();
+    }
+}
+
+struct Walk<'a, 'r> {
+    matcher: &'a regex::Regex,
     cap: usize,
-    hits: &mut Vec<SearchHit>,
-    cancel: &CancelFlag,
-) {
-    if cancel.is_cancelled() {
-        return;
-    }
-    if hits.len() >= cap {
-        return;
-    }
-    match lv.get_type() {
-        JsonType::Object => {
-            let Some(iter) = lv.clone().into_object_iter() else {
-                return;
-            };
-            for entry in iter {
-                if hits.len() >= cap {
-                    return;
+    cancel: &'a CancelFlag,
+    progress: Progress<'r>,
+}
+
+impl<'s> Walk<'_, '_> {
+    fn value(&mut self, lv: &LazyValue<'s>, path: &mut Path, hits: &mut Vec<SearchHit>) {
+        if self.cancel.is_cancelled() || hits.len() >= self.cap {
+            return;
+        }
+        match lv.get_type() {
+            JsonType::Object => {
+                if let Some(entries) = lv.clone().into_object_iter() {
+                    self.object(entries, path, hits);
                 }
-                let Ok((key, child)) = entry else { return };
-                let key = key.into_owned();
-                if substr_contains(&key, needle, case_sensitive) {
-                    path.push(PathSegment::Key(key.clone()));
-                    hits.push(SearchHit {
-                        path: path.clone(),
-                        kind: json_type_to_node_kind(child.get_type()),
-                        match_field: MatchField::Key,
-                        snippet: format!("{}: {}", key, preview_lazy(&child)),
-                    });
-                    path.0.pop();
-                    if hits.len() >= cap {
-                        return;
+            }
+            JsonType::Array => {
+                if let Some(items) = lv.clone().into_array_iter() {
+                    self.array(items, path, hits);
+                }
+            }
+            JsonType::String => {
+                if let Some(s) = lv.as_str() {
+                    if let Some(snippet) = match_snippet(s, self.matcher) {
+                        hits.push(SearchHit {
+                            path: path.clone(),
+                            kind: NodeKind::String,
+                            match_field: MatchField::Value,
+                            snippet,
+                        });
                     }
                 }
-                path.push(PathSegment::Key(key));
-                walk_lazy(&child, path, needle, case_sensitive, cap, hits, cancel);
-                path.0.pop();
             }
+            _ => {}
         }
-        JsonType::Array => {
-            let Some(iter) = lv.clone().into_array_iter() else {
+    }
+
+    fn object(&mut self, entries: ObjectJsonIter<'s>, path: &mut Path, hits: &mut Vec<SearchHit>) {
+        for entry in entries {
+            if hits.len() >= self.cap {
                 return;
-            };
-            for (i, entry) in iter.enumerate() {
-                if hits.len() >= cap {
+            }
+            let Ok((key, child)) = entry else { return };
+            self.progress.reached(&child, hits);
+            let key = key.into_owned();
+            if self.matcher.is_match(&key) {
+                path.push(PathSegment::Key(key.clone()));
+                hits.push(SearchHit {
+                    path: path.clone(),
+                    kind: json_type_to_node_kind(child.get_type()),
+                    match_field: MatchField::Key,
+                    snippet: format!("{}: {}", key, preview_lazy(&child)),
+                });
+                path.0.pop();
+                if hits.len() >= self.cap {
                     return;
                 }
-                let Ok(child) = entry else { return };
-                path.push(PathSegment::Index(i as u32));
-                walk_lazy(&child, path, needle, case_sensitive, cap, hits, cancel);
-                path.0.pop();
             }
+            path.push(PathSegment::Key(key));
+            self.value(&child, path, hits);
+            path.0.pop();
         }
-        JsonType::String => {
-            if let Some(s) = lv.as_str() {
-                if let Some(snippet) = string_match_snippet(s, needle, case_sensitive) {
-                    hits.push(SearchHit {
-                        path: path.clone(),
-                        kind: NodeKind::String,
-                        match_field: MatchField::Value,
-                        snippet,
-                    });
-                }
+    }
+
+    fn array(&mut self, items: ArrayJsonIter<'s>, path: &mut Path, hits: &mut Vec<SearchHit>) {
+        for (i, item) in items.enumerate() {
+            if hits.len() >= self.cap {
+                return;
             }
+            let Ok(child) = item else { return };
+            self.progress.reached(&child, hits);
+            path.push(PathSegment::Index(i as u32));
+            self.value(&child, path, hits);
+            path.0.pop();
         }
-        _ => {}
     }
 }
 
@@ -755,23 +1046,25 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
     match lv.get_type() {
         JsonType::Null => TypeShape::Primitive(PrimitiveKind::Null),
         JsonType::Boolean => TypeShape::Primitive(PrimitiveKind::Bool),
-        JsonType::Number => {
-            let raw = lv.as_raw_str();
-            if raw.parse::<i64>().is_ok() {
-                TypeShape::Primitive(PrimitiveKind::Integer)
-            } else if raw.parse::<u64>().is_ok() {
-                TypeShape::Primitive(PrimitiveKind::Unsigned)
-            } else {
-                TypeShape::Primitive(PrimitiveKind::Float)
-            }
-        }
+        JsonType::Number => TypeShape::Primitive(super::typegen::number_kind(lv.as_raw_str())),
         JsonType::String => TypeShape::Primitive(PrimitiveKind::String),
         JsonType::Array => {
             let Some(iter) = lv.clone().into_array_iter() else {
-                return TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any)));
+                return TypeShape::Array(Box::new(TypeShape::Unknown));
             };
+            let len = iter.count();
+            let mut picked = super::typegen::sample_indices(len, ARRAY_SAMPLE_CAP).peekable();
             let mut acc: Option<TypeShape> = None;
-            for entry in iter.take(ARRAY_SAMPLE_CAP) {
+            for (i, entry) in lv
+                .clone()
+                .into_array_iter()
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                if picked.next_if_eq(&i).is_none() {
+                    continue;
+                }
                 let Ok(child) = entry else { break };
                 let s = infer_lazy(&child);
                 acc = Some(match acc {
@@ -780,7 +1073,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                 });
             }
             match acc {
-                None => TypeShape::Array(Box::new(TypeShape::Primitive(PrimitiveKind::Any))),
+                None => TypeShape::Array(Box::new(TypeShape::Unknown)),
                 Some(a) => TypeShape::Array(Box::new(a)),
             }
         }
@@ -794,6 +1087,7 @@ fn infer_lazy(lv: &LazyValue<'_>) -> TypeShape {
                         ObjectProp {
                             shape: infer_lazy(&child),
                             optional: false,
+                            nullable: false,
                         },
                     );
                 }
@@ -835,6 +1129,36 @@ fn number_preview(lv: &LazyValue<'_>) -> String {
         .map_or_else(|_| raw.to_string(), |n| n.to_string())
 }
 
+fn parse_within_limit(path: &Path, raw: &str) -> DocResult<Value> {
+    let actual = raw.len() as u64;
+    if actual > EDIT_SIZE_LIMIT {
+        return Err(DocError::ValueTooLarge {
+            path: path.clone(),
+            actual,
+            limit: EDIT_SIZE_LIMIT,
+        });
+    }
+    parse_json(raw)
+}
+
+fn lazy_cell<'a>(src: &'a str, lv: &LazyValue<'_>) -> DocResult<Cell<'a>> {
+    let raw = lv.as_raw_str();
+    let start = raw.as_ptr() as usize - src.as_ptr() as usize;
+    let raw = &src[start..start + raw.len()];
+    Ok(match lv.get_type() {
+        JsonType::Null => Cell::Null,
+        JsonType::Boolean => Cell::Bool(raw.starts_with('t')),
+        JsonType::Number => Cell::Num(raw),
+        JsonType::String if !raw.contains('\\') => Cell::Str(&raw[1..raw.len() - 1]),
+        JsonType::String => Cell::OwnedStr(parse_json::<String>(raw)?.into_boxed_str()),
+        kind => Cell::Raw {
+            raw,
+            len: count_uncapped(lv, json_type_to_node_kind(kind)).unwrap_or(0),
+            object: kind == JsonType::Object,
+        },
+    })
+}
+
 fn node_view(key: PathSegment, lv: &LazyValue<'_>) -> NodeView {
     let kind = json_type_to_node_kind(lv.get_type());
     let child_count = maybe_count(lv, kind);
@@ -849,6 +1173,13 @@ fn node_view(key: PathSegment, lv: &LazyValue<'_>) -> NodeView {
 impl super::backend::DocumentBackend for LazyDoc {
     fn root_kind_and_count(&self) -> (NodeKind, Option<u32>) {
         (self.root_kind(), self.root_child_count())
+    }
+
+    fn root_preview(&self) -> String {
+        match self.lookup(&Path::root()) {
+            Ok(lv) => preview(&lv, self.root_kind(), None),
+            Err(_) => String::new(),
+        }
     }
 
     fn slice(&self, path: &Path, range: std::ops::Range<u32>) -> DocResult<Vec<NodeView>> {
@@ -867,12 +1198,31 @@ impl super::backend::DocumentBackend for LazyDoc {
         LazyDoc::get_value(self, path)
     }
 
+    fn rows(&self, path: &Path, range: std::ops::Range<u32>) -> DocResult<Vec<Value>> {
+        let Some(index) = self.array_index(path)? else {
+            return Ok(Vec::new());
+        };
+        let src = self.source();
+        (range.start..)
+            .zip(index.elements(src.as_bytes(), range))
+            .map(|(i, span)| {
+                let mut row = path.clone();
+                row.push(PathSegment::Index(i));
+                parse_within_limit(&row, &src[span])
+            })
+            .collect()
+    }
+
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
         self.array_field_cells(path, key)
     }
 
-    fn column_text_lower(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
-        self.array_field_text_lower(path, key)
+    fn column_keys(&self, path: &Path, key: &str) -> DocResult<Vec<Cell<'_>>> {
+        self.array_field_keys(path, key)
+    }
+
+    fn column_text(&self, path: &Path, key: &str) -> DocResult<Vec<Option<String>>> {
+        self.array_field_text(path, key)
     }
 
     fn for_each_row_field(
@@ -881,18 +1231,15 @@ impl super::backend::DocumentBackend for LazyDoc {
         cancel: &CancelFlag,
         f: &mut dyn FnMut(&str, NodeKind),
     ) -> DocResult<u32> {
-        let Some(spans) = self.array_spans(path)? else {
+        let Some(index) = self.array_index(path)? else {
             return Ok(0);
         };
-        let src = self.source.as_str();
-        for (i, (b, e)) in spans.iter().enumerate() {
+        for (i, element) in index.rows(self.source()).enumerate() {
             if i % 4096 == 0 && cancel.is_cancelled() {
                 return Err(DocError::Cancelled);
             }
 
-            let row = unsafe {
-                sonic_rs::get_from_str_unchecked(&src[*b as usize..*e as usize], EMPTY_PATH)
-            };
+            let row = unsafe { sonic_rs::get_from_str_unchecked(element, EMPTY_PATH) };
             let Some(fields) = row.ok().and_then(|lv| lv.into_object_iter()) else {
                 continue;
             };
@@ -900,15 +1247,16 @@ impl super::backend::DocumentBackend for LazyDoc {
                 f(&k, json_type_to_node_kind(v.get_type()));
             }
         }
-        Ok(spans.len() as u32)
+        Ok(index.len())
     }
 
     fn search(
         &self,
-        opts: &super::search::SearchOptions,
-        cancel: &super::jobs::CancelFlag,
-    ) -> Vec<super::search::SearchHit> {
-        LazyDoc::search(self, opts, cancel)
+        opts: &SearchOptions,
+        cancel: &CancelFlag,
+        report: &mut dyn FnMut(&[SearchHit], u64),
+    ) -> Vec<SearchHit> {
+        LazyDoc::search(self, opts, cancel, report)
     }
 
     fn generate_types(
@@ -939,14 +1287,14 @@ impl super::backend::DocumentBackend for LazyDoc {
     }
 
     fn serialize_ndjson(&self) -> Option<String> {
-        let spans = self.root_element_spans()?;
+        let index = self.root_index.as_deref()?;
         let src = self.source();
-        let mut out = String::with_capacity(src.len() + spans.len());
-        for &(a, b) in spans {
-            out.push_str(&src[a as usize..b as usize]);
-            out.push('\n');
+        let mut out = Vec::with_capacity(src.len() + index.len() as usize);
+        for row in index.rows(src) {
+            super::export::reformat_json(row.as_bytes(), false, &mut out).ok()?;
+            out.push(b'\n');
         }
-        Some(out)
+        String::from_utf8(out).ok()
     }
 
     fn write_json(
@@ -999,16 +1347,18 @@ fn preview(lv: &LazyValue<'_>, kind: NodeKind, child_count: Option<u32>) -> Stri
             Some(s) => quote_preview(s),
             None => String::new(),
         },
-        NodeKind::Array => match child_count {
-            Some(0) => "[]".into(),
-            Some(n) => format!("[{n} items]"),
-            None => "[\u{2026}]".into(),
-        },
-        NodeKind::Object => match child_count {
-            Some(0) => "{}".into(),
-            Some(n) => format!("{{{n} keys}}"),
-            None => "{\u{2026}}".into(),
-        },
+        NodeKind::Array | NodeKind::Object => container_preview(kind, child_count),
+    }
+}
+
+fn container_preview(kind: NodeKind, child_count: Option<u32>) -> String {
+    match (kind, child_count) {
+        (NodeKind::Array, Some(0)) => "[]".into(),
+        (NodeKind::Array, Some(n)) => format!("[{n} items]"),
+        (NodeKind::Array, None) => "[\u{2026}]".into(),
+        (_, Some(0)) => "{}".into(),
+        (_, Some(n)) => format!("{{{n} keys}}"),
+        (_, None) => "{\u{2026}}".into(),
     }
 }
 
@@ -1018,6 +1368,29 @@ mod tests {
 
     fn doc(s: &str) -> LazyDoc {
         LazyDoc::new(FastStr::new(s)).expect("valid JSON in test")
+    }
+
+    #[test]
+    fn reading_a_value_over_the_size_limit_is_refused_before_it_is_built() {
+        let limit = EDIT_SIZE_LIMIT as usize;
+        let d = doc(&format!(
+            r#"{{"small": [1, 2], "big": [{}0]}}"#,
+            " ".repeat(limit)
+        ));
+        let big = Path(vec![PathSegment::Key("big".into())]);
+        match d.get_value(&big) {
+            Err(DocError::ValueTooLarge {
+                path,
+                actual,
+                limit: l,
+            }) => {
+                assert_eq!((path, l), (big, EDIT_SIZE_LIMIT));
+                assert!(actual > EDIT_SIZE_LIMIT);
+            }
+            other => panic!("expected ValueTooLarge, got {:?}", other.map(|_| ())),
+        }
+        let small = Path(vec![PathSegment::Key("small".into())]);
+        assert_eq!(d.get_value(&small).unwrap(), serde_json::json!([1, 2]));
     }
 
     #[test]
@@ -1062,6 +1435,137 @@ mod tests {
             out.len()
         );
         assert_eq!(out.len(), 3);
+    }
+
+    #[test]
+    #[ignore = "perf probe; run the release test binary with --ignored --nocapture"]
+    fn perf_open_passes() {
+        use std::fmt::Write;
+        use std::time::Instant;
+        let mut s = String::with_capacity(520_000_000);
+        s.push('[');
+        let mut i = 0u32;
+        while s.len() < 500_000_000 {
+            if i > 0 {
+                s.push(',');
+            }
+            write!(
+                s,
+                r#"{{"id":{i},"name":"user {i}","tags":["a","b"],"score":{}.5}}"#,
+                i % 1000
+            )
+            .unwrap();
+            i += 1;
+        }
+        s.push(']');
+        let mb = s.len() / 1_000_000;
+        let bytes = s.clone().into_bytes();
+        let t = Instant::now();
+        let text = String::from_utf8(bytes).unwrap();
+        let utf8 = t.elapsed();
+        let t = Instant::now();
+        prescan(&text).unwrap();
+        let pre = t.elapsed();
+        let t = Instant::now();
+        sonic_rs::from_str::<serde::de::IgnoredAny>(&text).unwrap();
+        let validate = t.elapsed();
+        let t = Instant::now();
+        has_surrogate_escape(&text);
+        let surrogate = t.elapsed();
+        let t = Instant::now();
+        ArrayIndex::build(text.as_bytes(), 0).unwrap();
+        let index = t.elapsed();
+        let t = Instant::now();
+        let mut h = blake3::Hasher::new();
+        h.update(text.as_bytes());
+        h.finalize();
+        let hash = t.elapsed();
+        let t = Instant::now();
+        let d = super::super::document::Document::from_source(FastStr::from_string(text), None)
+            .unwrap();
+        let open = t.elapsed();
+        drop(d);
+        eprintln!("[open] {mb}MB, {i} records: utf8 {utf8:?}, prescan {pre:?}, validate {validate:?}, surrogate {surrogate:?}, index {index:?}, hash {hash:?} | Document::from_source total {open:?}");
+    }
+
+    #[test]
+    #[ignore = "perf probe; run with --ignored"]
+    fn perf_page_deep_into_a_nested_array() {
+        use std::fmt::Write;
+        use std::time::Instant;
+        const N: u32 = 1_000_000;
+        let mut s = String::with_capacity(40_000_000);
+        s.push_str("{\"data\":[");
+        for i in 0..N {
+            if i > 0 {
+                s.push(',');
+            }
+            write!(s, "{{\"id\":{i},\"name\":\"n{i}\"}}").unwrap();
+        }
+        s.push_str("]}");
+        let mb = s.len() / 1_000_000;
+        let d = doc(&s);
+        let data = Path(vec![PathSegment::Key("data".into())]);
+        let t = Instant::now();
+        d.slice(&data, 0..200).unwrap();
+        let first = t.elapsed();
+        let t = Instant::now();
+        assert_eq!(d.child_count_uncapped(&data).unwrap(), Some(N));
+        let count = t.elapsed();
+        let t = Instant::now();
+        let old_count = count_uncapped(&d.lookup(&data).unwrap(), NodeKind::Array);
+        let full_scan_count = t.elapsed();
+        assert_eq!(old_count, Some(N));
+
+        let t = Instant::now();
+        for page in 0..20 {
+            let from = N - 200 * (page + 1);
+            assert_eq!(d.slice(&data, from..from + 200).unwrap().len(), 200);
+        }
+        let pages = t.elapsed();
+
+        let row = Path(vec![
+            PathSegment::Key("data".into()),
+            PathSegment::Index(N - 5),
+        ]);
+        let t = Instant::now();
+        for _ in 0..20 {
+            assert_eq!(d.slice(&row, 0..10).unwrap().len(), 2);
+        }
+        let rows = t.elapsed();
+        eprintln!("[perf] {mb}MB nested array: first page {first:?}, count {count:?} (a full-scan count takes {full_scan_count:?}), 20 pages near the end {pages:?}, 20 row expands near the end {rows:?}");
+    }
+
+    #[test]
+    fn nested_array_pages_and_rows_read_the_right_elements() {
+        let d = doc(
+            r#"{"meta": {"n": 5}, "data": [{"id": 0}, {"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}]}"#,
+        );
+        let data = Path(vec![PathSegment::Key("data".into())]);
+        let page = d.slice(&data, 2..4).unwrap();
+        assert_eq!(
+            page.iter().map(|n| n.key.clone()).collect::<Vec<_>>(),
+            [PathSegment::Index(2), PathSegment::Index(3)]
+        );
+        assert_eq!(d.slice(&data, 4..99).unwrap().len(), 1);
+        assert!(d.slice(&data, 7..9).unwrap().is_empty());
+        assert_eq!(d.child_count_uncapped(&data).unwrap(), Some(5));
+
+        let row = Path(vec![PathSegment::Key("data".into()), PathSegment::Index(3)]);
+        let fields = d.slice(&row, 0..10).unwrap();
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].preview, "3");
+        let id = Path(vec![
+            PathSegment::Key("data".into()),
+            PathSegment::Index(3),
+            PathSegment::Key("id".into()),
+        ]);
+        assert_eq!(d.get_value(&id).unwrap(), serde_json::json!(3));
+        let past_end = Path(vec![PathSegment::Key("data".into()), PathSegment::Index(9)]);
+        assert!(matches!(
+            d.slice(&past_end, 0..1),
+            Err(DocError::InvalidPath(_))
+        ));
     }
 
     #[test]
@@ -1192,7 +1696,7 @@ mod tests {
             case_sensitive: false,
             max_results: None,
         };
-        let lazy_hits = doc(json).search(&opts, &CancelFlag::never());
+        let lazy_hits = doc(json).search(&opts, &CancelFlag::never(), &mut |_, _| {});
         let v: Value = serde_json::from_str(json).unwrap();
         let eager_hits = crate::doc::search::search_in_value(&v, &opts, &CancelFlag::never());
 
@@ -1221,7 +1725,12 @@ mod tests {
             case_sensitive: false,
             max_results: Some(10),
         };
-        assert_eq!(doc(&body).search(&opts, &CancelFlag::never()).len(), 10);
+        assert_eq!(
+            doc(&body)
+                .search(&opts, &CancelFlag::never(), &mut |_, _| {})
+                .len(),
+            10
+        );
     }
 
     #[test]
@@ -1279,14 +1788,14 @@ mod tests {
     }
 
     #[test]
-    fn array_field_text_lower_extracts_lowercased_scalars() {
+    fn array_field_text_extracts_scalars_as_written() {
         let d =
             doc(r#"[{"n": "Hello"}, {"n": 42}, {"n": true}, {"n": null}, {"n": {"k":1}}, {}, 99]"#);
-        let cells = d.array_field_text_lower(&Path::root(), "n").unwrap();
+        let cells = d.array_field_text(&Path::root(), "n").unwrap();
         assert_eq!(
             cells,
             vec![
-                Some("hello".into()),
+                Some("Hello".into()),
                 Some("42".into()),
                 Some("true".into()),
                 None,
@@ -1298,10 +1807,10 @@ mod tests {
     }
 
     #[test]
-    fn array_field_text_lower_handles_escapes() {
+    fn array_field_text_handles_escapes() {
         let d = doc(r#"[{"n": "Hello\nWorld"}, {"n": "Aé"}]"#);
-        let cells = d.array_field_text_lower(&Path::root(), "n").unwrap();
-        assert_eq!(cells, vec![Some("hello\nworld".into()), Some("aé".into())]);
+        let cells = d.array_field_text(&Path::root(), "n").unwrap();
+        assert_eq!(cells, vec![Some("Hello\nWorld".into()), Some("Aé".into())]);
     }
 
     #[test]
@@ -1316,5 +1825,35 @@ mod tests {
         let d = doc(r#"[10, 20, 30, 40, 50]"#);
         assert_eq!(d.root_kind(), NodeKind::Array);
         assert_eq!(d.root_child_count(), Some(5));
+    }
+
+    #[test]
+    fn ndjson_writes_each_pretty_record_on_one_line_like_the_eager_writer() {
+        use crate::doc::backend::DocumentBackend;
+        let text = "[\n  {\n    \"a\": 1,\n    \"b\": [\n      1,\n      2\n    ]\n  },\n  {\n    \"a\": 2\n  }\n]";
+        let eager: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            DocumentBackend::serialize_ndjson(&doc(text)),
+            DocumentBackend::serialize_ndjson(&eager)
+        );
+    }
+
+    #[test]
+    fn a_lone_surrogate_is_refused_at_open_with_the_eager_error() {
+        for text in [
+            r#"{"s":"\ud83d","x":1}"#,
+            r#"{"ok":1,"\ud800":2,"z":3}"#,
+            r#"["\udc00"]"#,
+            r#"["\ud83d\u0041"]"#,
+        ] {
+            let DocError::Parse(eager) = parse_json::<Value>(text).unwrap_err() else {
+                panic!("{text}: eager should refuse with a parse error");
+            };
+            match LazyDoc::new(FastStr::new(text)) {
+                Err(DocError::Parse(lazy)) => assert_eq!(lazy, eager, "{text}"),
+                other => panic!("{text}: lazy open gave {other:?}, eager gave {eager}"),
+            }
+        }
+        doc(r#"["\ud83d\ude00", "\\ud800"]"#);
     }
 }
