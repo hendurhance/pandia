@@ -141,7 +141,7 @@ jobs:
 
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
-          find squashfs-root -name 'libwayland-*' -print -delete
+          find squashfs-root -name 'libwayland-*' -prune -print -exec rm -rf {} +
           rm -f squashfs-root/.DirIcon
           cp src-tauri/icons/128x128@2x.png squashfs-root/.DirIcon
 
