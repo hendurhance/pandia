@@ -196,6 +196,10 @@ impl super::backend::DocumentBackend for Value {
         kind_and_child_count_eager(self)
     }
 
+    fn root_preview(&self) -> String {
+        preview_eager(self)
+    }
+
     fn slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>> {
         slice_eager(self, path, range)
     }

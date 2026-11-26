@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ipc } from '$lib/ipc/client';
-import { backupDelayMs, createBackupFlusher } from './backup-flush';
+import { backupDelayMs, createBackupFlusher, inBackupOrder } from './backup-flush';
 
 vi.mock('$lib/ipc/client', async () => ({ ipc: (await import('$lib/ipc/fake')).fakeIpc() }));
 
@@ -54,5 +54,30 @@ describe('flushIfDue', () => {
 		now += 1_000;
 		await backup.flushIfDue();
 		expect(ipc.docBackup).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('inBackupOrder', () => {
+	it('clears a backup only after a write that was already running, so a save is never undone', async () => {
+		vi.clearAllMocks();
+		let finishWrite!: () => void;
+		vi.mocked(ipc.docBackup).mockReturnValueOnce(new Promise((r) => (finishWrite = () => r(true))));
+		const backup = createBackupFlusher({
+			handle: () => 'doc-1' as never,
+			sourceName: () => 'big.json',
+			isDirty: () => true,
+			uncommittedText: () => null,
+			bytes: () => 0,
+		});
+		const writing = backup.flush();
+		await Promise.resolve();
+		expect(ipc.docBackup).toHaveBeenCalledOnce();
+		const cleared = inBackupOrder('doc-1' as never, () => ipc.docBackupClear('doc-1'));
+		await Promise.resolve();
+		expect(ipc.docBackupClear).not.toHaveBeenCalled();
+		finishWrite();
+		await writing;
+		await cleared;
+		expect(ipc.docBackupClear).toHaveBeenCalledWith('doc-1');
 	});
 });

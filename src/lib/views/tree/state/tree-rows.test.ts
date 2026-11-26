@@ -102,22 +102,21 @@ describe('refetchAfterOp', () => {
 		expect(rowAt(tree, ['obj'])).toMatchObject({ kind: 'string', expanded: false });
 	});
 
-	it('shows the new value of an edited scalar root, keeping number tokens exact', async () => {
-		const cases: [NodeKind, string, string][] = [
-			['string', '"he said \\"hi\\""', '"he said "hi""'],
-			['number', '12345678901234567890.10', '12345678901234567890.10'],
-			['bool', 'true', 'true'],
-			['null', 'null', 'null'],
-			['string', JSON.stringify('😀'.repeat(1001)), `"${'😀'.repeat(1000)}…"`],
+	it('shows the preview Rust gives for an edited scalar root', async () => {
+		const cases: [NodeKind, string][] = [
+			['string', '"he said "hi""'],
+			['number', '12345678901234567890.10'],
+			['bool', 'true'],
+			['null', 'null'],
 		];
-		for (const [kind, text, preview] of cases) {
+		for (const [kind, preview] of cases) {
 			const tree = setup(null);
 			tree.setRows([rootRow(kind, null)]);
 			vi.mocked(ipc.docSummary).mockResolvedValue({
 				rootKind: kind,
 				rootChildCount: null,
 			} as Summary);
-			vi.mocked(ipc.docGetValue).mockResolvedValue(text as never);
+			vi.mocked(ipc.docRootPreview).mockResolvedValue(preview);
 			await tree.refetchAfterOp([[]]);
 			expect(tree.rows).toEqual([expect.objectContaining({ path: [], kind, preview })]);
 		}
@@ -168,6 +167,15 @@ describe('expanded items after an array insert, delete or move', () => {
 		await tree.refetchAfterOp([[]], { kind: 'moveItem', path: [], from: 3, to: 1 });
 		expect(rowAt(tree, [1])).toMatchObject({ preview: '{"d":1}', expanded: true });
 		expect(expanded(tree)).toEqual([[], [1], [3]]);
+	});
+
+	it('stay open after an unknown change that kept the length, as after undoing an edit', async () => {
+		const list: unknown[] = [{ a: 1 }, { b: 1 }, { c: 1 }];
+		const tree = setup(list);
+		await tree.ensurePathVisible([1, 'b']);
+		list[2] = { c: 2 };
+		await tree.refetchAfterOp([[]]);
+		expect(expanded(tree)).toEqual([[], [1]]);
 	});
 
 	it('are dropped when the op is unknown, while keyed children stay open', async () => {

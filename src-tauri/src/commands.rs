@@ -330,6 +330,16 @@ pub async fn doc_get_value(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn doc_root_preview(
+    state: tauri::State<'_, Arc<DocStore>>,
+    handle: DocHandle,
+) -> Result<String, WireError> {
+    let store = state.inner().clone();
+    run_blocking(move || store.read(handle, |doc| Ok(doc.root_preview()))).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn doc_summary(
     state: tauri::State<'_, Arc<DocStore>>,
     handle: DocHandle,
@@ -846,12 +856,7 @@ pub async fn fetch_schema(url: String) -> Result<String, WireError> {
         &crate::doc::jobs::CancelFlag::never(),
     )
     .await?;
-    String::from_utf8(got.bytes).map_err(|_| {
-        WireError::from(DocError::Request(RequestProblem::NotData {
-            content_type: got.media_type,
-            status: 200,
-        }))
-    })
+    Ok(got.into_text()?)
 }
 
 #[derive(Debug, Serialize, specta::Type)]

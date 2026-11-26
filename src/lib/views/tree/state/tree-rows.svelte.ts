@@ -17,28 +17,14 @@ import { collectExpandedDescendants, remapAfterOp } from '../logic/tree-walk';
 import { findIndexPaged, placeholderChunks } from '../logic/paging';
 import { PathIndex } from '../logic/row-cache';
 import { InFlight } from '$lib/views/shared/in-flight';
-import { decodeLossless, type LosslessText } from '$lib/ipc/wire';
-import type { DocHandle, NodeKind, Op, Path, Summary } from '$lib/ipc/bindings';
+import type { DocHandle, Op, Path, Summary } from '$lib/ipc/bindings';
 
 const CHUNK = 200;
-const PREVIEW_MAX_CHARS = 1000;
 
 export interface TreeRowsDeps {
 	handle: () => DocHandle | null;
 	summary: () => Summary | null;
 	setError: (msg: string) => void;
-}
-
-function scalarPreview(kind: NodeKind, text: LosslessText): string {
-	if (kind !== 'string') return text;
-	const s = decodeLossless(text) as string;
-	let chars = 0;
-	let end = 0;
-	for (const ch of s) {
-		if (chars++ === PREVIEW_MAX_CHARS) return `"${s.slice(0, end)}…"`;
-		end += ch.length;
-	}
-	return `"${s}"`;
 }
 
 export async function fetchRootRow(
@@ -47,7 +33,7 @@ export async function fetchRootRow(
 ): Promise<ContentRow> {
 	const root = rootRow(summary.rootKind, summary.rootChildCount);
 	if (root.kind === 'object' || root.kind === 'array') return root;
-	return { ...root, preview: scalarPreview(root.kind, await ipc.docGetValue(handle, [])) };
+	return { ...root, preview: await ipc.docRootPreview(handle) };
 }
 
 export class TreeRowsController {
@@ -296,7 +282,12 @@ export class TreeRowsController {
 		const isCollection = refreshed.kind === 'object' || refreshed.kind === 'array';
 
 		if (cur.expanded) {
-			const reopen = remapAfterOp(collectExpandedDescendants(this.rows, at, cur.depth), path, op);
+			const reopen = remapAfterOp(
+				collectExpandedDescendants(this.rows, at, cur.depth),
+				path,
+				op,
+				refreshed.childCount === cur.childCount,
+			);
 			removeSubtree(this.rows, at);
 			this.rows[at] = { ...refreshed, expanded: false };
 			this.scheduleFlush();

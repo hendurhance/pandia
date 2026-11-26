@@ -126,6 +126,21 @@ describe('GridEditController', () => {
 		expect(errors.at(-1)).toBe('Row [1] is a number, so it has no keys to add.');
 	});
 
+	it('leaves an error it did not show alone when an edit commits', async () => {
+		const { edit, errors } = setup(ROWS);
+		edit.start(0, 'name', 'Ada');
+		await edit.commit();
+		expect(errors).toEqual([]);
+	});
+
+	it('clears its own error once the next edit commits', async () => {
+		const { edit, errors } = setup([{ index: 2, value: 5 }, ...ROWS]);
+		edit.start(0, 'name', MISSING);
+		edit.start(1, 'name', 'Ada');
+		await edit.commit();
+		expect(errors).toEqual(['Row [2] is a number, so it has no keys to add.', null]);
+	});
+
 	it('cancel closes the editor without writing', async () => {
 		const { edit, applied } = setup(ROWS);
 		edit.start(0, 'name', 'Ada');

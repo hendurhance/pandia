@@ -6,12 +6,14 @@ export const SMALL_TIER: Pick<Summary, 'tier' | 'capabilities'> = {
 	capabilities: {
 		edit: true,
 		export: true,
+		exportConverted: true,
 		validate: true,
 		sortFilter: true,
 		codeView: true,
 		graph: true,
 		compare: true,
 		typegen: true,
+		typegenSchema: true,
 	},
 };
 

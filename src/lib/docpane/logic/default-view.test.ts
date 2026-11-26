@@ -5,12 +5,14 @@ import { resolveDefaultView, type DefaultViewSummary } from './default-view';
 const ALL: Capabilities = {
 	edit: true,
 	export: true,
+	exportConverted: true,
 	validate: true,
 	sortFilter: true,
 	codeView: true,
 	graph: true,
 	compare: true,
 	typegen: true,
+	typegenSchema: true,
 };
 
 function doc(

@@ -20,12 +20,14 @@ pub enum Tier {
 pub struct Capabilities {
     pub edit: bool,
     pub export: bool,
+    pub export_converted: bool,
     pub validate: bool,
     pub sort_filter: bool,
     pub code_view: bool,
     pub graph: bool,
     pub compare: bool,
     pub typegen: bool,
+    pub typegen_schema: bool,
 }
 
 impl Tier {
@@ -52,12 +54,14 @@ impl Tier {
         Capabilities {
             edit: whole,
             export: in_memory,
+            export_converted: whole,
             validate: whole,
             sort_filter: in_memory,
             code_view: whole && size <= CODE_VIEW_MAX_BYTES,
             graph: in_memory,
             compare: whole,
             typegen: in_memory,
+            typegen_schema: whole,
         }
     }
 }
@@ -91,17 +95,22 @@ mod tests {
             Capabilities {
                 edit: false,
                 export: false,
+                export_converted: false,
                 validate: false,
                 sort_filter: false,
                 code_view: false,
                 graph: false,
                 compare: false,
                 typegen: false,
+                typegen_schema: false,
             }
         );
         let large = Tier::Large.capabilities(EDIT_SIZE_LIMIT + 1);
         assert!(!large.edit && !large.validate && !large.compare && !large.code_view);
         assert!(large.export && large.sort_filter && large.graph && large.typegen);
+        assert!(!large.export_converted && !large.typegen_schema);
+        let lazy = Tier::Lazy.capabilities(EDIT_SIZE_LIMIT);
+        assert!(lazy.export_converted && lazy.typegen_schema);
     }
 
     #[test]

@@ -136,6 +136,10 @@ class Check {
 		}
 	}
 
+	answer(choice: 'primary' | 'secondary' | 'cancel'): void {
+		appendFileSync(control, `${JSON.stringify({ answer: choice })}\n`);
+	}
+
 	expect(what: string, got: unknown, want: unknown): void {
 		const ok = JSON.stringify(got) === JSON.stringify(want);
 		if (!ok) this.fail(`${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
@@ -526,21 +530,27 @@ const scenarios: Scenario[] = [
 			await pandia([path]);
 			if (!(await t.tab(isFor(path)))) return t.fail('the tab never opened');
 			await t.act('tree.sortKeysAsc');
-			systemQuit();
+			const quitting = systemQuit();
 			const prompt = await waitFor(() => t.events().find((e) => e.event === 'prompt'), 5000);
 			t.expect('asked before quitting', prompt !== undefined, true);
+			t.answer('cancel');
+			t.expect('macOS told the quit was cancelled', (await quitting).refused, true);
 			t.expect('still running', appRunning(), true);
 		},
 	},
 	{
 		name: 'system-quit-clean',
-		doc: 'With nothing unsaved, quitting closes Pandia without asking.',
+		doc: 'With nothing unsaved, quitting closes Pandia without asking, and a log out or restart is never interrupted.',
 		modes: ['cold'],
 		async run(t) {
 			const path = valid();
 			await pandia([path]);
 			if (!(await t.tab(isFor(path)))) return t.fail('the tab never opened');
-			systemQuit();
+			t.expect(
+				'quit went through, so logging out is not interrupted',
+				(await systemQuit()).refused,
+				false,
+			);
 			const gone = await waitFor(() => (appRunning() ? undefined : true), 8000);
 			t.expect('closed', gone, true);
 			t.expect(
@@ -556,15 +566,13 @@ const DATA = join(homedir(), 'Library/Application Support/com.pandia.ide.e2e');
 const BACKUPS = join(DATA, 'backups');
 const SETTINGS = join(DATA, 'pandia-settings.json');
 
-function systemQuit(): void {
-	try {
-		execFileSync('osascript', ['-e', 'tell application id "com.pandia.ide.e2e" to quit'], {
-			timeout: 15_000,
-			stdio: 'pipe',
-		});
-	} catch (e) {
-		if (!String((e as { stderr?: Buffer }).stderr).includes('(-128)')) throw e;
-	}
+function systemQuit(): Promise<{ refused: boolean }> {
+	return new Promise((done) => {
+		const child = spawn('osascript', ['-e', 'tell application id "com.pandia.ide.e2e" to quit']);
+		let stderr = '';
+		child.stderr.on('data', (d) => (stderr += d));
+		child.on('exit', () => done({ refused: stderr.includes('(-128)') }));
+	});
 }
 
 async function withBehavior(

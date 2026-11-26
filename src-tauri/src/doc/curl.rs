@@ -533,6 +533,23 @@ pub enum Expect {
 pub struct Downloaded {
     pub bytes: Vec<u8>,
     pub media_type: String,
+    pub status: u16,
+}
+
+impl Downloaded {
+    pub fn into_text(self) -> DocResult<String> {
+        let Self {
+            bytes,
+            media_type,
+            status,
+        } = self;
+        String::from_utf8(bytes).map_err(|_| {
+            DocError::Request(RequestProblem::NotData {
+                content_type: media_type,
+                status,
+            })
+        })
+    }
 }
 
 pub async fn download(
@@ -591,6 +608,7 @@ pub async fn download(
     Ok(Downloaded {
         bytes,
         media_type: media.unwrap_or_default(),
+        status: status.as_u16(),
     })
 }
 
@@ -883,6 +901,19 @@ pub(crate) mod tests {
         let (url, _got) = serve_once(Some(reply("200 OK", "application/schema+json", "{}")));
         let schema = download_from(&url, Expect::Data, 1000).await.unwrap();
         assert_eq!(schema.bytes, b"{}");
+    }
+
+    #[tokio::test]
+    async fn a_download_that_is_not_text_reports_the_status_the_server_sent() {
+        let mut raw = b"HTTP/1.1 203 Non-Authoritative Information\r\nContent-Type: application/octet-stream\r\nContent-Length: 2\r\nConnection: close\r\n\r\n".to_vec();
+        raw.extend_from_slice(&[0xff, 0xfe]);
+        let (url, _got) = serve_once(Some(raw));
+        let got = download_from(&url, Expect::Data, 1000).await.unwrap();
+        let err = got.into_text().unwrap_err();
+        assert!(
+            matches!(&err, DocError::Request(RequestProblem::NotData { status: 203, content_type }) if content_type == "application/octet-stream"),
+            "{err:?}"
+        );
     }
 
     #[tokio::test]

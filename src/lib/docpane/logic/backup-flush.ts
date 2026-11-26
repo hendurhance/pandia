@@ -22,6 +22,20 @@ export function backupDelayMs(bytes: number): number {
 	return Math.min(BACKUP_MAX_DELAY_MS, BACKUP_IDLE_MS + extra);
 }
 
+const writes = new Map<DocHandle, Promise<void>>();
+
+export function inBackupOrder(handle: DocHandle, write: () => Promise<unknown>): Promise<void> {
+	const next = (writes.get(handle) ?? Promise.resolve()).then(write).then(
+		() => {},
+		() => {},
+	);
+	writes.set(handle, next);
+	void next.then(() => {
+		if (writes.get(handle) === next) writes.delete(handle);
+	});
+	return next;
+}
+
 export function createBackupFlusher(deps: BackupFlushDeps) {
 	const now = deps.now ?? Date.now;
 	let lastAt = -Infinity;
@@ -36,10 +50,9 @@ export function createBackupFlusher(deps: BackupFlushDeps) {
 		lastAt = now();
 		const text = deps.uncommittedText();
 		if (text !== null) {
-			void ipc.docBackupText(h, deps.sourceName(), text).catch(() => {});
-			return;
+			return inBackupOrder(h, () => ipc.docBackupText(h, deps.sourceName(), text));
 		}
-		void ipc.docBackup(h, deps.sourceName()).catch(() => {});
+		return inBackupOrder(h, () => ipc.docBackup(h, deps.sourceName()));
 	}
 
 	return { flush, flushIfDue };

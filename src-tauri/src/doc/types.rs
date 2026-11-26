@@ -176,11 +176,9 @@ pub struct NodeView {
 
 pub(crate) fn quote_preview(s: &str) -> String {
     const MAX: usize = 1000;
-    if s.chars().count() > MAX {
-        let truncated: String = s.chars().take(MAX).collect();
-        format!("\"{truncated}\u{2026}\"")
-    } else {
-        format!("\"{s}\"")
+    match s.char_indices().nth(MAX) {
+        Some((cut, _)) => format!("\"{}\u{2026}\"", &s[..cut]),
+        None => format!("\"{s}\""),
     }
 }
 

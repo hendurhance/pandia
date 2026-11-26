@@ -43,7 +43,7 @@
 	import { Handoff } from '$lib/shell/state/handoff';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 	import { PaneCommandBus } from '$lib/shell/state/pane-bus';
-	import { ConfirmController } from '$lib/ui/confirm.svelte';
+	import { ConfirmController, type ConfirmChoice } from '$lib/ui/confirm.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { fmtBytes } from '$lib/util/format';
 
@@ -255,6 +255,7 @@
 					shouldClose = await prepareToQuit();
 				} finally {
 					if (shouldClose) await win.destroy();
+					else void ipc.quitCancelled().catch(() => {});
 					closing = false;
 				}
 			})
@@ -439,7 +440,11 @@
 				if (!on) return;
 				timer = setInterval(async () => {
 					for (const line of await ipc.e2eTakeActions()) {
-						const { run } = JSON.parse(line) as { run?: string };
+						const { run, answer } = JSON.parse(line) as {
+							run?: string;
+							answer?: ConfirmChoice;
+						};
+						if (answer && confirm.state) confirm.pick(answer);
 						if (!run) continue;
 						commandRegistry.run(run);
 						void ipc.e2eRecord(JSON.stringify({ event: 'ran', id: run }));

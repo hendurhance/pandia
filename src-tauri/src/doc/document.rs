@@ -406,6 +406,10 @@ impl Document {
         Ok(doc)
     }
 
+    pub fn root_preview(&self) -> String {
+        self.backend().root_preview()
+    }
+
     pub fn summary(&self) -> Summary {
         let (root_kind, root_child_count) = self.backend().root_kind_and_count();
         Summary {
@@ -1205,6 +1209,49 @@ impl Document {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_scalar_root_has_a_short_preview_without_reading_the_whole_value() {
+        let long = "x".repeat(LAZY_THRESHOLD_BYTES as usize);
+        let lazy = Document::from_text(&format!("\"{long}\""), None).unwrap();
+        assert!(lazy.is_lazy());
+        let preview = lazy.root_preview();
+        assert_eq!(preview.chars().count(), 1003);
+        assert!(preview.starts_with("\"xxx") && preview.ends_with("\u{2026}\""));
+        assert_eq!(
+            doc("12345678901234567890").root_preview(),
+            "12345678901234567890"
+        );
+        assert_eq!(doc("true").root_preview(), "true");
+        assert_eq!(doc(r#""hi""#).root_preview(), r#""hi""#);
+    }
+
+    #[test]
+    fn a_scalar_root_preview_unescapes_and_cuts_at_1000_characters_on_both_backends() {
+        let pad = " ".repeat(LAZY_THRESHOLD_BYTES as usize);
+        let emoji = "\u{1F600}".repeat(1001);
+        let cases = [
+            (
+                r#""he said \"hi\"""#.to_string(),
+                r#""he said "hi"""#.to_string(),
+            ),
+            (
+                format!("\"{emoji}\""),
+                format!("\"{}\u{2026}\"", "\u{1F600}".repeat(1000)),
+            ),
+            (
+                "12345678901234567890.10".to_string(),
+                "12345678901234567890.10".to_string(),
+            ),
+            ("null".to_string(), "null".to_string()),
+        ];
+        for (text, want) in cases {
+            assert_eq!(doc(&text).root_preview(), want, "eager {text:.40}");
+            let lazy = doc(&format!("{text}{pad}"));
+            assert!(lazy.is_lazy());
+            assert_eq!(lazy.root_preview(), want, "lazy {text:.40}");
+        }
+    }
+
     #[test]
     fn a_repeated_schema_check_reuses_the_compiled_schema() {
         let d = doc(r#"{"id": 1}"#);

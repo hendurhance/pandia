@@ -49,13 +49,18 @@ export function pathAfterOp(path: Path, op: Op): Path | null {
 	return to === seg ? path : [...path.slice(0, d), to, ...path.slice(d + 1)];
 }
 
-export function remapAfterOp(paths: Path[], container: Path, op: Op | undefined): Path[] {
+export function remapAfterOp(
+	paths: Path[],
+	container: Path,
+	op: Op | undefined,
+	sameLength: boolean,
+): Path[] {
 	const d = container.length;
 	const onContainer = op !== undefined && pathKey(op.path) === pathKey(container);
 	const out: Path[] = [];
 	for (const p of paths) {
 		const seg = p[d];
-		if (typeof seg !== 'number') {
+		if (typeof seg !== 'number' || (op === undefined && sameLength)) {
 			out.push(p);
 			continue;
 		}

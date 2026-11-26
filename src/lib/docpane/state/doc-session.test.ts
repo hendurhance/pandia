@@ -200,6 +200,22 @@ describe('DocSessionController — opening a source', () => {
 		expect(session.repairInfo).toBeNull();
 	});
 
+	it('leaves no half-open tab when the root row cannot be read', async () => {
+		const { session, deps } = fresh();
+		vi.mocked(ipc.docOpen).mockResolvedValue({
+			kind: 'opened',
+			handle: 'h9' as never,
+			summary: { ...summary('/w/big.json'), rootKind: 'string', rootChildCount: null },
+			notes: { convertedFrom: null, repairs: [] },
+		});
+		vi.mocked(ipc.docRootPreview).mockRejectedValue(new Error('the file changed on disk'));
+		expect(await session.loadFromSource({ kind: 'file', path: '/w/big.json' })).toBe(false);
+		expect(session.handle).toBeNull();
+		expect(session.summary).toBeNull();
+		expect(ipc.docClose).toHaveBeenCalledWith('h9');
+		expect(deps.setError).toHaveBeenCalledWith(expect.stringContaining('changed on disk'));
+	});
+
 	it('shows the real value of a scalar root', async () => {
 		const { session, deps } = fresh();
 		const tree = new TreeRowsController({
@@ -214,7 +230,7 @@ describe('DocSessionController — opening a source', () => {
 			summary: { ...summary('/w/s.json'), rootKind: 'string', rootChildCount: null },
 			notes: { convertedFrom: null, repairs: [] },
 		});
-		vi.mocked(ipc.docGetValue).mockResolvedValue('"hello"' as never);
+		vi.mocked(ipc.docRootPreview).mockResolvedValue('"hello"');
 		expect(await session.loadFromSource({ kind: 'file', path: '/w/s.json' })).toBe(true);
 		expect(tree.rows).toEqual([expect.objectContaining({ kind: 'string', preview: '"hello"' })]);
 	});

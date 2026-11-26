@@ -41,6 +41,7 @@ function scalarText(v: unknown, kind: NodeKind): string {
 
 export class GridEditController {
 	state: GridEditState | null = $state(null);
+	private showingError = false;
 
 	constructor(private deps: GridEditDeps) {}
 
@@ -52,6 +53,7 @@ export class GridEditController {
 		if (value === MISSING) {
 			const kind = kindOf(r.value);
 			if (kind !== 'object') {
+				this.showingError = true;
 				this.deps.setError(`Row [${r.index}] is ${KIND_NAME[kind]}, so it has no keys to add.`);
 				return;
 			}
@@ -97,7 +99,10 @@ export class GridEditController {
 			op = result && s.buffer !== s.initial ? result.op : null;
 		}
 		this.state = null;
-		this.deps.setError(null);
+		if (this.showingError) {
+			this.showingError = false;
+			this.deps.setError(null);
+		}
 		if (!op) return true;
 		const saved = await this.deps.apply(op);
 		if (saved && 'text' in op) {

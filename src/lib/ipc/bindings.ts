@@ -18,6 +18,7 @@ export const commands = {
 	docGetRowsAt: (handle: DocHandle, path: Path, indices: number[]) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_rows_at", { handle, path, indices }),
 	docGetColumn: (handle: DocHandle, path: Path, key: string) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_column", { handle, path, key }),
 	docSummary: (handle: DocHandle) => __TAURI_INVOKE<Summary>("doc_summary", { handle }),
+	docRootPreview: (handle: DocHandle) => __TAURI_INVOKE<string>("doc_root_preview", { handle }),
 	docChildCount: (handle: DocHandle, path: Path) => __TAURI_INVOKE<number | null>("doc_child_count", { handle, path }),
 	docColumnSchema: (handle: DocHandle, path: Path) => __TAURI_INVOKE<ColumnSchema>("doc_column_schema", { handle, path }),
 	docScanColumns: (handle: DocHandle, path: Path, jobId: string) => __TAURI_INVOKE<Column[]>("doc_scan_columns", { handle, path, jobId }),
@@ -41,6 +42,7 @@ export const commands = {
 	e2eRecord: (event: string) => __TAURI_INVOKE<void>("e2e_record", { event }),
 	e2eEnabled: () => __TAURI_INVOKE<boolean>("e2e_enabled"),
 	e2eTakeActions: () => __TAURI_INVOKE<string[]>("e2e_take_actions"),
+	quitCancelled: () => __TAURI_INVOKE<void>("quit_cancelled"),
 	curlPreview: (text: string) => __TAURI_INVOKE<CurlPreview>("curl_preview", { text }),
 	curlSend: (text: string, jobId: string, options: OpenOptions) => __TAURI_INVOKE<SentRequest>("curl_send", { text, jobId, options }),
 	fetchSchema: (url: string) => __TAURI_INVOKE<string>("fetch_schema", { url }),
@@ -107,12 +109,14 @@ export type CanonicalRange = {
 export type Capabilities = {
 	edit: boolean,
 	export: boolean,
+	exportConverted: boolean,
 	validate: boolean,
 	sortFilter: boolean,
 	codeView: boolean,
 	graph: boolean,
 	compare: boolean,
 	typegen: boolean,
+	typegenSchema: boolean,
 };
 
 export type Column = {

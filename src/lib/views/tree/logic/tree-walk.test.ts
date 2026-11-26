@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectExpandedDescendants, pathAfterOp } from './tree-walk';
+import { collectExpandedDescendants, pathAfterOp, remapAfterOp } from './tree-walk';
 import type { CloseRow, ContentRow, PlaceholderRow, Row } from './model';
 import type { NodeKind, Op, Path } from '$lib/ipc/bindings';
 
@@ -130,5 +130,22 @@ describe('pathAfterOp', () => {
 		['something inside it changes', { kind: 'deleteKey', path: [...P, 'deep'], key: 'x' }, P],
 	])('when %s', (_, op, expected) => {
 		expect(pathAfterOp(P, op)).toEqual(expected);
+	});
+});
+
+describe('remapAfterOp', () => {
+	const expanded = [[3], [7, 'tags'], ['meta']];
+
+	it('shifts the expanded items of a container a known edit changed', () => {
+		const op: Op = { kind: 'deleteItem', path: [], index: 5 };
+		expect(remapAfterOp(expanded, [], op, false)).toEqual([[3], [6, 'tags'], ['meta']]);
+	});
+
+	it('keeps expanded items after an unknown change that left the length alone, as after undoing an edit', () => {
+		expect(remapAfterOp(expanded, [], undefined, true)).toEqual(expanded);
+	});
+
+	it('drops expanded items after an unknown change that shifted them, so no other item opens', () => {
+		expect(remapAfterOp(expanded, [], undefined, false)).toEqual([['meta']]);
 	});
 });

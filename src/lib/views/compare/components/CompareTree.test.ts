@@ -16,7 +16,7 @@ globalThis.ResizeObserver = class {
 vi.mock('$lib/ipc/client', async () => ({
 	ipc: (await import('$lib/ipc/fake')).fakeIpc({
 		docSummary: vi.fn(async () => ({ rootKind: 'string', rootChildCount: null })),
-		docGetValue: vi.fn(async () => '"hello"'),
+		docRootPreview: vi.fn(async () => '"hello"'),
 		docGetSlice: vi.fn(),
 		docChildCount: vi.fn(),
 	}),

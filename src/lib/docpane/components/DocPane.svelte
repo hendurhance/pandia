@@ -792,6 +792,7 @@
 	<ExportDialog
 		handle={session.handle}
 		sourceName={session.sourceName}
+		convertible={session.summary.capabilities.exportConverted}
 		onClose={() => (exportOpen = false)}
 	/>
 {/if}

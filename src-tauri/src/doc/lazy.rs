@@ -1175,6 +1175,13 @@ impl super::backend::DocumentBackend for LazyDoc {
         (self.root_kind(), self.root_child_count())
     }
 
+    fn root_preview(&self) -> String {
+        match self.lookup(&Path::root()) {
+            Ok(lv) => preview(&lv, self.root_kind(), None),
+            Err(_) => String::new(),
+        }
+    }
+
     fn slice(&self, path: &Path, range: std::ops::Range<u32>) -> DocResult<Vec<NodeView>> {
         LazyDoc::slice(self, path, range)
     }

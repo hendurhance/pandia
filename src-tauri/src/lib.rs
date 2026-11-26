@@ -40,6 +40,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::doc_get_rows_at,
             commands::doc_get_column,
             commands::doc_summary,
+            commands::doc_root_preview,
             commands::doc_child_count,
             commands::doc_column_schema,
             commands::doc_scan_columns,
@@ -57,6 +58,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             e2e::e2e_record,
             e2e::e2e_enabled,
             e2e::e2e_take_actions,
+            quit_cancelled,
             commands::curl_preview,
             commands::curl_send,
             commands::fetch_schema,
@@ -240,6 +242,17 @@ pub fn run() {
                     .collect();
 
                 emit_file_open(app, paths);
+            }
+            #[cfg(target_os = "macos")]
+            if let RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::Destroyed,
+                ..
+            } = &event
+            {
+                if label == "main" {
+                    macos_quit::finish_quit(true);
+                }
             }
             if let RunEvent::Exit = event {
                 app.state::<AppState>().handoffs.finish_all();
@@ -449,6 +462,15 @@ fn build_menu(
     )?;
 
     Ok(menu)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn quit_cancelled(app: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.run_on_main_thread(|| macos_quit::finish_quit(false));
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 }
 
 #[tauri::command]

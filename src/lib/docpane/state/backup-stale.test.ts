@@ -52,7 +52,7 @@ function summary(version: number, dirty: boolean): Summary {
 afterEach(() => vi.useRealTimers());
 
 describe('crash-recovery backup after undoing back to the saved file', () => {
-	it('removes the backup once the document is clean again, so a normal close leaves none', () => {
+	it('removes the backup once the document is clean again, so a normal close leaves none', async () => {
 		vi.useFakeTimers();
 		const { result: doc, destroy } = inRoot(() => new DocumentSession(deps()));
 		doc.session.handle = 'h' as never;
@@ -60,16 +60,17 @@ describe('crash-recovery backup after undoing back to the saved file', () => {
 
 		doc.session.summary = summary(1, true);
 		flushSync();
-		vi.advanceTimersByTime(BACKUP_IDLE_MS);
+		await vi.advanceTimersByTimeAsync(BACKUP_IDLE_MS);
 		expect(ipc.docBackup).toHaveBeenCalledTimes(1);
 
 		doc.session.summary = summary(2, false);
 		flushSync();
-		vi.advanceTimersByTime(BACKUP_IDLE_MS * 4);
+		await vi.advanceTimersByTimeAsync(BACKUP_IDLE_MS * 4);
 		window.dispatchEvent(new Event('blur'));
 
 		doc.dispose();
 		destroy();
+		await vi.advanceTimersByTimeAsync(0);
 
 		const cleared =
 			vi.mocked(ipc.docBackupClear).mock.calls.some(([id]) => id === 'h') ||

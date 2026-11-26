@@ -2,7 +2,12 @@
 	import type { DocContext } from '$lib/shell/state/workspace.svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import { MAPPED_THRESHOLD_BYTES, type DocHandle, type TypegenLang } from '$lib/ipc/bindings';
+	import {
+		EDIT_SIZE_LIMIT,
+		MAPPED_THRESHOLD_BYTES,
+		type DocHandle,
+		type TypegenLang,
+	} from '$lib/ipc/bindings';
 	import { fmtBytes } from '$lib/util/format';
 	import { typegenPrefs, TYPEGEN_LANGS } from './state/typegen-prefs.svelte';
 	import { stem } from '$lib/util/path';
@@ -38,7 +43,10 @@
 	}
 
 	async function regenerate() {
-		if (!context?.capabilities.typegen) {
+		if (
+			!context?.capabilities.typegen ||
+			(lang === 'json-schema' && !context.capabilities.typegenSchema)
+		) {
 			output = '';
 			error = null;
 			return;
@@ -89,7 +97,11 @@
 			disabled={!context?.capabilities.typegen}
 		>
 			{#each TYPEGEN_LANGS as l (l.id)}
-				<option value={l.id}>{l.label}</option>
+				<option
+					value={l.id}
+					disabled={l.id === 'json-schema' && !context?.capabilities.typegenSchema}
+					>{l.label}</option
+				>
 			{/each}
 		</select>
 		<div class="bar-right">
@@ -118,6 +130,11 @@
 	{:else if !context.capabilities.typegen}
 		<div class="empty dim text-xs">
 			Type generation is off for files over {fmtBytes(MAPPED_THRESHOLD_BYTES)}.
+		</div>
+	{:else if lang === 'json-schema' && !context.capabilities.typegenSchema}
+		<div class="empty dim text-xs">
+			JSON Schema needs the whole document, so it is off for files over {fmtBytes(EDIT_SIZE_LIMIT)}.
+			Pick another language.
 		</div>
 	{:else if busy && !output}
 		<div class="empty dim text-xs">Generating {langLabel}…</div>

@@ -9,6 +9,10 @@
 				"label": "New",
 				"items": [
 					{
+						"title": "Open JSON files up to 10 GB",
+						"detail": "Files over 2 GB open read-only, straight from disk, so they don't have to fit in memory. Browse them in the Tree and Grid and search them. Thanks to [@SPLussss](https://github.com/hendurhance/pandia/issues/36) for the report."
+					},
+					{
 						"title": "Paste a cURL command on the start screen to send it",
 						"detail": "GET requests run straight away. Other methods show the request first and wait for you."
 					},
@@ -18,7 +22,7 @@
 					},
 					{
 						"title": "Terminal commands that print a result and exit",
-						"detail": "`get`, `shape`, `validate`, `diff`, `search`, `types`, `convert` and `repair` work on files of any size. See [Command line](/docs/command-line)."
+						"detail": "`get`, `shape`, `validate`, `diff`, `search`, `types`, `convert` and `repair` work on files up to 10 GB. See [Command line](/docs/command-line)."
 					},
 					{
 						"title": "Generated types for fields that are sometimes `null`",
@@ -37,6 +41,33 @@
 					},
 					{
 						"title": "Find in Code view highlights every match"
+					},
+					{
+						"title": "Search on large files shows results as it finds them, with progress and a Cancel button"
+					},
+					{
+						"title": "Large files open faster",
+						"detail": "A 500 MB file opens in about 1.6 seconds, down from 2.3."
+					},
+					{
+						"title": "Scrolling deep into a large array inside an object stays fast",
+						"detail": "Pages near the end load as quickly as the first page."
+					},
+					{
+						"title": "Grid sort and filter use less memory on large arrays",
+						"detail": "Sorting 2 million rows needs about 186 MB less."
+					},
+					{
+						"title": "Crash backups of large documents are written less often, and recovery opens without reading every backup"
+					},
+					{
+						"title": "Schema checks reuse the compiled schema, and a newer check stops the one still running"
+					},
+					{
+						"title": "URL fetches, schema downloads and image previews have a size limit"
+					},
+					{
+						"title": "The Linux AppImage is GPG-signed"
 					}
 				]
 			},
@@ -103,6 +134,12 @@
 					},
 					{
 						"title": "Grid filter checklists show current values"
+					},
+					{
+						"title": "Copy, Cut and Extract on a value over 200 MB say it's too large instead of running out of memory"
+					},
+					{
+						"title": "Saving right after an edit no longer leaves a recovery prompt for the next launch"
 					}
 				]
 			}

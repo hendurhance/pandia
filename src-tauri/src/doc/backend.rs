@@ -11,6 +11,7 @@ use super::types::{DocResult, NodeKind, NodeView, Path};
 
 pub(crate) trait DocumentBackend {
     fn root_kind_and_count(&self) -> (NodeKind, Option<u32>);
+    fn root_preview(&self) -> String;
     fn slice(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<NodeView>>;
     fn kind_at(&self, path: &Path) -> DocResult<(NodeKind, Option<u32>)>;
     fn child_count_at(&self, path: &Path) -> DocResult<Option<u32>>;

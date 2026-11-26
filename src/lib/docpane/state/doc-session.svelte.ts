@@ -15,9 +15,10 @@ import type {
 	ResponseInfo,
 	Summary,
 } from '$lib/ipc/bindings';
-import { isExpandable } from '$lib/views/tree/logic/model';
+import { isExpandable, type ContentRow } from '$lib/views/tree/logic/model';
 import { basename } from '$lib/util/path';
 import { fetchRootRow, type TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
+import { inBackupOrder } from '../logic/backup-flush';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
@@ -120,12 +121,21 @@ export class DocSessionController {
 				this.diagnosis = outcome.diagnosis;
 				return false;
 			}
+			let root: ContentRow;
+			try {
+				root = await fetchRootRow(outcome.handle, outcome.summary);
+			} catch (e) {
+				void ipc.docClose(outcome.handle).catch(() => {});
+				throw e;
+			}
+			if (seq !== this.loadSeq || this.disposed) {
+				void ipc.docClose(outcome.handle).catch(() => {});
+				return false;
+			}
 			this.handle = outcome.handle;
 			this.summary = outcome.summary;
 			this.sourceName = outcome.summary.sourcePath ?? '(inline)';
 			this.repairInfo = repairInfoFrom(outcome.notes);
-			const root = await fetchRootRow(outcome.handle, outcome.summary);
-			if (seq !== this.loadSeq) return false;
 			this.deps.tree.setRows([root]);
 			this.deps.setSelectedPath(root.path);
 			if (isExpandable(root)) {
@@ -351,6 +361,7 @@ export class DocSessionController {
 
 	clearBackup = () => {
 		this.deps.cancelBackupTimer();
-		if (this.handle) void ipc.docBackupClear(this.handle).catch(() => {});
+		const handle = this.handle;
+		if (handle) void inBackupOrder(handle, () => ipc.docBackupClear(handle));
 	};
 }
