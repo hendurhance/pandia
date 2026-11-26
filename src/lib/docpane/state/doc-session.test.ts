@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SMALL_TIER } from '$lib/ipc/fake';
 import { ipc } from '$lib/ipc/client';
 import { DocSessionController, type DocSessionDeps } from './doc-session.svelte';
-import type { OpenNotes, OpenOutcome, Summary } from '$lib/ipc/bindings';
+import type { OpenNotes, OpenOutcome, OpenProgress, Summary } from '$lib/ipc/bindings';
+import type { Channel } from '@tauri-apps/api/core';
 import { TreeRowsController } from '$lib/views/tree/state/tree-rows.svelte';
 import type { FindController } from '$lib/find/state/find.svelte';
 import type { CompareController } from '$lib/views/compare/state/compare.svelte';
@@ -194,10 +195,32 @@ describe('DocSessionController — opening a source', () => {
 		vi.mocked(ipc.docOpen).mockResolvedValue(opened('/w/a.json'));
 		expect(await session.loadFromSource({ kind: 'file', path: '/w/a.json' })).toBe(true);
 		expect(ipc.docOpen).toHaveBeenCalledTimes(1);
-		expect(ipc.docOpen).toHaveBeenCalledWith({ kind: 'file', path: '/w/a.json' }, { repair: true });
+		expect(ipc.docOpen).toHaveBeenCalledWith(
+			{ kind: 'file', path: '/w/a.json' },
+			{ repair: true },
+			expect.anything(),
+		);
 		expect(session.handle).toBe('h1');
 		expect(session.sourceName).toBe('/w/a.json');
 		expect(session.repairInfo).toBeNull();
+	});
+
+	it('shows how far a file has opened, then clears it once the file is open', async () => {
+		const { session } = fresh();
+		let finish!: (o: OpenOutcome) => void;
+		vi.mocked(ipc.docOpen).mockImplementationOnce(() => new Promise((r) => (finish = r)));
+		const load = session.loadFromSource({ kind: 'file', path: '/w/big.json' });
+		await vi.waitFor(() => expect(finish).toBeDefined());
+		expect(session.opening).toEqual({ name: 'big.json', progress: null });
+
+		const channel = vi.mocked(ipc.docOpen).mock.lastCall![2] as Channel<OpenProgress>;
+		const update: OpenProgress = { phase: 'checking', done: 1, total: 4 };
+		channel.onmessage(update);
+		expect(session.opening).toEqual({ name: 'big.json', progress: update });
+
+		finish(opened('/w/big.json'));
+		expect(await load).toBe(true);
+		expect(session.opening).toBeNull();
 	});
 
 	it('leaves no half-open tab when the root row cannot be read', async () => {
@@ -310,6 +333,7 @@ describe('DocSessionController — opening a source', () => {
 		expect(ipc.docOpen).toHaveBeenLastCalledWith(
 			{ kind: 'text', text: '{"a": 1}', name: 'config.json' },
 			{ repair: true },
+			expect.anything(),
 		);
 	});
 });

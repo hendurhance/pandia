@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::Path as FsPath;
 use std::sync::Arc;
 
@@ -8,6 +9,7 @@ use crate::doc::detect::{detect_and_convert, DetectKind};
 use crate::doc::diagnose::{diagnose, Diagnosis};
 use crate::doc::document::Document;
 use crate::doc::mapped::MappedText;
+use crate::doc::progress::{OpenPhase, Reporter, TICK_BYTES};
 use crate::doc::repair::repair;
 use crate::doc::tier::{Tier, MAX_DOC_BYTES};
 use crate::doc::types::{BigFileProblem, DocError, DocResult, FileOp};
@@ -44,6 +46,7 @@ pub fn load_file(
     file_path: Option<String>,
     options: OpenOptions,
     fix_limit: u64,
+    progress: Reporter,
 ) -> DocResult<Loaded> {
     let fail = |e| DocError::file(FileOp::Open, path, e);
     let size = std::fs::metadata(path).map_err(fail)?.len();
@@ -57,12 +60,25 @@ pub fn load_file(
             actual: size,
             limit: MAX_DOC_BYTES,
         })),
-        Some(Tier::Mapped) => load_mapped(path, shown(), name, file_path),
+        Some(Tier::Mapped) => load_mapped(path, shown(), name, file_path, progress),
         Some(_) => {
-            let text = std::fs::read_to_string(path).map_err(fail)?;
-            load_text(text, name, file_path, options, fix_limit)
+            let text = read_reporting(path, size, progress).map_err(fail)?;
+            load_text(text, name, file_path, options, fix_limit, progress)
         }
     }
+}
+
+fn read_reporting(path: &FsPath, size: u64, progress: Reporter) -> std::io::Result<String> {
+    let mut file = std::fs::File::open(path)?;
+    let mut bytes = Vec::with_capacity(size as usize);
+    while (&mut file)
+        .take(TICK_BYTES as u64)
+        .read_to_end(&mut bytes)?
+        > 0
+    {
+        progress.step(OpenPhase::Reading, bytes.len(), size as usize);
+    }
+    String::from_utf8(bytes).map_err(|_| std::io::ErrorKind::InvalidData.into())
 }
 
 fn load_mapped(
@@ -70,9 +86,11 @@ fn load_mapped(
     shown: String,
     name: Option<String>,
     file_path: Option<String>,
+    progress: Reporter,
 ) -> DocResult<Loaded> {
-    let text = Arc::new(MappedText::open(path, shown)?);
-    match Document::from_mapped(Arc::clone(&text), name) {
+    let (text, scanned) = MappedText::open_scanned(path, shown, progress)?;
+    let text = Arc::new(text);
+    match Document::from_mapped_reporting(Arc::clone(&text), scanned, name, progress) {
         Ok(mut doc) => {
             doc.file_path = file_path;
             Ok(Loaded::Opened(Box::new(doc), OpenNotes::default()))
@@ -92,9 +110,10 @@ pub fn load_text(
     file_path: Option<String>,
     options: OpenOptions,
     fix_limit: u64,
+    progress: Reporter,
 ) -> DocResult<Loaded> {
     let text = FastStr::from_string(text);
-    let detail = match Document::from_source(text.clone(), name.clone()) {
+    let detail = match Document::from_source_reporting(text.clone(), name.clone(), progress) {
         Ok(mut doc) => {
             doc.file_path = file_path;
             return Ok(Loaded::Opened(Box::new(doc), OpenNotes::default()));
@@ -162,12 +181,22 @@ pub fn copy_name(name: Option<&str>, suffix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::doc::progress::OpenProgress;
     use crate::doc::types::Path;
     use serde_json::json;
 
     fn open(text: &str) -> (serde_json::Value, OpenNotes) {
         let options = OpenOptions { repair: true };
-        match load_text(text.into(), Some("x.json".into()), None, options, 1 << 20).unwrap() {
+        match load_text(
+            text.into(),
+            Some("x.json".into()),
+            None,
+            options,
+            1 << 20,
+            Reporter::NONE,
+        )
+        .unwrap()
+        {
             Loaded::Opened(doc, notes) => (doc.get_value(&Path::root()).unwrap(), notes),
             Loaded::Failed(f) => panic!("{text:?} failed to open: {}", f.detail),
         }
@@ -195,7 +224,15 @@ mod tests {
         let file = TempFile::new("ok.json", r#"{"a": [1, 2]}"#);
         let path = file.0.to_string_lossy().into_owned();
         let shown = path.clone();
-        match load_mapped(&file.0, shown, Some(path.clone()), Some(path.clone())).unwrap() {
+        match load_mapped(
+            &file.0,
+            shown,
+            Some(path.clone()),
+            Some(path.clone()),
+            Reporter::NONE,
+        )
+        .unwrap()
+        {
             Loaded::Opened(doc, notes) => {
                 assert_eq!(doc.summary().tier, Tier::Mapped);
                 assert!(doc.summary().file_backed);
@@ -206,12 +243,49 @@ mod tests {
 
         let broken = TempFile::new("cut.json", r#"{"a": [1, 2"#);
         let shown = broken.0.to_string_lossy().into_owned();
-        let Loaded::Failed(f) = load_mapped(&broken.0, shown, None, None).unwrap() else {
+        let Loaded::Failed(f) = load_mapped(&broken.0, shown, None, None, Reporter::NONE).unwrap()
+        else {
             panic!("broken JSON must not open");
         };
         assert!(f.too_large_to_fix);
         assert!(f.diagnosis.fix.is_none(), "no repaired copy is offered");
         assert!(f.diagnosis.excerpt.is_some());
+    }
+
+    fn phases_while_opening(open: impl FnOnce(Reporter) -> Loaded) -> Vec<OpenProgress> {
+        let seen = std::sync::Mutex::new(Vec::new());
+        let report = |p| seen.lock().unwrap().push(p);
+        assert!(matches!(open(Reporter::new(&report)), Loaded::Opened(..)));
+        seen.into_inner().unwrap()
+    }
+
+    fn assert_phases_finish_in_order(seen: &[OpenProgress], want: &[OpenPhase]) {
+        let mut order: Vec<OpenPhase> = seen.iter().map(|p| p.phase).collect();
+        order.dedup();
+        assert_eq!(order, want);
+        for phase in order {
+            let steps: Vec<_> = seen.iter().filter(|p| p.phase == phase).collect();
+            assert!(steps.windows(2).all(|w| w[0].done <= w[1].done));
+            let last = steps.last().unwrap();
+            assert_eq!(last.done, last.total, "{phase:?} ends complete");
+        }
+    }
+
+    #[test]
+    fn opening_a_big_file_reports_each_phase_in_order_and_finishes_each() {
+        use crate::doc::mapped::TempFile;
+        let rows = vec![r#"{"id":1,"name":"Ada"}"#; 600_000].join(",");
+        let file = TempFile::new("big.json", &format!("[{rows}]"));
+        assert!(file.0.metadata().unwrap().len() > 10_000_000, "lazy tier");
+
+        let in_memory = phases_while_opening(|r| {
+            load_file(&file.0, None, None, OpenOptions::default(), 0, r).unwrap()
+        });
+        assert_phases_finish_in_order(&in_memory, &[OpenPhase::Reading, OpenPhase::Checking]);
+
+        let shown = file.0.to_string_lossy().into_owned();
+        let mapped = phases_while_opening(|r| load_mapped(&file.0, shown, None, None, r).unwrap());
+        assert_phases_finish_in_order(&mapped, &[OpenPhase::Checking]);
     }
 
     #[test]
@@ -228,7 +302,14 @@ mod tests {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
 
         let shown = Some("huge.json".to_string());
-        let refused = load_file(&path, shown, None, OpenOptions::default(), 0);
+        let refused = load_file(
+            &path,
+            shown,
+            None,
+            OpenOptions::default(),
+            0,
+            Reporter::NONE,
+        );
         std::fs::remove_dir_all(&dir).unwrap();
         let Err(DocError::BigFile(problem)) = refused else {
             panic!("expected a big-file refusal");

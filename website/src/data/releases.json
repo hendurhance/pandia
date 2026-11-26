@@ -1,5 +1,35 @@
 [
 	{
+		"version": "1.0.10",
+		"date": "November 26, 2026",
+		"tag": "Stable",
+		"tagKind": "stable",
+		"groups": [
+			{
+				"label": "Improved",
+				"items": [
+					{
+						"title": "Large files open much faster",
+						"detail": "A 5 GB file opens in about 6 seconds, down from about 30. Files from 200 MB to 2 GB open about twice as fast."
+					},
+					{
+						"title": "A large file shows its progress while it opens",
+						"detail": "You see the file name, what Pandia is doing, how much it has read and how long it has taken."
+					}
+				]
+			},
+			{
+				"label": "Fixed",
+				"items": [
+					{
+						"title": "Compare is turned off for files over 200 MB",
+						"detail": "Before, it opened an empty screen that showed the same error twice."
+					}
+				]
+			}
+		]
+	},
+	{
 		"version": "1.0.9",
 		"date": "November 26, 2026",
 		"tag": "Stable",

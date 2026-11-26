@@ -111,8 +111,10 @@
 
 	let comparePickerOpen = $state(false);
 	let compareBtnEl: HTMLElement | null = $state(null); // the Compare button (dismiss ignores its clicks)
+	const canCompare = $derived(!!workspace.activeContext?.capabilities.compare);
+
 	function toggleComparePicker() {
-		if (!workspace.activeContext) return;
+		if (!canCompare) return;
 		comparePickerOpen = !comparePickerOpen;
 	}
 	function requestCompare(target: CompareTarget) {
@@ -134,6 +136,7 @@
 		tabsLength: () => workspace.tabs.length,
 		activeTabId: () => workspace.activeId,
 		hasActiveContext: () => !!workspace.activeContext,
+		canCompare: () => canCompare,
 		newTab: workspace.create,
 		requestCloseTab: (id) => void workspace.close(id),
 		nextTab: workspace.next,
@@ -481,6 +484,7 @@
 			capWarning={workspace.capWarning}
 			maxTabs={MAX_TABS}
 			hasActiveDoc={!!workspace.activeContext}
+			{canCompare}
 			{comparePickerOpen}
 			bind:compareBtnEl
 			onActivate={workspace.activate}

@@ -222,7 +222,7 @@
 
 	const summaryText = $derived.by(() => {
 		if (loading) return 'computing diff…';
-		if (error) return `error: ${error}`;
+		if (error) return '';
 		const adds = entries.filter((e) => e.kind === 'added').length;
 		const rems = entries.filter((e) => e.kind === 'removed').length;
 		const chgs = entries.filter((e) => e.kind === 'changed').length;

@@ -108,7 +108,9 @@ export class Workspace {
 	compareCandidates = $derived(
 		this.tabList.flatMap((t) => {
 			const ctx = this.views[t.id]?.context;
-			return t.id !== this.activeId && ctx ? [{ id: t.id, label: t.label, ctx }] : [];
+			return t.id !== this.activeId && ctx?.capabilities.compare
+				? [{ id: t.id, label: t.label, ctx }]
+				: [];
 		}),
 	);
 

@@ -1,12 +1,14 @@
+import { Channel } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { ipc } from '$lib/ipc/client';
-import { describeError, describeOpenFailure } from '$lib/ipc/error-copy';
-import type { DocHandle, Summary } from '$lib/ipc/bindings';
+import { describeError, describeOpenFailure, describeTooBigToCompare } from '$lib/ipc/error-copy';
+import type { DocHandle, OpenProgress, Summary } from '$lib/ipc/bindings';
 import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 import { JSON_OPEN_FILTERS } from '$lib/util/file-types';
 
 export interface CompareDeps {
 	mainHandle: () => DocHandle | null;
+	mainSummary: () => Summary | null;
 	flushEdits: () => Promise<boolean>;
 
 	setViewMode: (mode: 'compare' | 'tree') => void;
@@ -32,6 +34,13 @@ export class CompareController {
 	);
 
 	start = async (target: CompareTarget) => {
+		const main = this.deps.mainSummary();
+		if (main && !main.capabilities.compare) {
+			this.deps.setError(
+				describeTooBigToCompare(main.sourcePath ?? 'This document', main.sourceSize),
+			);
+			return;
+		}
 		if (target.kind === 'file') return this.pickFile();
 		if (!(await this.deps.flushEdits())) return;
 		if (target.kind === 'path') return this.openFile(target.path);
@@ -40,6 +49,12 @@ export class CompareController {
 		this.deps.setError(null);
 		try {
 			const summary = await ipc.docSummary(target.handle);
+			if (!summary.capabilities.compare) {
+				this.deps.setError(
+					describeTooBigToCompare(target.sourceName ?? 'This tab', summary.sourceSize),
+				);
+				return;
+			}
 			await this.release();
 			this.handle = target.handle;
 			this.summary = summary;
@@ -67,9 +82,18 @@ export class CompareController {
 		this.deps.setBusy(true);
 		this.deps.setError(null);
 		try {
-			const res = await ipc.docOpen({ kind: 'file', path }, { repair: false });
+			const res = await ipc.docOpen(
+				{ kind: 'file', path },
+				{ repair: false },
+				new Channel<OpenProgress>(),
+			);
 			if (res.kind === 'failed') {
 				this.deps.setError(describeOpenFailure(res));
+				return;
+			}
+			if (!res.summary.capabilities.compare) {
+				void ipc.docClose(res.handle).catch(() => {});
+				this.deps.setError(describeTooBigToCompare(path, res.summary.sourceSize));
 				return;
 			}
 			await this.release();

@@ -1,3 +1,4 @@
+import { Channel } from '@tauri-apps/api/core';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { ipc } from '$lib/ipc/client';
 import { describeError, describeOpenFailure } from '$lib/ipc/error-copy';
@@ -10,6 +11,7 @@ import type {
 	OpenFailure,
 	OpenNotes,
 	OpenOutcome,
+	OpenProgress,
 	OpenSource,
 	Path,
 	ResponseInfo,
@@ -93,10 +95,12 @@ export class DocSessionController {
 	response: SentResponse | null = $state(null);
 	diagnosis: Diagnosis | null = $state(null);
 	refreshing = $state(false);
+	opening: { name: string; progress: OpenProgress | null } | null = $state.raw(null);
 
 	handoff: Handoff | null = null;
 
 	private loadSeq = 0;
+	private openSeq = 0;
 	private disposed = false;
 	private failedName: string | null = null;
 
@@ -154,13 +158,26 @@ export class DocSessionController {
 		await this.deps.applyDefaultView(null);
 		await behaviorPrefs.init();
 		const repair = behaviorPrefs.autoRepairOnOpen;
-		if (!(await this.load(() => ipc.docOpen(source, { repair })))) {
-			this.failedName =
-				source.kind === 'file'
-					? basename(source.path)
-					: source.kind === 'text'
-						? source.name
-						: 'stdin';
+		const name =
+			source.kind === 'file'
+				? basename(source.path)
+				: source.kind === 'text'
+					? source.name
+					: 'stdin';
+		const shown = name ?? 'pasted.json';
+		const seq = ++this.openSeq;
+		const progress = new Channel<OpenProgress>((p) => {
+			if (seq === this.openSeq) this.opening = { name: shown, progress: p };
+		});
+		this.opening = { name: shown, progress: null };
+		let opened: boolean;
+		try {
+			opened = await this.load(() => ipc.docOpen(source, { repair }, progress));
+		} finally {
+			if (seq === this.openSeq) this.opening = null;
+		}
+		if (!opened) {
+			this.failedName = name;
 			return false;
 		}
 		if (source.kind === 'file') addRecent(source.path, undefined, this.summary?.sourceSize);

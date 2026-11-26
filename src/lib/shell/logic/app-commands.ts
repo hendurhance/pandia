@@ -7,6 +7,7 @@ export interface ShellCommandDeps {
 	tabsLength: () => number;
 	activeTabId: () => string;
 	hasActiveContext: () => boolean;
+	canCompare: () => boolean;
 	newTab: () => void;
 	requestCloseTab: (id: string) => void;
 	nextTab: () => void;
@@ -99,7 +100,7 @@ export function buildShellCommands(deps: ShellCommandDeps): Command[] {
 			id: 'compare.pick',
 			label: 'Diff Against Tab or File…',
 			category: 'Compare',
-			enabled: () => deps.hasActiveContext(),
+			enabled: () => deps.canCompare(),
 			run: deps.toggleComparePicker,
 		},
 		{

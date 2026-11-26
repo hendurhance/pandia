@@ -101,13 +101,13 @@ Download Pandia for your platform from the [latest release](https://github.com/h
 
 | Platform | Download |
 |---|---|
-| macOS, Apple silicon | [`Pandia_1.0.9_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_aarch64.dmg) |
-| macOS, Intel | [`Pandia_1.0.9_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_x64.dmg) |
-| Windows, installer | [`Pandia_1.0.9_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_x64-setup.exe) |
-| Windows, MSI | [`Pandia_1.0.9_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_x64_en-US.msi) |
-| Linux, AppImage | [`Pandia_1.0.9_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_amd64.AppImage) |
-| Linux, Debian and Ubuntu | [`Pandia_1.0.9_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.9_amd64.deb) |
-| Linux, Fedora and RHEL | [`Pandia-1.0.9-1.x86_64.rpm`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia-1.0.9-1.x86_64.rpm) |
+| macOS, Apple silicon | [`Pandia_1.0.10_aarch64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.10_aarch64.dmg) |
+| macOS, Intel | [`Pandia_1.0.10_x64.dmg`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.10_x64.dmg) |
+| Windows, installer | [`Pandia_1.0.10_x64-setup.exe`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.10_x64-setup.exe) |
+| Windows, MSI | [`Pandia_1.0.10_x64_en-US.msi`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.10_x64_en-US.msi) |
+| Linux, AppImage | [`Pandia_1.0.10_amd64.AppImage`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.10_amd64.AppImage) |
+| Linux, Debian and Ubuntu | [`Pandia_1.0.10_amd64.deb`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia_1.0.10_amd64.deb) |
+| Linux, Fedora and RHEL | [`Pandia-1.0.10-1.x86_64.rpm`](https://github.com/hendurhance/pandia/releases/latest/download/Pandia-1.0.10-1.x86_64.rpm) |
 
 The macOS app is signed and notarized.
 

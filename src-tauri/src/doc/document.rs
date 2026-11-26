@@ -18,6 +18,8 @@ use super::history::History;
 use super::lazy::{parse_json, LazyDoc};
 use super::mapped::MappedText;
 use super::ops::{Op, OpDescription, OpOutcome};
+use super::progress::Reporter;
+use super::scan::{Rejected, Scanned};
 use super::schema_validate::{self, SchemaCompileError, SchemaValidationResult, Validator};
 use super::search::{literal_matcher, SearchHit, SearchOptions};
 use super::tier::{Capabilities, Tier, EDIT_SIZE_LIMIT, MAPPED_THRESHOLD_BYTES};
@@ -193,9 +195,16 @@ impl Document {
     }
 
     fn parse(text: &FastStr) -> DocResult<DocumentImpl> {
+        Self::parse_reporting(text, Reporter::NONE)
+    }
+
+    fn parse_reporting(text: &FastStr, progress: Reporter) -> DocResult<DocumentImpl> {
         match Tier::of(text.len() as u64) {
             Tier::Small => parse_json(text).map(DocumentImpl::Eager),
-            _ => Ok(DocumentImpl::Lazy(LazyDoc::new(text.clone())?)),
+            _ => Ok(DocumentImpl::Lazy(LazyDoc::new_reporting(
+                text.clone(),
+                progress,
+            )?)),
         }
     }
 
@@ -214,13 +223,21 @@ impl Document {
     }
 
     pub fn from_source(text: FastStr, source_path: Option<String>) -> DocResult<Self> {
+        Self::from_source_reporting(text, source_path, Reporter::NONE)
+    }
+
+    pub fn from_source_reporting(
+        text: FastStr,
+        source_path: Option<String>,
+        progress: Reporter,
+    ) -> DocResult<Self> {
         Self::ensure_in_memory(text.len() as u64)?;
 
         let hint = source_path.as_deref().and_then(format::hint_from_path);
         let parsed = if hint == Some(InputFormat::Ndjson) {
             Self::parse_records(&text)
         } else {
-            Self::parse(&text)
+            Self::parse_reporting(&text, progress)
         };
         let (inner, size, recovery_note, comments_stripped) = match parsed {
             Ok(inner) => (inner, text.len() as u64, None, false),
@@ -245,7 +262,18 @@ impl Document {
         ))
     }
 
+    #[cfg(test)]
     pub fn from_mapped(text: Arc<MappedText>, source_path: Option<String>) -> DocResult<Self> {
+        let scanned = super::scan::scan(text.as_str().as_bytes(), &mut |_| true, Reporter::NONE);
+        Self::from_mapped_reporting(text, scanned, source_path, Reporter::NONE)
+    }
+
+    pub fn from_mapped_reporting(
+        text: Arc<MappedText>,
+        scanned: Result<Scanned, Rejected>,
+        source_path: Option<String>,
+        progress: Reporter,
+    ) -> DocResult<Self> {
         if source_path.as_deref().and_then(format::hint_from_path) == Some(InputFormat::Ndjson) {
             return Err(DocError::BigFile(BigFileProblem::LinePerValue {
                 file: text.name(),
@@ -255,7 +283,7 @@ impl Document {
         let recovery_note = text
             .skipped_bom()
             .then(|| format::LEADING_JUNK_NOTE.to_string());
-        let inner = DocumentImpl::Lazy(LazyDoc::mapped(text)?);
+        let inner = DocumentImpl::Lazy(LazyDoc::mapped(text, scanned, progress)?);
         Ok(Self::assemble(
             inner,
             source_path,
