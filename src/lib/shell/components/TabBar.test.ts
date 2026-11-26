@@ -24,6 +24,7 @@ function props(activeTabId: string, capWarning = false) {
 		capWarning,
 		maxTabs: 50,
 		hasActiveDoc: true,
+		canCompare: true,
 		comparePickerOpen: false,
 		onActivate: () => {},
 		onClose: () => {},

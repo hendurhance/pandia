@@ -6,7 +6,7 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	docOpen: (source: OpenSource, options: OpenOptions) => __TAURI_INVOKE<OpenOutcome>("doc_open", { source, options }),
+	docOpen: (source: OpenSource, options: OpenOptions, progress: Channel<OpenProgress>) => __TAURI_INVOKE<OpenOutcome>("doc_open", { source, options, progress }),
 	docClose: (handle: DocHandle) => __TAURI_INVOKE<boolean>("doc_close", { handle }),
 	docGetSlice: (handle: DocHandle, path: Path, start: number, end: number) => __TAURI_INVOKE<NodeView[]>("doc_get_slice", { handle, path, start, end }),
 	docGetValue: (handle: DocHandle, path: Path) => __TAURI_INVOKE<string & { readonly __brand: "LosslessText" }>("doc_get_value", { handle, path }),
@@ -289,6 +289,14 @@ export type OpenOutcome = {
 } & OpenedDoc | {
 	kind: "failed",
 } & OpenFailure;
+
+export type OpenPhase = "reading" | "checking";
+
+export type OpenProgress = {
+	phase: OpenPhase,
+	done: number,
+	total: number,
+};
 
 export type OpenSource = { kind: "file"; path: string } | { kind: "text"; text: string; name: string | null; unsaved?: boolean } | { kind: "piped"; path: string };
 

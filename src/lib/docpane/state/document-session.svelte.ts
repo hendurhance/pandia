@@ -94,6 +94,7 @@ export class DocumentSession {
 
 		this.compare = new CompareController({
 			mainHandle: () => this.session.handle,
+			mainSummary: () => this.session.summary,
 			flushEdits: () => this.flushCode(),
 			isHandleAlive: (h) => deps.isHandleAlive(h),
 			setViewMode: (mode) => {

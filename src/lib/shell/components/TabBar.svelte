@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { COMPARE_LIMIT_TITLE } from '$lib/ipc/error-copy';
 	import type { DocStatus } from '$lib/shell/logic/status';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { X, Plus } from '@lucide/svelte';
@@ -17,6 +18,7 @@
 		capWarning,
 		maxTabs,
 		hasActiveDoc,
+		canCompare,
 		comparePickerOpen,
 		compareBtnEl = $bindable(null),
 		onActivate,
@@ -32,6 +34,7 @@
 		capWarning: boolean;
 		maxTabs: number;
 		hasActiveDoc: boolean;
+		canCompare: boolean;
 		comparePickerOpen: boolean;
 
 		compareBtnEl?: HTMLElement | null;
@@ -156,8 +159,10 @@
 			class="tba"
 			class:on={comparePickerOpen}
 			onclick={onToggleCompare}
-			disabled={!hasActiveDoc}
-			title="Diff against an open tab or a file"
+			disabled={!canCompare}
+			title={hasActiveDoc && !canCompare
+				? COMPARE_LIMIT_TITLE
+				: 'Diff against an open tab or a file'}
 			aria-haspopup="menu"
 			aria-expanded={comparePickerOpen}
 		>

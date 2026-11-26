@@ -49,6 +49,7 @@
 	import { commandRegistry } from '$lib/palette/state/command-store.svelte';
 	import type { DocStatus } from '$lib/shell/logic/status';
 	import EmptyState from '$lib/shell/components/EmptyState.svelte';
+	import OpeningState from './OpeningState.svelte';
 	import { sidebarPrefs } from '$lib/shell/state/sidebar-prefs.svelte';
 	import { typegenPrefs } from '$lib/panels/state/typegen-prefs.svelte';
 
@@ -615,7 +616,9 @@
 		</div>
 	{/if}
 
-	{#if !session.summary}
+	{#if !session.summary && session.opening}
+		<OpeningState name={session.opening.name} progress={session.opening.progress} />
+	{:else if !session.summary}
 		<EmptyState
 			busy={doc.busy}
 			onOpenSource={(source) => openInPlace(session.loadFromSource(source))}

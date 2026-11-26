@@ -61,7 +61,7 @@ mod conformance {
 
     fn mapped(text: &str) -> LazyDoc {
         let file = crate::doc::mapped::TempFile::new("fixture.json", text);
-        LazyDoc::mapped(file.map()).expect("fixture parses from a map")
+        LazyDoc::mapped_for_test(file.map()).expect("fixture parses from a map")
     }
 
     fn lazies(text: &str) -> [LazyDoc; 2] {

@@ -232,6 +232,7 @@ describe('restoring unsaved work after a crash', () => {
 		expect(ipc.docOpen).toHaveBeenCalledWith(
 			{ kind: 'text', text: content, name: '/w/notes.json', unsaved: true },
 			expect.anything(),
+			expect.anything(),
 		);
 	});
 

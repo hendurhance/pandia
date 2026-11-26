@@ -13,6 +13,7 @@ use crate::doc::lazy::parse_json;
 use crate::doc::linediff::{compute_line_diff, line_slice, LineDiffResult, LINE_FETCH_MAX};
 use crate::doc::open::{load_file, load_text, Loaded, OpenFailure, OpenNotes, OpenOptions};
 use crate::doc::ops::Op;
+use crate::doc::progress::{OpenProgress, Reporter};
 use crate::doc::schema::sniff_columns;
 use crate::doc::schema_validate::SchemaValidationResult;
 use crate::doc::search::{SearchHit, SearchOptions, SearchProgress};
@@ -82,8 +83,9 @@ fn doc_open_inner(
     store: &DocStore,
     source: OpenSource,
     options: OpenOptions,
+    progress: Reporter,
 ) -> DocResult<OpenOutcome> {
-    open_with_fix_limit(store, source, options, EDIT_SIZE_LIMIT)
+    open_with_fix_limit(store, source, options, EDIT_SIZE_LIMIT, progress)
 }
 
 fn open_with_fix_limit(
@@ -91,6 +93,7 @@ fn open_with_fix_limit(
     source: OpenSource,
     options: OpenOptions,
     fix_limit: u64,
+    progress: Reporter,
 ) -> DocResult<OpenOutcome> {
     let unsaved = matches!(source, OpenSource::Text { unsaved: true, .. });
     let loaded = match source {
@@ -102,9 +105,12 @@ fn open_with_fix_limit(
                 Some(path.clone()),
                 options,
                 fix_limit,
+                progress,
             )?
         }
-        OpenSource::Text { text, name, .. } => load_text(text, name, None, options, fix_limit)?,
+        OpenSource::Text { text, name, .. } => {
+            load_text(text, name, None, options, fix_limit, progress)?
+        }
         OpenSource::Piped { path } => {
             let file = std::path::Path::new(&path);
             if !crate::cli::is_stdin_handoff(&path) {
@@ -114,7 +120,14 @@ fn open_with_fix_limit(
                     std::io::ErrorKind::NotFound.into(),
                 ));
             }
-            load_file(file, Some("stdin".into()), None, options, fix_limit)?
+            load_file(
+                file,
+                Some("stdin".into()),
+                None,
+                options,
+                fix_limit,
+                progress,
+            )?
         }
     };
     Ok(outcome(store, loaded, unsaved))
@@ -211,7 +224,14 @@ fn open_response(
     if text.trim().is_empty() {
         return Err(DocError::Request(RequestProblem::Empty { status }));
     }
-    let loaded = load_text(text, Some(name), None, options, EDIT_SIZE_LIMIT)?;
+    let loaded = load_text(
+        text,
+        Some(name),
+        None,
+        options,
+        EDIT_SIZE_LIMIT,
+        Reporter::NONE,
+    )?;
     Ok(outcome(store, loaded, false))
 }
 
@@ -285,9 +305,16 @@ pub async fn doc_open(
     state: tauri::State<'_, Arc<DocStore>>,
     source: OpenSource,
     options: OpenOptions,
+    progress: tauri::ipc::Channel<OpenProgress>,
 ) -> Result<OpenOutcome, WireError> {
     let store = state.inner().clone();
-    run_blocking(move || doc_open_inner(&store, source, options)).await
+    run_blocking(move || {
+        let report = |update| {
+            let _ = progress.send(update);
+        };
+        doc_open_inner(&store, source, options, Reporter::new(&report))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1137,7 +1164,7 @@ mod tests {
     use crate::doc::types::{NodeKind, PathSegment};
 
     fn doc_open_inner(store: &DocStore, source: OpenSource) -> DocResult<OpenedDoc> {
-        match super::doc_open_inner(store, source, OpenOptions::default())? {
+        match super::doc_open_inner(store, source, OpenOptions::default(), Reporter::NONE)? {
             OpenOutcome::Opened(doc) => Ok(doc),
             OpenOutcome::Failed(f) => Err(DocError::Parse(f.detail)),
         }
@@ -1151,8 +1178,12 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, body).unwrap();
         let path = path.to_string_lossy().into_owned();
-        let outcome =
-            super::doc_open_inner(store, OpenSource::File { path }, OpenOptions { repair });
+        let outcome = super::doc_open_inner(
+            store,
+            OpenSource::File { path },
+            OpenOptions { repair },
+            Reporter::NONE,
+        );
         std::fs::remove_dir_all(&dir).unwrap();
         outcome.unwrap()
     }
@@ -1256,8 +1287,14 @@ mod tests {
                 name: None,
                 unsaved: false,
             };
-            let outcome =
-                open_with_fix_limit(&store, source, OpenOptions { repair: true }, 10).unwrap();
+            let outcome = open_with_fix_limit(
+                &store,
+                source,
+                OpenOptions { repair: true },
+                10,
+                Reporter::NONE,
+            )
+            .unwrap();
             let OpenOutcome::Failed(f) = outcome else {
                 panic!("expected to fail");
             };
@@ -1354,6 +1391,7 @@ mod tests {
             &store,
             OpenSource::File { path },
             OpenOptions { repair: true },
+            Reporter::NONE,
         )
         .unwrap_err();
         assert!(matches!(err, DocError::Io { .. }));

@@ -37,6 +37,12 @@ export function describeOpenFailure(
 		: base;
 }
 
+export function describeTooBigToCompare(name: string, bytes: number): string {
+	return `${basename(name)} is ${fmtBytes(bytes)}. Compare works on files up to ${fmtBytes(EDIT_SIZE_LIMIT)}.`;
+}
+
+export const COMPARE_LIMIT_TITLE = `Compare works on files up to ${fmtBytes(EDIT_SIZE_LIMIT)}`;
+
 export function describeRefusal(r: Refusal): string {
 	switch (r.reason) {
 		case 'noUrl':

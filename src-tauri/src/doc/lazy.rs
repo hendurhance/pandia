@@ -11,6 +11,8 @@ use sonic_rs::{
 use super::cell::Cell;
 use super::jobs::CancelFlag;
 use super::mapped::MappedText;
+use super::progress::{OpenPhase, Reporter, TICK_BYTES};
+use super::scan::{scan, Rejected, Scanned};
 use super::search::{match_snippet, prepare_matcher, MatchField, SearchHit, SearchOptions};
 use super::tier::EDIT_SIZE_LIMIT;
 use super::typegen::{
@@ -21,7 +23,7 @@ use super::types::{
 };
 
 const COUNT_BUDGET_BYTES: usize = 64 * 1024;
-const INDEX_STRIDE: usize = 64;
+pub(super) const INDEX_STRIDE: usize = 64;
 const PROGRESS_MIN_STEP: usize = 1024 * 1024;
 
 #[derive(Debug)]
@@ -151,18 +153,91 @@ pub struct LazyDoc {
 }
 
 impl LazyDoc {
+    #[cfg(test)]
     pub fn new(text: FastStr) -> DocResult<Self> {
-        Self::open(Source::Owned(text))
+        Self::new_reporting(text, Reporter::NONE)
     }
 
-    pub fn mapped(text: Arc<MappedText>) -> DocResult<Self> {
-        Self::open(Source::Mapped(text))
+    pub fn new_reporting(text: FastStr, progress: Reporter) -> DocResult<Self> {
+        let scanned = scan(text.as_bytes(), &mut |_| true, progress);
+        Self::open(Source::Owned(text), scanned, progress)
     }
 
-    fn open(source: Source) -> DocResult<Self> {
+    pub fn mapped(
+        text: Arc<MappedText>,
+        scanned: Result<Scanned, Rejected>,
+        progress: Reporter,
+    ) -> DocResult<Self> {
+        Self::open(Source::Mapped(text), scanned, progress)
+    }
+
+    #[cfg(test)]
+    pub fn mapped_for_test(text: Arc<MappedText>) -> DocResult<Self> {
+        let scanned = scan(text.as_str().as_bytes(), &mut |_| true, Reporter::NONE);
+        Self::mapped(text, scanned, Reporter::NONE)
+    }
+
+    fn open(
+        source: Source,
+        scanned: Result<Scanned, Rejected>,
+        progress: Reporter,
+    ) -> DocResult<Self> {
+        let Ok(scanned) = scanned else {
+            return Self::open_slow(source, progress);
+        };
+        let text = source.as_str();
+        if let (Source::Mapped(mapped), false) = (&source, scanned.repeated_keys.is_empty()) {
+            return Err(DocError::BigFile(BigFileProblem::RepeatedKeys {
+                file: mapped.name(),
+            }));
+        }
+        if scanned.surrogate_escape {
+            parse_json::<Decoded>(text)?;
+        }
+        let root_kind = root_kind_of(text);
+        let (source, root_index) = if scanned.repeated_keys.is_empty() {
+            let index = scanned.root_items.map(|items| {
+                Arc::new(ArrayIndex {
+                    len: items.len,
+                    checkpoints: items.checkpoints,
+                })
+            });
+            (source, index)
+        } else {
+            Self::dedupe(source, &scanned.repeated_keys, root_kind)?
+        };
+        Ok(Self {
+            source,
+            root_kind,
+            root_index,
+            nested_index: parking_lot::Mutex::new(HashMap::new()),
+        })
+    }
+
+    // Collapse repeated keys the way serde_json reads them (first position,
+    // last value) so every lazy read agrees with the eager backend.
+    fn dedupe(
+        source: Source,
+        repeated_keys: &[usize],
+        root_kind: NodeKind,
+    ) -> DocResult<(Source, Option<Arc<ArrayIndex>>)> {
+        let text = source.as_str();
+        let start = skip_ws(text.as_bytes(), 0);
+        let end = skip_value(text.as_bytes(), start)?;
+        let mut deduped = String::with_capacity(text.len());
+        write_deduped(text, start..end, repeated_keys, &mut deduped);
+        let source = Source::Owned(FastStr::from_string(deduped));
+        let index = match root_kind {
+            NodeKind::Array => Some(Arc::new(ArrayIndex::build(source.as_str().as_bytes(), 0)?)),
+            _ => None,
+        };
+        Ok((source, index))
+    }
+
+    fn open_slow(source: Source, progress: Reporter) -> DocResult<Self> {
         let text = source.as_str();
         let root_kind = root_kind_of(text);
-        let repeated_keys = prescan(text)?;
+        let repeated_keys = prescan_reporting(text, progress)?;
         if let (Source::Mapped(mapped), false) = (&source, repeated_keys.is_empty()) {
             return Err(DocError::BigFile(BigFileProblem::RepeatedKeys {
                 file: mapped.name(),
@@ -182,31 +257,11 @@ impl LazyDoc {
         if surrogate {
             parse_json::<Decoded>(text)?;
         }
-
-        // Collapse repeated keys the way serde_json reads them (first position,
-        // last value) so every lazy read agrees with the eager backend.
-        let deduped = if repeated_keys.is_empty() {
-            None
+        let (source, root_index) = if repeated_keys.is_empty() {
+            (source, early_index.transpose()?.map(Arc::new))
         } else {
-            let start = skip_ws(text.as_bytes(), 0);
-            let end = skip_value(text.as_bytes(), start)?;
-            let mut deduped = String::with_capacity(text.len());
-            write_deduped(text, start..end, &repeated_keys, &mut deduped);
-            Some(deduped)
+            Self::dedupe(source, &repeated_keys, root_kind)?
         };
-        let source = match deduped {
-            Some(deduped) => Source::Owned(FastStr::from_string(deduped)),
-            None => source,
-        };
-
-        let root_index = match early_index {
-            Some(index) => Some(Arc::new(index?)),
-            None if root_kind == NodeKind::Array => {
-                Some(Arc::new(ArrayIndex::build(source.as_str().as_bytes(), 0)?))
-            }
-            None => None,
-        };
-
         Ok(Self {
             source,
             root_kind,
@@ -571,7 +626,7 @@ fn write_deduped(text: &str, span: Range<usize>, repeated: &[usize], out: &mut S
     out.push('}');
 }
 
-fn key_text(raw: &str) -> Cow<'_, str> {
+pub(super) fn key_text(raw: &str) -> Cow<'_, str> {
     if raw.contains('\\') {
         serde_json::from_str(raw).map_or(Cow::Borrowed(raw), Cow::Owned)
     } else {
@@ -657,13 +712,22 @@ pub(crate) const MAX_DEPTH: u32 = 1000;
 // Iterative, so text nested too deep for the recursive parsers is refused before
 // they see it. Returns the byte offsets, ascending, of objects that repeat a key.
 pub(crate) fn prescan(text: &str) -> DocResult<Vec<usize>> {
+    prescan_reporting(text, Reporter::NONE)
+}
+
+fn prescan_reporting(text: &str, progress: Reporter) -> DocResult<Vec<usize>> {
     let bytes = text.as_bytes();
+    let mut next_tick = TICK_BYTES;
     // Per open object: its byte offset and where its keys start in `keys`; None for an array.
     let mut open: Vec<Option<(usize, usize)>> = Vec::new();
     let mut keys: Vec<Cow<'_, str>> = Vec::new();
     let mut repeated = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
+        if i >= next_tick {
+            progress.step(OpenPhase::Checking, i, bytes.len());
+            next_tick = i + TICK_BYTES;
+        }
         match bytes[i] {
             b'"' => {
                 let Ok(end) = skip_string(bytes, i) else {
@@ -1368,6 +1432,130 @@ mod tests {
 
     fn doc(s: &str) -> LazyDoc {
         LazyDoc::new(FastStr::new(s)).expect("valid JSON in test")
+    }
+
+    fn assert_scan_agrees(text: &str) {
+        let fast = scan(text.as_bytes(), &mut |_| true, Reporter::NONE);
+        let mut de = serde_json::Deserializer::from_str(text);
+        de.disable_recursion_limit();
+        let to_spec = prescan(text).is_ok()
+            && <serde::de::IgnoredAny as serde::Deserialize>::deserialize(&mut de)
+                .and_then(|_| de.end())
+                .is_ok();
+        assert_eq!(fast.is_ok(), to_spec, "{text:?}: scan gave {fast:?}");
+        let slow = prescan(text).and_then(|repeated| validate_json(text).map(|()| repeated));
+        match (fast, slow) {
+            (Ok(fast), Ok(repeated)) => {
+                assert_eq!(fast.repeated_keys, repeated, "{text:?}");
+                assert!(
+                    !fast.surrogate_escape || has_surrogate_escape(text),
+                    "{text:?}"
+                );
+                let index = (root_kind_of(text) == NodeKind::Array)
+                    .then(|| ArrayIndex::build(text.as_bytes(), 0).unwrap());
+                assert_eq!(
+                    fast.root_items.map(|r| (r.len, r.checkpoints)),
+                    index.map(|i| (i.len, i.checkpoints)),
+                    "{text:?}"
+                );
+            }
+            (Ok(_), Err(slow)) => panic!("{text:?}: scan accepted, separate checks gave {slow:?}"),
+            (Err(_), _) => {}
+        }
+    }
+
+    #[test]
+    fn the_one_pass_scan_agrees_with_the_separate_checks_on_edge_cases() {
+        let deep = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        for text in [
+            "",
+            " ",
+            "0",
+            "-0",
+            "01",
+            "1.",
+            "-",
+            "1e",
+            "1e+",
+            "1.5E-3",
+            "1e400",
+            "tru",
+            "nulll",
+            "[1,]",
+            "[,1]",
+            "[1 2]",
+            "[1}",
+            "[1]]",
+            "[1] [2]",
+            "{\"a\"}",
+            "{\"a\":}",
+            "{,}",
+            "{\"a\":1]",
+            "{\"a\":1,}",
+            "{1:2}",
+            "\"\\x\"",
+            "\"\\u12G4\"",
+            "\"\\u12\"",
+            "\"a\u{1}\"",
+            "\u{feff}[1]",
+            "[\"\\ud800\"]",
+            "[\"\\\\ud800\"]",
+            "{\"a\":1,\"a\":2}",
+            "{\"\\u0061\":1,\"a\":2}",
+            "[{\"k\":1,\"k\":2},{\"k\":3}]",
+            " [ ] ",
+            "{ }",
+            "\"unterminated",
+            "[\"é\", \"😀\"]",
+        ] {
+            assert_scan_agrees(text);
+        }
+        let scan_text = |t: &str| scan(t.as_bytes(), &mut |_| true, Reporter::NONE);
+        assert!(scan_text(&deep(MAX_DEPTH as usize)).is_ok());
+        assert!(scan_text(&deep(MAX_DEPTH as usize + 1)).is_err());
+        assert!(prescan(&deep(MAX_DEPTH as usize + 1)).is_err());
+    }
+
+    #[test]
+    fn the_one_pass_scan_agrees_with_the_separate_checks_on_mutated_documents() {
+        let long = (0..200)
+            .map(|i| format!(r#"{{"id":{i},"tag":"t{i}"}}"#))
+            .collect::<Vec<_>>()
+            .join(",");
+        let seeds = [
+            r#"[1, -2.5e+3, 0, "a\"b\\c\u00e9", true, false, null, {"k": [ ]}, {}]"#.to_string(),
+            r#"{"a": {"b": [1, {"c": "d", "c": 2}]}, "a": "\ud83d\ude00", "e": -0.0E-0}"#.into(),
+            r#"  "just a string"  "#.into(),
+            "[[[[]]], [{}], -12.5]".into(),
+            format!("[{long}]"),
+        ];
+        let alphabet: Vec<char> = "{}[]\",:\\ -+.eE0123456789tfnulrsa\n\t/bé\u{1}"
+            .chars()
+            .collect();
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = |below: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % below as u64) as usize
+        };
+        for seed in &seeds {
+            for _ in 0..3_000 {
+                let mut chars: Vec<char> = seed.chars().collect();
+                for _ in 0..=next(3) {
+                    let at = next(chars.len() + 1);
+                    match next(3) {
+                        0 => chars.insert(at, alphabet[next(alphabet.len())]),
+                        1 if at < chars.len() => {
+                            chars.remove(at);
+                        }
+                        _ if at < chars.len() => chars[at] = alphabet[next(alphabet.len())],
+                        _ => {}
+                    }
+                }
+                assert_scan_agrees(&chars.into_iter().collect::<String>());
+            }
+        }
     }
 
     #[test]

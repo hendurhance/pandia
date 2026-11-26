@@ -9,6 +9,7 @@ use crate::doc::document::Document;
 use crate::doc::export::ExportFormat;
 use crate::doc::jobs::CancelFlag;
 use crate::doc::open::{load_file, load_text, Loaded, OpenOptions};
+use crate::doc::progress::Reporter;
 use crate::doc::repair::repair;
 use crate::doc::schema_validate::{self, SchemaCompileError};
 use crate::doc::search::SearchOptions;
@@ -338,11 +339,25 @@ fn open_arg(arg: &str, stdin: &mut dyn Read) -> Result<(Document, String), Strin
     let options = OpenOptions::default();
     let (loaded, name) = if arg == "-" {
         let Input { name, text } = read_input(arg, stdin)?;
-        let loaded = load_text(text, Some(name.clone()), None, options, EDIT_SIZE_LIMIT);
+        let loaded = load_text(
+            text,
+            Some(name.clone()),
+            None,
+            options,
+            EDIT_SIZE_LIMIT,
+            Reporter::NONE,
+        );
         (loaded, name)
     } else {
         let file = std::path::Path::new(arg);
-        let loaded = load_file(file, Some(arg.into()), None, options, EDIT_SIZE_LIMIT);
+        let loaded = load_file(
+            file,
+            Some(arg.into()),
+            None,
+            options,
+            EDIT_SIZE_LIMIT,
+            Reporter::NONE,
+        );
         (loaded, arg.to_string())
     };
     match loaded.map_err(|e| describe(&e, &name))? {
