@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { listen } from '@tauri-apps/api/event';
 import { ipc } from '$lib/ipc/client';
@@ -126,6 +127,7 @@ function launchWithEdited(...paths: string[]) {
 				fileBacked: true,
 				recoveryNote: null,
 				commentsStripped: false,
+				...SMALL_TIER,
 			},
 			notes: { convertedFrom: null, repairs: [] },
 		}),
@@ -197,6 +199,7 @@ describe('restoring unsaved work after a crash', () => {
 				fileBacked: false,
 				recoveryNote: null,
 				commentsStripped: false,
+				...SMALL_TIER,
 			},
 			notes: { convertedFrom: null, repairs: [] },
 		};
@@ -407,6 +410,7 @@ describe('quitting', () => {
 			fileBacked: false,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',

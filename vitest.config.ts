@@ -13,6 +13,6 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		environment: 'node',
-		setupFiles: ['@testing-library/svelte/vitest'],
+		setupFiles: ['@testing-library/svelte/vitest', 'src/lib/ipc/test-setup.ts'],
 	},
 });

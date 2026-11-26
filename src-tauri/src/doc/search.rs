@@ -26,6 +26,14 @@ pub struct SearchHit {
     pub snippet: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchProgress {
+    pub hits: Vec<SearchHit>,
+    pub scanned: u64,
+    pub total: u64,
+}
+
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchOptions {
@@ -338,7 +346,9 @@ mod tests {
             (r#"{"t": "İSTANBUL"}"#, "istanbul"),
         ] {
             let mut doc = Document::from_text(text, None).unwrap();
-            let found = doc.search(&opts(query), &CancelFlag::never()).unwrap();
+            let found = doc
+                .search(&opts(query), &CancelFlag::never(), &mut |_, _| {})
+                .unwrap();
             let replaced = doc.replace_all(query, "x", false).unwrap();
             assert_eq!(!found.is_empty(), replaced.count > 0, "{query:?} in {text}");
         }
@@ -351,7 +361,9 @@ mod tests {
         let text = format!(r#"{{"pad": "{pad}", "t": "ΣΑΣΑ ΟΔΟΣΑ"}}"#);
         let doc = Document::from_text(&text, None).unwrap();
         assert!(doc.summary().lazy, "an 11 MB document opens lazy");
-        let found = doc.search(&opts("ΟΔΟΣ"), &CancelFlag::never()).unwrap();
+        let found = doc
+            .search(&opts("ΟΔΟΣ"), &CancelFlag::never(), &mut |_, _| {})
+            .unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(format!("{}", found[0].path), "$.t");
         assert_eq!(found[0].snippet, "\"ΣΑΣΑ ΟΔΟΣΑ\"");

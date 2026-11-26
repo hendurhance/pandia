@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import CodeView, { type CodeViewApi } from './CodeView.svelte';
 
 // jsdom has no layout, and CodeMirror measures text ranges after each change.
@@ -24,7 +25,7 @@ describe('CodeView — committing the buffer', () => {
 		const { container } = render(CodeView, {
 			props: {
 				handle: 'h' as never,
-				sourceSize: 10,
+				summary: { sourceSize: 10, capabilities: SMALL_TIER.capabilities },
 				editable: true,
 				onCommit,
 				onDirtyChange: (d: boolean) => dirty.push(d),

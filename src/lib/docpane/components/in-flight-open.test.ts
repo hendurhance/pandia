@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { fireEvent, render } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import type { OpenOutcome, SentRequest } from '$lib/ipc/bindings';
@@ -52,6 +53,7 @@ function opened(handle: string, sourcePath: string, fileBacked: boolean): OpenOu
 			fileBacked,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		},
 		notes: { convertedFrom: null, repairs: [] },
 	};

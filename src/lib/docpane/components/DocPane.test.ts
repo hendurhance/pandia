@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { flushSync } from 'svelte';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
@@ -73,6 +74,7 @@ describe('DocPane', () => {
 				fileBacked: false,
 				recoveryNote: null,
 				commentsStripped: false,
+				...SMALL_TIER,
 			},
 			notes: { convertedFrom: null, repairs: [] },
 		});
@@ -99,6 +101,7 @@ describe('DocPane', () => {
 			fileBacked: true,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',
@@ -122,6 +125,7 @@ describe('DocPane', () => {
 					version: bVersion.value,
 					sourceName: 'b.json',
 					fileBacked: false,
+					capabilities: SMALL_TIER.capabilities,
 					save: async () => true,
 				};
 			},
@@ -161,6 +165,7 @@ describe('DocPane', () => {
 			fileBacked: true,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',
@@ -227,6 +232,7 @@ describe('DocPane', () => {
 			fileBacked: true,
 			recoveryNote: null,
 			commentsStripped: false,
+			...SMALL_TIER,
 		};
 		vi.mocked(ipc.docOpen).mockResolvedValue({
 			kind: 'opened',

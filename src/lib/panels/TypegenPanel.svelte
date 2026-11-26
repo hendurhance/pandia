@@ -2,7 +2,8 @@
 	import type { DocContext } from '$lib/shell/state/workspace.svelte';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DocHandle, TypegenLang } from '$lib/ipc/bindings';
+	import { MAPPED_THRESHOLD_BYTES, type DocHandle, type TypegenLang } from '$lib/ipc/bindings';
+	import { fmtBytes } from '$lib/util/format';
 	import { typegenPrefs, TYPEGEN_LANGS } from './state/typegen-prefs.svelte';
 	import { stem } from '$lib/util/path';
 	import { CopyFlag } from '$lib/util/clipboard.svelte';
@@ -37,7 +38,7 @@
 	}
 
 	async function regenerate() {
-		if (!context) {
+		if (!context?.capabilities.typegen) {
 			output = '';
 			error = null;
 			return;
@@ -85,7 +86,7 @@
 			value={lang}
 			onchange={(e) => typegenPrefs.setLang((e.target as HTMLSelectElement).value as TypegenLang)}
 			aria-label="target language"
-			disabled={!context}
+			disabled={!context?.capabilities.typegen}
 		>
 			{#each TYPEGEN_LANGS as l (l.id)}
 				<option value={l.id}>{l.label}</option>
@@ -114,6 +115,10 @@
 
 	{#if !context}
 		<div class="empty dim text-xs">No document in this tab</div>
+	{:else if !context.capabilities.typegen}
+		<div class="empty dim text-xs">
+			Type generation is off for files over {fmtBytes(MAPPED_THRESHOLD_BYTES)}.
+		</div>
 	{:else if busy && !output}
 		<div class="empty dim text-xs">Generating {langLabel}…</div>
 	{:else}

@@ -3,7 +3,15 @@
 	import { ipc } from '$lib/ipc/client';
 	import { decodeLossless } from '$lib/ipc/wire';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { ColumnSchema, NodeKind, OpenSource, Path, TypegenLang } from '$lib/ipc/bindings';
+	import {
+		CODE_VIEW_MAX_BYTES,
+		MAPPED_THRESHOLD_BYTES,
+		type ColumnSchema,
+		type NodeKind,
+		type OpenSource,
+		type Path,
+		type TypegenLang,
+	} from '$lib/ipc/bindings';
 	import { rootRow, type MenuAction } from '$lib/views/tree/logic/model';
 	import { chipText } from '$lib/views/tree/logic/row-format';
 	import TreeView from '$lib/views/tree/components/TreeView.svelte';
@@ -187,8 +195,11 @@
 		}),
 	);
 
+	const caps = $derived(session.summary?.capabilities ?? null);
+
 	const actions: DocPaneActions = {
 		hasDoc: () => !!session.summary,
+		can: (capability) => caps?.[capability] ?? false,
 		isCodeView: () => doc.viewMode === 'code',
 		expandAllDisabled: () => expandAllDisabled,
 		inCompare: () => compare.active,
@@ -198,7 +209,7 @@
 		doSave: session.save,
 		doSaveAs: session.saveAs,
 		openExport: async () => {
-			if (session.summary && (await doc.flushCode())) exportOpen = true;
+			if (caps?.export && (await doc.flushCode())) exportOpen = true;
 		},
 		switchView: doc.switchView,
 		undo: () => {
@@ -234,12 +245,13 @@
 	const contextVersion = $derived(session.summary?.version ?? null);
 	const contextFileBacked = $derived(session.summary?.fileBacked ?? false);
 	const context = $derived.by<DocContext | null>(() =>
-		contextHandle && contextVersion !== null
+		contextHandle && contextVersion !== null && caps
 			? {
 					handle: contextHandle,
 					version: contextVersion,
 					sourceName: session.sourceName,
 					fileBacked: contextFileBacked,
+					capabilities: caps,
 					save: (opts) => session.save(opts),
 				}
 			: null,
@@ -259,6 +271,7 @@
 			sizeDisplay: fmtBytes(s.sourceSize),
 			rootCountDisplay: chipText(rootRow(s.rootKind, s.rootChildCount)),
 			lazy: s.lazy,
+			readOnly: !s.capabilities.edit,
 			validity: validityFromView({
 				viewMode: doc.viewMode,
 				codeValid,
@@ -490,8 +503,11 @@
 				<button
 					class="vm"
 					class:active={doc.viewMode === 'code'}
+					disabled={!caps?.codeView}
 					onclick={() => void doc.switchView('code')}
-					title={`code view (${shortcutLabel('view.code')})`}>Code</button
+					title={caps?.codeView
+						? `code view (${shortcutLabel('view.code')})`
+						: `code view is off for files over ${fmtBytes(CODE_VIEW_MAX_BYTES)}`}>Code</button
 				>
 				<button
 					class="vm"
@@ -509,8 +525,11 @@
 				<button
 					class="vm"
 					class:active={doc.viewMode === 'graph'}
+					disabled={!caps?.graph}
 					onclick={() => void doc.switchView('graph')}
-					title={`graph view (${shortcutLabel('view.graph')})`}>Graph</button
+					title={caps?.graph
+						? `graph view (${shortcutLabel('view.graph')})`
+						: `graph view is off for files over ${fmtBytes(MAPPED_THRESHOLD_BYTES)}`}>Graph</button
 				>
 				{#if doc.viewMode === 'compare'}
 					<button class="vm active" onclick={compare.exit} title="exit compare">Compare</button>
@@ -626,9 +645,11 @@
 				onSelect={nav.selectRow}
 				onVisibleRange={tree.onVisibleRange}
 				onMaterializeGap={tree.materializeGap}
-				onReorder={(dragged, gap) => void nodeActions.reorderTo(dragged, gap)}
+				onReorder={caps?.edit
+					? (dragged, gap) => void nodeActions.reorderTo(dragged, gap)
+					: undefined}
 				{onRowMenu}
-				{onRowAction}
+				onRowAction={caps?.edit ? onRowAction : undefined}
 				scrollRequest={nav.scrollRequest}
 				editing={edit.state}
 				onEditInput={edit.input}
@@ -648,7 +669,8 @@
 				onPrev={find.prev}
 				onNext={find.next}
 				onClose={find.close}
-				onCancel={find.cancel}
+				onCancel={find.stop}
+				canReplace={caps?.edit ?? false}
 				replaceValue={find.replaceValue}
 				onReplaceChange={(v) => (find.replaceValue = v)}
 				onReplaceAll={find.replaceAll}
@@ -661,8 +683,8 @@
 		<CompareView
 			leftHandle={session.handle}
 			rightHandle={compare.handle}
-			leftSourceSize={session.summary.sourceSize}
-			rightSourceSize={compare.summary.sourceSize}
+			leftSummary={session.summary}
+			rightSummary={compare.summary}
 			leftName={session.sourceName ?? 'left'}
 			rightName={compare.sourceName ?? 'right'}
 			leftVersion={session.summary.version}
@@ -675,7 +697,7 @@
 			{#key codeEpoch}
 				<CodeView
 					handle={session.handle}
-					sourceSize={session.summary.sourceSize}
+					summary={session.summary}
 					editable
 					onCommit={async (text) => (await session.commitText(text)) !== null}
 					onDirtyChange={(d) => (codeDirty = d)}
@@ -722,6 +744,8 @@
 				onCellSelect={(c) => (gridSelected = c)}
 				docKey={session.summary?.sourcePath ?? null}
 				onError={(e) => (doc.error = e || null)}
+				editable={caps?.edit ?? false}
+				sortFilter={caps?.sortFilter ?? false}
 				onApply={async (op) => (await session.applyOp(op)) !== null}
 				onExtract={(text, count) => {
 					const name = stem(session.sourceName ?? 'rows').slice(0, 24);
@@ -749,6 +773,7 @@
 		row={menuRow}
 		canMoveUp={menuMoveBounds.up}
 		canMoveDown={menuMoveBounds.down}
+		editable={caps?.edit ?? false}
 		onAction={onMenuAction}
 		onClose={onMenuClose}
 	/>

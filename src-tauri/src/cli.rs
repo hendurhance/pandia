@@ -489,7 +489,7 @@ fn save_stdin() -> Result<PathBuf, String> {
                 .into(),
         );
     }
-    save_piped(stdin, crate::doc::document::MAX_DOC_BYTES)
+    save_piped(stdin, crate::doc::tier::MAX_DOC_BYTES)
 }
 
 fn save_piped(input: impl std::io::Read, limit: u64) -> Result<PathBuf, String> {

@@ -60,7 +60,7 @@
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
 	import { noirHighlight, noirTheme } from './logic/codemirror-theme';
-	import type { DocHandle, Path } from '$lib/ipc/bindings';
+	import { CODE_VIEW_MAX_BYTES, type DocHandle, type Path, type Summary } from '$lib/ipc/bindings';
 	import { diffHighlightExtension, setHighlights, type Highlight } from './logic/highlights';
 	import { searchMarks } from './logic/search-marks';
 	import { OffsetCache } from './logic/offset-cache';
@@ -68,7 +68,7 @@
 	interface Props {
 		handle: DocHandle | null;
 		version?: number;
-		sourceSize: number;
+		summary: Pick<Summary, 'sourceSize' | 'capabilities'>;
 		highlights?: Highlight[];
 		activePath?: Path | null;
 
@@ -90,7 +90,7 @@
 	let {
 		handle,
 		version,
-		sourceSize,
+		summary,
 		highlights = [],
 		activePath = null,
 		onScrollerReady,
@@ -102,8 +102,7 @@
 		onOpenTree,
 	}: Props = $props();
 
-	const SIZE_CAP = 50 * 1024 * 1024;
-	const tooBig = $derived(sourceSize > SIZE_CAP);
+	const tooBig = $derived(!summary.capabilities.codeView);
 
 	let container: HTMLDivElement | undefined = $state();
 	let loading = $state(false);
@@ -440,7 +439,11 @@
 	<div class="empty-state">
 		<div class="empty-state-inner">
 			<div class="label">code view unavailable</div>
-			<p>this document is {fmtBytes(sourceSize)} — code view is capped at {fmtBytes(SIZE_CAP)}.</p>
+			<p>
+				this document is {fmtBytes(summary.sourceSize)} — code view is capped at {fmtBytes(
+					CODE_VIEW_MAX_BYTES,
+				)}.
+			</p>
 			<p class="dim text-sm">use tree view: it streams slices from Rust regardless of size.</p>
 			{#if onOpenTree}
 				<button class="btn btn-primary self-start" onclick={onOpenTree}>Open in Tree view</button>

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { flushSync } from 'svelte';
 import { ipc } from '$lib/ipc/client';
 import type { Summary } from '$lib/ipc/bindings';
@@ -44,6 +45,7 @@ function summary(version: number, dirty: boolean): Summary {
 		fileBacked: true,
 		recoveryNote: null,
 		commentsStripped: false,
+		...SMALL_TIER,
 	};
 }
 

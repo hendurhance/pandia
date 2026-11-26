@@ -16,16 +16,16 @@ use super::format::{self, InputFormat};
 use super::grid_filter::{compile_filters, row_passes, GridFilter};
 use super::history::History;
 use super::lazy::{parse_json, LazyDoc};
+use super::mapped::MappedText;
 use super::ops::{Op, OpDescription, OpOutcome};
 use super::schema_validate::{self, SchemaCompileError, SchemaValidationResult, Validator};
 use super::search::{literal_matcher, SearchHit, SearchOptions};
+use super::tier::{Capabilities, Tier, EDIT_SIZE_LIMIT, MAPPED_THRESHOLD_BYTES};
 use super::typegen::{self, TypeShape, TypegenLang};
-use super::types::{DocError, DocResult, FileOp, NodeKind, NodeView, Path, PathSegment};
+use super::types::{
+    BigFileProblem, DocError, DocResult, FileOp, NodeKind, NodeView, Path, PathSegment,
+};
 use super::wire::LosslessText;
-
-const LAZY_THRESHOLD_BYTES: u64 = 10 * 1024 * 1024;
-pub const EDIT_SIZE_LIMIT: u64 = 200 * 1024 * 1024;
-pub const MAX_DOC_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -148,6 +148,8 @@ pub struct Summary {
     pub source_path: Option<String>,
     pub source_size: u64,
     pub lazy: bool,
+    pub tier: Tier,
+    pub capabilities: Capabilities,
     pub version: u64,
     pub dirty: bool,
     pub file_backed: bool,
@@ -180,21 +182,21 @@ impl PendingSave {
 }
 
 impl Document {
-    fn ensure_within_max(size: u64) -> DocResult<()> {
-        if size > MAX_DOC_BYTES {
+    fn ensure_in_memory(size: u64) -> DocResult<()> {
+        if size > MAPPED_THRESHOLD_BYTES {
             return Err(DocError::TooLarge {
                 actual: size,
-                limit: MAX_DOC_BYTES,
+                limit: MAPPED_THRESHOLD_BYTES,
             });
         }
         Ok(())
     }
 
     fn parse(text: &FastStr) -> DocResult<DocumentImpl> {
-        if text.len() as u64 >= LAZY_THRESHOLD_BYTES {
-            return Ok(DocumentImpl::Lazy(LazyDoc::new(text.clone())?));
+        match Tier::of(text.len() as u64) {
+            Tier::Small => parse_json(text).map(DocumentImpl::Eager),
+            _ => Ok(DocumentImpl::Lazy(LazyDoc::new(text.clone())?)),
         }
-        parse_json(text).map(DocumentImpl::Eager)
     }
 
     fn parse_records(text: &FastStr) -> DocResult<DocumentImpl> {
@@ -212,7 +214,7 @@ impl Document {
     }
 
     pub fn from_source(text: FastStr, source_path: Option<String>) -> DocResult<Self> {
-        Self::ensure_within_max(text.len() as u64)?;
+        Self::ensure_in_memory(text.len() as u64)?;
 
         let hint = source_path.as_deref().and_then(format::hint_from_path);
         let parsed = if hint == Some(InputFormat::Ndjson) {
@@ -224,7 +226,7 @@ impl Document {
             Ok(inner) => (inner, text.len() as u64, None, false),
             Err(strict) => {
                 let r = format::recover(&text, hint).ok_or(strict)?;
-                Self::ensure_within_max(r.json.len() as u64)?;
+                Self::ensure_in_memory(r.json.len() as u64)?;
                 let size = r.json.len() as u64;
                 (
                     Self::parse(&FastStr::from_string(r.json))?,
@@ -234,13 +236,48 @@ impl Document {
                 )
             }
         };
+        Ok(Self::assemble(
+            inner,
+            source_path,
+            size,
+            recovery_note,
+            comments_stripped,
+        ))
+    }
 
+    pub fn from_mapped(text: Arc<MappedText>, source_path: Option<String>) -> DocResult<Self> {
+        if source_path.as_deref().and_then(format::hint_from_path) == Some(InputFormat::Ndjson) {
+            return Err(DocError::BigFile(BigFileProblem::LinePerValue {
+                file: text.name(),
+            }));
+        }
+        let size = text.as_str().len() as u64;
+        let recovery_note = text
+            .skipped_bom()
+            .then(|| format::LEADING_JUNK_NOTE.to_string());
+        let inner = DocumentImpl::Lazy(LazyDoc::mapped(text)?);
+        Ok(Self::assemble(
+            inner,
+            source_path,
+            size,
+            recovery_note,
+            false,
+        ))
+    }
+
+    fn assemble(
+        inner: DocumentImpl,
+        source_path: Option<String>,
+        source_size: u64,
+        recovery_note: Option<String>,
+        comments_stripped: bool,
+    ) -> Self {
         let mut doc = Self {
             opened_lazy: matches!(inner, DocumentImpl::Lazy(_)),
             inner,
             source_path,
             file_path: None,
-            source_size: size,
+            source_size,
             recovery_note,
             comments_stripped,
             version: 0,
@@ -258,7 +295,45 @@ impl Document {
         if !doc.opened_lazy {
             doc.saved_hash = doc.compute_content_hash();
         }
-        Ok(doc)
+        doc
+    }
+
+    pub fn tier(&self) -> Tier {
+        match &self.inner {
+            DocumentImpl::Lazy(lazy) if lazy.is_mapped() => Tier::Mapped,
+            _ => Tier::of(self.source_size),
+        }
+    }
+
+    pub fn capabilities(&self) -> Capabilities {
+        self.tier().capabilities(self.source_size)
+    }
+
+    pub fn check_source(&self) -> DocResult<()> {
+        match &self.inner {
+            DocumentImpl::Lazy(lazy) => lazy.check_unchanged(),
+            DocumentImpl::Eager(_) => Ok(()),
+        }
+    }
+
+    fn require_whole_document(&self) -> DocResult<()> {
+        if self.tier().whole_document() {
+            return Ok(());
+        }
+        Err(DocError::TooLarge {
+            actual: self.source_size,
+            limit: EDIT_SIZE_LIMIT,
+        })
+    }
+
+    fn require_in_memory(&self) -> DocResult<()> {
+        if self.tier() != Tier::Mapped {
+            return Ok(());
+        }
+        Err(DocError::TooLarge {
+            actual: self.source_size,
+            limit: MAPPED_THRESHOLD_BYTES,
+        })
     }
 
     fn backend(&self) -> &dyn DocumentBackend {
@@ -317,7 +392,7 @@ impl Document {
         let size = std::fs::metadata(path)
             .map_err(|e| DocError::file(FileOp::Open, path, e))?
             .len();
-        Self::ensure_within_max(size)?;
+        Self::ensure_in_memory(size)?;
         std::fs::read_to_string(path).map_err(|e| DocError::file(FileOp::Open, path, e))
     }
 
@@ -339,6 +414,8 @@ impl Document {
             source_path: self.source_path.clone(),
             source_size: self.source_size,
             lazy: self.is_lazy(),
+            tier: self.tier(),
+            capabilities: self.capabilities(),
             version: self.version,
             dirty: self.is_dirty(),
             file_backed: self.file_path.is_some(),
@@ -348,17 +425,13 @@ impl Document {
     }
 
     pub fn export(&self, format: ExportFormat) -> DocResult<String> {
-        if self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
-        }
+        self.require_whole_document()?;
         self.with_root(|v| export_value(v, format))?
             .map_err(|e| DocError::Export(e.to_string()))
     }
 
     pub fn export_to_file(&self, format: ExportFormat, path: &str) -> DocResult<()> {
+        self.require_in_memory()?;
         let target = FsPath::new(path);
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
@@ -383,6 +456,7 @@ impl Document {
         format: ExportFormat,
         max_chars: usize,
     ) -> DocResult<(String, bool)> {
+        self.require_in_memory()?;
         let max_bytes = max_chars.saturating_mul(4).max(1024);
         match format {
             ExportFormat::Json | ExportFormat::JsonMin => {
@@ -406,6 +480,7 @@ impl Document {
     }
 
     pub fn serialize(&self) -> DocResult<String> {
+        self.require_in_memory()?;
         self.backend().serialize_pretty()
     }
 
@@ -512,24 +587,7 @@ impl Document {
     }
 
     pub fn get_rows(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<Value>> {
-        let (kind, count) = self.kind_at(path)?;
-        if kind != NodeKind::Array {
-            return Ok(Vec::new());
-        }
-        let total = count.unwrap_or(0);
-        let start = range.start.min(total);
-        let end = range.end.min(total);
-        if start >= end {
-            return Ok(Vec::new());
-        }
-
-        let mut out = Vec::with_capacity((end - start) as usize);
-        for i in start..end {
-            let mut p = path.clone();
-            p.push(PathSegment::Index(i));
-            out.push(self.get_value(&p)?);
-        }
-        Ok(out)
+        self.backend().rows(path, range)
     }
 
     pub fn get_rows_sorted(
@@ -539,6 +597,7 @@ impl Document {
         descending: bool,
         range: Range<u32>,
     ) -> DocResult<Vec<SortedRow>> {
+        self.require_in_memory()?;
         self.with_sorted_perm(path, key, descending, |perm| {
             self.window_sorted(perm, path, range)
         })
@@ -664,6 +723,7 @@ impl Document {
         range: Range<u32>,
         cancel: &crate::doc::jobs::CancelFlag,
     ) -> DocResult<FilteredRows> {
+        self.require_in_memory()?;
         self.with_filtered_perm(path, groups, quick, quick_keys, sort, cancel, |perm| {
             self.window_filtered(perm, path, range)
         })
@@ -861,6 +921,9 @@ impl Document {
                 .map(|d| perm[d as usize])
                 .collect())
         };
+        if !groups.is_empty() || quick.is_some() || sort.is_some() {
+            self.require_in_memory()?;
+        }
         if !groups.is_empty() || quick.is_some() {
             let never = crate::doc::jobs::CancelFlag::never();
             return self.with_filtered_perm(path, groups, quick, quick_keys, sort, &never, window);
@@ -878,6 +941,7 @@ impl Document {
     }
 
     pub fn column_values(&self, path: &Path, key: &str, limit: usize) -> DocResult<ColumnValues> {
+        self.require_in_memory()?;
         let cells = self.column_keys(path, key)?;
         let mut map: std::collections::HashMap<String, (Value, u32)> =
             std::collections::HashMap::new();
@@ -916,11 +980,8 @@ impl Document {
     }
 
     pub fn get_column(&self, path: &Path, key: &str) -> DocResult<Vec<Value>> {
-        if path.is_root() && self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
+        if path.is_root() {
+            self.require_whole_document()?;
         }
         Ok(self
             .column_cells(path, key)?
@@ -930,11 +991,8 @@ impl Document {
     }
 
     pub fn get_value(&self, path: &Path) -> DocResult<Value> {
-        if path.is_root() && self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
+        if path.is_root() {
+            self.require_whole_document()?;
         }
         self.backend().get_value(path)
     }
@@ -948,12 +1006,7 @@ impl Document {
                 }
             }
         }
-        if self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
-        }
+        self.require_whole_document()?;
         let text = self.with_root(super::canonical::canonical_pretty)?;
         let text = Arc::new(text);
         let line_starts = Arc::new(super::linediff::line_starts(&text));
@@ -966,12 +1019,7 @@ impl Document {
     }
 
     pub fn canonical_offsets(&self, paths: &[Path]) -> DocResult<Vec<Option<(u64, u64)>>> {
-        if self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
-        }
+        self.require_whole_document()?;
         self.with_root(|v| super::canonical::canonical_offsets(v, paths))
     }
 
@@ -1046,8 +1094,9 @@ impl Document {
         &self,
         opts: &SearchOptions,
         cancel: &crate::doc::jobs::CancelFlag,
+        report: &mut dyn FnMut(&[SearchHit], u64),
     ) -> DocResult<Vec<SearchHit>> {
-        Ok(self.backend().search(opts, cancel))
+        Ok(self.backend().search(opts, cancel, report))
     }
 
     pub fn replace_all(
@@ -1097,6 +1146,10 @@ impl Document {
     }
 
     pub fn generate_types(&self, lang: TypegenLang, type_name: &str) -> DocResult<String> {
+        self.require_in_memory()?;
+        if lang == TypegenLang::JsonSchema {
+            self.require_whole_document()?;
+        }
         self.backend().generate_types(lang, type_name)
     }
 
@@ -1105,12 +1158,7 @@ impl Document {
         schema_text: &str,
         cancel: &crate::doc::jobs::CancelFlag,
     ) -> DocResult<SchemaValidationResult> {
-        if self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
-        }
+        self.require_whole_document()?;
         let validator = self.compiled_schema(schema_text)?;
         if cancel.is_cancelled() {
             return Err(DocError::Cancelled);
@@ -1136,13 +1184,7 @@ impl Document {
     }
 
     pub fn check_editable(&self) -> DocResult<()> {
-        if matches!(self.inner, DocumentImpl::Lazy(_)) && self.source_size > EDIT_SIZE_LIMIT {
-            return Err(DocError::TooLarge {
-                actual: self.source_size,
-                limit: EDIT_SIZE_LIMIT,
-            });
-        }
-        Ok(())
+        self.require_whole_document()
     }
 
     fn ensure_eager(&mut self) -> DocResult<&mut Value> {
@@ -1282,6 +1324,8 @@ mod tests {
     }
 
     use super::*;
+    use crate::doc::mapped::TempFile;
+    use crate::doc::tier::LAZY_THRESHOLD_BYTES;
 
     fn doc(text: &str) -> Document {
         Document::from_text(text, None).expect("valid JSON in test")
@@ -1294,16 +1338,170 @@ mod tests {
     }
 
     #[test]
-    fn refuses_documents_over_max_bytes() {
-        assert!(Document::ensure_within_max(MAX_DOC_BYTES).is_ok());
-        let err = Document::ensure_within_max(MAX_DOC_BYTES + 1).unwrap_err();
+    fn text_over_the_mapped_threshold_is_never_held_in_memory() {
+        assert!(Document::ensure_in_memory(MAPPED_THRESHOLD_BYTES).is_ok());
+        let err = Document::ensure_in_memory(MAPPED_THRESHOLD_BYTES + 1).unwrap_err();
         assert!(matches!(
             err,
             DocError::TooLarge {
-                limit: MAX_DOC_BYTES,
+                limit: MAPPED_THRESHOLD_BYTES,
                 ..
             }
         ));
+    }
+
+    const ROWS: &str = r#"[{"id": 1, "name": "ada"}, {"id": 2, "name": "grace"}]"#;
+
+    fn mapped_doc(name: &str, text: &str) -> (TempFile, Document) {
+        let file = TempFile::new(name, text);
+        let doc = Document::from_mapped(file.map(), Some(name.into())).unwrap();
+        (file, doc)
+    }
+
+    #[test]
+    fn a_mapped_document_is_read_only_whatever_its_size() {
+        let (_file, d) = mapped_doc("rows.json", ROWS);
+        let s = d.summary();
+        assert_eq!(s.tier, Tier::Mapped);
+        assert!(s.lazy);
+        assert_eq!(s.capabilities, Tier::Mapped.capabilities(s.source_size));
+        assert_eq!(s.root_child_count, Some(2));
+    }
+
+    #[test]
+    fn a_mapped_document_browses_pages_and_searches() {
+        let (_file, d) = mapped_doc("rows.json", ROWS);
+        let name = Path(vec![PathSegment::Index(1), PathSegment::Key("name".into())]);
+        assert_eq!(d.get_value(&name).unwrap(), serde_json::json!("grace"));
+        assert_eq!(d.get_slice(&Path::root(), 0..10).unwrap().len(), 2);
+        assert_eq!(d.get_rows(&Path::root(), 1..2).unwrap().len(), 1);
+        let opts = SearchOptions {
+            query: "grace".into(),
+            case_sensitive: false,
+            max_results: None,
+        };
+        let never = crate::doc::jobs::CancelFlag::never();
+        let hits = d.search(&opts, &never, &mut |_, _| {}).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].path, name);
+    }
+
+    #[test]
+    fn a_mapped_document_refuses_every_whole_file_action() {
+        let (_file, mut d) = mapped_doc("rows.json", ROWS);
+        let never = crate::doc::jobs::CancelFlag::never();
+        let limit_of = |r: DocResult<()>| match r {
+            Err(DocError::TooLarge { limit, .. }) => limit,
+            other => panic!("expected TooLarge, got {other:?}"),
+        };
+        let out = temp_path("mapped-out.json");
+        let whole = [
+            limit_of(d.check_editable()),
+            limit_of(d.get_value(&Path::root()).map(drop)),
+            limit_of(d.export(ExportFormat::Yaml).map(drop)),
+            limit_of(d.canonical_lines().map(drop)),
+            limit_of(d.validate_schema("{}", &never).map(drop)),
+        ];
+        assert_eq!(whole, [EDIT_SIZE_LIMIT; 5]);
+        let in_memory = [
+            limit_of(d.serialize().map(drop)),
+            limit_of(d.prepare_save(Some(out.clone())).map(drop)),
+            limit_of(d.export_to_file(ExportFormat::Json, &out)),
+            limit_of(
+                d.get_rows_sorted(&Path::root(), "id", false, 0..1)
+                    .map(drop),
+            ),
+            limit_of(
+                d.get_rows_filtered(&Path::root(), &[], Some("a"), &[], None, 0..1, &never)
+                    .map(drop),
+            ),
+            limit_of(d.column_values(&Path::root(), "id", 10).map(drop)),
+            limit_of(d.generate_types(TypegenLang::Typescript, "Root").map(drop)),
+        ];
+        assert_eq!(in_memory, [MAPPED_THRESHOLD_BYTES; 7]);
+        assert!(d.apply(&set_a(1)).is_err());
+        assert!(!std::path::Path::new(&out).exists());
+        assert_eq!(d.version, 0);
+    }
+
+    #[test]
+    fn a_mapped_document_skips_a_byte_order_mark_without_copying() {
+        let (file, d) = mapped_doc("bom.json", &format!("\u{feff}{ROWS}"));
+        let DocumentImpl::Lazy(lazy) = &d.inner else {
+            panic!("expected the lazy backend");
+        };
+        let on_disk = std::fs::read(&file.0).unwrap();
+        assert_eq!(lazy.source().as_bytes(), &on_disk[3..]);
+        assert_eq!(
+            d.summary().recovery_note.as_deref(),
+            Some(format::LEADING_JUNK_NOTE)
+        );
+        assert_eq!(d.summary().source_size, ROWS.len() as u64);
+    }
+
+    #[test]
+    fn a_mapped_document_refuses_what_would_need_a_copy_and_names_the_file() {
+        for (name, text, want) in [
+            (
+                "dupes.json",
+                r#"{"a": 1, "a": 2}"#,
+                BigFileProblem::RepeatedKeys {
+                    file: String::new(),
+                },
+            ),
+            (
+                "logs.ndjson",
+                "{\"a\": 1}\n{\"a\": 2}\n",
+                BigFileProblem::LinePerValue {
+                    file: String::new(),
+                },
+            ),
+        ] {
+            let file = TempFile::new(name, text);
+            let err = Document::from_mapped(file.map(), Some(name.into())).unwrap_err();
+            let shown = file.0.to_string_lossy().into_owned();
+            let want = match want {
+                BigFileProblem::RepeatedKeys { .. } => BigFileProblem::RepeatedKeys { file: shown },
+                _ => BigFileProblem::LinePerValue { file: shown },
+            };
+            assert!(
+                matches!(&err, DocError::BigFile(p) if *p == want),
+                "{name}: {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_mapped_document_notices_when_its_file_changes_size() {
+        let (file, d) = mapped_doc("grow.json", ROWS);
+        assert!(d.check_source().is_ok());
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file.0)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, b"\n"))
+            .unwrap();
+        let err = d.check_source().unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                DocError::BigFile(BigFileProblem::ChangedOnDisk { .. })
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn json_schema_types_refuse_a_document_over_the_whole_document_limit() {
+        let big = doc(&format!("[{}0]", " ".repeat(EDIT_SIZE_LIMIT as usize)));
+        match big.generate_types(TypegenLang::JsonSchema, "Root") {
+            Err(DocError::TooLarge { limit, .. }) => assert_eq!(limit, EDIT_SIZE_LIMIT),
+            other => panic!("expected TooLarge, got {:?}", other.map(|s| s.len())),
+        }
+        assert!(big.generate_types(TypegenLang::Typescript, "Root").is_ok());
+        assert!(doc("[1, 2]")
+            .generate_types(TypegenLang::JsonSchema, "Root")
+            .unwrap()
+            .contains("2020-12"));
     }
 
     fn temp_path(name: &str) -> String {
@@ -1822,7 +2020,7 @@ mod tests {
                         max_results: None,
                     };
                     let never = crate::doc::jobs::CancelFlag::never();
-                    assert_eq!(d.search(&opts, &never).unwrap().len(), 1);
+                    assert_eq!(d.search(&opts, &never, &mut |_, _| {}).unwrap().len(), 1);
                     d.generate_types(TypegenLang::Typescript, "Root").unwrap();
 
                     let mut leaf = Path(vec![PathSegment::Key("n".into()); 999]);
@@ -2628,7 +2826,8 @@ mod tests {
                 case_sensitive: false,
                 max_results: None,
             };
-            assert_eq!(d.search(&find, &never).unwrap().len(), 2, "lazy={lazy}");
+            let hits = d.search(&find, &never, &mut |_, _| {}).unwrap();
+            assert_eq!(hits.len(), 2, "lazy={lazy}");
 
             let shown = |groups: &[Vec<GridFilter>], quick: Option<&str>| -> Vec<u32> {
                 let quick_keys = ["t".to_string()];

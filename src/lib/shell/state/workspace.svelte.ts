@@ -4,18 +4,23 @@ import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import type { DocStatus } from '$lib/shell/logic/status';
 import { basename } from '$lib/util/path';
-import type { DocHandle, OpenSource } from '$lib/ipc/bindings';
+import {
+	EDIT_SIZE_LIMIT,
+	type Capabilities,
+	type DocHandle,
+	type OpenSource,
+} from '$lib/ipc/bindings';
 import type { Handoff } from './handoff';
 import { loadOpenTabs, saveOpenTabs } from './tabs-restore';
 
 export const MAX_TABS = 50;
-export const LARGE_FILE_WARN_BYTES = 200 * 1024 * 1024;
 
 export interface DocContext {
 	handle: DocHandle;
 	version: number;
 	sourceName: string | null;
 	fileBacked: boolean;
+	capabilities: Capabilities;
 	save: (opts?: { silent?: boolean }) => Promise<boolean>;
 }
 
@@ -267,7 +272,7 @@ export class Workspace {
 		} catch {
 			return true; // the open itself reports a missing or unreadable file
 		}
-		return bytes < LARGE_FILE_WARN_BYTES || this.prompts.confirmLargeFile(basename(path), bytes);
+		return bytes <= EDIT_SIZE_LIMIT || this.prompts.confirmLargeFile(basename(path), bytes);
 	}
 
 	async resolveUnsaved(ids: string[]): Promise<boolean> {

@@ -1,7 +1,8 @@
+import { Channel } from '@tauri-apps/api/core';
 import { ipc } from '$lib/ipc/client';
 import { describeError } from '$lib/ipc/error-copy';
 import type { CodeViewApi } from '$lib/views/code/CodeView.svelte';
-import type { DocHandle, Path, ReplaceResult, SearchHit } from '$lib/ipc/bindings';
+import type { DocHandle, Path, ReplaceResult, SearchHit, SearchProgress } from '$lib/ipc/bindings';
 import { pathKey } from '$lib/views/tree/logic/model';
 
 const FIND_DEBOUNCE_MS = 160;
@@ -47,8 +48,11 @@ export class FindController {
 	replaceOpen = $state(false);
 	codeMatchCount = $state(0);
 	codeActiveIdx = $state(0);
+	scanned: number | null = $state(null);
+	stopped = $state(false);
 
 	private seq = 0;
+	private streamed = $state(false);
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private hitsQuery: string | null = null;
 	private activeJobId: string | null = null;
@@ -66,10 +70,13 @@ export class FindController {
 				? 'no matches'
 				: `${this.codeActiveIdx} / ${this.codeMatchCount}`;
 		}
-		if (this.busy) return 'searching…';
-		if (this.hits.length === 0) return 'no matches';
+		const at = this.scanned === null ? '' : ` · ${Math.floor(this.scanned * 100)}%`;
+		if (this.busy && !this.streamed) return `searching…${at}`;
+		if (this.hits.length === 0) return this.stopped ? `stopped${at}` : 'no matches';
 		const more = this.hits.length >= SEARCH_HIT_CAP ? '+' : '';
-		return `${this.activeIdx + 1} / ${this.hits.length}${more}`;
+		const shown = `${this.activeIdx + 1} / ${this.hits.length}${more}`;
+		if (this.busy) return `${shown}${at}`;
+		return this.stopped ? `${shown} · stopped${at}` : shown;
 	});
 
 	navDisabled = $derived.by(() =>
@@ -180,16 +187,37 @@ export class FindController {
 		const seq = ++this.seq;
 		const jobId = crypto.randomUUID();
 		this.activeJobId = jobId;
+		this.scanned = null;
+		this.stopped = false;
+		this.streamed = false;
+		const streamInto = !keepActive || this.hits.length === 0;
+		let done = false;
+		const progress = new Channel<SearchProgress>((p) => {
+			if (done || seq !== this.seq) return;
+			this.scanned = p.scanned / p.total;
+			if (!streamInto || p.hits.length === 0) return;
+			if (this.streamed) {
+				this.hits.push(...p.hits);
+				return;
+			}
+			this.streamed = true;
+			this.hits = p.hits;
+			this.activeIdx = 0;
+			void this.jumpToHit(0);
+		});
 		try {
 			const hits = await ipc.docSearch(
 				handle,
 				{ query: q, caseSensitive: false, maxResults: SEARCH_HIT_CAP },
 				jobId,
+				progress,
 			);
+			done = true;
 			if (seq !== this.seq) return; // a newer query started — drop stale.
 			const prev = this.hits[this.activeIdx];
 			this.hits = hits;
 			this.hitsQuery = q;
+			if (this.streamed) return;
 			if (keepActive) {
 				const same = prev
 					? hits.findIndex(
@@ -207,9 +235,29 @@ export class FindController {
 			this.hits = [];
 			this.hitsQuery = null;
 		} finally {
+			done = true;
 			if (this.activeJobId === jobId) this.activeJobId = null;
-			if (seq === this.seq) this.busy = false;
+			if (seq === this.seq) {
+				this.busy = false;
+				this.streamed = false;
+				this.scanned = null;
+			}
 		}
+	};
+
+	stop = () => {
+		if (!this.streamed && this.scanned === null) {
+			this.cancel();
+			return;
+		}
+		const id = this.activeJobId;
+		this.activeJobId = null;
+		this.seq++;
+		this.busy = false;
+		this.streamed = false;
+		this.stopped = true;
+		this.hitsQuery = null;
+		if (id) void ipc.cancelJob(id).catch(() => {});
 	};
 
 	cancel = () => {
@@ -220,6 +268,9 @@ export class FindController {
 		this.busy = false;
 		this.hits = [];
 		this.hitsQuery = null;
+		this.scanned = null;
+		this.stopped = false;
+		this.streamed = false;
 		if (id) {
 			void ipc.cancelJob(id).catch(() => {});
 		}

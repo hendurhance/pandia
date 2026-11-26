@@ -233,6 +233,9 @@ pub enum DocError {
     #[error("nested deeper than {limit} levels")]
     TooDeep { limit: u32 },
 
+    #[error("an array holds more than {limit} items")]
+    TooManyItems { limit: u32 },
+
     #[error("parse error: {0}")]
     Parse(String),
 
@@ -260,6 +263,28 @@ pub enum DocError {
 
     #[error("request failed: {0:?}")]
     Request(crate::doc::curl::RequestProblem),
+
+    #[error("big file: {0:?}")]
+    BigFile(BigFileProblem),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(tag = "problem", rename_all = "camelCase")]
+pub enum BigFileProblem {
+    TooLarge {
+        file: String,
+        actual: u64,
+        limit: u64,
+    },
+    RepeatedKeys {
+        file: String,
+    },
+    LinePerValue {
+        file: String,
+    },
+    ChangedOnDisk {
+        file: String,
+    },
 }
 
 impl DocError {
@@ -338,6 +363,7 @@ pub struct WireError {
     pub limit: Option<u64>,
     pub io: Option<Box<IoInfo>>,
     pub request: Option<Box<crate::doc::curl::RequestProblem>>,
+    pub big_file: Option<Box<BigFileProblem>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -348,6 +374,7 @@ pub enum ErrorKind {
     TooLarge,
     RangeTooLarge,
     TooDeep,
+    TooManyItems,
     Parse,
     Edit,
     Schema,
@@ -356,6 +383,7 @@ pub enum ErrorKind {
     Io,
     Cancelled,
     Request,
+    BigFile,
 }
 
 impl From<DocError> for WireError {
@@ -397,6 +425,13 @@ impl From<DocError> for WireError {
                 None,
                 Some(u64::from(*limit)),
             ),
+            DocError::TooManyItems { limit } => (
+                ErrorKind::TooManyItems,
+                None,
+                None,
+                None,
+                Some(u64::from(*limit)),
+            ),
             DocError::Parse(s) => (ErrorKind::Parse, Some(s.clone()), None, None, None),
             DocError::Edit(s) => (ErrorKind::Edit, Some(s.clone()), None, None, None),
             DocError::Schema(s) => (ErrorKind::Schema, Some(s.clone()), None, None, None),
@@ -413,6 +448,7 @@ impl From<DocError> for WireError {
             }
             DocError::Cancelled => (ErrorKind::Cancelled, None, None, None, None),
             DocError::Request(_) => (ErrorKind::Request, None, None, None, None),
+            DocError::BigFile(_) => (ErrorKind::BigFile, None, None, None, None),
         };
         let io = match &e {
             DocError::Io { source, op, file } => Some(Box::new(IoInfo {
@@ -426,6 +462,10 @@ impl From<DocError> for WireError {
             DocError::Request(problem) => Some(Box::new(problem.clone())),
             _ => None,
         };
+        let big_file = match &e {
+            DocError::BigFile(problem) => Some(Box::new(problem.clone())),
+            _ => None,
+        };
         WireError {
             kind,
             message: e.to_string(),
@@ -435,6 +475,7 @@ impl From<DocError> for WireError {
             limit,
             io,
             request,
+            big_file,
         }
     }
 }

@@ -5,15 +5,16 @@ use serde_json::{json, Map, Value};
 
 use crate::doc::curl::RequestProblem;
 use crate::doc::diff::{compute_diff, DiffKind};
-use crate::doc::document::{Document, EDIT_SIZE_LIMIT, MAX_DOC_BYTES};
+use crate::doc::document::Document;
 use crate::doc::export::ExportFormat;
 use crate::doc::jobs::CancelFlag;
-use crate::doc::open::{load_text, Loaded, OpenOptions};
+use crate::doc::open::{load_file, load_text, Loaded, OpenOptions};
 use crate::doc::repair::repair;
 use crate::doc::schema_validate::{self, SchemaCompileError};
 use crate::doc::search::SearchOptions;
+use crate::doc::tier::{EDIT_SIZE_LIMIT, MAPPED_THRESHOLD_BYTES};
 use crate::doc::typegen::{self, PrimitiveKind, TypeShape, TypegenLang};
-use crate::doc::types::{DocError, NodeKind, Path, PathSegment};
+use crate::doc::types::{BigFileProblem, DocError, NodeKind, Path, PathSegment};
 
 pub(crate) const USAGE: &str = "\
 Commands, for scripts and AI agents (print to stdout, open no window):
@@ -309,15 +310,15 @@ fn read_input(arg: &str, stdin: &mut dyn Read) -> Result<Input, String> {
     if arg == "-" {
         let mut text = String::new();
         stdin
-            .take(MAX_DOC_BYTES + 1)
+            .take(MAPPED_THRESHOLD_BYTES + 1)
             .read_to_string(&mut text)
             .map_err(|_| {
                 "What was piped in isn't UTF-8 text, so it can't be read as JSON.".to_string()
             })?;
-        if text.len() as u64 > MAX_DOC_BYTES {
+        if text.len() as u64 > MAPPED_THRESHOLD_BYTES {
             return Err(format!(
-                "What was piped in is larger than {}, the most Pandia can read.",
-                size(MAX_DOC_BYTES)
+                "What was piped in is larger than {}, the most Pandia reads from a pipe. Save it to a file and pass the file instead.",
+                size(MAPPED_THRESHOLD_BYTES)
             ));
         }
         return Ok(Input {
@@ -333,17 +334,18 @@ fn read_input(arg: &str, stdin: &mut dyn Read) -> Result<Input, String> {
     })
 }
 
-fn open(input: Input) -> Result<(Document, String), String> {
-    let Input { name, text } = input;
-    let loaded = load_text(
-        text,
-        Some(name.clone()),
-        None,
-        OpenOptions::default(),
-        EDIT_SIZE_LIMIT,
-    )
-    .map_err(|e| describe(&e, &name))?;
-    match loaded {
+fn open_arg(arg: &str, stdin: &mut dyn Read) -> Result<(Document, String), String> {
+    let options = OpenOptions::default();
+    let (loaded, name) = if arg == "-" {
+        let Input { name, text } = read_input(arg, stdin)?;
+        let loaded = load_text(text, Some(name.clone()), None, options, EDIT_SIZE_LIMIT);
+        (loaded, name)
+    } else {
+        let file = std::path::Path::new(arg);
+        let loaded = load_file(file, Some(arg.into()), None, options, EDIT_SIZE_LIMIT);
+        (loaded, arg.to_string())
+    };
+    match loaded.map_err(|e| describe(&e, &name))? {
         Loaded::Opened(doc, _) => Ok((*doc, name)),
         Loaded::Failed(f) if f.too_large_to_fix => {
             Err(format!("{name} isn't valid JSON: {}.", f.detail))
@@ -354,10 +356,6 @@ fn open(input: Input) -> Result<(Document, String), String> {
             if name == "stdin" { "-" } else { &name }
         )),
     }
-}
-
-fn open_arg(arg: &str, stdin: &mut dyn Read) -> Result<(Document, String), String> {
-    open(read_input(arg, stdin)?)
 }
 
 fn describe(e: &DocError, name: &str) -> String {
@@ -391,7 +389,35 @@ fn describe(e: &DocError, name: &str) -> String {
         DocError::TooDeep { limit } => {
             format!("{name} is nested more than {limit} levels deep, more than Pandia supports.")
         }
+        DocError::TooManyItems { limit } => format!(
+            "{name} has an array with more than {limit} items, more than Pandia supports. Split the array into smaller files."
+        ),
+        DocError::BigFile(problem) => describe_big_file(problem),
         other => format!("{name}: {other}."),
+    }
+}
+
+fn describe_big_file(problem: &BigFileProblem) -> String {
+    let over = size(MAPPED_THRESHOLD_BYTES);
+    match problem {
+        BigFileProblem::TooLarge {
+            file,
+            actual,
+            limit,
+        } => format!(
+            "{file} is {}, more than the {} Pandia can open. Split it into smaller files.",
+            size(*actual),
+            size(*limit)
+        ),
+        BigFileProblem::RepeatedKeys { file } => format!(
+            "{file} repeats a key inside an object. Pandia reads files over {over} straight from disk, so it can't make the copy that drops the repeats. Remove the repeated keys, or split the file into parts under {over}."
+        ),
+        BigFileProblem::LinePerValue { file } => format!(
+            "{file} has one JSON value per line. Pandia reads files over {over} straight from disk, so it can't join the lines into one array. Split the file into parts under {over}."
+        ),
+        BigFileProblem::ChangedOnDisk { file } => {
+            format!("{file} changed on disk while Pandia was reading it. Run the command again.")
+        }
     }
 }
 
@@ -696,7 +722,7 @@ fn search(args: &Args, stdin: &mut dyn Read) -> Result<Answer, String> {
         max_results: Some(limit),
     };
     let hits = doc
-        .search(&opts, &CancelFlag::never())
+        .search(&opts, &CancelFlag::never(), &mut |_, _| {})
         .map_err(|e| describe(&e, &name))?;
     let found: Vec<Value> = hits
         .iter()

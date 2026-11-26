@@ -15,9 +15,19 @@
 
 		canMoveUp?: boolean;
 		canMoveDown?: boolean;
+		editable: boolean;
 	}
 
-	let { x, y, row, onAction, onClose, canMoveUp = false, canMoveDown = false }: Props = $props();
+	let {
+		x,
+		y,
+		row,
+		onAction,
+		onClose,
+		canMoveUp = false,
+		canMoveDown = false,
+		editable,
+	}: Props = $props();
 
 	const targetPath = $derived(pathToString(row.path));
 
@@ -26,7 +36,7 @@
 		onClose();
 	}
 
-	const groups = $derived(buildMenuModel(row, { canMoveUp, canMoveDown }));
+	const groups = $derived(buildMenuModel(row, { canMoveUp, canMoveDown, editable }));
 
 	const MENU_W = 248;
 	const SUBMENU_W = 168;

@@ -38,7 +38,6 @@ const clipboard = vi.hoisted(() => {
 	};
 });
 vi.mock('@tauri-apps/plugin-clipboard-manager', () => clipboard);
-
 function stubDeps(overrides: Partial<DocumentSessionDeps> = {}): DocumentSessionDeps {
 	return {
 		isActive: () => true,

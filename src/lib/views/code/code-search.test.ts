@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
 import { ipc } from '$lib/ipc/client';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import CodeView, { type CodeViewApi } from './CodeView.svelte';
 
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
@@ -23,7 +24,7 @@ async function mount(text = TEXT) {
 	const { container } = render(CodeView, {
 		props: {
 			handle: 'h' as never,
-			sourceSize: text.length,
+			summary: { sourceSize: text.length, capabilities: SMALL_TIER.capabilities },
 			editable: true,
 			onReady: (a: CodeViewApi | null) => (api = a),
 		},

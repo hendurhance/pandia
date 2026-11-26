@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { chipSummary, type ColFilter } from '../logic/grid-filter-model';
+	import { MAPPED_THRESHOLD_BYTES } from '$lib/ipc/bindings';
+	import { fmtBytes } from '$lib/util/format';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { ArrowDown, ArrowUp, Search, X } from '@lucide/svelte';
 
 	let {
 		quick = $bindable(''),
+		canFilter,
 		groups,
 		activeGroup,
 		hasFilter,
@@ -27,6 +30,7 @@
 		onClearSelection,
 	}: {
 		quick?: string;
+		canFilter: boolean;
 		groups: [string, ColFilter][][];
 		activeGroup: number;
 		hasFilter: boolean;
@@ -55,7 +59,11 @@
 		<span class="quick-ico"><Icon icon={Search} size="xs" /></span>
 		<input
 			bind:value={quick}
-			placeholder="Filter rows…"
+			disabled={!canFilter}
+			title={canFilter
+				? undefined
+				: `Sorting and filtering are off for files over ${fmtBytes(MAPPED_THRESHOLD_BYTES)}`}
+			placeholder={canFilter ? 'Filter rows…' : 'Filtering is off for this file'}
 			spellcheck="false"
 			autocapitalize="off"
 			autocorrect="off"

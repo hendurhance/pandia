@@ -212,6 +212,15 @@ impl super::backend::DocumentBackend for Value {
         Ok(resolve_eager(self, path)?.clone())
     }
 
+    fn rows(&self, path: &Path, range: Range<u32>) -> DocResult<Vec<Value>> {
+        let Value::Array(arr) = resolve_eager(self, path)? else {
+            return Ok(Vec::new());
+        };
+        let end = (range.end as usize).min(arr.len());
+        let start = (range.start as usize).min(end);
+        Ok(arr[start..end].to_vec())
+    }
+
     fn column_cells(&self, path: &Path, key: &str) -> DocResult<Vec<Option<Value>>> {
         match resolve_eager(self, path) {
             Ok(Value::Array(arr)) => Ok(arr.iter().map(|el| cell(el, key).cloned()).collect()),
@@ -262,6 +271,7 @@ impl super::backend::DocumentBackend for Value {
         &self,
         opts: &super::search::SearchOptions,
         cancel: &super::jobs::CancelFlag,
+        _report: &mut dyn FnMut(&[super::search::SearchHit], u64),
     ) -> Vec<super::search::SearchHit> {
         super::search::search_in_value(self, opts, cancel)
     }

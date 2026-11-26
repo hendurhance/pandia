@@ -186,7 +186,16 @@ export class DocumentSession {
 		return true;
 	};
 
+	canView = (mode: ViewMode): boolean => {
+		const caps = this.session.summary?.capabilities;
+		if (!caps) return true;
+		if (mode === 'code') return caps.codeView;
+		if (mode === 'graph') return caps.graph;
+		return true;
+	};
+
 	switchView = async (mode: ViewMode): Promise<boolean> => {
+		if (!this.canView(mode)) return false;
 		if (mode !== 'code' && !(await this.flushCode())) return false;
 		this.viewMode = mode;
 		return true;

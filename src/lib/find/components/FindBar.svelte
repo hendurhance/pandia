@@ -19,6 +19,7 @@
 		onClose: () => void;
 
 		onCancel?: () => void;
+		canReplace?: boolean;
 		replaceValue: string;
 		onReplaceChange: (v: string) => void;
 		onReplaceAll: () => void;
@@ -39,6 +40,7 @@
 		onNext,
 		onClose,
 		onCancel,
+		canReplace = true,
 		replaceValue,
 		onReplaceChange,
 		onReplaceAll,
@@ -73,15 +75,17 @@
 
 {#if open}
 	<div class="find" role="dialog" aria-label="find and replace in document">
-		<button
-			class="expander"
-			onclick={onToggleReplace}
-			aria-expanded={replaceOpen}
-			aria-label={replaceOpen ? 'hide replace' : 'show replace'}
-			title={replaceOpen ? 'hide replace' : 'show replace'}
-		>
-			<span class="chev" class:open={replaceOpen}><Icon icon={ChevronRight} size="xs" /></span>
-		</button>
+		{#if canReplace}
+			<button
+				class="expander"
+				onclick={onToggleReplace}
+				aria-expanded={replaceOpen}
+				aria-label={replaceOpen ? 'hide replace' : 'show replace'}
+				title={replaceOpen ? 'hide replace' : 'show replace'}
+			>
+				<span class="chev" class:open={replaceOpen}><Icon icon={ChevronRight} size="xs" /></span>
+			</button>
+		{/if}
 		<div class="cols">
 			<div class="row">
 				<SearchField
@@ -102,7 +106,7 @@
 				/>
 			</div>
 
-			{#if replaceOpen}
+			{#if canReplace && replaceOpen}
 				<div class="row replace">
 					<div class="field">
 						<input

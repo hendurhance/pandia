@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
 import { ipc } from '$lib/ipc/client';
@@ -58,6 +59,7 @@ const summary = {
 	fileBacked: true,
 	recoveryNote: null,
 	commentsStripped: false,
+	...SMALL_TIER,
 };
 
 async function openInCode(tabId: string) {

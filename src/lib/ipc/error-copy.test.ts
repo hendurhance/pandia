@@ -6,7 +6,7 @@ import {
 	describeOpenFailure,
 	describeRefusal,
 } from './error-copy';
-import type { FileOp, IoProblem, RequestProblem } from './bindings';
+import type { BigFileProblem, FileOp, IoProblem, RequestProblem } from './bindings';
 
 describe('describeError — backend kinds', () => {
 	it('tooLarge formats sizes as human bytes and states the honest fix', () => {
@@ -30,6 +30,31 @@ describe('describeError — backend kinds', () => {
 		});
 		expect(describeError(e)).toBe(
 			'The value at $.data is 300.0 MiB, more than the 200.0 MiB Pandia can handle as one value. Select a smaller part of it.',
+		);
+	});
+
+	it('bigFile names the file, the cause and the fix', () => {
+		const big = (bigFile: BigFileProblem) =>
+			describeError(new IpcError('bigFile', 'big file', { bigFile }));
+		expect(
+			big({ problem: 'tooLarge', file: '/w/dump.json', actual: 12884901888, limit: 10737418240 }),
+		).toBe(
+			'“dump.json” is 12.00 GiB, more than the 10.00 GiB Pandia can open. Split it into smaller files.',
+		);
+		expect(big({ problem: 'repeatedKeys', file: '/w/dump.json' })).toBe(
+			"“dump.json” repeats a key inside an object. Pandia reads files over 2.00 GiB straight from disk, so it can't make the copy that drops the repeats. Remove the repeated keys, or split the file into parts under 2.00 GiB.",
+		);
+		expect(big({ problem: 'linePerValue', file: '/w/logs.ndjson' })).toBe(
+			"“logs.ndjson” has one JSON value per line. Pandia reads files over 2.00 GiB straight from disk, so it can't join the lines into one array. Split the file into parts under 2.00 GiB.",
+		);
+		expect(big({ problem: 'changedOnDisk', file: '/w/dump.json' })).toBe(
+			'“dump.json” changed on disk after Pandia opened it. Close this tab and open the file again.',
+		);
+	});
+
+	it('tooManyItems states the limit and the fix', () => {
+		expect(describeError(new IpcError('tooManyItems', 'too many', { limit: 4294967295 }))).toBe(
+			'This JSON has an array with more than 4,294,967,295 items, which is more than Pandia supports. Split the array into smaller files.',
 		);
 	});
 
@@ -225,7 +250,7 @@ describe('describeError — sending a cURL command', () => {
 			"Couldn't make a secure connection to api.example.com. Its certificate may be invalid or expired.",
 		);
 		expect(failed({ problem: 'tooLarge', limit: 2147483648 })).toBe(
-			'The response is larger than 2.00 GiB, the most Pandia can open.',
+			'The response is larger than 2.00 GiB, the most Pandia opens from a request. Save it to a file with curl -o, then open the file.',
 		);
 		expect(failed({ problem: 'notData', contentType: 'text/html', status: 500 })).toBe(
 			'The server sent text/html (status 500), not JSON, YAML, XML or CSV.',

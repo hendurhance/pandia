@@ -1,6 +1,8 @@
 import { IpcError } from './error';
 import {
 	EDIT_SIZE_LIMIT,
+	MAPPED_THRESHOLD_BYTES,
+	type BigFileProblem,
 	type FileOp,
 	type IoProblem,
 	type OpenFailure,
@@ -71,7 +73,7 @@ function describeRequestProblem(p: RequestProblem): string {
 		case 'interrupted':
 			return `The connection to ${p.host} dropped before the response finished. Try again.`;
 		case 'tooLarge':
-			return `The response is larger than ${fmtBytes(p.limit)}, the most Pandia can open.`;
+			return `The response is larger than ${fmtBytes(p.limit)}, the most Pandia opens from a request. Save it to a file with curl -o, then open the file.`;
 		case 'notData':
 			return p.contentType
 				? `The server sent ${p.contentType} (status ${p.status}), not JSON, YAML, XML or CSV.`
@@ -80,6 +82,21 @@ function describeRequestProblem(p: RequestProblem): string {
 			return `The server sent an empty response (status ${p.status}).`;
 		case 'status':
 			return `${p.host} answered ${p.status}. Check the URL.`;
+	}
+}
+
+function describeBigFile(p: BigFileProblem): string {
+	const name = `“${basename(p.file)}”`;
+	const over = fmtBytes(MAPPED_THRESHOLD_BYTES);
+	switch (p.problem) {
+		case 'tooLarge':
+			return `${name} is ${fmtBytes(p.actual)}, more than the ${fmtBytes(p.limit)} Pandia can open. Split it into smaller files.`;
+		case 'repeatedKeys':
+			return `${name} repeats a key inside an object. Pandia reads files over ${over} straight from disk, so it can't make the copy that drops the repeats. Remove the repeated keys, or split the file into parts under ${over}.`;
+		case 'linePerValue':
+			return `${name} has one JSON value per line. Pandia reads files over ${over} straight from disk, so it can't join the lines into one array. Split the file into parts under ${over}.`;
+		case 'changedOnDisk':
+			return `${name} changed on disk after Pandia opened it. Close this tab and open the file again.`;
 	}
 }
 
@@ -112,6 +129,8 @@ function describeIpc(e: IpcError): string {
 				: 'This document is too large for this action. Use a smaller file.';
 		case 'tooDeep':
 			return `This JSON is nested more than ${(e.limit ?? 1000).toLocaleString('en-US')} levels deep, which is more than Pandia supports. Reduce the nesting and try again.`;
+		case 'tooManyItems':
+			return `This JSON has an array with more than ${(e.limit ?? 0).toLocaleString('en-US')} items, which is more than Pandia supports. Split the array into smaller files.`;
 		case 'rangeTooLarge':
 			return e.actual != null && e.limit != null
 				? `Pandia requested ${e.actual} lines at once (the limit is ${e.limit}). This is a bug in Pandia, not a problem with your document.`
@@ -132,6 +151,8 @@ function describeIpc(e: IpcError): string {
 			return 'Cancelled.';
 		case 'request':
 			return e.request ? describeRequestProblem(e.request) : INTERNAL;
+		case 'bigFile':
+			return e.bigFile ? describeBigFile(e.bigFile) : INTERNAL;
 		default:
 			return e.message.trim() ? sentence(e.message.trim()) : FALLBACK;
 	}

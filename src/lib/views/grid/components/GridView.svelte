@@ -46,6 +46,10 @@
 
 		onError?: (msg: string) => void;
 
+		editable?: boolean;
+
+		sortFilter?: boolean;
+
 		onApply?: (op: Op) => Promise<boolean>;
 	}
 
@@ -58,6 +62,8 @@
 		docKey = null,
 		onExtract = () => {},
 		onError = () => {},
+		editable = true,
+		sortFilter = true,
 		onApply = async () => false,
 	}: Props = $props();
 
@@ -136,7 +142,7 @@
 			suppressSort = false;
 			return;
 		}
-		filter.toggleSort(key);
+		if (sortFilter) filter.toggleSort(key);
 	}
 
 	let headerEl: HTMLDivElement | undefined = $state();
@@ -365,6 +371,7 @@
 	}
 
 	function startEdit(row: number, col: string) {
+		if (!editable) return;
 		selection.selectCell(row, col);
 		edit.start(row, col, data.getCell(row, col));
 	}
@@ -437,6 +444,7 @@
 <div class="grid-root">
 	<GridToolbar
 		bind:quick={filter.quick}
+		canFilter={sortFilter}
 		groups={filter.groupColumns}
 		activeGroup={filter.activeGroup}
 		hasFilter={filter.hasFilter}
@@ -487,6 +495,7 @@
 							active={filter.sortKey === col.key}
 							sortDesc={filter.sortDesc}
 							hasFilter={filter.colFilters.has(col.key)}
+							sortable={sortFilter}
 							dragging={colDrag?.key === col.key}
 							onClick={() => onHeaderClick(col.key)}
 							onPointerDown={(e) => onColPointerDown(e, col.key, i)}

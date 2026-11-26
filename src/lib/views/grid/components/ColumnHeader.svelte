@@ -16,6 +16,8 @@
 
 		hasFilter: boolean;
 
+		sortable: boolean;
+
 		dragging: boolean;
 		onClick: () => void;
 		onPointerDown: (e: PointerEvent) => void;
@@ -38,6 +40,7 @@
 		active,
 		sortDesc,
 		hasFilter,
+		sortable,
 		dragging,
 		onClick,
 		onPointerDown,
@@ -59,7 +62,7 @@
 	role="button"
 	tabindex="0"
 	style="left: {left}px; width: {width}px;"
-	title={`${col.key} · ${col.dominantKind}${col.kinds.length > 1 ? ' (mixed)' : ''} · ${((col.presence ?? 0) * 100).toFixed(0)}% — click to sort · drag to reorder · drag edge to resize`}
+	title={`${col.key} · ${col.dominantKind}${col.kinds.length > 1 ? ' (mixed)' : ''} · ${((col.presence ?? 0) * 100).toFixed(0)}% — ${sortable ? 'click to sort · ' : ''}drag to reorder · drag edge to resize`}
 	onclick={onClick}
 	onpointerdown={onPointerDown}
 	onpointermove={onPointerMove}
@@ -81,18 +84,20 @@
 	{/if}
 	{#if active}
 		<span class="sort-arrow"><Icon icon={sortDesc ? ArrowDown : ArrowUp} size="xs" /></span>
-	{:else}
+	{:else if sortable}
 		<span class="sort-arrow hint"><Icon icon={ArrowUp} size="xs" /></span>
 	{/if}
-	<button
-		class="funnel"
-		class:on={hasFilter}
-		title="Filter this column"
-		aria-label="Filter {col.key}"
-		onclick={onOpenFilter}
-	>
-		<Icon icon={Filter} size="xs" />
-	</button>
+	{#if sortable}
+		<button
+			class="funnel"
+			class:on={hasFilter}
+			title="Filter this column"
+			aria-label="Filter {col.key}"
+			onclick={onOpenFilter}
+		>
+			<Icon icon={Filter} size="xs" />
+		</button>
+	{/if}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<span
 		class="col-resize"

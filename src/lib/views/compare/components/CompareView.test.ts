@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushSync } from 'svelte';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import type { DiffEntry, Path } from '$lib/ipc/bindings';
 import { reactiveBox } from '$lib/views/shared/test-runes.svelte';
 import CompareView from './CompareView.svelte';
@@ -36,8 +37,8 @@ let entries: DiffEntry[] = [];
 const props = {
 	leftHandle: 'L' as never,
 	rightHandle: 'R' as never,
-	leftSourceSize: 20,
-	rightSourceSize: 20,
+	leftSummary: { sourceSize: 20, ...SMALL_TIER },
+	rightSummary: { sourceSize: 20, ...SMALL_TIER },
 	leftName: 'left.json',
 	rightName: 'right.json',
 	leftVersion: 1,

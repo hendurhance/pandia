@@ -20,6 +20,7 @@ export type MenuGroup = MenuItem[];
 export interface MenuCaps {
 	canMoveUp: boolean;
 	canMoveDown: boolean;
+	editable: boolean;
 }
 
 const CONVERT: Array<{ action: MenuAction; label: string; kind: NodeKind }> = [
@@ -35,17 +36,17 @@ export function editActionFor(row: ContentRow, part: 'key' | 'value'): MenuActio
 }
 
 export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
-	const isInsideContainer = row.depth > 0;
-	const isObject = row.kind === 'object';
+	const canRearrange = caps.editable && row.depth > 0;
+	const canSortKeys = caps.editable && row.kind === 'object';
 	const isArrayItemKey =
 		typeof row.key === 'string' && typeof row.path[row.path.length - 2] === 'number';
 
 	const g: MenuGroup[] = [];
 
 	const edit: MenuItem[] = [];
-	if (editActionFor(row, 'value'))
+	if (caps.editable && editActionFor(row, 'value'))
 		edit.push({ type: 'action', action: 'edit-value', label: 'Edit value', ico: '✎' });
-	if (editActionFor(row, 'key'))
+	if (caps.editable && editActionFor(row, 'key'))
 		edit.push({ type: 'action', action: 'edit-key', label: 'Edit key', ico: '✎' });
 	if (edit.length) g.push(edit);
 
@@ -60,7 +61,7 @@ export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
 			],
 		},
 	];
-	if (isInsideContainer) {
+	if (canRearrange) {
 		clip.push({ type: 'action', action: 'cut', label: 'Cut', ico: '✂' });
 		clip.push({ type: 'action', action: 'paste', label: 'Paste as sibling', ico: '⇲' });
 		clip.push({ type: 'action', action: 'duplicate', label: 'Duplicate', ico: '⎘' });
@@ -68,7 +69,7 @@ export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
 	g.push(clip);
 
 	const arrange: MenuItem[] = [];
-	if (isInsideContainer) {
+	if (canRearrange) {
 		arrange.push({
 			type: 'sub',
 			label: 'Insert',
@@ -88,7 +89,7 @@ export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
 			],
 		});
 	}
-	if (isObject) {
+	if (canSortKeys) {
 		arrange.push({
 			type: 'sub',
 			label: 'Sort keys',
@@ -105,7 +106,7 @@ export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
 		action: c.action,
 		label: c.label,
 	}));
-	if (convertChildren.length) {
+	if (caps.editable && convertChildren.length) {
 		g.push([{ type: 'sub', label: 'Convert to', ico: '⇄', children: convertChildren }]);
 	}
 
@@ -122,7 +123,7 @@ export function buildMenuModel(row: ContentRow, caps: MenuCaps): MenuGroup[] {
 	}
 	g.push(extract);
 
-	if (isInsideContainer) {
+	if (canRearrange) {
 		g.push([{ type: 'action', action: 'remove', label: 'Remove', ico: '✕', danger: true }]);
 	}
 

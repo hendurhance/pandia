@@ -1,4 +1,4 @@
-import type { ErrorKind, IoInfo, Path, RequestProblem } from './bindings';
+import type { BigFileProblem, ErrorKind, IoInfo, Path, RequestProblem } from './bindings';
 
 export type IpcErrorKind = ErrorKind | 'unknown';
 
@@ -10,6 +10,7 @@ export class IpcError extends Error {
 	readonly limit?: number;
 	readonly io?: IoInfo;
 	readonly request?: RequestProblem;
+	readonly bigFile?: BigFileProblem;
 	constructor(
 		kind: IpcErrorKind,
 		message: string,
@@ -20,6 +21,7 @@ export class IpcError extends Error {
 			limit?: number;
 			io?: IoInfo;
 			request?: RequestProblem;
+			bigFile?: BigFileProblem;
 		},
 	) {
 		super(message);
@@ -31,6 +33,7 @@ export class IpcError extends Error {
 		this.limit = extra?.limit;
 		this.io = extra?.io;
 		this.request = extra?.request;
+		this.bigFile = extra?.bigFile;
 	}
 	toString(): string {
 		return this.message;
@@ -46,6 +49,7 @@ function isWireError(e: unknown): e is {
 	limit?: number | null;
 	io?: IoInfo | null;
 	request?: RequestProblem | null;
+	bigFile?: BigFileProblem | null;
 } {
 	return (
 		typeof e === 'object' &&
@@ -64,5 +68,6 @@ export function toIpcError(e: unknown): unknown {
 		limit: typeof e.limit === 'number' ? e.limit : undefined,
 		io: e.io ?? undefined,
 		request: e.request ?? undefined,
+		bigFile: e.bigFile ?? undefined,
 	});
 }

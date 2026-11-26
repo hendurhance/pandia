@@ -33,6 +33,8 @@ pub const COMMENTS_STRIPPED_NOTE: &str =
 
 const NULLED_NOTE: &str = "Replaced undefined, NaN or Infinity values with null";
 
+pub const LEADING_JUNK_NOTE: &str = "Removed an invisible character before the first value";
+
 impl Recovered {
     fn noted(json: String, note: &'static str) -> Self {
         Self {
@@ -132,10 +134,7 @@ fn strip_leading_junk(text: &str) -> (&str, Option<&'static str>) {
     if body.len() == text.len() {
         return (text, None);
     }
-    (
-        body,
-        Some("Removed an invisible character before the first value"),
-    )
+    (body, Some(LEADING_JUNK_NOTE))
 }
 
 fn closing_quote_for(open: char) -> Option<char> {

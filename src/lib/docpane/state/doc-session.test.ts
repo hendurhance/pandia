@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { ipc } from '$lib/ipc/client';
 import { DocSessionController, type DocSessionDeps } from './doc-session.svelte';
 import type { OpenNotes, OpenOutcome, Summary } from '$lib/ipc/bindings';
@@ -135,6 +136,7 @@ function summary(sourcePath: string | null): Summary {
 		fileBacked: sourcePath?.startsWith('/') ?? false,
 		recoveryNote: null,
 		commentsStripped: false,
+		...SMALL_TIER,
 	} as Summary;
 }
 

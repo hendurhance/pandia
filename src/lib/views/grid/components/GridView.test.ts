@@ -181,6 +181,28 @@ describe('GridView editing', () => {
 	const cell = (c: HTMLElement, row: number) =>
 		c.querySelector<HTMLElement>(`[data-cell-row="${row}"][data-cell-col="a"]`);
 
+	it('a file read straight from disk pages its rows but never edits, sorts or filters them', async () => {
+		const onApply = vi.fn(async () => true);
+		const { container } = render(GridView, {
+			props: {
+				handle: 'doc',
+				path: [],
+				schema: schema(20),
+				onApply,
+				editable: false,
+				sortFilter: false,
+			},
+		});
+		await vi.waitFor(() => expect(cell(container, 0)?.textContent).toBe('1'));
+		await fireEvent.dblClick(cell(container, 0)!);
+		expect(container.querySelector('.cell-editor')).toBeNull();
+		expect(within(container).queryByLabelText('Filter a')).toBeNull();
+		expect(within(container).getByLabelText('filter rows')).toHaveProperty('disabled', true);
+		await fireEvent.click(container.querySelector<HTMLElement>('.cell.head')!);
+		expect(ipc.docGetRowsSorted).not.toHaveBeenCalled();
+		expect(onApply).not.toHaveBeenCalled();
+	});
+
 	it('edits a cell in place, then keeps the scroll and moves down after the refresh', async () => {
 		const onApply = vi.fn(async () => true);
 		const { container, rerender } = render(GridView, {

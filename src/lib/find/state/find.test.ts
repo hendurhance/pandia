@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ipc } from '$lib/ipc/client';
-import type { SearchHit } from '$lib/ipc/bindings';
+import type { SearchHit, SearchProgress } from '$lib/ipc/bindings';
 import { FindController, type FindDeps } from './find.svelte';
+
+const progress = vi.hoisted(() => ({ send: (_: SearchProgress) => {} }));
+vi.mock('@tauri-apps/api/core', () => ({
+	Channel: class {
+		constructor(onmessage: (p: SearchProgress) => void) {
+			progress.send = onmessage;
+		}
+	},
+}));
 
 vi.mock('$lib/ipc/client', async () => ({
 	ipc: (await import('$lib/ipc/fake')).fakeIpc({
@@ -223,6 +232,75 @@ describe('FindController — cancelling a search', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe('FindController — a long search', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	const at = (n: number): SearchHit => ({ ...hit, path: ['rows', n] });
+
+	const settle = () => new Promise((r) => setTimeout(r));
+
+	async function searching() {
+		let finish: (hits: SearchHit[]) => void = () => {};
+		vi.mocked(ipc.docSearch).mockReturnValueOnce(new Promise((r) => (finish = r)));
+		const navigateToHit = vi.fn();
+		const find = controller('h', { navigateToHit });
+		find.openFind();
+		vi.useFakeTimers();
+		try {
+			find.onQueryChange('foo');
+			await vi.runAllTimersAsync();
+		} finally {
+			vi.useRealTimers();
+		}
+		return { find, navigateToHit, finish: (hits: SearchHit[]) => finish(hits) };
+	}
+
+	it('shows each hit as it is found, with the share of the file scanned', async () => {
+		const { find, navigateToHit, finish } = await searching();
+		progress.send({ hits: [], scanned: 10, total: 100 });
+		expect(find.counter).toBe('searching… · 10%');
+
+		progress.send({ hits: [at(1), at(2)], scanned: 40, total: 100 });
+		expect(find.counter).toBe('1 / 2 · 40%');
+		expect(navigateToHit).toHaveBeenCalledWith(['rows', 1]);
+
+		progress.send({ hits: [at(3)], scanned: 70, total: 100 });
+		expect(find.hits.map((h) => h.path)).toEqual([
+			['rows', 1],
+			['rows', 2],
+			['rows', 3],
+		]);
+
+		finish([at(1), at(2), at(3), at(4)]);
+		await settle();
+		expect(find.counter).toBe('1 / 4');
+		expect(navigateToHit).toHaveBeenCalledTimes(1);
+	});
+
+	it('Cancel stops the scan and keeps the hits found so far', async () => {
+		const { find, finish } = await searching();
+		progress.send({ hits: [at(1), at(2)], scanned: 40, total: 100 });
+		find.stop();
+		expect(ipc.cancelJob).toHaveBeenCalledTimes(1);
+		expect(find.busy).toBe(false);
+		expect(find.counter).toBe('1 / 2 · stopped · 40%');
+
+		progress.send({ hits: [at(3)], scanned: 50, total: 100 });
+		finish([at(1), at(2), at(3)]);
+		await settle();
+		expect(find.hits).toHaveLength(2);
+	});
+
+	it('Cancel before anything is found drops the search like before', async () => {
+		const find = controller('h');
+		find.openFind();
+		find.onQueryChange('foo');
+		find.stop();
+		expect(find.busy).toBe(false);
+		expect(find.counter).toBe('no matches');
 	});
 });
 

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import { IpcError } from '$lib/ipc/error';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import { behaviorPrefs } from '$lib/settings/state/behavior-prefs.svelte';
 import { autoloadSchema } from './state/schema-autoload';
@@ -47,7 +48,11 @@ describe('SchemaPanel', () => {
 		};
 		const onJump = vi.fn();
 		const { getByTitle } = render(SchemaPanel, {
-			props: { tabId: 't1', context: { handle: 'h' } as unknown as DocContext, onJump },
+			props: {
+				tabId: 't1',
+				context: { handle: 'h', capabilities: SMALL_TIER.capabilities } as unknown as DocContext,
+				onJump,
+			},
 		});
 		await fireEvent.click(getByTitle('jump to /users/123/age'));
 		await vi.waitFor(() => expect(onJump).toHaveBeenCalledWith(['users', '123', 'age']));
@@ -69,10 +74,27 @@ describe('SchemaPanel', () => {
 		expect(schema.verdict.kind).toBe('problem');
 
 		render(SchemaPanel, {
-			props: { tabId: 't2', context: { handle: 'h', version: 1 } as unknown as DocContext },
+			props: {
+				tabId: 't2',
+				context: {
+					handle: 'h',
+					version: 1,
+					capabilities: SMALL_TIER.capabilities,
+				} as unknown as DocContext,
+			},
 		});
 		await behaviorPrefs.setAllowHttpSchemas(true);
 		await vi.waitFor(() => expect(schema.verdict.kind).toBe('checked'));
 		expect(schema.text).toBe('{"type":"object"}');
+	});
+
+	it('says why a file too large to validate cannot be validated', async () => {
+		schemaSessions.for('t3').text = '{"type":"object"}';
+		const capabilities = { ...SMALL_TIER.capabilities, validate: false };
+		const { findByText, getByRole } = render(SchemaPanel, {
+			props: { tabId: 't3', context: { handle: 'h', capabilities } as unknown as DocContext },
+		});
+		await findByText('validation is off for files over 200.0 MiB');
+		expect(getByRole('button', { name: 'Validate' })).toHaveProperty('disabled', true);
 	});
 });

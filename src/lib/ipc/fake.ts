@@ -1,5 +1,19 @@
 import { vi, type Mock } from 'vitest';
-import { commands } from './bindings';
+import { commands, type Summary } from './bindings';
+
+export const SMALL_TIER: Pick<Summary, 'tier' | 'capabilities'> = {
+	tier: 'small',
+	capabilities: {
+		edit: true,
+		export: true,
+		validate: true,
+		sortFilter: true,
+		codeView: true,
+		graph: true,
+		compare: true,
+		typegen: true,
+	},
+};
 
 type Commands = typeof commands;
 

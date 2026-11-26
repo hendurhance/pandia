@@ -5,6 +5,8 @@
 		SCHEMA_DEBOUNCE_MANUAL,
 	} from './state/behavior-prefs.svelte';
 	import { shortcutLabel } from '$lib/shell/logic/shortcuts';
+	import { EDIT_SIZE_LIMIT } from '$lib/ipc/bindings';
+	import { fmtBytes } from '$lib/util/format';
 	import TerminalCommandField from './TerminalCommandField.svelte';
 
 	$effect(() => {
@@ -130,8 +132,7 @@
 				<span class="switch-text">{behaviorPrefs.warnLargeFileOpen ? 'on' : 'off'}</span>
 			</button>
 			<div class="text-sm dim">
-				Confirm before opening files larger than 200 MB. Validation, diff, and export can be slow at
-				that size.
+				Confirm before opening files larger than {fmtBytes(EDIT_SIZE_LIMIT)}, which open read-only.
 			</div>
 		</div>
 	</section>

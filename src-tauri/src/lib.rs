@@ -89,8 +89,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .disable_serde_phases()
         .dangerously_cast_bigints_to_number()
         .constant("LINE_FETCH_MAX", doc::linediff::LINE_FETCH_MAX)
-        .constant("EDIT_SIZE_LIMIT", doc::document::EDIT_SIZE_LIMIT)
-        .constant("MAX_DOC_BYTES", doc::document::MAX_DOC_BYTES)
+        .constant("CODE_VIEW_MAX_BYTES", doc::tier::CODE_VIEW_MAX_BYTES)
+        .constant("EDIT_SIZE_LIMIT", doc::tier::EDIT_SIZE_LIMIT)
+        .constant("MAPPED_THRESHOLD_BYTES", doc::tier::MAPPED_THRESHOLD_BYTES)
+        .constant("MAX_DOC_BYTES", doc::tier::MAX_DOC_BYTES)
         .constant("SHORTCUTS", shortcuts::SHORTCUTS)
 }
 

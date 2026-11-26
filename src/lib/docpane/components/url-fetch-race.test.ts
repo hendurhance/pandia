@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { fireEvent, render } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import type { TabSlot } from '$lib/shell/state/workspace.svelte';
@@ -49,6 +50,7 @@ const summary = {
 	fileBacked: false,
 	recoveryNote: null,
 	commentsStripped: false,
+	...SMALL_TIER,
 };
 
 describe('fetch URL box', () => {

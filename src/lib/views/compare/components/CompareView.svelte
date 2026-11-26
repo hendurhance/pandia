@@ -6,7 +6,7 @@
 	import { diffKindsForSide, highlightsForSide } from '$lib/views/code/logic/highlights';
 	import { ipc } from '$lib/ipc/client';
 	import { describeError } from '$lib/ipc/error-copy';
-	import type { DiffEntry, DocHandle, Path } from '$lib/ipc/bindings';
+	import type { DiffEntry, DocHandle, Path, Summary } from '$lib/ipc/bindings';
 	import { pathToString, truncatePathMiddle } from '$lib/util/path';
 	import { pathKey } from '$lib/views/tree/logic/model';
 	import { WindowedScroller } from '$lib/views/shared/windowed-scroller.svelte';
@@ -18,8 +18,8 @@
 	interface Props {
 		leftHandle: DocHandle;
 		rightHandle: DocHandle;
-		leftSourceSize: number;
-		rightSourceSize: number;
+		leftSummary: Pick<Summary, 'sourceSize' | 'capabilities'>;
+		rightSummary: Pick<Summary, 'sourceSize' | 'capabilities'>;
 		leftName: string;
 		rightName: string;
 		leftVersion: number;
@@ -33,8 +33,8 @@
 	let {
 		leftHandle,
 		rightHandle,
-		leftSourceSize,
-		rightSourceSize,
+		leftSummary,
+		rightSummary,
 		leftName,
 		rightName,
 		leftVersion,
@@ -359,7 +359,7 @@
 					<CodeView
 						handle={leftHandle}
 						version={leftVersion}
-						sourceSize={leftSourceSize}
+						summary={leftSummary}
 						highlights={leftHighlights}
 						activePath={activeEntry && activeEntry.kind !== 'added'
 							? leftPathOf(activeEntry)
@@ -378,7 +378,7 @@
 					<CodeView
 						handle={rightHandle}
 						version={rightVersion}
-						sourceSize={rightSourceSize}
+						summary={rightSummary}
 						highlights={rightHighlights}
 						activePath={activeEntry?.kind === 'removed' ? null : activePath}
 						onScrollerReady={(el) => bindPane('right', el)}

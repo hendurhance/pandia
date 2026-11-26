@@ -10,7 +10,7 @@ export const faqs: FaqItem[] = [
   },
   {
     q: 'How large a file can it open?',
-    a: "Any size, including files of several gigabytes. From <code>10 MB</code> up, Pandia skips building the full tree and only decodes the part of the file you're looking at, so opening and scrolling have no size limit. Editing the whole document at once, exporting it and validating it need the full file in memory, so those work up to about 200 MB.",
+    a: "Files up to <code>10 GB</code>. From <code>10 MB</code> up, Pandia skips building the full tree and only decodes the part of the file you're looking at, so scrolling stays fast. Editing, schema validation, Compare and converting to YAML, CSV or XML need the whole document in memory, so they work up to <code>200 MB</code>. Files over <code>2 GB</code> are read straight from disk and open read-only: you can browse, page through rows and search, but not sort, filter, export or generate types.",
   },
   {
     q: 'Which formats can I import and export?',

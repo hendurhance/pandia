@@ -4,19 +4,20 @@ use crate::doc::backup::{self, BackupInfo};
 use crate::doc::curl::{self, CurlPreview, RequestProblem};
 use crate::doc::diff::{compute_diff, DiffEntry};
 use crate::doc::document::{
-    ApplyResult, ColumnValues, Document, HistoryView, ReplaceResult, SaveResult, SortedRow,
-    Summary, EDIT_SIZE_LIMIT, MAX_DOC_BYTES,
+    ApplyResult, ColumnValues, Document, HistoryView, ReplaceResult, SaveResult, SortedRow, Summary,
 };
 use crate::doc::export::{ExportFormat, ExportPreview};
 use crate::doc::grid_filter::{self, FilterOp};
+use crate::doc::jobs::CancelFlag;
 use crate::doc::lazy::parse_json;
 use crate::doc::linediff::{compute_line_diff, line_slice, LineDiffResult, LINE_FETCH_MAX};
-use crate::doc::open::{load_text, Loaded, OpenFailure, OpenNotes, OpenOptions};
+use crate::doc::open::{load_file, load_text, Loaded, OpenFailure, OpenNotes, OpenOptions};
 use crate::doc::ops::Op;
 use crate::doc::schema::sniff_columns;
 use crate::doc::schema_validate::SchemaValidationResult;
-use crate::doc::search::{SearchHit, SearchOptions};
+use crate::doc::search::{SearchHit, SearchOptions, SearchProgress};
 use crate::doc::store::DocStore;
+use crate::doc::tier::{EDIT_SIZE_LIMIT, MAPPED_THRESHOLD_BYTES};
 use crate::doc::typegen::TypegenLang;
 use crate::doc::types::{
     ColumnSchema, DocError, DocHandle, DocResult, ErrorKind, FileOp, NodeView, Path, WireError,
@@ -40,6 +41,7 @@ where
             limit: None,
             io: None,
             request: None,
+            big_file: None,
         }),
     }
 }
@@ -91,30 +93,43 @@ fn open_with_fix_limit(
     fix_limit: u64,
 ) -> DocResult<OpenOutcome> {
     let unsaved = matches!(source, OpenSource::Text { unsaved: true, .. });
-    let (text, name, file_path) = read_source(source)?;
-    open_text(store, text, name, file_path, options, fix_limit, unsaved)
+    let loaded = match source {
+        OpenSource::File { path } => {
+            let file = std::path::Path::new(&path);
+            load_file(
+                file,
+                Some(path.clone()),
+                Some(path.clone()),
+                options,
+                fix_limit,
+            )?
+        }
+        OpenSource::Text { text, name, .. } => load_text(text, name, None, options, fix_limit)?,
+        OpenSource::Piped { path } => {
+            let file = std::path::Path::new(&path);
+            if !crate::cli::is_stdin_handoff(&path) {
+                return Err(DocError::file(
+                    FileOp::Open,
+                    file,
+                    std::io::ErrorKind::NotFound.into(),
+                ));
+            }
+            load_file(file, Some("stdin".into()), None, options, fix_limit)?
+        }
+    };
+    Ok(outcome(store, loaded, unsaved))
 }
 
-fn open_text(
-    store: &DocStore,
-    text: String,
-    name: Option<String>,
-    file_path: Option<String>,
-    options: OpenOptions,
-    fix_limit: u64,
-    unsaved: bool,
-) -> DocResult<OpenOutcome> {
-    Ok(
-        match load_text(text, name, file_path, options, fix_limit)? {
-            Loaded::Opened(mut doc, notes) => {
-                if unsaved {
-                    doc.mark_unsaved();
-                }
-                opened(store, *doc, notes)
+fn outcome(store: &DocStore, loaded: Loaded, unsaved: bool) -> OpenOutcome {
+    match loaded {
+        Loaded::Opened(mut doc, notes) => {
+            if unsaved {
+                doc.mark_unsaved();
             }
-            Loaded::Failed(failure) => OpenOutcome::Failed(failure),
-        },
-    )
+            opened(store, *doc, notes)
+        }
+        Loaded::Failed(failure) => OpenOutcome::Failed(failure),
+    }
 }
 
 fn opened(store: &DocStore, doc: Document, notes: OpenNotes) -> OpenOutcome {
@@ -125,28 +140,6 @@ fn opened(store: &DocStore, doc: Document, notes: OpenNotes) -> OpenOutcome {
         summary,
         notes,
     })
-}
-
-fn read_source(source: OpenSource) -> DocResult<(String, Option<String>, Option<String>)> {
-    match source {
-        OpenSource::File { path } => {
-            let text = Document::read_text_file(std::path::Path::new(&path))?;
-            Ok((text, Some(path.clone()), Some(path)))
-        }
-        OpenSource::Text { text, name, .. } => Ok((text, name, None)),
-        OpenSource::Piped { path } => {
-            let file = std::path::Path::new(&path);
-            if !crate::cli::is_stdin_handoff(&path) {
-                return Err(DocError::file(
-                    FileOp::Open,
-                    file,
-                    std::io::ErrorKind::NotFound.into(),
-                ));
-            }
-            let text = Document::read_text_file(file)?;
-            Ok((text, Some("stdin".into()), None))
-        }
-    }
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -172,7 +165,7 @@ async fn curl_send_inner(
     options: OpenOptions,
 ) -> Result<SentRequest, WireError> {
     let req = curl::parse(&text).map_err(DocError::Parse)?;
-    let sent = curl::send(&req, &cancel, MAX_DOC_BYTES).await?;
+    let sent = curl::send(&req, &cancel, MAPPED_THRESHOLD_BYTES).await?;
     let response = ResponseInfo {
         method: req.method.clone(),
         url: req.url.clone().unwrap_or_default(),
@@ -218,15 +211,8 @@ fn open_response(
     if text.trim().is_empty() {
         return Err(DocError::Request(RequestProblem::Empty { status }));
     }
-    open_text(
-        store,
-        text,
-        Some(name),
-        None,
-        options,
-        EDIT_SIZE_LIMIT,
-        false,
-    )
+    let loaded = load_text(text, Some(name), None, options, EDIT_SIZE_LIMIT)?;
+    Ok(outcome(store, loaded, false))
 }
 
 fn diff_docs(
@@ -785,6 +771,31 @@ pub async fn doc_redo(
     run_blocking(move || store.write(handle, |doc| doc.redo())).await
 }
 
+fn search_doc(
+    store: &DocStore,
+    handle: DocHandle,
+    opts: &SearchOptions,
+    cancel: &CancelFlag,
+    progress: &mut dyn FnMut(SearchProgress),
+) -> DocResult<Vec<SearchHit>> {
+    store.read(handle, |doc| {
+        let mut changed = None;
+        let hits = doc.search(opts, cancel, &mut |hits, scanned| {
+            if let Err(e) = doc.check_source() {
+                changed = Some(e);
+                cancel.cancel();
+                return;
+            }
+            progress(SearchProgress {
+                hits: hits.to_vec(),
+                scanned,
+                total: doc.source_size,
+            });
+        })?;
+        changed.map_or(Ok(hits), Err)
+    })
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn doc_search(
@@ -793,6 +804,7 @@ pub async fn doc_search(
     handle: DocHandle,
     opts: SearchOptions,
     job_id: Option<String>,
+    progress: tauri::ipc::Channel<SearchProgress>,
 ) -> Result<Vec<SearchHit>, WireError> {
     let store = state.inner().clone();
     let (cancel, owned_id) = match job_id {
@@ -802,7 +814,12 @@ pub async fn doc_search(
         }
         None => (crate::doc::jobs::CancelFlag::never(), None),
     };
-    let result = run_blocking(move || store.read(handle, |doc| doc.search(&opts, &cancel))).await;
+    let result = run_blocking(move || {
+        search_doc(&store, handle, &opts, &cancel, &mut |update| {
+            let _ = progress.send(update);
+        })
+    })
+    .await;
     if let Some((id, flag)) = owned_id {
         jobs.unregister(&id, &flag);
     }
@@ -1431,15 +1448,170 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let handoff = dir.join("pandia-stdin-big.json");
         let file = std::fs::File::create(&handoff).unwrap();
-        file.set_len(crate::doc::document::MAX_DOC_BYTES + 1)
-            .unwrap();
+        file.set_len(crate::doc::tier::MAX_DOC_BYTES + 1).unwrap();
 
         std::fs::set_permissions(&handoff, std::fs::Permissions::from_mode(0o000)).unwrap();
         let path = handoff.to_string_lossy().into_owned();
 
         let err = doc_open_inner(&DocStore::new(), OpenSource::Piped { path }).unwrap_err();
         std::fs::remove_dir_all(&dir).unwrap();
-        assert!(matches!(err, DocError::TooLarge { .. }), "{err:?}");
+        assert!(
+            matches!(&err, DocError::BigFile(crate::doc::types::BigFileProblem::TooLarge { file, .. }) if file == "stdin"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_file_over_2_gb_is_admitted_instead_of_refused_for_its_size() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pandia-over-2gb-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("big.json");
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(MAPPED_THRESHOLD_BYTES + 1).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let source = OpenSource::File {
+            path: path.to_string_lossy().into_owned(),
+        };
+
+        let err = doc_open_inner(&DocStore::new(), source).unwrap_err();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(
+            matches!(&err, DocError::Io { source, .. } if source.kind() == std::io::ErrorKind::PermissionDenied),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "probe; PANDIA_PROBE_FILE=<json array> PANDIA_PROBE_QUERY=<text>, release binary under /usr/bin/time -l"]
+    fn probe_open_page_and_search_a_big_file() {
+        use std::time::Instant;
+        let path = std::env::var("PANDIA_PROBE_FILE").expect("PANDIA_PROBE_FILE");
+        let query = std::env::var("PANDIA_PROBE_QUERY").expect("PANDIA_PROBE_QUERY");
+        let store = DocStore::new();
+        let t = Instant::now();
+        let doc = doc_open_inner(&store, OpenSource::File { path }).unwrap();
+        let open = t.elapsed();
+        let rows = doc.summary.root_child_count.unwrap();
+        for attempt in ["cold", "warm"] {
+            let t = Instant::now();
+            let page = store
+                .read(doc.handle, |d| d.get_rows(&Path::root(), rows - 100..rows))
+                .unwrap();
+            let slice = store
+                .read(doc.handle, |d| d.get_slice(&Path::root(), rows - 100..rows))
+                .unwrap();
+            eprintln!(
+                "[probe] {attempt} page of {} rows + {} tree rows at the end: {:?} (last {})",
+                page.len(),
+                slice.len(),
+                t.elapsed(),
+                page[99]
+            );
+        }
+        let t = Instant::now();
+        let mut first = None;
+        let mut updates = 0;
+        let opts = SearchOptions {
+            query,
+            case_sensitive: false,
+            max_results: None,
+        };
+        let hits = search_doc(&store, doc.handle, &opts, &CancelFlag::never(), &mut |p| {
+            updates += 1;
+            if first.is_none() && !p.hits.is_empty() {
+                first = Some(t.elapsed());
+            }
+        })
+        .unwrap();
+        eprintln!(
+            "[probe] {} bytes, tier {:?}, {rows} rows, open {open:?}; search {} hits in {:?}, first hit after {first:?}, {updates} progress updates",
+            doc.summary.source_size,
+            doc.summary.tier,
+            hits.len(),
+            t.elapsed()
+        );
+    }
+
+    fn search_with_progress(
+        store: &DocStore,
+        handle: DocHandle,
+        query: &str,
+    ) -> (DocResult<Vec<SearchHit>>, Vec<SearchProgress>) {
+        let opts = SearchOptions {
+            query: query.into(),
+            case_sensitive: false,
+            max_results: None,
+        };
+        let mut updates = Vec::new();
+        let hits = search_doc(store, handle, &opts, &CancelFlag::never(), &mut |p| {
+            updates.push(p)
+        });
+        (hits, updates)
+    }
+
+    #[test]
+    fn a_large_search_sends_its_hits_and_progress_while_it_scans() {
+        let rows: Vec<String> = (0..400_000)
+            .map(|i| {
+                let tag = if i % 1000 == 0 { "needle" } else { "hay" };
+                format!(r#"{{"id": {i}, "tag": "{tag}"}}"#)
+            })
+            .collect();
+        let text = format!("[{}]", rows.join(",\n"));
+        let store = DocStore::new();
+        let handle = store.insert(Document::from_text(&text, None).unwrap());
+        assert!(store.read(handle, |d| Ok(d.summary().lazy)).unwrap());
+
+        let (hits, updates) = search_with_progress(&store, handle, "needle");
+        let hits = hits.unwrap();
+        assert_eq!(hits.len(), 400);
+        assert!(updates.len() > 1, "only {} updates", updates.len());
+        let total = text.len() as u64;
+        assert!(updates.windows(2).all(|w| w[0].scanned < w[1].scanned));
+        assert!(updates
+            .iter()
+            .all(|u| u.total == total && u.scanned < total));
+        let streamed: Vec<SearchHit> = updates.iter().flat_map(|u| u.hits.clone()).collect();
+        assert!(!streamed.is_empty() && streamed.len() < hits.len());
+        assert_eq!(streamed, hits[..streamed.len()]);
+    }
+
+    #[test]
+    fn a_search_stops_with_changed_on_disk_when_the_mapped_file_changes() {
+        let rows: Vec<String> = (0..120_000)
+            .map(|i| format!(r#"{{"id": {i}, "tag": "hay"}}"#))
+            .collect();
+        let file =
+            crate::doc::mapped::TempFile::new("search.json", &format!("[{}]", rows.join(",")));
+        let store = DocStore::new();
+        let handle = store.insert(Document::from_mapped(file.map(), None).unwrap());
+        let opts = SearchOptions {
+            query: "hay".into(),
+            case_sensitive: false,
+            max_results: Some(u32::MAX),
+        };
+        let mut grown = false;
+        let result = search_doc(&store, handle, &opts, &CancelFlag::never(), &mut |_| {
+            if !grown {
+                grown = true;
+                std::fs::OpenOptions::new()
+                    .append(true)
+                    .open(&file.0)
+                    .and_then(|mut f| std::io::Write::write_all(&mut f, b" "))
+                    .unwrap();
+            }
+        });
+        assert!(
+            matches!(
+                result,
+                Err(DocError::BigFile(
+                    crate::doc::types::BigFileProblem::ChangedOnDisk { .. }
+                ))
+            ),
+            "{result:?}"
+        );
     }
 
     #[test]

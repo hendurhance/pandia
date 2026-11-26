@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { ipc } from '$lib/ipc/client';
 import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
@@ -60,6 +61,7 @@ function summary(over: Partial<Summary>): Summary {
 		fileBacked: false,
 		recoveryNote: null,
 		commentsStripped: false,
+		...SMALL_TIER,
 		...over,
 	};
 }

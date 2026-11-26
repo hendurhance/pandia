@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
 import { ipc } from '$lib/ipc/client';
@@ -87,6 +88,7 @@ const summary = () => ({
 	fileBacked: true,
 	recoveryNote: null,
 	commentsStripped: false,
+	...SMALL_TIER,
 });
 
 const nv = (key: string, kind: NodeView['kind'], preview: string, childCount: number | null) => ({

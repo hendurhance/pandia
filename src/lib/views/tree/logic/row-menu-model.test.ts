@@ -16,7 +16,7 @@ function row(over: Partial<ContentRow>): ContentRow {
 	};
 }
 
-const caps = { canMoveUp: true, canMoveDown: true };
+const caps = { canMoveUp: true, canMoveDown: true, editable: true };
 
 function actions(groups: ReturnType<typeof buildMenuModel>): MenuAction[] {
 	const out: MenuAction[] = [];
@@ -79,6 +79,7 @@ describe('buildMenuModel', () => {
 		const groups = buildMenuModel(row({ kind: 'string', key: 'name', depth: 1 }), {
 			canMoveUp: false,
 			canMoveDown: true,
+			editable: true,
 		});
 		const move = groups.flat().find((it) => it.type === 'sub' && it.label === 'Move');
 		expect(move && move.type === 'sub').toBe(true);
@@ -86,6 +87,14 @@ describe('buildMenuModel', () => {
 			expect(move.children.find((c) => c.action === 'move-up')?.disabled).toBe(true);
 			expect(move.children.find((c) => c.action === 'move-down')?.disabled).toBe(false);
 		}
+	});
+
+	it('a read-only document offers only copying and extracting', () => {
+		const readOnly = { ...caps, editable: false };
+		const item = row({ kind: 'object', key: 'info', path: ['items', 0, 'info'], depth: 2 });
+		const groups = buildMenuModel(item, readOnly);
+		expect(actions(groups)).toEqual(['copy', 'copy-path', 'extract', 'extract-column']);
+		expect(groups.every((g) => g.length > 0)).toBe(true);
 	});
 
 	it('groups are non-empty (no dangling dividers)', () => {

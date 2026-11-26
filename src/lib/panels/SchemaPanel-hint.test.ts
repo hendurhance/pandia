@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, within } from '@testing-library/svelte';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import type { DocContext } from '$lib/shell/state/workspace.svelte';
 import { schemaSessions } from './state/schema-store.svelte';
 import SchemaPanel from './SchemaPanel.svelte';
@@ -37,7 +38,10 @@ describe('SchemaPanel: the additionalProperties hint', () => {
 		s.origin = { from: 'document', ref: './config.schema.json', ignoredDocRef: null };
 		s.verdict = { kind: 'checked', result: REJECTED };
 		const { container } = render(SchemaPanel, {
-			props: { tabId: 'hint-doc', context: { handle: 'h' } as unknown as DocContext },
+			props: {
+				tabId: 'hint-doc',
+				context: { handle: 'h', capabilities: SMALL_TIER.capabilities } as unknown as DocContext,
+			},
 		});
 		expect(within(container).queryByText(/doesn't allow the document's/)).not.toBeNull();
 	});
@@ -48,7 +52,10 @@ describe('SchemaPanel: the additionalProperties hint', () => {
 		s.origin = { from: 'cli', ref: '/w/s.json', ignoredDocRef: './config.schema.json' };
 		s.verdict = { kind: 'checked', result: REJECTED };
 		const { container } = render(SchemaPanel, {
-			props: { tabId: 'hint-cli', context: { handle: 'h' } as unknown as DocContext },
+			props: {
+				tabId: 'hint-cli',
+				context: { handle: 'h', capabilities: SMALL_TIER.capabilities } as unknown as DocContext,
+			},
 		});
 		expect(within(container).queryByText(/doesn't allow the document's/)).not.toBeNull();
 	});

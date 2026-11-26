@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SMALL_TIER } from '$lib/ipc/fake';
 import { flushSync } from 'svelte';
 import { ipc } from '$lib/ipc/client';
 import { schemaSessions } from '$lib/panels/state/schema-store.svelte';
@@ -52,6 +53,7 @@ function status(dirty: boolean): DocStatus {
 		sizeDisplay: null,
 		rootCountDisplay: null,
 		lazy: false,
+		readOnly: false,
 		validity: null,
 		dirty,
 	};
@@ -80,6 +82,7 @@ function pane(
 			version: 1,
 			sourceName: path,
 			fileBacked: opts.fileBacked ?? true,
+			capabilities: SMALL_TIER.capabilities,
 			save,
 		},
 	};

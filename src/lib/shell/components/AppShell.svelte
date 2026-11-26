@@ -33,7 +33,13 @@
 	import { MAX_TABS, Workspace } from '$lib/shell/state/workspace.svelte';
 	import { sidebarPrefs } from '../state/sidebar-prefs.svelte';
 	import { ipc } from '$lib/ipc/client';
-	import type { BackupInfo, OpenSource, Path, PendingFile } from '$lib/ipc/bindings';
+	import {
+		EDIT_SIZE_LIMIT,
+		type BackupInfo,
+		type OpenSource,
+		type Path,
+		type PendingFile,
+	} from '$lib/ipc/bindings';
 	import { Handoff } from '$lib/shell/state/handoff';
 	import type { CompareTarget } from '$lib/views/compare/logic/compare-target';
 	import { PaneCommandBus } from '$lib/shell/state/pane-bus';
@@ -53,7 +59,7 @@
 	async function confirmLargeFile(name: string, bytes: number): Promise<boolean> {
 		const choice = await confirm.ask({
 			title: 'large file',
-			message: `${name} is ${fmtBytes(bytes)}. Opening will work but validation, diff, and export may be slow at this size.`,
+			message: `${name} is ${fmtBytes(bytes)}. Files over ${fmtBytes(EDIT_SIZE_LIMIT)} open read-only: you can browse, page and search them, but not edit, validate or compare them.`,
 			primaryLabel: 'open anyway',
 			cancelLabel: 'cancel',
 		});

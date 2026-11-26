@@ -10,6 +10,7 @@ export interface DocStatus {
 	sizeDisplay: string | null;
 	rootCountDisplay: string | null;
 	lazy: boolean;
+	readOnly: boolean;
 	validity: ValidityStatus | null;
 
 	editing?: boolean;

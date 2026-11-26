@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { CODE_VIEW_MAX_BYTES, resolveDefaultView, type DefaultViewSummary } from './default-view';
+import type { Capabilities } from '$lib/ipc/bindings';
+import { resolveDefaultView, type DefaultViewSummary } from './default-view';
 
-function doc(over: Partial<DefaultViewSummary> = {}): DefaultViewSummary {
-	return { rootKind: 'object', rootChildCount: 3, sourceSize: 1000, ...over };
+const ALL: Capabilities = {
+	edit: true,
+	export: true,
+	validate: true,
+	sortFilter: true,
+	codeView: true,
+	graph: true,
+	compare: true,
+	typegen: true,
+};
+
+function doc(
+	over: Partial<DefaultViewSummary> = {},
+	caps: Partial<Capabilities> = {},
+): DefaultViewSummary {
+	return {
+		rootKind: 'object',
+		rootChildCount: 3,
+		...over,
+		capabilities: { ...ALL, ...caps },
+	};
 }
 
 describe('resolveDefaultView', () => {
@@ -48,11 +68,15 @@ describe('resolveDefaultView', () => {
 		);
 	});
 
-	it('keeps code at or under the size cap', () => {
-		expect(resolveDefaultView('code', doc({ sourceSize: CODE_VIEW_MAX_BYTES }))).toBe('code');
+	it('keeps code when the document allows Code view', () => {
+		expect(resolveDefaultView('code', doc())).toBe('code');
 	});
 
-	it('falls back to tree for code over the size cap', () => {
-		expect(resolveDefaultView('code', doc({ sourceSize: CODE_VIEW_MAX_BYTES + 1 }))).toBe('tree');
+	it('falls back to tree for code when the document is too large for Code view', () => {
+		expect(resolveDefaultView('code', doc({}, { codeView: false }))).toBe('tree');
+	});
+
+	it('falls back to tree for graph when the document is read straight from disk', () => {
+		expect(resolveDefaultView('graph', doc({}, { graph: false }))).toBe('tree');
 	});
 });
