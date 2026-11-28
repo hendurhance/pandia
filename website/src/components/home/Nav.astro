@@ -22,7 +22,7 @@ const gh = `<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" 
     </div>
     <div class="nav-right">
       <a href={REPO} class="ghost-link" target="_blank" rel="noopener noreferrer"><Fragment set:html={gh} />GitHub</a>
-      <a href={DL} class="btn btn-primary">Download for <span class="dl-os">macOS</span></a>
+      <a href={DL} class="btn btn-ghost">Download for <span class="dl-os">macOS</span></a>
     </div>
     <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu" type="button">
       <span></span><span></span><span></span>
@@ -54,18 +54,18 @@ const gh = `<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" 
   .pandia-page .brand { display: flex; align-items: center; gap: 11px; }
   .pandia-page .brand-mark { width: 28px; height: 28px; flex-shrink: 0; display: block; }
   .pandia-page .brand-name {
-    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-sm); font-weight: 600;
     letter-spacing: 0.18em; text-transform: uppercase; color: var(--page-text);
   }
   .pandia-page .nav-links { display: flex; align-items: center; gap: 28px; margin-left: 6px; }
   .pandia-page .nav-links a {
-    font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.02em;
+    font-family: var(--mono); font-size: var(--fs-sm); letter-spacing: 0.02em;
     color: var(--page-dim); transition: color var(--dur) var(--ease);
   }
   .pandia-page .nav-links a:hover { color: var(--page-text); }
   .pandia-page .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
   .pandia-page .ghost-link {
-    font-family: var(--mono); font-size: 12.5px; color: var(--page-dim);
+    font-family: var(--mono); font-size: var(--fs-sm); color: var(--page-dim);
     transition: color var(--dur) var(--ease); display: inline-flex; align-items: center; gap: 7px;
   }
   .pandia-page .ghost-link:hover { color: var(--page-text); }
@@ -82,7 +82,7 @@ const gh = `<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" 
 
   .pandia-page .nav-menu { display: none; }
   .pandia-page .nav-menu .nm-link {
-    font-family: var(--mono); font-size: 14px; color: var(--page-dim);
+    font-family: var(--mono); font-size: var(--fs-md); color: var(--page-dim);
     padding: 14px 0; border-bottom: 1px solid var(--page-rule);
   }
   .pandia-page .nav-menu .nm-link:hover { color: var(--page-text); }

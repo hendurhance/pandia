@@ -13,7 +13,6 @@ const icons: Record<string, string> = {
 <section class="block" id="capabilities">
   <div class="wrap">
     <div class="sec-head iv">
-      <span class="eyebrow"><span class="tick"></span>Capabilities</span>
       <h2>Fix it, check it, and turn it into code.</h2>
       <p>Pandia repairs broken JSON, checks it against your schema, writes types in 10 languages
       and converts it to YAML, CSV or XML. Pick a feature to see it work.</p>
@@ -21,6 +20,7 @@ const icons: Record<string, string> = {
 
     <div class="cap-layout iv">
       <div class="cap-list" role="tablist" aria-orientation="vertical" aria-label="Capabilities">
+        <span class="cap-ind" aria-hidden="true"></span>
         <div class="cap-group-label">Bring it in</div>
         <button class="cap-item" data-cap="import" role="tab" tabindex="0" aria-selected="false" type="button">
           <span class="cap-ico" set:html={icons.imp}></span>
@@ -88,11 +88,11 @@ const icons: Record<string, string> = {
           <div class="spot-code">
             <div class="scl"><span class="lno"></span><span class="t-dim">$ curl https://api.acme.dev/v2/users -H "Auth: ***"</span></div>
             <div class="scl"><span class="lno"></span><span class="t-acc">✓ Sent GET · 200 OK — opened the response</span></div>
-            <div class="scl" style="margin-top:6px"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl" style="margin-top:6px"><span class="lno">1</span><span><span class="j-p">&#123;</span></span></div>
             <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">"users"</span><span class="j-p">:</span> <span class="j-p">[</span> <span class="t-dim">… 109,472</span> <span class="j-p">],</span></span></div>
             <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"page"</span><span class="j-p">:</span> <span class="j-n">1</span><span class="j-p">,</span></span></div>
             <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="j-k">"total"</span><span class="j-p">:</span> <span class="j-n">109472</span></span></div>
-            <div class="scl"><span class="lno">5</span><span><span class="j-p">}</span><span class="ccaret"></span></span></div>
+            <div class="scl"><span class="lno">5</span><span><span class="j-p">&#125;</span><span class="ccaret"></span></span></div>
           </div>
           <div class="spot-foot"><span>Paste · drop · open · fetch URL — JSON, YAML, XML, CSV, cURL.</span></div>
         </div>
@@ -100,17 +100,17 @@ const icons: Record<string, string> = {
         <div class="spot-panel" data-spot="repair" role="tabpanel">
           <div class="spot-head"><span class="fdot"></span><span>Repair malformed JSON</span></div>
           <div class="spot-code">
-            <div class="scl r-bad"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl r-bad"><span class="lno">1</span><span><span class="j-p">&#123;</span></span></div>
             <div class="scl r-bad"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">name</span><span class="j-p">:</span> <span class="j-s">'Carmen'</span><span class="j-p">,</span><span class="r-note">unquoted key · single quotes</span></span></div>
             <div class="scl r-bad"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"followers"</span><span class="j-p">:</span> <span class="j-n">12846</span><span class="j-p">,</span><span class="r-note">trailing comma</span></span></div>
-            <div class="scl r-bad"><span class="lno">4</span><span><span class="j-p">}</span></span></div>
+            <div class="scl r-bad"><span class="lno">4</span><span><span class="j-p">&#125;</span></span></div>
           </div>
           <div class="rsep">↳ repaired</div>
           <div class="spot-code">
-            <div class="scl rok"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl rok"><span class="lno">1</span><span><span class="j-p">&#123;</span></span></div>
             <div class="scl rok"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">"name"</span><span class="j-p">:</span> <span class="j-s">"Carmen"</span><span class="j-p">,</span></span></div>
             <div class="scl rok"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"followers"</span><span class="j-p">:</span> <span class="j-n">12846</span></span></div>
-            <div class="scl rok"><span class="lno">4</span><span><span class="j-p">}</span><span class="ccaret"></span></span></div>
+            <div class="scl rok"><span class="lno">4</span><span><span class="j-p">&#125;</span><span class="ccaret"></span></span></div>
           </div>
         </div>
 
@@ -126,45 +126,45 @@ const icons: Record<string, string> = {
           </div>
           <div class="spot-code">
             <div class="spot-block on" data-b="ts">
-              <div class="scl"><span class="lno">1</span><span><span class="kw">interface</span> <span class="ty">User</span> <span class="pu">{</span></span></div>
+              <div class="scl"><span class="lno">1</span><span><span class="kw">interface</span> <span class="ty">User</span> <span class="pu">&#123;</span></span></div>
               <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="pr">id</span><span class="pu">:</span> <span class="ty">number</span><span class="pu">;</span></span></div>
               <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="pr">name</span><span class="pu">:</span> <span class="ty">string</span><span class="pu">;</span></span></div>
               <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="pr">verified</span><span class="pu">:</span> <span class="ty">boolean</span><span class="pu">;</span></span></div>
               <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="pr">followers</span><span class="pu">:</span> <span class="ty">number</span> <span class="pu">|</span> <span class="opt">null</span><span class="pu">;</span></span></div>
               <div class="scl"><span class="lno">6</span><span>&nbsp;&nbsp;<span class="pr">deletedAt</span><span class="pu">:</span> <span class="ty">string</span> <span class="pu">|</span> <span class="opt">null</span><span class="pu">;</span><span class="ccaret"></span></span></div>
-              <div class="scl"><span class="lno">7</span><span><span class="pu">}</span></span></div>
+              <div class="scl"><span class="lno">7</span><span><span class="pu">&#125;</span></span></div>
               <div class="scl" style="margin-top:6px"><span class="lno"></span><span><span class="kw">type</span> <span class="ty">Users</span> <span class="pu">=</span> <span class="ty">User</span><span class="pu">[];</span></span></div>
             </div>
             <div class="spot-block" data-b="rs">
               <div class="scl"><span class="lno">1</span><span><span class="opt">#[derive(Serialize, Deserialize)]</span></span></div>
-              <div class="scl"><span class="lno">2</span><span><span class="kw">pub struct</span> <span class="ty">User</span> <span class="pu">{</span></span></div>
+              <div class="scl"><span class="lno">2</span><span><span class="kw">pub struct</span> <span class="ty">User</span> <span class="pu">&#123;</span></span></div>
               <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">id</span><span class="pu">:</span> <span class="ty">i64</span><span class="pu">,</span></span></div>
               <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">name</span><span class="pu">:</span> <span class="ty">String</span><span class="pu">,</span></span></div>
               <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">verified</span><span class="pu">:</span> <span class="ty">bool</span><span class="pu">,</span></span></div>
               <div class="scl"><span class="lno">6</span><span>&nbsp;&nbsp;<span class="kw">pub</span> <span class="pr">followers</span><span class="pu">:</span> <span class="ty">Option</span><span class="pu">&lt;</span><span class="ty">i64</span><span class="pu">&gt;,</span><span class="ccaret"></span></span></div>
-              <div class="scl"><span class="lno">7</span><span><span class="pu">}</span></span></div>
+              <div class="scl"><span class="lno">7</span><span><span class="pu">&#125;</span></span></div>
             </div>
             <div class="spot-block" data-b="go">
-              <div class="scl"><span class="lno">1</span><span><span class="kw">type</span> <span class="ty">User</span> <span class="kw">struct</span> <span class="pu">{</span></span></div>
+              <div class="scl"><span class="lno">1</span><span><span class="kw">type</span> <span class="ty">User</span> <span class="kw">struct</span> <span class="pu">&#123;</span></span></div>
               <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="pr">Id</span> <span class="ty">int64</span> <span class="opt">`json:"id"`</span></span></div>
               <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="pr">Name</span> <span class="ty">string</span> <span class="opt">`json:"name"`</span></span></div>
               <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="pr">Verified</span> <span class="ty">bool</span> <span class="opt">`json:"verified"`</span></span></div>
               <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="pr">Followers</span> <span class="pu">*</span><span class="ty">int64</span> <span class="opt">`json:"followers"`</span><span class="ccaret"></span></span></div>
-              <div class="scl"><span class="lno">6</span><span><span class="pu">}</span></span></div>
+              <div class="scl"><span class="lno">6</span><span><span class="pu">&#125;</span></span></div>
             </div>
             <div class="spot-block" data-b="zod">
-              <div class="scl"><span class="lno">1</span><span><span class="kw">const</span> <span class="ty">User</span> <span class="pu">=</span> z<span class="pu">.</span><span class="nm">object</span><span class="pu">({</span></span></div>
+              <div class="scl"><span class="lno">1</span><span><span class="kw">const</span> <span class="ty">User</span> <span class="pu">=</span> z<span class="pu">.</span><span class="nm">object</span><span class="pu">(&#123;</span></span></div>
               <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="pr">id</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">number</span><span class="pu">(),</span></span></div>
               <div class="scl"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="pr">name</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">string</span><span class="pu">(),</span></span></div>
               <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="pr">verified</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">boolean</span><span class="pu">(),</span></span></div>
               <div class="scl"><span class="lno">5</span><span>&nbsp;&nbsp;<span class="pr">followers</span><span class="pu">:</span> z<span class="pu">.</span><span class="nm">number</span><span class="pu">().</span><span class="nm">nullable</span><span class="pu">(),</span><span class="ccaret"></span></span></div>
-              <div class="scl"><span class="lno">6</span><span><span class="pu">});</span></span></div>
+              <div class="scl"><span class="lno">6</span><span><span class="pu">&#125;);</span></span></div>
             </div>
           </div>
           <div class="spot-foot">
             <span>Optional fields inferred · not configurable by design</span>
             <span class="grow"></span>
-            <span class="copybtn" id="copyTypes">⎘ Copy</span>
+            <button class="copybtn" id="copyTypes" type="button">⎘ Copy</button>
           </div>
         </div>
 
@@ -183,7 +183,7 @@ const icons: Record<string, string> = {
         <div class="spot-panel" data-spot="validate" role="tabpanel">
           <div class="spot-head"><span class="fdot"></span><span>Validate · JSON Schema 2020-12</span></div>
           <div class="spot-code">
-            <div class="scl"><span class="lno">1</span><span><span class="j-p">{</span> <span class="j-k">"age"</span><span class="j-p">:</span> <span class="j-s">"31"</span><span class="j-p">,</span> <span class="j-k">"email"</span><span class="j-p">:</span> <span class="j-s">"x@"</span><span class="j-p">,</span> <span class="j-k">"role"</span><span class="j-p">:</span> <span class="j-s">"owner"</span> <span class="j-p">}</span></span></div>
+            <div class="scl"><span class="lno">1</span><span><span class="j-p">&#123;</span> <span class="j-k">"age"</span><span class="j-p">:</span> <span class="j-s">"31"</span><span class="j-p">,</span> <span class="j-k">"email"</span><span class="j-p">:</span> <span class="j-s">"x@"</span><span class="j-p">,</span> <span class="j-k">"role"</span><span class="j-p">:</span> <span class="j-s">"owner"</span> <span class="j-p">&#125;</span></span></div>
           </div>
           <div class="v-errs">
             <div class="v-err"><span class="v-x">✗</span><code>/age</code> expected integer, got string</div>
@@ -207,18 +207,18 @@ const icons: Record<string, string> = {
 
         <div class="spot-panel" data-spot="agents" role="tabpanel">
           <div class="spot-head"><span class="fdot"></span><span>Terminal · agent session</span></div>
-          <div class="spot-code fit">
+          <div class="spot-code">
             <div class="scl"><span class="lno"></span><span class="t-dim">$ cat draft.json | pandia --wait - \</span></div>
             <div class="scl"><span class="lno"></span><span class="t-dim">&nbsp;&nbsp;--schema config.schema.json &gt; config.next.json</span></div>
             <div class="scl" style="margin-top:6px"><span class="lno"></span><span class="t-acc">⧗ A terminal is waiting · review it in Pandia</span></div>
           </div>
           <div class="rsep">↳ fixed in Pandia, then saved</div>
           <div class="spot-code">
-            <div class="scl"><span class="lno">1</span><span><span class="j-p">{</span></span></div>
+            <div class="scl"><span class="lno">1</span><span><span class="j-p">&#123;</span></span></div>
             <div class="scl"><span class="lno">2</span><span>&nbsp;&nbsp;<span class="j-k">"service"</span><span class="j-p">:</span> <span class="j-s">"billing"</span><span class="j-p">,</span></span></div>
             <div class="scl rok"><span class="lno">3</span><span>&nbsp;&nbsp;<span class="j-k">"retries"</span><span class="j-p">:</span> <span class="j-n">3</span><span class="j-p">,</span><span class="ok-note">was "3" · schema wants an integer</span></span></div>
             <div class="scl"><span class="lno">4</span><span>&nbsp;&nbsp;<span class="j-k">"timeoutMs"</span><span class="j-p">:</span> <span class="j-n">5000</span></span></div>
-            <div class="scl"><span class="lno">5</span><span><span class="j-p">}</span><span class="ccaret"></span></span></div>
+            <div class="scl"><span class="lno">5</span><span><span class="j-p">&#125;</span><span class="ccaret"></span></span></div>
           </div>
           <div class="spot-foot"><span>Exit 0 · schema valid · works with any agent that runs commands</span><span class="grow"></span><a class="copybtn" href="/guides/review-ai-agent-json">Read the guide ↗</a></div>
         </div>
@@ -228,10 +228,15 @@ const icons: Record<string, string> = {
 </section>
 
 <style is:global>
-  .pandia-page .cap-layout { display: grid; grid-template-columns: 1fr 1.1fr; border: 1px solid var(--page-rule); overflow: hidden; }
-  .pandia-page .cap-list { background: var(--page-card); border-right: 1px solid var(--page-rule); }
+  .pandia-page .cap-layout { display: grid; grid-template-columns: 1fr 1.1fr; align-items: start; border: 1px solid var(--page-rule); overflow: clip; background: var(--page-bg-2); }
+  .pandia-page .cap-list { position: relative; background: var(--page-card); border-right: 1px solid var(--page-rule); }
+  .pandia-page .cap-ind {
+    position: absolute; left: 0; top: 0; width: 2px; height: var(--h, 0); z-index: 1;
+    background: var(--accent); transform: translateY(var(--y, 0)); pointer-events: none;
+  }
+  .pandia-page .cap-ind.ready { transition: transform 420ms var(--ease-out), height 420ms var(--ease-out); }
   .pandia-page .cap-group-label {
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.2em; text-transform: uppercase;
     color: var(--page-faint); padding: 20px 24px 10px;
   }
   .pandia-page .cap-group-label.bt { border-top: 1px solid var(--page-rule); }
@@ -242,46 +247,59 @@ const icons: Record<string, string> = {
   }
   .pandia-page .cap-item:hover { background: var(--page-bg-2); }
   .pandia-page .cap-item.on { background: var(--page-bg-2); }
-  .pandia-page .cap-item.on::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
   .pandia-page .cap-ico {
     width: 28px; height: 28px; flex-shrink: 0; margin-top: 1px;
     border: 1px solid var(--page-rule-2); display: grid; place-items: center;
-    font-family: var(--mono); font-size: 13px; color: var(--page-dim); background: var(--page-bg);
+    font-family: var(--mono); font-size: var(--fs-sm); color: var(--page-dim); background: var(--page-bg);
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
   }
   .pandia-page .cap-ico svg { width: 17px; height: 17px; }
   .pandia-page .cap-item.on .cap-ico { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
   .pandia-page .cap-txt { display: flex; flex-direction: column; min-width: 0; }
-  .pandia-page .cap-h { font-family: var(--disp); font-size: 16px; font-weight: 600; color: var(--page-text); letter-spacing: -0.01em; }
-  .pandia-page .cap-p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 3px; line-height: 1.5; }
+  .pandia-page .cap-h { font-family: var(--disp); font-size: var(--fs-base); font-weight: 600; color: var(--page-text); letter-spacing: -0.01em; }
+  .pandia-page .cap-p { font-family: var(--disp); font-size: var(--fs-md); color: var(--page-dim); margin-top: 3px; line-height: 1.5; }
   .pandia-page .cap-txt .langs { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   .pandia-page .cap-txt .langs span {
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.04em;
     color: var(--page-dim); border: 1px solid var(--page-rule-2); padding: 2px 7px; background: var(--page-bg);
   }
   .pandia-page .cap-txt .langs span.on { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
 
-  .pandia-page .cap-spot { background: var(--app-bg); color: var(--app-text); position: relative; overflow: hidden; display: flex; }
-  .pandia-page .cap-spot .spot-panel { display: none; flex: 1; flex-direction: column; min-width: 0; }
-  .pandia-page .cap-spot .spot-panel.on { display: flex; animation: capSlide 340ms var(--ease) both; }
-  @keyframes capSlide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+  .pandia-page .cap-spot { background: var(--app-bg); color: var(--app-text); position: sticky; top: 94px; height: 440px; margin: 24px; border: 1px solid var(--app-rule-2); overflow: hidden; display: flex; }
+  .pandia-page .cap-spot .spot-panel {
+    position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; background: var(--app-edit);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 140ms var(--ease), visibility 0s linear 140ms;
+  }
+  .pandia-page .cap-spot .spot-panel.on {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transition: opacity 260ms var(--ease-out) 60ms, visibility 0s;
+  }
+  .pandia-page .cap-spot .spot-panel.on .scl,
+  .pandia-page .cap-spot .spot-panel.on .v-err,
+  .pandia-page .cap-spot .spot-panel.on .rsep {
+    animation: capLine 380ms var(--ease-out) both;
+    animation-delay: calc(90ms + var(--i, 0) * 24ms);
+  }
+  @keyframes capLine { from { opacity: 0; transform: translateY(6px); } }
 
   .pandia-page .spot-head {
     height: 38px; display: flex; align-items: center; gap: 9px; flex-shrink: 0;
     border-bottom: 1px solid var(--app-rule); padding: 0 16px;
-    font-family: var(--mono); font-size: 11px; color: var(--app-dim);
+    font-family: var(--mono); font-size: var(--fs-xs); color: var(--app-dim);
   }
   .pandia-page .spot-head .fdot { width: 6px; height: 6px; background: var(--s-bool); flex-shrink: 0; }
   .pandia-page .spot-head .seg { margin-left: auto; display: flex; height: 100%; }
   .pandia-page .spot-head .seg .o {
     display: flex; align-items: center; padding: 0 11px; height: 100%;
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.06em;
     color: var(--app-faint); border-left: 1px solid var(--app-rule); cursor: pointer;
     transition: color var(--dur) var(--ease);
   }
   .pandia-page .spot-head .seg .o:hover { color: var(--app-dim); }
   .pandia-page .spot-head .seg .o.on { color: var(--app-text); position: relative; }
   .pandia-page .spot-head .seg .o.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); }
-  .pandia-page .spot-head .cmp-tally { margin-left: auto; display: flex; gap: 10px; font-size: 10.5px; }
+  .pandia-page .spot-head .cmp-tally { margin-left: auto; display: flex; gap: 10px; font-size: var(--fs-xs); }
   .pandia-page .spot-head .cmp-tally .t-add { color: var(--green); }
   .pandia-page .spot-head .cmp-tally .t-chg { color: var(--amber); }
   .pandia-page .spot-head .cmp-tally .t-rem { color: var(--accent); }
@@ -289,12 +307,9 @@ const icons: Record<string, string> = {
   .pandia-page .spot-head .exp-fmts b { font-weight: 400; color: var(--app-faint); padding: 2px 7px; border: 1px solid var(--app-rule); }
   .pandia-page .spot-head .exp-fmts b.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
 
-  .pandia-page .spot-code { flex: 1; padding: 16px 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.95; overflow: hidden; background: var(--app-edit); }
-  .pandia-page .spot-code.fit { flex: none; }
+  .pandia-page .spot-code { flex: none; padding: 16px 0; font-family: var(--mono); font-size: var(--fs-sm); line-height: 1.95; overflow: hidden; background: var(--app-edit); }
   .pandia-page .spot-block { display: none; }
   .pandia-page .spot-block.on { display: block; }
-  /* language switch fades the code in via JS (index.astro) — so switching INTO the
-     typegen capability uses the same single slide (capSlide) as every other panel. */
 
   .pandia-page .scl { display: flex; padding: 0 18px; }
   .pandia-page .scl .lno { width: 26px; flex-shrink: 0; color: var(--app-faint); text-align: right; padding-right: 16px; user-select: none; }
@@ -315,11 +330,11 @@ const icons: Record<string, string> = {
   .pandia-page .cap-spot .t-acc { color: var(--accent); }
 
   .pandia-page .cap-spot .scl.r-bad { background: rgba(229,72,77,0.06); }
-  .pandia-page .cap-spot .r-note { color: var(--danger, #e5484d); font-size: 10px; margin-left: 12px; }
+  .pandia-page .cap-spot .r-note { color: var(--danger, #e5484d); font-size: var(--fs-xs); margin-left: 12px; }
   .pandia-page .cap-spot .scl.rok { background: rgba(127,176,105,0.06); }
-  .pandia-page .cap-spot .ok-note { color: var(--green); font-size: 10px; margin-left: 12px; }
+  .pandia-page .cap-spot .ok-note { color: var(--green); font-size: var(--fs-xs); margin-left: 12px; }
   .pandia-page .cap-spot .rsep {
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.16em; text-transform: uppercase;
     color: var(--accent); padding: 7px 18px; background: var(--app-elev);
     border-top: 1px solid var(--app-rule); border-bottom: 1px solid var(--app-rule);
   }
@@ -334,21 +349,21 @@ const icons: Record<string, string> = {
   .pandia-page .cap-spot .v-errs { border-top: 1px solid var(--app-rule); background: var(--app-bg); }
   .pandia-page .cap-spot .v-err {
     display: flex; gap: 10px; align-items: baseline; padding: 9px 18px;
-    font-family: var(--mono); font-size: 11.5px; color: var(--app-dim); border-bottom: 1px solid var(--app-rule);
+    font-family: var(--mono); font-size: var(--fs-xs); color: var(--app-dim); border-bottom: 1px solid var(--app-rule);
   }
   .pandia-page .cap-spot .v-err:last-child { border-bottom: 0; }
   .pandia-page .cap-spot .v-err .v-x { color: var(--danger, #e5484d); }
   .pandia-page .cap-spot .v-err code { color: var(--amber); }
 
   .pandia-page .spot-foot {
-    border-top: 1px solid var(--app-rule); padding: 11px 18px; flex-shrink: 0;
+    border-top: 1px solid var(--app-rule); padding: 11px 18px; flex-shrink: 0; margin-top: auto;
     display: flex; align-items: center; gap: 12px;
-    font-family: var(--mono); font-size: 11px; color: var(--app-faint); background: var(--app-elev-2);
+    font-family: var(--mono); font-size: var(--fs-xs); color: var(--app-faint); background: var(--app-elev-2);
   }
   .pandia-page .spot-foot .grow { flex: 1; }
   .pandia-page .spot-foot .copybtn {
-    font-family: var(--mono); font-size: 11px; color: var(--app-dim);
-    border: 1px solid var(--app-rule-2); padding: 4px 11px;
+    font-family: var(--mono); font-size: var(--fs-xs); color: var(--app-dim);
+    border: 1px solid var(--app-rule-2); padding: 4px 11px; background: transparent;
     display: inline-flex; gap: 7px; align-items: center; cursor: pointer;
     transition: all var(--dur) var(--ease);
   }
@@ -357,7 +372,9 @@ const icons: Record<string, string> = {
   @media (max-width: 940px) {
     .pandia-page .cap-layout { grid-template-columns: 1fr; }
     .pandia-page .cap-list { border-right: 0; border-bottom: 1px solid var(--page-rule); }
-    .pandia-page .cap-spot { min-height: 340px; }
+    .pandia-page .cap-spot { position: static; height: auto; min-height: 340px; margin: 0; border: 0; }
+    .pandia-page .cap-spot .spot-panel { position: relative; inset: auto; display: none; }
+    .pandia-page .cap-spot .spot-panel.on { display: flex; }
   }
   @media (max-width: 560px) {
     .pandia-page .spot-head { height: auto; flex-wrap: wrap; padding: 9px 12px 0; }

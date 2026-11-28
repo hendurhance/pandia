@@ -76,7 +76,7 @@ html {
   --app-rule:   #2c2c30;
   --app-rule-2: #3a3a3f;
   --app-text:   #e6e6e9;
-  --app-dim:    #9b9ba2;
+  --app-dim:    #bbbcc3;
   --app-faint:  #97979f;
   --app-ghost:  #3a3a40;
 
@@ -92,8 +92,19 @@ html {
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --disp: 'Bricolage Grotesque Variable', ui-sans-serif, sans-serif;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur:  180ms;
   --maxw: 1180px;
+
+  --page-green: #7fb069;
+
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-base: 15.5px;
+  --fs-lg: 17.5px;
+  --fs-xl: 19px;
+  --fs-2xl: 23px;
 }
 
 @media (prefers-color-scheme: light) {
@@ -109,6 +120,8 @@ html {
     --page-dim:   #524B3F;
     --page-faint: #716857;
     --page-ghost: #C3B9A4;
+
+    --page-green: #3b7329;
 
     --accent-text: #B83C00;
     --accent-soft: rgba(255,106,58,0.10);
@@ -189,7 +202,7 @@ html {
 
 .pandia-page .eyebrow {
   font-family: var(--mono);
-  font-size: 11px; font-weight: 500;
+  font-size: var(--fs-xs); font-weight: 500;
   letter-spacing: 0.20em; text-transform: uppercase;
   color: var(--page-dim);
   display: inline-flex; align-items: center; gap: 10px;
@@ -198,13 +211,13 @@ html {
 .pandia-page .eyebrow .num { color: var(--page-faint); }
 
 .pandia-page .kbd {
-  font-family: var(--mono); font-size: 11px; color: var(--page-dim);
+  font-family: var(--mono); font-size: var(--fs-xs); color: var(--page-dim);
   border: 1px solid var(--page-rule-2); padding: 1px 6px; background: var(--page-card);
 }
 
 .pandia-page .btn {
   font-family: var(--mono);
-  font-size: 12.5px; font-weight: 500; letter-spacing: 0.02em;
+  font-size: var(--fs-sm); font-weight: 500; letter-spacing: 0.02em;
   display: inline-flex; align-items: center; gap: 9px;
   padding: 9px 16px;
   transition: all var(--dur) var(--ease);
@@ -251,13 +264,14 @@ html {
 .pandia-page .block + .block { border-top: 1px solid var(--page-rule); }
 .pandia-page .sec-head { max-width: 700px; margin-bottom: 56px; }
 .pandia-page .sec-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+.pandia-page .sec-head h2:first-child { margin-top: 0; }
 .pandia-page .sec-head h2 {
   font-family: var(--disp); font-size: clamp(31px, 3.8vw, 46px); font-weight: 700;
   letter-spacing: -0.03em; line-height: 1.04; margin-top: 18px; color: var(--page-text);
 }
 .pandia-page .sec-head h2 em { font-style: normal; color: var(--accent-text); }
 .pandia-page .sec-head p {
-  font-family: var(--disp); font-size: 17.5px; color: var(--page-dim);
+  font-family: var(--disp); font-size: var(--fs-lg); color: var(--page-dim);
   margin-top: 16px; line-height: 1.6; max-width: 62ch;
 }
 .pandia-page .sec-head.center p { margin-left: auto; margin-right: auto; }
@@ -277,7 +291,7 @@ html {
 .pandia-page .chip {
   display: inline-block; padding: 0 8px; margin-left: 2px;
   background: var(--app-elev-3); color: var(--app-dim);
-  border: 1px solid var(--app-rule-2); font-size: 11.5px;
+  border: 1px solid var(--app-rule-2); font-size: var(--fs-xs);
 }
 .pandia-page .chip b { color: var(--s-punct); font-weight: 400; }
 .pandia-page .more { color: var(--app-faint); font-style: italic; }
@@ -286,14 +300,14 @@ html {
 .pandia-page .cline { display: flex; align-items: baseline; padding: 0.5px 16px 0.5px 0; }
 .pandia-page .cline .lno {
   width: 38px; flex-shrink: 0; text-align: right; padding-right: 10px;
-  color: var(--app-faint); user-select: none; font-size: 11.5px;
+  color: var(--app-faint); user-select: none; font-size: var(--fs-xs);
 }
 .pandia-page .cline .fold {
-  width: 14px; flex-shrink: 0; text-align: center; color: var(--app-faint); user-select: none; font-size: 10px;
+  width: 14px; flex-shrink: 0; text-align: center; color: var(--app-faint); user-select: none; font-size: var(--fs-xs);
 }
 .pandia-page .cline.cur { background: var(--accent-soft); }
 .pandia-page .cline.cur .lno { color: var(--accent); }
-.pandia-page .fph { color: var(--app-faint); background: var(--app-elev-2); border: 1px solid var(--app-rule-2); padding: 0 6px; font-size: 11px; }
+.pandia-page .fph { color: var(--app-faint); background: var(--app-elev-2); border: 1px solid var(--app-rule-2); padding: 0 6px; font-size: var(--fs-xs); }
 .pandia-page .ccaret {
   display: inline-block; width: 7px; height: 14px; background: var(--accent);
   vertical-align: -2px; margin-left: 1px; animation: pandia-blink 1.15s steps(1) infinite;

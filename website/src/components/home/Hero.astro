@@ -1,15 +1,9 @@
 ---
 import AppWindow from './AppWindow.astro';
-import { VERSION } from '../../data/site';
 ---
 <header class="hero">
   <div class="hero-grid-bg"></div>
   <div class="wrap hero-in">
-
-    <div class="hero-tag reveal d1">
-      <span class="pill">v{VERSION}</span>
-      <span class="lbl">Desktop JSON editor</span>
-    </div>
 
     <h1 class="reveal d2">The JSON <em>workbench</em>.<span class="h1-cursor"></span></h1>
 
@@ -58,17 +52,6 @@ import { VERSION } from '../../data/site';
   }
   .pandia-page .hero-in { position: relative; z-index: 1; text-align: center; }
 
-  .pandia-page .hero-tag {
-    display: inline-flex; align-items: center; gap: 12px;
-    border: 1px solid var(--page-rule-2); padding: 6px 8px 6px 14px;
-    background: var(--page-card); margin-bottom: 34px;
-  }
-  .pandia-page .hero-tag .lbl { font-family: var(--mono); font-size: 11.5px; color: var(--page-dim); letter-spacing: 0.02em; }
-  .pandia-page .hero-tag .pill {
-    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--accent-text); border: 1px solid var(--accent-line); background: var(--accent-soft); padding: 2px 9px;
-  }
-
   .pandia-page h1 {
     font-family: var(--disp); font-size: clamp(46px, 6.8vw, 88px); font-weight: 700;
     line-height: 0.97; letter-spacing: -0.035em; margin: 0 auto; max-width: 13ch; color: var(--page-text);
@@ -87,9 +70,9 @@ import { VERSION } from '../../data/site';
   .pandia-page .hero-sub strong { color: var(--page-text); font-weight: 600; }
 
   .pandia-page .hero-cta { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 40px; flex-wrap: wrap; }
-  .pandia-page .hero-cta .btn { font-size: 13.5px; padding: 12px 22px; }
+  .pandia-page .hero-cta .btn { font-size: var(--fs-md); padding: 12px 22px; }
   .pandia-page .hero-meta {
-    margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: var(--page-faint);
+    margin-top: 22px; font-family: var(--mono); font-size: var(--fs-xs); color: var(--page-faint);
     letter-spacing: 0.04em; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
   }
   .pandia-page .hero-meta .dot { width: 3px; height: 3px; background: var(--page-ghost); }

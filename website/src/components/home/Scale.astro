@@ -9,20 +9,19 @@ const { learnMore } = Astro.props;
   <div class="wrap">
     <div class="scale-grid">
       <div class="iv">
-        <span class="eyebrow"><span class="tick"></span>Built for big</span>
-        <div class="scale-stat" style="margin-top:24px"><em>GB</em><span class="un">+</span></div>
+        <div class="scale-stat"><em>GB</em><span class="un">+</span></div>
         <div class="scale-body" style="margin-top:24px">
-          <p>Most editors freeze at a few hundred megabytes. Pandia opens files of
-          <strong>any size</strong>, including several gigabytes, because from
+          <p>Most editors freeze at a few hundred megabytes. Pandia opens files
+          <strong>up to 10&nbsp;GB</strong>, because from
           <strong>10&nbsp;MB</strong> up it skips building the full tree and only decodes the part
           of the file you're looking at.</p>
-          <p>Opening, scrolling and searching have <strong>no size limit</strong>. Editing the whole
+          <p>Opening, scrolling and searching work on the <strong>whole file</strong>. Editing the whole
           document at once, exporting it and validating it need the full file in memory, so those
           work up to 200&nbsp;MB.</p>
         </div>
         <div class="scale-points">
           <div class="pt"><span class="lbl">Lazy mode</span><span class="gn">≥ 10 MB</span> &nbsp;only the visible part is decoded</div>
-          <div class="pt"><span class="lbl">Opening</span><span class="gn">any size</span> &nbsp;including multi-GB files</div>
+          <div class="pt"><span class="lbl">Opening</span><span class="gn">up to 10 GB</span> &nbsp;over 2 GB is read from disk</div>
           <div class="pt"><span class="lbl">200 MB cap</span>whole-document edit, export and validate only</div>
           <div class="pt"><span class="lbl">Recovery</span>backups while you work, restored after a crash</div>
         </div>
@@ -32,30 +31,23 @@ const { learnMore } = Astro.props;
       <div class="iv">
         <div class="meter">
           <div class="meter-head">
-            <span class="nmf">users-2026-05.json</span>
-            <span class="sz">1.2 GB · 109,472 records</span>
+            <span class="nmf">File size</span>
+            <span class="sz">What you can do</span>
           </div>
-          <div class="meter-body">
-            <div class="meter-row">
-              <span class="ml">Open</span>
-              <span class="bar"><i class="good" style="width:14%"></i></span>
-              <span class="mv">instant</span>
-            </div>
-            <div class="meter-row">
-              <span class="ml">First paint</span>
-              <span class="bar"><i class="good" style="width:22%"></i></span>
-              <span class="mv">virtualized</span>
-            </div>
-            <div class="meter-row">
-              <span class="ml">In memory</span>
-              <span class="bar"><i class="accent" style="width:34%"></i></span>
-              <span class="mv">lazy slice</span>
-            </div>
-            <div class="meter-row">
-              <span class="ml">Binary</span>
-              <span class="bar"><i class="good" style="width:9%"></i></span>
-              <span class="mv">Rust + Tauri</span>
-            </div>
+          <div class="tier">
+            <span class="ts">Under 200 MB</span>
+            <span class="th">Everything</span>
+            <span class="td">Edit, validate, compare, generate types and export</span>
+          </div>
+          <div class="tier">
+            <span class="ts">200 MB – 2 GB</span>
+            <span class="th">Read and sort</span>
+            <span class="td">Browse, search, sort and filter the grid, draw the graph, generate types</span>
+          </div>
+          <div class="tier">
+            <span class="ts">2 GB – 10 GB</span>
+            <span class="th">Read from disk</span>
+            <span class="td">Browse and search, without loading the file into memory</span>
           </div>
         </div>
       </div>
@@ -71,36 +63,36 @@ const { learnMore } = Astro.props;
   }
   .pandia-page .scale-stat em { font-style: normal; color: var(--accent-text); }
   .pandia-page .scale-stat .un { font-size: 0.34em; color: var(--page-dim); font-weight: 700; letter-spacing: -0.02em; }
-  .pandia-page .scale-body p { font-family: var(--disp); font-size: 16.5px; color: var(--page-dim); line-height: 1.65; }
+  .pandia-page .scale-body p { font-family: var(--disp); font-size: var(--fs-lg); color: var(--page-dim); line-height: 1.65; }
   .pandia-page .scale-body p + p { margin-top: 16px; }
   .pandia-page .scale-body strong { color: var(--page-text); font-weight: 600; }
   .pandia-page .scale-points { margin-top: 28px; display: flex; flex-direction: column; border-top: 1px solid var(--page-rule); }
   .pandia-page .scale-points .pt {
     display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--page-rule);
-    font-family: var(--mono); font-size: 12.5px; color: var(--page-dim);
+    font-family: var(--mono); font-size: var(--fs-sm); color: var(--page-dim);
   }
-  .pandia-page .scale-points .pt .lbl { color: var(--page-faint); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; width: 132px; }
-  .pandia-page .scale-points .pt .gn { color: #4e8a3a; }
+  .pandia-page .scale-points .pt .lbl { color: var(--page-faint); text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--fs-xs); width: 132px; }
+  .pandia-page .scale-points .pt .gn { color: var(--page-green); }
   .pandia-page .scale-more { margin-top: 22px; }
-  .pandia-page .scale-more a { font-family: var(--mono); font-size: 12.5px; color: var(--accent-text); letter-spacing: 0.02em; }
+  .pandia-page .scale-more a { font-family: var(--mono); font-size: var(--fs-sm); color: var(--accent-text); letter-spacing: 0.02em; }
   .pandia-page .scale-more a:hover { text-decoration: underline; text-underline-offset: 2px; }
 
   .pandia-page .meter { border: 1px solid var(--app-rule-2); overflow: hidden; background: var(--app-elev); color: var(--app-text); }
   .pandia-page .meter-head {
     height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
-    border-bottom: 1px solid var(--app-rule); font-family: var(--mono); font-size: 11px; color: var(--app-dim);
+    border-bottom: 1px solid var(--app-rule); font-family: var(--mono); font-size: var(--fs-xs); color: var(--app-dim);
     background: var(--app-elev-2);
   }
-  .pandia-page .meter-head .nmf { color: var(--amber); }
-  .pandia-page .meter-head .sz { margin-left: auto; color: var(--app-faint); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
-  .pandia-page .meter-body { padding: 20px 18px; display: flex; flex-direction: column; gap: 14px; }
-  .pandia-page .meter-row { display: flex; align-items: center; gap: 14px; }
-  .pandia-page .meter-row .ml { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-faint); width: 104px; }
-  .pandia-page .meter-row .bar { flex: 1; height: 6px; background: var(--app-elev-3); overflow: hidden; position: relative; }
-  .pandia-page .meter-row .bar i { position: absolute; left: 0; top: 0; bottom: 0; }
-  .pandia-page .meter-row .mv { font-family: var(--mono); font-size: 11px; color: var(--app-text); white-space: nowrap; text-align: right; flex-shrink: 0; padding-left: 4px; }
-  .pandia-page .bar i.good { background: var(--green); }
-  .pandia-page .bar i.accent { background: var(--accent); }
+  .pandia-page .meter-head .nmf { color: var(--app-text); }
+  .pandia-page .meter-head .sz { margin-left: auto; color: var(--app-faint); letter-spacing: 0.1em; text-transform: uppercase; font-size: var(--fs-xs); }
+  .pandia-page .tier {
+    display: grid; grid-template-columns: 128px 1fr; gap: 4px 18px; padding: 18px;
+    border-bottom: 1px solid var(--app-rule);
+  }
+  .pandia-page .tier:last-child { border-bottom: 0; }
+  .pandia-page .tier .ts { grid-row: span 2; font-family: var(--mono); font-size: var(--fs-sm); color: var(--accent); padding-top: 2px; }
+  .pandia-page .tier .th { font-family: var(--disp); font-size: var(--fs-base); font-weight: 600; color: var(--app-text); }
+  .pandia-page .tier .td { font-family: var(--disp); font-size: var(--fs-md); color: var(--app-dim); line-height: 1.5; }
 
   @media (max-width: 940px) { .pandia-page .scale-grid { grid-template-columns: 1fr; } }
   @media (max-width: 560px) {
@@ -108,6 +100,7 @@ const { learnMore } = Astro.props;
     .pandia-page .scale-points .pt { flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
     .pandia-page .scale-points .pt .lbl { width: 100%; }
     .pandia-page .meter-head .sz { display: none; }
-    .pandia-page .meter-row .ml { width: 82px; }
+    .pandia-page .tier { grid-template-columns: 1fr; }
+    .pandia-page .tier .ts { grid-row: auto; }
   }
 </style>

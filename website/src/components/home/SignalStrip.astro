@@ -25,14 +25,18 @@ const logos = usedBy.map(({ name, slug, dy = 0 }: { name: string; slug: string; 
   const height = Math.min(30, Math.max(14, Math.sqrt((AREA * h) / w)));
   return { name, svg, style: `--w:${((height * w) / h).toFixed(1)}px;--ratio:${(w / h).toFixed(3)};--dy:${dy}` };
 });
+const SLOTS = 6;
+const slots = Array.from({ length: SLOTS }, (_, s) => logos.filter((_, i) => i % SLOTS === s));
 ---
 <section class="proof">
   <div class="usedby">
     <p class="usedby-label">Used by <strong>5,000+</strong> engineers worldwide</p>
-    <ul class="usedby-list">
-      {logos.map((l) => (
-        <li>
-          <span class="usedby-logo" role="img" aria-label={l.name} style={l.style} set:html={l.svg} />
+    <ul class="usedby-row" id="usedbyRow">
+      {slots.map((group) => (
+        <li class="usedby-slot">
+          {group.map((l, i) => (
+            <span class:list={['usedby-logo', { on: i === 0 }]} role="img" aria-label={l.name} style={l.style} set:html={l.svg} />
+          ))}
         </li>
       ))}
     </ul>
@@ -55,19 +59,26 @@ const logos = usedBy.map(({ name, slug, dy = 0 }: { name: string; slug: string; 
     border-bottom: 1px solid var(--page-rule);
   }
   .pandia-page .usedby-label {
-    margin: 0 0 22px; text-align: center;
-    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-faint);
+    margin: 0 0 20px; text-align: center;
+    font-family: var(--disp); font-size: var(--fs-base); color: var(--page-dim);
   }
-  .pandia-page .usedby-list {
+  .pandia-page .usedby-label strong { color: var(--page-text); font-weight: 600; }
+  .pandia-page .usedby-row {
     list-style: none; margin: 0; padding: 0;
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px 0;
+    display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 48px; gap: 0 16px;
+    mask-image: linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
   }
-  .pandia-page .usedby-list li { display: flex; justify-content: center; flex: 0 0 calc(100% / 7); }
+  .pandia-page .usedby-slot { display: grid; place-items: center; min-width: 0; }
   .pandia-page .usedby-logo {
-    display: block; width: min(var(--w), 100%); aspect-ratio: var(--ratio);
+    grid-area: 1 / 1; display: block; width: min(var(--w), 100%); aspect-ratio: var(--ratio);
     translate: 0 calc(var(--dy) * 100%);
     color: var(--page-faint);
+    opacity: 0; filter: blur(4px); transform: translateY(48px) scale(0.9);
+    transition: opacity 700ms var(--ease-out), filter 700ms var(--ease-out), transform 700ms var(--ease-out);
   }
+  .pandia-page .usedby-logo.on { opacity: 1; filter: none; transform: none; }
+  .pandia-page .usedby-logo.out { opacity: 0; filter: blur(4px); transform: translateY(-48px) scale(0.9); }
   .pandia-page .usedby-logo svg { display: block; width: 100%; height: 100%; }
   .pandia-page .proof-in {
     max-width: var(--maxw); margin: 0 auto;
@@ -79,26 +90,57 @@ const logos = usedBy.map(({ name, slug, dy = 0 }: { name: string; slug: string; 
   }
   .pandia-page .proof-cell:last-child { border-right: 0; }
   .pandia-page .proof-cell .pv {
-    font-family: var(--disp); font-size: 21px; font-weight: 700; color: var(--page-text); letter-spacing: -0.02em;
+    font-family: var(--disp); font-size: var(--fs-2xl); font-weight: 700; color: var(--page-text); letter-spacing: -0.02em;
   }
-  .pandia-page .proof-cell .pv .u { color: var(--page-dim); font-weight: 500; font-size: 14px; }
+  .pandia-page .proof-cell .pv .u { color: var(--page-dim); font-weight: 500; font-size: var(--fs-md); }
   .pandia-page .proof-cell .pl {
-    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-faint);
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-faint);
   }
 
   @media (max-width: 940px) {
-    .pandia-page .usedby-list { row-gap: 26px; }
-    .pandia-page .usedby-list li { flex-basis: 20%; }
     .pandia-page .proof-in { grid-template-columns: 1fr 1fr; }
     .pandia-page .proof-cell:nth-child(2) { border-right: 0; }
     .pandia-page .proof-cell:nth-child(1), .pandia-page .proof-cell:nth-child(2) { border-bottom: 1px solid var(--page-rule); }
   }
   @media (max-width: 560px) {
     .pandia-page .usedby { padding: 24px 16px 26px; }
-    .pandia-page .usedby-list li { flex-basis: 50%; }
+    .pandia-page .usedby-row { grid-template-columns: repeat(3, 1fr); }
     .pandia-page .usedby-logo { width: min(calc(var(--w) * 0.85), 100%); }
     .pandia-page .proof-cell { padding: 18px 16px; }
-    .pandia-page .proof-cell .pv { font-size: 19px; }
+    .pandia-page .proof-cell .pv { font-size: var(--fs-xl); }
     .pandia-page .proof-cell .pl { letter-spacing: 0.08em; }
   }
 </style>
+
+<script>
+  const row = document.getElementById('usedbyRow');
+  const slots = row ? Array.from(row.querySelectorAll<HTMLElement>('.usedby-slot')).filter((s) => s.children.length > 1) : [];
+  if (row && slots.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const ORDER = [0, 3, 1, 5, 2, 4];
+    let turn = 0;
+    let timer = 0;
+    let inView = false;
+    const swap = () => {
+      const slot = slots[ORDER[turn++ % ORDER.length] % slots.length];
+      const logos = Array.from(slot.children) as HTMLElement[];
+      const at = logos.findIndex((l) => l.classList.contains('on'));
+      const current = logos[at];
+      const next = logos[(at + 1) % logos.length];
+      current.classList.replace('on', 'out');
+      next.classList.add('on');
+      current.addEventListener('transitionend', () => {
+        current.style.transition = 'none';
+        current.classList.remove('out');
+        void current.offsetWidth;
+        current.style.transition = '';
+      }, { once: true });
+    };
+    const sync = () => {
+      const run = inView && !document.hidden;
+      if (run && !timer) timer = window.setInterval(swap, 2200);
+      if (!run && timer) { window.clearInterval(timer); timer = 0; }
+    };
+    new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; sync(); }).observe(row);
+    document.addEventListener('visibilitychange', sync);
+  }
+</script>

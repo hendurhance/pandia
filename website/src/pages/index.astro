@@ -71,26 +71,48 @@ const faqSchema = {
     const v = tab.getAttribute('data-v');
     document.querySelectorAll('.vpanel').forEach((p) => p.classList.toggle('on', p.getAttribute('data-p') === v));
   });
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   bindTabs('.spot-head .seg .o', (opt) => {
     const t = opt.getAttribute('data-t');
-    document.querySelectorAll('.spot-block').forEach((b) => {
-      const on = b.getAttribute('data-b') === t;
-      b.classList.toggle('on', on);
-      const el = b as HTMLElement;
-      if (on && !reduceMotion && el.animate) {
-        el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.4,0,0.2,1)' });
-      }
-    });
+    document.querySelectorAll('.spot-block').forEach((b) => b.classList.toggle('on', b.getAttribute('data-b') === t));
   });
+
+  document.querySelectorAll('.spot-panel').forEach((panel) => {
+    const blocks = panel.querySelectorAll('.spot-block');
+    const roots = blocks.length ? Array.from(blocks) : [panel];
+    roots.forEach((root) =>
+      root.querySelectorAll<HTMLElement>('.scl, .v-err, .rsep').forEach((line, i) => line.style.setProperty('--i', String(Math.min(i, 12)))),
+    );
+  });
+
+  const capInd = document.querySelector<HTMLElement>('.cap-ind');
+  const placeInd = (item: Element | null) => {
+    if (!capInd || !(item instanceof HTMLElement)) return;
+    capInd.style.setProperty('--y', `${item.offsetTop}px`);
+    capInd.style.setProperty('--h', `${item.offsetHeight}px`);
+  };
+  placeInd(document.querySelector('.cap-item.on'));
+  requestAnimationFrame(() => capInd?.classList.add('ready'));
+  window.addEventListener('resize', () => placeInd(document.querySelector('.cap-item.on')));
+
   bindTabs('.cap-item', (item) => {
     const c = item.getAttribute('data-cap');
     document.querySelectorAll('.spot-panel').forEach((p) => p.classList.toggle('on', p.getAttribute('data-spot') === c));
+    placeInd(item);
   });
 
   const copyBtn = document.getElementById('copyTypes');
   if (copyBtn) {
-    copyBtn.addEventListener('click', () => {
+    copyBtn.addEventListener('click', async () => {
+      const block = document.querySelector('.spot-block.on');
+      if (!block) return;
+      const text = Array.from(block.querySelectorAll('.scl'), (line) => line.lastElementChild?.textContent ?? '')
+        .join('\n')
+        .replace(/\u00a0/g, ' ');
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        return;
+      }
       const prev = copyBtn.textContent;
       copyBtn.textContent = '✓ Copied';
       setTimeout(() => { copyBtn.textContent = prev; }, 1400);

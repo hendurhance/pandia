@@ -3,7 +3,6 @@
 <section class="block" id="flow">
   <div class="wrap">
     <div class="sec-head center iv">
-      <span class="eyebrow"><span class="tick"></span>How it works</span>
       <h2>Four steps, <em>one</em> window.</h2>
       <p>Opening, reading, editing and exporting all happen in the same app, so you never copy JSON from one tool into another.</p>
     </div>
@@ -21,7 +20,7 @@
       <div class="flow-step">
         <div class="fnum"><span class="v">02</span> FIND</div>
         <h3>Find</h3>
-        <p>Scroll and search in any view. Scrolling stays smooth at any file size, and the status bar shows the path to the selected value.</p>
+        <p>Scroll and search in any view. Scrolling stays smooth on files up to 10 GB, and the status bar shows the path to the selected value.</p>
         <div class="demo">
           <div class="ln am">$[2].name</div>
           <div class="ln"><span class="mut">→</span> <span style="color:var(--s-string)">"Carmen Herzog"</span></div>
@@ -54,15 +53,15 @@
   .pandia-page .flow-step { padding: 28px 26px 30px; border-right: 1px solid var(--page-rule); background: var(--page-card); position: relative; display: flex; flex-direction: column; }
   .pandia-page .flow-step:last-child { border-right: 0; }
   .pandia-page .flow-step .fnum {
-    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--page-faint);
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em; color: var(--page-faint);
     display: flex; align-items: center; gap: 9px; margin-bottom: 18px;
   }
   .pandia-page .flow-step .fnum .v { color: var(--accent-text); }
-  .pandia-page .flow-step h3 { font-family: var(--disp); font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--page-text); }
-  .pandia-page .flow-step p { font-family: var(--disp); font-size: 14px; color: var(--page-dim); margin-top: 8px; line-height: 1.55; flex: 1; }
+  .pandia-page .flow-step h3 { font-family: var(--disp); font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; color: var(--page-text); }
+  .pandia-page .flow-step p { font-family: var(--disp); font-size: var(--fs-md); color: var(--page-dim); margin-top: 8px; line-height: 1.55; flex: 1; }
   .pandia-page .flow-step .demo {
     margin-top: 18px; padding: 12px 14px; border: 1px solid var(--app-rule); background: var(--app-edit);
-    font-family: var(--mono); font-size: 11.5px; line-height: 1.85; color: var(--app-dim);
+    font-family: var(--mono); font-size: var(--fs-xs); line-height: 1.85; color: var(--app-dim);
   }
   .pandia-page .flow-step .demo .ln { white-space: nowrap; }
   .pandia-page .flow-step .demo .mut { color: var(--app-faint); }
